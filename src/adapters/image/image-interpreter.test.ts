@@ -11,13 +11,8 @@ import {
   SUPPORTED_IMAGE_MIME_TYPES,
 } from '@/adapters/image/image-interpreter'
 
-const base64OfDecodedBytes = (bytes: number): string => {
-  const remainder = bytes % 3
-  const fullGroups = Math.floor(bytes / 3)
-  if (remainder === 0) return 'A'.repeat(fullGroups * 4)
-  if (remainder === 1) return 'A'.repeat(fullGroups * 4) + 'AA=='
-  return 'A'.repeat(fullGroups * 4) + 'AAA='
-}
+const base64OfDecodedBytes = (bytes: number): string =>
+  Buffer.alloc(bytes).toString('base64')
 
 const SAMPLE_BASE64 = base64OfDecodedBytes(3)
 
