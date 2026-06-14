@@ -1,8 +1,11 @@
-import { serve } from '@hono/node-server'
+import { createServer } from 'node:http'
+
+import { getRequestListener } from '@hono/node-server'
 
 import { createApp } from '@/app'
 import { createSql, pingDb } from '@/db'
 import { EnvError, loadEnv } from '@/env'
+import { handleMcpRequest } from '@/mcp-http'
 
 const LISTEN_ADDR_RE = /^\[([^\]]+)\]:(\d+)$|^([^:]+):(\d+)$/
 
@@ -23,24 +26,33 @@ const parseListenAddr = (addr: string): { hostname: string; port: number } => {
   return { hostname, port }
 }
 
+const isMcpRequest = (url: string | undefined): boolean =>
+  url === '/mcp' || url?.startsWith('/mcp?') === true
+
 export const main = async (): Promise<void> => {
   const env = loadEnv()
   const sql = createSql(env.DATABASE_URL)
   await pingDb(sql)
 
   const app = createApp({ sql })
-  const { hostname, port } = parseListenAddr(env.MCP_LISTEN_ADDR)
+  const honoListener = getRequestListener(app.fetch)
 
-  const server = serve({ fetch: app.fetch, hostname, port }, (info) => {
-    console.log(`meshi listening on ${info.address}:${String(info.port)}`)
+  const server = createServer((req, res) => {
+    if (isMcpRequest(req.url)) {
+      void handleMcpRequest(req, res)
+      return
+    }
+    void honoListener(req, res)
+  })
+
+  const { hostname, port } = parseListenAddr(env.MCP_LISTEN_ADDR)
+  server.listen(port, hostname, () => {
+    console.log(`meshi listening on ${hostname}:${String(port)}`)
   })
 
   const shutdown = (signal: NodeJS.Signals): void => {
     console.log(`received ${signal}, shutting down`)
-    // eslint-disable-next-line @typescript-eslint/no-unsafe-type-assertion -- @hono/node-server's ServerType union includes Http2Server which lacks closeAllConnections; for our HTTP/1.1 listener it exists on node:http.Server.
-    const maybeCloseAll = (server as { closeAllConnections?: () => void })
-      .closeAllConnections
-    maybeCloseAll?.call(server)
+    server.closeAllConnections()
     server.close((closeErr) => {
       void sql.end({ timeout: 5 }).finally(() => {
         process.exit(closeErr ? 1 : 0)
