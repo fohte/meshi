@@ -4,6 +4,10 @@
   "packageManager": "pnpm@11.5.2",
   "type": "module",
   "scripts": {
+    "start": "tsx src/index.ts",
+    "dev": "tsx watch src/index.ts",
+    "db:up": "docker compose up -d postgres",
+    "db:down": "docker compose down",
     "lint": "eslint .",
     "format:eslint": "eslint --fix .",
     "format:prettier": "prettier --write .",
@@ -20,9 +24,18 @@
     "@tsconfig/strictest": "2.0.8",
     "@types/node": "24.13.1",
     "concurrently": "10.0.3",
+    "drizzle-kit": "0.31.10",
     "eslint": "10.4.1",
     "prettier": "3.8.3",
+    "tsx": "4.22.4",
     "typescript": "6.0.3",
     "vitest": "4.1.8"
+  },
+  "dependencies": {
+    "@hono/node-server": "2.0.4",
+    "@modelcontextprotocol/sdk": "1.29.0",
+    "drizzle-orm": "0.45.2",
+    "hono": "4.12.23",
+    "postgres": "3.4.9"
   }
 }

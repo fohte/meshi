@@ -1,0 +1,20 @@
+services:
+  postgres:
+    image: postgres:17-alpine
+    container_name: meshi-postgres
+    environment:
+      POSTGRES_USER: meshi
+      POSTGRES_PASSWORD: meshi
+      POSTGRES_DB: meshi
+    ports:
+      - '127.0.0.1:5432:5432'
+    volumes:
+      - meshi-postgres:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U meshi -d meshi']
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  meshi-postgres:
