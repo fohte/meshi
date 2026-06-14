@@ -53,7 +53,17 @@ export const createApp = (deps: AppDeps): Hono<NodeEnv> => {
         body = undefined
       }
     }
-    await transport.handleRequest(c.env.incoming, c.env.outgoing, body)
+
+    try {
+      await transport.handleRequest(c.env.incoming, c.env.outgoing, body)
+    } catch (err) {
+      if (!c.env.outgoing.headersSent) {
+        return c.json({ error: errorMessage(err) }, 500)
+      }
+      c.env.outgoing.destroy(
+        err instanceof Error ? err : new Error(String(err)),
+      )
+    }
     return c.body(null)
   })
 
