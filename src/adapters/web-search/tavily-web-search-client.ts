@@ -52,9 +52,11 @@ export const createTavilyWebSearchClient = (
 
       const res = await fetchImpl(endpoint, {
         method: 'POST',
-        headers: { 'content-type': 'application/json' },
+        headers: {
+          'content-type': 'application/json',
+          authorization: `Bearer ${config.apiKey}`,
+        },
         body: JSON.stringify({
-          api_key: config.apiKey,
           query,
           max_results: limit,
         }),

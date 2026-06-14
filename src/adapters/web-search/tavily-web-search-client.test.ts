@@ -14,7 +14,16 @@ const jsonResponse = (status: number, body: unknown): Response =>
 
 interface CapturedRequest {
   url: string
+  authorization: string | undefined
   body: unknown
+}
+
+const headerOf = (
+  headers: RequestInit['headers'],
+  name: string,
+): string | undefined => {
+  if (headers === undefined) return undefined
+  return new Headers(headers).get(name) ?? undefined
 }
 
 const setup = (response: Response) => {
@@ -28,7 +37,11 @@ const setup = (response: Response) => {
           : input.url
     const body = init?.body
     const bodyText = typeof body === 'string' ? body : ''
-    captured.push({ url, body: JSON.parse(bodyText) as unknown })
+    captured.push({
+      url,
+      authorization: headerOf(init?.headers, 'authorization'),
+      body: JSON.parse(bodyText) as unknown,
+    })
     return Promise.resolve(response)
   }
   const fetchMock = vi.fn(fetchImpl)
@@ -82,8 +95,8 @@ describe('createTavilyWebSearchClient', () => {
       },
       request: {
         url: 'https://api.example.test/search',
+        authorization: 'Bearer test-key',
         body: {
-          api_key: 'test-key',
           query: 'banana nutrition',
           max_results: 3,
         },
