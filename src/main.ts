@@ -4,6 +4,7 @@ import { getRequestListener } from '@hono/node-server'
 
 import { createApp } from '@/app'
 import { createSql, pingDb } from '@/db'
+import { runMigrations } from '@/db/migrate'
 import { EnvError, loadEnv } from '@/env'
 import { handleMcpRequest } from '@/mcp-http'
 
@@ -33,6 +34,7 @@ export const main = async (): Promise<void> => {
   const env = loadEnv()
   const sql = createSql(env.DATABASE_URL)
   await pingDb(sql)
+  await runMigrations(sql)
 
   const app = createApp({ sql })
   const honoListener = getRequestListener(app.fetch)

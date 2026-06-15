@@ -58,6 +58,10 @@ pnpm dev      # tsx watch
 
 The MCP endpoint is served at `POST /mcp`; `GET /health` reports DB connectivity.
 
+### LLM model selection policy
+
+The LLM client talks to [OpenCode Go](https://opencode.ai/) via its OpenAI-compatible Chat Completions endpoint and routes every internal tool-use loop through `MESHI_LLM_MODEL` (text) / `MESHI_LLM_VISION_MODEL` (vision) / `MESHI_LLM_LIGHTWEIGHT_MODEL` (cheap pre-processing). Start each role on the cheapest model that plausibly fits the task, run the smoke scenarios, and only rank up via env when quality is insufficient (e.g. tool-call argument shape errors, vision misreads, divergent loops). Bumping the env value is the only knob — no code change is required.
+
 ### Test / lint
 
 ```sh

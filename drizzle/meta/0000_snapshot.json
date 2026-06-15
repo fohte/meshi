@@ -1,0 +1,676 @@
+{
+  "id": "d62bfee4-7a9a-437b-a257-edc7e7dfe4c8",
+  "prevId": "00000000-0000-0000-0000-000000000000",
+  "version": "7",
+  "dialect": "postgresql",
+  "tables": {
+    "public.food_composition_nutrients": {
+      "name": "food_composition_nutrients",
+      "schema": "",
+      "columns": {
+        "food_composition_code": {
+          "name": "food_composition_code",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "nutrient_code": {
+          "name": "nutrient_code",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "value": {
+          "name": "value",
+          "type": "numeric",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {
+        "food_composition_nutrients_nutrient_code_idx": {
+          "name": "food_composition_nutrients_nutrient_code_idx",
+          "columns": [
+            {
+              "expression": "nutrient_code",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "food_composition_nutrients_food_composition_code_fk": {
+          "name": "food_composition_nutrients_food_composition_code_fk",
+          "tableFrom": "food_composition_nutrients",
+          "tableTo": "food_compositions",
+          "columnsFrom": ["food_composition_code"],
+          "columnsTo": ["code"],
+          "onDelete": "cascade",
+          "onUpdate": "cascade"
+        },
+        "food_composition_nutrients_nutrient_code_fk": {
+          "name": "food_composition_nutrients_nutrient_code_fk",
+          "tableFrom": "food_composition_nutrients",
+          "tableTo": "nutrient_definitions",
+          "columnsFrom": ["nutrient_code"],
+          "columnsTo": ["code"],
+          "onDelete": "restrict",
+          "onUpdate": "cascade"
+        }
+      },
+      "compositePrimaryKeys": {
+        "food_composition_nutrients_pkey": {
+          "name": "food_composition_nutrients_pkey",
+          "columns": ["food_composition_code", "nutrient_code"]
+        }
+      },
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "food_composition_nutrients_value_nonneg": {
+          "name": "food_composition_nutrients_value_nonneg",
+          "value": "\"food_composition_nutrients\".\"value\" >= 0"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.food_compositions": {
+      "name": "food_compositions",
+      "schema": "",
+      "columns": {
+        "code": {
+          "name": "code",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "name": {
+          "name": "name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {
+        "food_compositions_name_idx": {
+          "name": "food_compositions_name_idx",
+          "columns": [
+            {
+              "expression": "name",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "food_compositions_name_trgm_idx": {
+          "name": "food_compositions_name_trgm_idx",
+          "columns": [
+            {
+              "expression": "\"name\" gin_trgm_ops",
+              "asc": true,
+              "isExpression": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "gin",
+          "with": {}
+        }
+      },
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.food_master_aliases": {
+      "name": "food_master_aliases",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "food_master_id": {
+          "name": "food_master_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "alias": {
+          "name": "alias",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {
+        "food_master_aliases_alias_key": {
+          "name": "food_master_aliases_alias_key",
+          "columns": [
+            {
+              "expression": "alias",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "food_master_aliases_food_master_id_idx": {
+          "name": "food_master_aliases_food_master_id_idx",
+          "columns": [
+            {
+              "expression": "food_master_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "food_master_aliases_alias_trgm_idx": {
+          "name": "food_master_aliases_alias_trgm_idx",
+          "columns": [
+            {
+              "expression": "\"alias\" gin_trgm_ops",
+              "asc": true,
+              "isExpression": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "gin",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "food_master_aliases_food_master_id_fk": {
+          "name": "food_master_aliases_food_master_id_fk",
+          "tableFrom": "food_master_aliases",
+          "tableTo": "food_masters",
+          "columnsFrom": ["food_master_id"],
+          "columnsTo": ["id"],
+          "onDelete": "cascade",
+          "onUpdate": "cascade"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.food_master_nutrients": {
+      "name": "food_master_nutrients",
+      "schema": "",
+      "columns": {
+        "food_master_id": {
+          "name": "food_master_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "nutrient_code": {
+          "name": "nutrient_code",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "value": {
+          "name": "value",
+          "type": "numeric",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {
+        "food_master_nutrients_nutrient_code_idx": {
+          "name": "food_master_nutrients_nutrient_code_idx",
+          "columns": [
+            {
+              "expression": "nutrient_code",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "food_master_nutrients_food_master_id_fk": {
+          "name": "food_master_nutrients_food_master_id_fk",
+          "tableFrom": "food_master_nutrients",
+          "tableTo": "food_masters",
+          "columnsFrom": ["food_master_id"],
+          "columnsTo": ["id"],
+          "onDelete": "cascade",
+          "onUpdate": "cascade"
+        },
+        "food_master_nutrients_nutrient_code_fk": {
+          "name": "food_master_nutrients_nutrient_code_fk",
+          "tableFrom": "food_master_nutrients",
+          "tableTo": "nutrient_definitions",
+          "columnsFrom": ["nutrient_code"],
+          "columnsTo": ["code"],
+          "onDelete": "restrict",
+          "onUpdate": "cascade"
+        }
+      },
+      "compositePrimaryKeys": {
+        "food_master_nutrients_pkey": {
+          "name": "food_master_nutrients_pkey",
+          "columns": ["food_master_id", "nutrient_code"]
+        }
+      },
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "food_master_nutrients_value_nonneg": {
+          "name": "food_master_nutrients_value_nonneg",
+          "value": "\"food_master_nutrients\".\"value\" >= 0"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.food_masters": {
+      "name": "food_masters",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "name": {
+          "name": "name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "is_estimated": {
+          "name": "is_estimated",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": false
+        },
+        "source": {
+          "name": "source",
+          "type": "food_source",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "source_url": {
+          "name": "source_url",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "food_masters_name_key": {
+          "name": "food_masters_name_key",
+          "columns": [
+            {
+              "expression": "name",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "food_masters_is_estimated_idx": {
+          "name": "food_masters_is_estimated_idx",
+          "columns": [
+            {
+              "expression": "is_estimated",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "where": "\"food_masters\".\"is_estimated\" = true",
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "food_masters_name_trgm_idx": {
+          "name": "food_masters_name_trgm_idx",
+          "columns": [
+            {
+              "expression": "\"name\" gin_trgm_ops",
+              "asc": true,
+              "isExpression": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "gin",
+          "with": {}
+        }
+      },
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "food_masters_estimated_not_web_search": {
+          "name": "food_masters_estimated_not_web_search",
+          "value": "\"food_masters\".\"is_estimated\" = false OR \"food_masters\".\"source\" <> 'web_search'"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.meal_logs": {
+      "name": "meal_logs",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "food_master_id": {
+          "name": "food_master_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "eaten_at": {
+          "name": "eaten_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "quantity": {
+          "name": "quantity",
+          "type": "numeric",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "unit": {
+          "name": "unit",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "note": {
+          "name": "note",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "meal_logs_eaten_at_idx": {
+          "name": "meal_logs_eaten_at_idx",
+          "columns": [
+            {
+              "expression": "eaten_at",
+              "isExpression": false,
+              "asc": false,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "meal_logs_food_master_id_eaten_at_idx": {
+          "name": "meal_logs_food_master_id_eaten_at_idx",
+          "columns": [
+            {
+              "expression": "food_master_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "eaten_at",
+              "isExpression": false,
+              "asc": false,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "meal_logs_food_master_id_fk": {
+          "name": "meal_logs_food_master_id_fk",
+          "tableFrom": "meal_logs",
+          "tableTo": "food_masters",
+          "columnsFrom": ["food_master_id"],
+          "columnsTo": ["id"],
+          "onDelete": "restrict",
+          "onUpdate": "cascade"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "meal_logs_quantity_positive": {
+          "name": "meal_logs_quantity_positive",
+          "value": "\"meal_logs\".\"quantity\" > 0"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.nutrient_definitions": {
+      "name": "nutrient_definitions",
+      "schema": "",
+      "columns": {
+        "code": {
+          "name": "code",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "display_name": {
+          "name": "display_name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "unit": {
+          "name": "unit",
+          "type": "nutrient_unit",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "is_major": {
+          "name": "is_major",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": false
+        },
+        "sort_order": {
+          "name": "sort_order",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 0
+        }
+      },
+      "indexes": {
+        "nutrient_definitions_major_sort_idx": {
+          "name": "nutrient_definitions_major_sort_idx",
+          "columns": [
+            {
+              "expression": "is_major",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "sort_order",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "where": "\"nutrient_definitions\".\"is_major\" = true",
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.user_profiles": {
+      "name": "user_profiles",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "smallint",
+          "primaryKey": true,
+          "notNull": true,
+          "default": 1
+        },
+        "likes": {
+          "name": "likes",
+          "type": "text[]",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'{}'::text[]"
+        },
+        "dislikes": {
+          "name": "dislikes",
+          "type": "text[]",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'{}'::text[]"
+        },
+        "allergies": {
+          "name": "allergies",
+          "type": "text[]",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'{}'::text[]"
+        },
+        "constraints": {
+          "name": "constraints",
+          "type": "text[]",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'{}'::text[]"
+        },
+        "daily_targets": {
+          "name": "daily_targets",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "user_profiles_singleton": {
+          "name": "user_profiles_singleton",
+          "value": "\"user_profiles\".\"id\" = 1"
+        },
+        "user_profiles_daily_targets_object": {
+          "name": "user_profiles_daily_targets_object",
+          "value": "\"user_profiles\".\"daily_targets\" IS NULL OR jsonb_typeof(\"user_profiles\".\"daily_targets\") = 'object'"
+        }
+      },
+      "isRLSEnabled": false
+    }
+  },
+  "enums": {
+    "public.food_source": {
+      "name": "food_source",
+      "schema": "public",
+      "values": ["web_search", "composition_table_estimate", "user_input"]
+    },
+    "public.nutrient_unit": {
+      "name": "nutrient_unit",
+      "schema": "public",
+      "values": ["kcal", "g", "mg", "µg"]
+    }
+  },
+  "schemas": {},
+  "sequences": {},
+  "roles": {},
+  "policies": {},
+  "views": {},
+  "_meta": {
+    "columns": {},
+    "schemas": {},
+    "tables": {}
+  }
+}
