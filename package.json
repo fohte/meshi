@@ -8,6 +8,8 @@
     "dev": "tsx watch src/index.ts",
     "db:up": "docker compose up -d postgres",
     "db:down": "docker compose down",
+    "db:generate": "drizzle-kit generate",
+    "db:migrate": "drizzle-kit migrate",
     "lint": "eslint .",
     "format:eslint": "eslint --fix .",
     "format:prettier": "prettier --write .",
