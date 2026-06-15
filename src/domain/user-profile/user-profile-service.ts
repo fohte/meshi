@@ -21,6 +21,9 @@ export const createUserProfileService = (
     get: loadOrDefault,
     async update(patch) {
       const current = await loadOrDefault()
+      // Skip the save round-trip when the patch carries no fields; mergeUserProfile
+      // would still return an equivalent profile, but writing it would bump updated_at.
+      if (Object.keys(patch).length === 0) return current
       const next = mergeUserProfile(current, patch)
       return repository.save(next)
     },

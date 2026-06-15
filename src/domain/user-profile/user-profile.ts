@@ -28,6 +28,8 @@ export const mergeUserProfile = (
   if (patch.dislikes !== undefined) next.dislikes = patch.dislikes
   if (patch.allergies !== undefined) next.allergies = patch.allergies
   if (patch.constraints !== undefined) next.constraints = patch.constraints
-  if (patch.dailyTargets !== undefined) next.dailyTargets = patch.dailyTargets
+  if (patch.dailyTargets !== undefined) {
+    next.dailyTargets = { ...current.dailyTargets, ...patch.dailyTargets }
+  }
   return next
 }

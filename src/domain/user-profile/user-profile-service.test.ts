@@ -9,17 +9,24 @@ import { createUserProfileService } from '@/domain/user-profile/user-profile-ser
 
 const createInMemoryRepository = (
   initial: UserProfile | null = null,
-): UserProfileRepository & { current: UserProfile | null } => {
-  const state: { current: UserProfile | null } = { current: initial }
+): UserProfileRepository & {
+  readonly current: UserProfile | null
+  readonly saveCalls: number
+} => {
+  const state = { current: initial, saveCalls: 0 }
   return {
     get current() {
       return state.current
+    },
+    get saveCalls() {
+      return state.saveCalls
     },
     load() {
       return Promise.resolve(state.current)
     },
     save(profile) {
       state.current = profile
+      state.saveCalls += 1
       return Promise.resolve(profile)
     },
   }
@@ -85,7 +92,7 @@ describe('createUserProfileService', () => {
     } satisfies UserProfile)
   })
 
-  it('treats an empty patch as a no-op that still returns the full profile', async () => {
+  it('returns the current profile without touching the repository when the patch is empty', async () => {
     const stored: UserProfile = {
       likes: ['natto'],
       dislikes: [],
@@ -95,7 +102,33 @@ describe('createUserProfileService', () => {
     const repo = createInMemoryRepository(stored)
     const service = createUserProfileService(repo)
 
-    expect(await service.update({})).toEqual(stored)
+    const result = await service.update({})
+
+    expect({ result, saveCalls: repo.saveCalls }).toEqual({
+      result: stored,
+      saveCalls: 0,
+    })
+  })
+
+  it('merges dailyTargets per-key so omitted nutrient codes are preserved', async () => {
+    const repo = createInMemoryRepository({
+      likes: [],
+      dislikes: [],
+      allergies: [],
+      constraints: [],
+      dailyTargets: { protein_g: 80, energy_kcal: 2000 },
+    })
+    const service = createUserProfileService(repo)
+
+    const updated = await service.update({ dailyTargets: { protein_g: 90 } })
+
+    expect(updated).toEqual({
+      likes: [],
+      dislikes: [],
+      allergies: [],
+      constraints: [],
+      dailyTargets: { protein_g: 90, energy_kcal: 2000 },
+    } satisfies UserProfile)
   })
 
   it('keeps dailyTargets unset when the patch never mentions it', async () => {
