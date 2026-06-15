@@ -30,19 +30,38 @@ const PG_UNIQUE_VIOLATION = '23505'
 const FOOD_MASTERS_NAME_CONSTRAINT = 'food_masters_name_key'
 const FOOD_MASTER_ALIASES_ALIAS_CONSTRAINT = 'food_master_aliases_alias_key'
 
-const isUniqueViolation = (err: unknown): boolean =>
-  typeof err === 'object' &&
-  err !== null &&
-  'code' in err &&
-  err.code === PG_UNIQUE_VIOLATION
+interface PgErrorShape {
+  readonly code?: string
+  readonly constraint_name?: string
+}
 
-const getConstraintName = (err: unknown): string | undefined => {
-  if (typeof err !== 'object' || err === null) return undefined
-  if ('constraint_name' in err && typeof err.constraint_name === 'string') {
-    return err.constraint_name
+const findPostgresError = (err: unknown): PgErrorShape | undefined => {
+  let current: unknown = err
+  while (typeof current === 'object' && current !== null) {
+    if ('code' in current && typeof current.code === 'string') {
+      const shape: PgErrorShape = { code: current.code }
+      if (
+        'constraint_name' in current &&
+        typeof current.constraint_name === 'string'
+      ) {
+        return { ...shape, constraint_name: current.constraint_name }
+      }
+      return shape
+    }
+    if ('cause' in current) {
+      current = current.cause
+      continue
+    }
+    return undefined
   }
   return undefined
 }
+
+const isUniqueViolation = (err: unknown): boolean =>
+  findPostgresError(err)?.code === PG_UNIQUE_VIOLATION
+
+const getConstraintName = (err: unknown): string | undefined =>
+  findPostgresError(err)?.constraint_name
 
 interface NormalizedInput {
   readonly name: string

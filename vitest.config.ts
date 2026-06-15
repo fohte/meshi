@@ -6,4 +6,7 @@ export default defineConfig({
       '@': '/src',
     },
   },
+  test: {
+    fileParallelism: false,
+  },
 })
