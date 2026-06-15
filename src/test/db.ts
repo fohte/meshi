@@ -1,5 +1,5 @@
-import type postgres from 'postgres'
-import { describe } from 'vitest'
+import postgres from 'postgres'
+import { afterAll, afterEach, beforeEach, describe } from 'vitest'
 
 const LOCAL_HOSTS = new Set(['127.0.0.1', 'localhost', '::1'])
 
@@ -10,7 +10,7 @@ if (TEST_DATABASE_URL !== undefined) {
   if (!LOCAL_HOSTS.has(host)) {
     throw new Error(
       `TEST_DATABASE_URL must point at a local Postgres (got host: ${host}); ` +
-        `these tests run DROP SCHEMA CASCADE`,
+        `the test setup runs DROP SCHEMA CASCADE`,
     )
   }
 }
@@ -20,12 +20,60 @@ if (TEST_DATABASE_URL !== undefined) {
 export const describeIfDb =
   TEST_DATABASE_URL === undefined ? describe.skip : describe
 
-// Wipe every table declared in the Drizzle schema. Update this list when
-// adding new tables so DB-backed tests don't carry over rows between runs.
-export const truncate = async (sql: postgres.Sql): Promise<void> => {
-  await sql.unsafe(
-    'TRUNCATE meal_logs, food_master_aliases, food_master_nutrients, ' +
-      'food_composition_nutrients, food_compositions, food_masters, ' +
-      'nutrient_definitions, user_profiles RESTART IDENTITY CASCADE',
-  )
+// One shared pool per vitest worker. Created lazily so a unit-only run
+// never opens a connection.
+let pool: postgres.Sql | null = null
+
+const getPool = (): postgres.Sql => {
+  if (pool === null) {
+    if (TEST_DATABASE_URL === undefined) {
+      throw new Error('TEST_DATABASE_URL is not set')
+    }
+    pool = postgres(TEST_DATABASE_URL, { max: 8, onnotice: () => {} })
+  }
+  return pool
+}
+
+// Close the pool once the worker is done so vitest can exit cleanly.
+afterAll(async () => {
+  if (pool !== null) {
+    await pool.end({ timeout: 5 })
+    pool = null
+  }
+})
+
+// Read-only Sql for assertions against the migrated schema. Do not use this
+// for tests that mutate state — they should take a tx from `setupTx` instead
+// so the work is rolled back.
+export const getTestSql = (): postgres.Sql => getPool()
+
+// Wire up per-test BEGIN/ROLLBACK and return a getter for the active tx.
+// Concurrent tests never see each other's writes because each runs in its
+// own snapshot, and nothing is ever committed.
+export const setupTx = (): (() => postgres.Sql) => {
+  let reserved: postgres.ReservedSql | null = null
+
+  beforeEach(async () => {
+    reserved = await getPool().reserve()
+    await reserved.unsafe('BEGIN')
+  })
+
+  afterEach(async () => {
+    const r = reserved
+    reserved = null
+    if (r !== null) {
+      try {
+        await r.unsafe('ROLLBACK')
+      } finally {
+        r.release()
+      }
+    }
+  })
+
+  return () => {
+    if (reserved === null) {
+      throw new Error('tx accessed outside a test (call setupTx in describe)')
+    }
+    return reserved
+  }
 }

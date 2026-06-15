@@ -7,9 +7,9 @@ export default defineConfig({
     },
   },
   test: {
-    // The Postgres-backed tests in src/db and src/domain share one TEST_DATABASE_URL
-    // and each DROP/CREATE the public schema in beforeAll. Run files sequentially
-    // so they don't race on the schema.
-    fileParallelism: false,
+    // Runs DROP/CREATE/migrate once at process start. Per-test isolation is
+    // provided by the `txIt` fixture in src/test/db.ts (BEGIN/ROLLBACK), not
+    // by re-running migrations or TRUNCATE.
+    globalSetup: ['./src/test/global-setup.ts'],
   },
 })

@@ -1,23 +1,9 @@
-import postgres from 'postgres'
-import { afterAll, beforeAll, expect, it } from 'vitest'
+import { expect, it } from 'vitest'
 
-import { runMigrations } from '@/db/migrate'
-import { describeIfDb, TEST_DATABASE_URL, truncate } from '@/test/db'
+import { describeIfDb, getTestSql, setupTx } from '@/test/db'
 
 describeIfDb('schema migrations', () => {
-  let sql: postgres.Sql
-
-  beforeAll(async () => {
-    sql = postgres(TEST_DATABASE_URL ?? '', { max: 4, onnotice: () => {} })
-    await sql.unsafe('DROP SCHEMA IF EXISTS public CASCADE')
-    await sql.unsafe('DROP SCHEMA IF EXISTS drizzle CASCADE')
-    await sql.unsafe('CREATE SCHEMA public')
-    await runMigrations(sql)
-  })
-
-  afterAll(async () => {
-    await sql.end({ timeout: 5 })
-  })
+  const sql = getTestSql()
 
   it('creates the expected tables', async () => {
     const rows = await sql<{ table_name: string }[]>`
@@ -259,25 +245,16 @@ const runOutcome = async (
     })
 
 describeIfDb('schema runtime constraints', () => {
-  let sql: postgres.Sql
-
-  beforeAll(() => {
-    sql = postgres(TEST_DATABASE_URL ?? '', { max: 4, onnotice: () => {} })
-  })
-
-  afterAll(async () => {
-    await truncate(sql)
-    await sql.end({ timeout: 5 })
-  })
+  const getTx = setupTx()
 
   it('rejects inserts that violate the meal_logs_quantity_positive CHECK', async () => {
-    await truncate(sql)
-    await sql`
+    const tx = getTx()
+    await tx`
       INSERT INTO food_masters (id, name, source)
       VALUES ('fm_q', 'tofu', 'user_input')
     `
     expect(
-      await runOutcome(sql`
+      await runOutcome(tx`
         INSERT INTO meal_logs (id, food_master_id, eaten_at, quantity, unit)
         VALUES ('ml_q', 'fm_q', now(), 0, 'g')
       `),
@@ -285,9 +262,9 @@ describeIfDb('schema runtime constraints', () => {
   })
 
   it('rejects inserts that violate the food_masters_estimated_not_web_search CHECK', async () => {
-    await truncate(sql)
+    const tx = getTx()
     expect(
-      await runOutcome(sql`
+      await runOutcome(tx`
         INSERT INTO food_masters (id, name, is_estimated, source)
         VALUES ('fm_e', 'guessed', true, 'web_search')
       `),
@@ -295,17 +272,17 @@ describeIfDb('schema runtime constraints', () => {
   })
 
   it('rejects negative nutrient values', async () => {
-    await truncate(sql)
-    await sql`
+    const tx = getTx()
+    await tx`
       INSERT INTO nutrient_definitions (code, display_name, unit)
       VALUES ('protein_g', 'protein', 'g')
     `
-    await sql`
+    await tx`
       INSERT INTO food_masters (id, name, source)
       VALUES ('fm_n', 'rice', 'user_input')
     `
     expect(
-      await runOutcome(sql`
+      await runOutcome(tx`
         INSERT INTO food_master_nutrients (food_master_id, nutrient_code, value)
         VALUES ('fm_n', 'protein_g', -1)
       `),
@@ -313,16 +290,16 @@ describeIfDb('schema runtime constraints', () => {
   })
 
   it('rejects user_profiles rows other than id = 1', async () => {
-    await truncate(sql)
+    const tx = getTx()
     expect(
-      await runOutcome(sql`INSERT INTO user_profiles (id) VALUES (2)`),
+      await runOutcome(tx`INSERT INTO user_profiles (id) VALUES (2)`),
     ).toEqual({ status: 'error', code: '23514' })
   })
 
   it('rejects user_profiles.daily_targets that is not a jsonb object', async () => {
-    await truncate(sql)
+    const tx = getTx()
     expect(
-      await runOutcome(sql`
+      await runOutcome(tx`
         INSERT INTO user_profiles (id, daily_targets)
         VALUES (1, '[]'::jsonb)
       `),
@@ -330,17 +307,17 @@ describeIfDb('schema runtime constraints', () => {
   })
 
   it('forbids deleting a food_masters row referenced by a meal_log (FK RESTRICT)', async () => {
-    await truncate(sql)
-    await sql`
+    const tx = getTx()
+    await tx`
       INSERT INTO food_masters (id, name, source)
       VALUES ('fm_d', 'natto', 'user_input')
     `
-    await sql`
+    await tx`
       INSERT INTO meal_logs (id, food_master_id, eaten_at, quantity, unit)
       VALUES ('ml_d', 'fm_d', now(), 1, 'パック')
     `
     expect(
-      await runOutcome(sql`DELETE FROM food_masters WHERE id = 'fm_d'`),
+      await runOutcome(tx`DELETE FROM food_masters WHERE id = 'fm_d'`),
     ).toEqual({ status: 'error', code: '23503' })
   })
 })
