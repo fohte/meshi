@@ -22,3 +22,9 @@ expect(run()).toEqual({
 ```
 
 For dynamic fields (timestamps, UUIDs, random IDs), normalize them in a helper before the comparison (e.g. replace with a fixed placeholder) so the full output can still be asserted in one equality check. Do not weaken the assertion to dodge the dynamic value.
+
+## Validate external I/O with zod
+
+Use `zod` to define schemas at every external I/O boundary — HTTP responses parsed from `res.json()`, MCP tool inputs / outputs, env-derived structured payloads, anything coming in from a process other than this one. Parse with `safeParse` (or `parse`) and surface the failure as a typed domain error so the caller can tell the wire format failed; never cast the raw `unknown` to the wire type with `as`.
+
+In-process boundaries (data structures handed between modules we own) stay on plain TypeScript types — there's no untrusted input to validate, and adding `parse` there only costs runtime without buying safety.
