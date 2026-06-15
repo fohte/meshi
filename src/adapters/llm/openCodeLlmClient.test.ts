@@ -3,7 +3,10 @@ import type { AddressInfo } from 'node:net'
 
 import { afterEach, describe, expect, it } from 'vitest'
 
-import { OpenCodeLlmClient } from '@/adapters/llm/openCodeLlmClient'
+import {
+  OpenCodeLlmClient,
+  OpenCodeLlmInvalidResponseError,
+} from '@/adapters/llm/openCodeLlmClient'
 import type {
   LlmMessage,
   LlmToolCall,
@@ -446,7 +449,7 @@ describe('OpenCodeLlmClient.runConversation', () => {
     })
   })
 
-  it('throws when the response has a choice with no message', async () => {
+  it('wraps malformed responses in OpenCodeLlmInvalidResponseError', async () => {
     mock = await startMockServer([{ choices: [{ finish_reason: 'stop' }] }])
 
     const client = new OpenCodeLlmClient({
@@ -462,7 +465,26 @@ describe('OpenCodeLlmClient.runConversation', () => {
         maxTurns: 1,
         executeTool: () => Promise.resolve({ content: '' }),
       }),
-    ).rejects.toThrow('OpenCode Go returned a choice with no message')
+    ).rejects.toThrow(OpenCodeLlmInvalidResponseError)
+  })
+
+  it('rejects responses with no choices', async () => {
+    mock = await startMockServer([{ choices: [] }])
+
+    const client = new OpenCodeLlmClient({
+      apiKey: 'k',
+      baseUrl: mock.url,
+    })
+    await expect(
+      client.runConversation({
+        model: 'm',
+        system: '',
+        messages: initialMessages,
+        tools: [],
+        maxTurns: 1,
+        executeTool: () => Promise.resolve({ content: '' }),
+      }),
+    ).rejects.toThrow(OpenCodeLlmInvalidResponseError)
   })
 
   it('parseToolInput treats null/undefined arguments as empty object', async () => {

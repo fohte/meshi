@@ -1,3 +1,5 @@
+import { z } from 'zod'
+
 import type {
   LlmClient,
   LlmContent,
@@ -57,16 +59,30 @@ interface OpenAiChatRequest {
   tools?: ReadonlyArray<OpenAiTool>
 }
 
-interface OpenAiChatResponse {
-  choices?: ReadonlyArray<{
-    finish_reason?: string
-    message?: {
-      role?: string
-      content?: string | null
-      tool_calls?: ReadonlyArray<OpenAiToolCall>
-    }
-  }>
-}
+const openAiToolCallSchema = z.object({
+  id: z.string(),
+  type: z.literal('function'),
+  function: z.object({
+    name: z.string(),
+    arguments: z.string().nullish(),
+  }),
+})
+
+const openAiChatResponseSchema = z.object({
+  choices: z
+    .array(
+      z.object({
+        message: z.object({
+          role: z.string().optional(),
+          content: z.string().nullish(),
+          tool_calls: z.array(openAiToolCallSchema).optional(),
+        }),
+      }),
+    )
+    .nonempty('OpenCode Go returned a response with no choices'),
+})
+
+type OpenAiChatResponse = z.infer<typeof openAiChatResponseSchema>
 
 export class OpenCodeLlmHttpError extends Error {
   constructor(
@@ -75,6 +91,17 @@ export class OpenCodeLlmHttpError extends Error {
   ) {
     super(`OpenCode Go HTTP ${String(status)}: ${body}`)
     this.name = 'OpenCodeLlmHttpError'
+  }
+}
+
+export class OpenCodeLlmInvalidResponseError extends Error {
+  constructor(
+    public readonly issues: z.ZodError,
+    public readonly raw: unknown,
+  ) {
+    super(`OpenCode Go returned an invalid response: ${issues.message}`)
+    this.name = 'OpenCodeLlmInvalidResponseError'
+    this.cause = issues
   }
 }
 
@@ -189,10 +216,14 @@ const extractText = (content: ReadonlyArray<LlmContent>): string =>
 const responseToAssistantMessage = (
   res: OpenAiChatResponse,
 ): { message: LlmMessage; toolCalls: LlmToolCall[] } => {
-  const message = res.choices?.[0]?.message
-  if (message === undefined) {
-    throw new Error('OpenCode Go returned a choice with no message')
+  // Schema's .nonempty() enforces this at runtime, but z.infer widens
+  // choices to T[] rather than [T, ...T[]], so the narrowing here is
+  // a type-system necessity, not a runtime check.
+  const [first] = res.choices
+  if (first === undefined) {
+    throw new Error('unreachable: schema guarantees at least one choice')
   }
+  const { message } = first
   const content: LlmContent[] = []
   if (
     message.content !== undefined &&
@@ -255,11 +286,11 @@ export class OpenCodeLlmClient implements LlmClient {
         throw new OpenCodeLlmHttpError(res.status, await res.text())
       }
       const raw: unknown = await res.json()
-      // eslint-disable-next-line @typescript-eslint/no-unsafe-type-assertion -- OpenAI-compatible wire shape; runtime validation is not enforced here.
-      const json = raw as OpenAiChatResponse
-      if (json.choices === undefined || json.choices.length === 0) {
-        throw new Error('OpenCode Go returned a response with no choices')
+      const parsed = openAiChatResponseSchema.safeParse(raw)
+      if (!parsed.success) {
+        throw new OpenCodeLlmInvalidResponseError(parsed.error, raw)
       }
+      const json = parsed.data
       const { message: assistantMessage, toolCalls } =
         responseToAssistantMessage(json)
       messages = [...messages, assistantMessage]
