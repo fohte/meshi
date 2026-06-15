@@ -58,6 +58,19 @@ pnpm dev      # tsx watch
 
 The MCP endpoint is served at `POST /mcp`; `GET /health` reports DB connectivity.
 
+The `nutrient_definitions` master is seeded automatically on startup after migrations (idempotent). The MEXT food composition table (`food_compositions` + `food_composition_nutrients`) is loaded separately via the CLI below — it is not bundled and must be pointed at a JSON dataset.
+
+### Seed / load
+
+```sh
+pnpm seed                                          # nutrient_definitions only
+pnpm seed --food-composition path/to/dataset.json  # + MEXT composition tables
+```
+
+Dataset shape (JSON array): `[{ "code": "01088", "name": "...", "nutrients": { "energy_kcal": 156, "protein_g": 2.5, ... } }]`. Nutrient codes follow `<英名>_<単位>` (e.g. `protein_g`, `iron_mg`, `vitamin_a_µg`). Codes not in `nutrient_definitions` are rejected; pass extras via the programmatic API.
+
+Citation: outputs derived from this dataset must credit "日本食品標準成分表(八訂)増補2023年".
+
 ### LLM model selection policy
 
 The LLM client talks to [OpenCode Go](https://opencode.ai/) via its OpenAI-compatible Chat Completions endpoint and routes every internal tool-use loop through `MESHI_LLM_MODEL` (text) / `MESHI_LLM_VISION_MODEL` (vision) / `MESHI_LLM_LIGHTWEIGHT_MODEL` (cheap pre-processing). Start each role on the cheapest model that plausibly fits the task, run the smoke scenarios, and only rank up via env when quality is insufficient (e.g. tool-call argument shape errors, vision misreads, divergent loops). Bumping the env value is the only knob — no code change is required.

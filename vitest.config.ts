@@ -6,4 +6,9 @@ export default defineConfig({
       '@': '/src',
     },
   },
+  test: {
+    // DB-backed test files share one Postgres and reset its schema in beforeAll;
+    // run them sequentially so their setups don't race.
+    fileParallelism: false,
+  },
 })
