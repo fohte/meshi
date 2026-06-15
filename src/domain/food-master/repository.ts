@@ -235,18 +235,19 @@ export const createFoodMasterRepository = (
       .where(eq(foodMasters.id, id))
     if (row === undefined) return null
 
-    const aliasRows = await db
-      .select({ alias: foodMasterAliases.alias })
-      .from(foodMasterAliases)
-      .where(eq(foodMasterAliases.foodMasterId, id))
-
-    const nutrientRows = await db
-      .select({
-        nutrientCode: foodMasterNutrients.nutrientCode,
-        value: foodMasterNutrients.value,
-      })
-      .from(foodMasterNutrients)
-      .where(eq(foodMasterNutrients.foodMasterId, id))
+    const [aliasRows, nutrientRows] = await Promise.all([
+      db
+        .select({ alias: foodMasterAliases.alias })
+        .from(foodMasterAliases)
+        .where(eq(foodMasterAliases.foodMasterId, id)),
+      db
+        .select({
+          nutrientCode: foodMasterNutrients.nutrientCode,
+          value: foodMasterNutrients.value,
+        })
+        .from(foodMasterNutrients)
+        .where(eq(foodMasterNutrients.foodMasterId, id)),
+    ])
 
     return {
       id: row.id,
