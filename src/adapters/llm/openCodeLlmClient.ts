@@ -119,16 +119,7 @@ const messagesToOpenAi = (
     if (message.role === 'assistant') {
       const text = extractText(message.content)
       const toolCalls: OpenAiToolCall[] = message.content
-        .filter(
-          (
-            c,
-          ): c is {
-            type: 'tool_use'
-            id: string
-            name: string
-            input: unknown
-          } => c.type === 'tool_use',
-        )
+        .filter(isToolUseContent)
         .map((c) => ({
           id: c.id,
           type: 'function',
@@ -144,10 +135,7 @@ const messagesToOpenAi = (
       out.push(assistantMessage)
       continue
     }
-    const toolResults = message.content.filter(
-      (c): c is Extract<LlmContent, { type: 'tool_result' }> =>
-        c.type === 'tool_result',
-    )
+    const toolResults = message.content.filter(isToolResultContent)
     if (toolResults.length > 0) {
       for (const r of toolResults) {
         out.push({
@@ -191,6 +179,14 @@ const isTextContent = (
   c: LlmContent,
 ): c is Extract<LlmContent, { type: 'text' }> => c.type === 'text'
 
+const isToolUseContent = (
+  c: LlmContent,
+): c is Extract<LlmContent, { type: 'tool_use' }> => c.type === 'tool_use'
+
+const isToolResultContent = (
+  c: LlmContent,
+): c is Extract<LlmContent, { type: 'tool_result' }> => c.type === 'tool_result'
+
 const extractText = (content: ReadonlyArray<LlmContent>): string =>
   content
     .filter(isTextContent)
@@ -199,9 +195,8 @@ const extractText = (content: ReadonlyArray<LlmContent>): string =>
 
 const responseToAssistantMessage = (
   res: OpenAiChatResponse,
-): { message: LlmMessage; finishReason: string; toolCalls: LlmToolCall[] } => {
-  const choice = res.choices?.[0]
-  const message = choice?.message
+): { message: LlmMessage; toolCalls: LlmToolCall[] } => {
+  const message = res.choices?.[0]?.message
   const content: LlmContent[] = []
   if (
     message?.content !== undefined &&
@@ -221,11 +216,7 @@ const responseToAssistantMessage = (
     })
     toolCalls.push({ id: call.id, name: call.function.name, input })
   }
-  return {
-    message: { role: 'assistant', content },
-    finishReason: choice?.finish_reason ?? '',
-    toolCalls,
-  }
+  return { message: { role: 'assistant', content }, toolCalls }
 }
 
 export class OpenCodeLlmClient implements LlmClient {
@@ -268,19 +259,16 @@ export class OpenCodeLlmClient implements LlmClient {
         throw new OpenCodeLlmHttpError(res.status, await res.text())
       }
       const raw: unknown = await res.json()
-      // eslint-disable-next-line @typescript-eslint/no-unsafe-type-assertion -- Wire shape is contractually OpenAI-compatible; full runtime validation would belong in a higher-level guard.
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-type-assertion -- OpenAI-compatible wire shape; runtime validation is not enforced here.
       const json = raw as OpenAiChatResponse
       if (json.choices === undefined || json.choices.length === 0) {
         throw new Error('OpenCode Go returned a response with no choices')
       }
-      const {
-        message: assistantMessage,
-        finishReason,
-        toolCalls,
-      } = responseToAssistantMessage(json)
+      const { message: assistantMessage, toolCalls } =
+        responseToAssistantMessage(json)
       messages = [...messages, assistantMessage]
 
-      if (toolCalls.length === 0 || finishReason !== 'tool_calls') {
+      if (toolCalls.length === 0) {
         stopReason = 'end'
         finalText = extractText(assistantMessage.content)
         break
