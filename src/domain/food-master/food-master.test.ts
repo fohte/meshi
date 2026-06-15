@@ -37,6 +37,20 @@ const createCountingIdGenerator = (
   return (prefix) => `${prefix}_test_${String(counter.next()).padStart(4, '0')}`
 }
 
+const captureDomainError = async (
+  promise: Promise<unknown>,
+): Promise<{ code: string; details: Readonly<Record<string, unknown>> }> => {
+  try {
+    await promise
+  } catch (err) {
+    if (err instanceof FoodMasterDomainError) {
+      return { code: err.code, details: err.details }
+    }
+    throw err
+  }
+  throw new Error('expected FoodMasterDomainError but promise resolved')
+}
+
 const baseInput: RegisterFoodMasterInput = {
   name: 'rice',
   nutrition: { energy_kcal: 168, protein_g: 2.5 },
@@ -144,22 +158,18 @@ describeIfDb('FoodMasterService + Repository', () => {
   })
 
   it("rejects is_estimated=true combined with source='web_search'", async () => {
-    const outcome = await service
-      .register({
+    const captured = await captureDomainError(
+      service.register({
         ...baseInput,
         name: 'guess from web',
         source: 'web_search',
         isEstimated: true,
-      })
-      .then(() => ({ kind: 'ok' as const }))
-      .catch((err: unknown) => ({
-        kind: 'error' as const,
-        code: err instanceof FoodMasterDomainError ? err.code : 'unexpected',
-      }))
+      }),
+    )
 
-    expect(outcome).toEqual({
-      kind: 'error',
+    expect(captured).toEqual({
       code: 'invalid_source_combination',
+      details: { source: 'web_search', isEstimated: true },
     })
 
     const rows = await sql<{ count: string }[]>`
@@ -189,21 +199,15 @@ describeIfDb('FoodMasterService + Repository', () => {
   })
 
   it('rejects registrations with nutrient_code not present in nutrient_definitions', async () => {
-    const outcome = await service
-      .register({
+    const captured = await captureDomainError(
+      service.register({
         ...baseInput,
         name: 'mystery food',
         nutrition: { energy_kcal: 100, mystery_nutrient_g: 5 },
-      })
-      .then(() => ({ kind: 'ok' as const }))
-      .catch((err: unknown) =>
-        err instanceof FoodMasterDomainError
-          ? { kind: 'error' as const, code: err.code, details: err.details }
-          : { kind: 'error' as const, code: 'unexpected', details: {} },
-      )
+      }),
+    )
 
-    expect(outcome).toEqual({
-      kind: 'error',
+    expect(captured).toEqual({
       code: 'unknown_nutrient_code',
       details: { unknown: ['mystery_nutrient_g'] },
     })
@@ -216,16 +220,14 @@ describeIfDb('FoodMasterService + Repository', () => {
 
   it('rejects duplicate name registration', async () => {
     await service.register(baseInput)
-    const outcome = await service
-      .register({ ...baseInput, nutrition: { energy_kcal: 200 } })
-      .then(() => ({ kind: 'ok' as const }))
-      .catch((err: unknown) =>
-        err instanceof FoodMasterDomainError
-          ? { kind: 'error' as const, code: err.code }
-          : { kind: 'error' as const, code: 'unexpected' },
-      )
+    const captured = await captureDomainError(
+      service.register({ ...baseInput, nutrition: { energy_kcal: 200 } }),
+    )
 
-    expect(outcome).toEqual({ kind: 'error', code: 'duplicate_name' })
+    expect(captured).toEqual({
+      code: 'duplicate_name',
+      details: { name: baseInput.name },
+    })
 
     const rows = await sql<{ count: string }[]>`
       SELECT count(*)::text AS count FROM food_masters
@@ -234,67 +236,68 @@ describeIfDb('FoodMasterService + Repository', () => {
   })
 
   it('rejects empty name', async () => {
-    const outcome = await service
-      .register({ ...baseInput, name: '   ' })
-      .then(() => ({ kind: 'ok' as const }))
-      .catch((err: unknown) =>
-        err instanceof FoodMasterDomainError
-          ? { kind: 'error' as const, code: err.code }
-          : { kind: 'error' as const, code: 'unexpected' },
-      )
+    const captured = await captureDomainError(
+      service.register({ ...baseInput, name: '   ' }),
+    )
 
-    expect(outcome).toEqual({ kind: 'error', code: 'empty_name' })
+    expect(captured).toEqual({ code: 'empty_name', details: {} })
   })
 
   it('rejects negative nutrient values', async () => {
-    const outcome = await service
-      .register({
+    const captured = await captureDomainError(
+      service.register({
         ...baseInput,
         name: 'broken',
         nutrition: { energy_kcal: -1 },
-      })
-      .then(() => ({ kind: 'ok' as const }))
-      .catch((err: unknown) =>
-        err instanceof FoodMasterDomainError
-          ? { kind: 'error' as const, code: err.code }
-          : { kind: 'error' as const, code: 'unexpected' },
-      )
+      }),
+    )
 
-    expect(outcome).toEqual({ kind: 'error', code: 'negative_nutrient_value' })
+    expect(captured).toEqual({
+      code: 'negative_nutrient_value',
+      details: { code: 'energy_kcal', value: -1 },
+    })
+  })
+
+  it('rejects non-finite nutrient values', async () => {
+    const captured = await captureDomainError(
+      service.register({
+        ...baseInput,
+        name: 'broken-inf',
+        nutrition: { energy_kcal: Number.POSITIVE_INFINITY },
+      }),
+    )
+
+    expect(captured).toEqual({
+      code: 'negative_nutrient_value',
+      details: { code: 'energy_kcal', value: Number.POSITIVE_INFINITY },
+    })
   })
 
   it('rejects duplicate aliases within the same input before hitting the DB', async () => {
-    const outcome = await service
-      .register({
+    const captured = await captureDomainError(
+      service.register({
         ...baseInput,
         name: 'apple',
         aliases: ['りんご', 'りんご'],
-      })
-      .then(() => ({ kind: 'ok' as const }))
-      .catch((err: unknown) =>
-        err instanceof FoodMasterDomainError
-          ? { kind: 'error' as const, code: err.code }
-          : { kind: 'error' as const, code: 'unexpected' },
-      )
+      }),
+    )
 
-    expect(outcome).toEqual({ kind: 'error', code: 'duplicate_alias_in_input' })
+    expect(captured).toEqual({
+      code: 'duplicate_alias_in_input',
+      details: { aliases: ['りんご', 'りんご'] },
+    })
   })
 
   it('rejects empty alias strings', async () => {
-    const outcome = await service
-      .register({
+    const captured = await captureDomainError(
+      service.register({
         ...baseInput,
         name: 'apple',
         aliases: ['ok', ''],
-      })
-      .then(() => ({ kind: 'ok' as const }))
-      .catch((err: unknown) =>
-        err instanceof FoodMasterDomainError
-          ? { kind: 'error' as const, code: err.code }
-          : { kind: 'error' as const, code: 'unexpected' },
-      )
+      }),
+    )
 
-    expect(outcome).toEqual({ kind: 'error', code: 'empty_alias' })
+    expect(captured).toEqual({ code: 'empty_alias', details: {} })
   })
 
   it('distinguishes alias-UNIQUE collision from name collision', async () => {
@@ -306,22 +309,20 @@ describeIfDb('FoodMasterService + Repository', () => {
       aliases: ['りんご'],
     })
 
-    const outcome = await service
-      .register({
+    const captured = await captureDomainError(
+      service.register({
         name: 'red apple',
         nutrition: { energy_kcal: 52 },
         source: 'user_input',
         isEstimated: false,
         aliases: ['りんご'],
-      })
-      .then(() => ({ kind: 'ok' as const }))
-      .catch((err: unknown) =>
-        err instanceof FoodMasterDomainError
-          ? { kind: 'error' as const, code: err.code }
-          : { kind: 'error' as const, code: 'unexpected' },
-      )
+      }),
+    )
 
-    expect(outcome).toEqual({ kind: 'error', code: 'duplicate_alias' })
+    expect(captured).toEqual({
+      code: 'duplicate_alias',
+      details: { aliases: ['りんご'] },
+    })
   })
 
   it('returns null for unknown id', async () => {

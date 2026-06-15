@@ -44,8 +44,20 @@ const getConstraintName = (err: unknown): string | undefined => {
   return undefined
 }
 
-const assertInvariants = (input: RegisterFoodMasterInput): void => {
-  if (input.name.trim() === '') {
+interface NormalizedInput {
+  readonly name: string
+  readonly aliases: ReadonlyArray<string>
+  readonly nutrition: NutritionMap
+  readonly source: RegisterFoodMasterInput['source']
+  readonly isEstimated: boolean
+  readonly sourceUrl: string | null
+}
+
+const normalizeAndValidate = (
+  input: RegisterFoodMasterInput,
+): NormalizedInput => {
+  const name = input.name.trim()
+  if (name === '') {
     throw new FoodMasterDomainError('empty_name', 'name must not be empty')
   }
   if (input.isEstimated && input.source === 'web_search') {
@@ -56,15 +68,15 @@ const assertInvariants = (input: RegisterFoodMasterInput): void => {
     )
   }
   for (const [code, value] of Object.entries(input.nutrition)) {
-    if (value < 0 || Number.isNaN(value)) {
+    if (!Number.isFinite(value) || value < 0) {
       throw new FoodMasterDomainError(
         'negative_nutrient_value',
-        `nutrient value must be non-negative (code=${code}, value=${String(value)})`,
+        `nutrient value must be a non-negative finite number (code=${code}, value=${String(value)})`,
         { code, value },
       )
     }
   }
-  const aliases = input.aliases ?? []
+  const aliases = (input.aliases ?? []).map((a) => a.trim())
   if (aliases.some((a) => a === '')) {
     throw new FoodMasterDomainError(
       'empty_alias',
@@ -77,6 +89,14 @@ const assertInvariants = (input: RegisterFoodMasterInput): void => {
       'aliases must not contain duplicates within the same input',
       { aliases },
     )
+  }
+  return {
+    name,
+    aliases,
+    nutrition: input.nutrition,
+    source: input.source,
+    isEstimated: input.isEstimated,
+    sourceUrl: input.sourceUrl ?? null,
   }
 }
 
@@ -99,10 +119,8 @@ export const createFoodMasterRepository = (
   const register = async (
     input: RegisterFoodMasterInput,
   ): Promise<FoodMaster> => {
-    assertInvariants(input)
-
-    const nutrientCodes = Object.keys(input.nutrition)
-    const aliases = input.aliases ?? []
+    const normalized = normalizeAndValidate(input)
+    const nutrientCodes = Object.keys(normalized.nutrition)
     const id = generateId('fm')
 
     try {
@@ -127,10 +145,10 @@ export const createFoodMasterRepository = (
           .insert(foodMasters)
           .values({
             id,
-            name: input.name,
-            isEstimated: input.isEstimated,
-            source: input.source,
-            sourceUrl: input.sourceUrl ?? null,
+            name: normalized.name,
+            isEstimated: normalized.isEstimated,
+            source: normalized.source,
+            sourceUrl: normalized.sourceUrl,
           })
           .returning()
 
@@ -138,9 +156,9 @@ export const createFoodMasterRepository = (
           throw new Error('failed to insert food_master row')
         }
 
-        if (aliases.length > 0) {
+        if (normalized.aliases.length > 0) {
           await tx.insert(foodMasterAliases).values(
-            aliases.map((alias) => ({
+            normalized.aliases.map((alias) => ({
               id: generateId('fma'),
               foodMasterId: id,
               alias,
@@ -153,7 +171,7 @@ export const createFoodMasterRepository = (
             nutrientCodes.map((code) => ({
               foodMasterId: id,
               nutrientCode: code,
-              value: String(input.nutrition[code]),
+              value: String(normalized.nutrition[code]),
             })),
           )
         }
@@ -161,11 +179,11 @@ export const createFoodMasterRepository = (
         return {
           id: inserted.id,
           name: inserted.name,
-          aliases,
+          aliases: normalized.aliases,
           isEstimated: inserted.isEstimated,
           source: inserted.source,
           sourceUrl: inserted.sourceUrl,
-          nutrition: input.nutrition,
+          nutrition: normalized.nutrition,
           createdAt: inserted.createdAt,
         }
       })
@@ -175,15 +193,15 @@ export const createFoodMasterRepository = (
         if (constraint === FOOD_MASTERS_NAME_CONSTRAINT) {
           throw new FoodMasterDomainError(
             'duplicate_name',
-            `food_master with name already exists: ${input.name}`,
-            { name: input.name },
+            `food_master with name already exists: ${normalized.name}`,
+            { name: normalized.name },
           )
         }
         if (constraint === FOOD_MASTER_ALIASES_ALIAS_CONSTRAINT) {
           throw new FoodMasterDomainError(
             'duplicate_alias',
             'one or more aliases already belong to another food_master',
-            { aliases: input.aliases ?? [] },
+            { aliases: normalized.aliases },
           )
         }
       }
