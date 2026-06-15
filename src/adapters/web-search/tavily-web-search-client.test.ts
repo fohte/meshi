@@ -1,6 +1,9 @@
 import { describe, expect, it, vi } from 'vitest'
 
-import { createTavilyWebSearchClient } from '@/adapters/web-search/tavily-web-search-client'
+import {
+  createTavilyWebSearchClient,
+  WebSearchInvalidResponseError,
+} from '@/adapters/web-search/tavily-web-search-client'
 import {
   WebSearchError,
   WebSearchRateLimitError,
@@ -127,21 +130,21 @@ describe('createTavilyWebSearchClient', () => {
     expect(await client.search('not-a-real-food')).toEqual({ snippets: [] })
   })
 
-  it('skips non-object entries inside the results array', async () => {
+  it('throws WebSearchInvalidResponseError when a result entry violates the schema', async () => {
     const { client } = setup(
       jsonResponse(200, {
-        results: [
-          null,
-          'not an object',
-          { title: 'Ok', url: 'https://example.test/ok', content: 'snippet' },
-        ],
+        results: [{ title: 'Ok', content: 'snippet' }],
       }),
     )
 
-    expect(await client.search('mixed')).toEqual({
-      snippets: [
-        { title: 'Ok', url: 'https://example.test/ok', text: 'snippet' },
-      ],
+    const error = await client.search('missing-url').catch((e: unknown) => e)
+
+    expect({
+      isInvalid: error instanceof WebSearchInvalidResponseError,
+      isWebSearchError: error instanceof WebSearchError,
+    }).toEqual({
+      isInvalid: true,
+      isWebSearchError: true,
     })
   })
 

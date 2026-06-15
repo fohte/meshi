@@ -1,10 +1,11 @@
+import { z } from 'zod'
+
 import {
   type WebSearchClient,
   WebSearchError,
   type WebSearchOptions,
   WebSearchRateLimitError,
   type WebSearchResult,
-  type WebSearchSnippet,
 } from '@/adapters/web-search/web-search-client'
 
 const DEFAULT_ENDPOINT = 'https://api.tavily.com/search'
@@ -16,27 +17,25 @@ export interface TavilyWebSearchClientConfig {
   readonly fetch?: typeof fetch
 }
 
-interface TavilyRawResult {
-  readonly title?: unknown
-  readonly url?: unknown
-  readonly content?: unknown
-}
+const tavilyResultSchema = z.object({
+  title: z.string().optional().default(''),
+  url: z.string().min(1),
+  content: z.string().optional().default(''),
+})
 
-const toSnippet = (raw: unknown): WebSearchSnippet | null => {
-  if (typeof raw !== 'object' || raw === null) return null
-  const r = raw as TavilyRawResult
-  const title = typeof r.title === 'string' ? r.title : ''
-  const url = typeof r.url === 'string' ? r.url : ''
-  const text = typeof r.content === 'string' ? r.content : ''
-  if (url === '') return null
-  return { title, url, text }
-}
+const tavilyResponseSchema = z.object({
+  results: z.array(tavilyResultSchema).default([]),
+})
 
-const extractResults = (body: unknown): ReadonlyArray<unknown> => {
-  if (typeof body !== 'object' || body === null) return []
-  const results = (body as { results?: unknown }).results
-  if (!Array.isArray(results)) return []
-  return results
+export class WebSearchInvalidResponseError extends WebSearchError {
+  constructor(
+    public readonly issues: z.ZodError,
+    public readonly raw: unknown,
+  ) {
+    super(`web search returned an invalid response: ${issues.message}`)
+    this.name = 'WebSearchInvalidResponseError'
+    this.cause = issues
+  }
 }
 
 export const createTavilyWebSearchClient = (
@@ -72,21 +71,26 @@ export const createTavilyWebSearchClient = (
         )
       }
 
-      let body: unknown
+      let raw: unknown
       try {
-        body = await res.json()
+        raw = await res.json()
       } catch (cause) {
         throw new WebSearchError(
           `failed to parse web search response: ${cause instanceof Error ? cause.message : String(cause)}`,
           res.status,
         )
       }
-      const snippets: WebSearchSnippet[] = []
-      for (const raw of extractResults(body)) {
-        const snippet = toSnippet(raw)
-        if (snippet !== null) snippets.push(snippet)
+      const parsed = tavilyResponseSchema.safeParse(raw)
+      if (!parsed.success) {
+        throw new WebSearchInvalidResponseError(parsed.error, raw)
       }
-      return { snippets }
+      return {
+        snippets: parsed.data.results.map((r) => ({
+          title: r.title,
+          url: r.url,
+          text: r.content,
+        })),
+      }
     },
   }
 }
