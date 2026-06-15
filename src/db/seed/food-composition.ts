@@ -18,8 +18,15 @@ const foodCompositionDatasetSchema = z.array(foodCompositionRowSchema)
 
 export type FoodCompositionRow = z.infer<typeof foodCompositionRowSchema>
 
+// food_composition_nutrients uses 3 columns per row; at the Postgres prepared-
+// statement limit of 65535 parameters that caps a single multi-row insert at
+// 21845 rows. Chunk well below that to leave room for other params in the same
+// statement.
+const DEFAULT_BATCH_SIZE = 1000
+
 export interface LoadFoodCompositionOptions {
   readonly extraNutrientDefinitions?: ReadonlyArray<NutrientDefinitionSeed>
+  readonly batchSize?: number
 }
 
 export interface LoadFoodCompositionResult {
@@ -108,11 +115,21 @@ export const loadFoodComposition = async (
       }
     }
 
+    const batchSize = options.batchSize ?? DEFAULT_BATCH_SIZE
+    if (!Number.isInteger(batchSize) || batchSize <= 0) {
+      throw new FoodCompositionLoadError(
+        `batchSize must be a positive integer (got: ${String(batchSize)})`,
+      )
+    }
+
     const foodRows = rows.map((r) => ({ code: r.code, name: r.name }))
-    await tx`
-      INSERT INTO food_compositions ${tx(foodRows)}
-      ON CONFLICT (code) DO UPDATE SET name = EXCLUDED.name
-    `
+    for (let i = 0; i < foodRows.length; i += batchSize) {
+      const batch = foodRows.slice(i, i + batchSize)
+      await tx`
+        INSERT INTO food_compositions ${tx(batch)}
+        ON CONFLICT (code) DO UPDATE SET name = EXCLUDED.name
+      `
+    }
 
     const codes = rows.map((r) => r.code)
     await tx`
@@ -128,8 +145,9 @@ export const loadFoodComposition = async (
       })),
     )
 
-    if (nutrientRows.length > 0) {
-      await tx`INSERT INTO food_composition_nutrients ${tx(nutrientRows)}`
+    for (let i = 0; i < nutrientRows.length; i += batchSize) {
+      const batch = nutrientRows.slice(i, i + batchSize)
+      await tx`INSERT INTO food_composition_nutrients ${tx(batch)}`
     }
 
     return {

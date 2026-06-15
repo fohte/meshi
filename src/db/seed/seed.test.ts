@@ -154,6 +154,54 @@ describeIfDb('seed', () => {
       expect({ count: countRows[0]?.count }).toEqual({ count: 23 })
     })
 
+    it('splits inserts across batches when the dataset exceeds batchSize', async () => {
+      await seedNutrientDefinitions(sql)
+      const dataset: ReadonlyArray<{
+        code: string
+        name: string
+        nutrients: Record<string, number>
+      }> = Array.from({ length: 5 }, (_, i) => ({
+        code: `B${String(i).padStart(4, '0')}`,
+        name: `batched-food-${String(i)}`,
+        nutrients: { energy_kcal: i + 1, protein_g: (i + 1) * 0.5 },
+      }))
+
+      const result = await loadFoodComposition(sql, dataset, { batchSize: 2 })
+
+      const rows = await sql<{ count: number }[]>`
+        SELECT count(*)::int AS count FROM food_compositions
+        WHERE code LIKE 'B%'
+      `
+      const nutrientRows = await sql<{ count: number }[]>`
+        SELECT count(*)::int AS count FROM food_composition_nutrients
+        WHERE food_composition_code LIKE 'B%'
+      `
+      expect({
+        result,
+        foodCount: rows[0]?.count,
+        nutrientCount: nutrientRows[0]?.count,
+      }).toEqual({
+        result: { foodCount: 5, nutrientRowCount: 10 },
+        foodCount: 5,
+        nutrientCount: 10,
+      })
+    })
+
+    it('rejects a non-positive batchSize', async () => {
+      await seedNutrientDefinitions(sql)
+      const outcome = await loadFoodComposition(
+        sql,
+        [{ code: 'X1', name: 'x', nutrients: { protein_g: 1 } }],
+        { batchSize: 0 },
+      )
+        .then(() => ({ status: 'ok' as const }))
+        .catch((err: unknown) => ({
+          status: 'error' as const,
+          isLoadError: err instanceof FoodCompositionLoadError,
+        }))
+      expect(outcome).toEqual({ status: 'error', isLoadError: true })
+    })
+
     it('registers extra nutrient_definitions before inserting unknown nutrient codes', async () => {
       await seedNutrientDefinitions(sql)
       const result = await loadFoodComposition(
