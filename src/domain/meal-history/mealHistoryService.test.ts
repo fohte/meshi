@@ -1,10 +1,8 @@
-import { PGlite } from '@electric-sql/pglite'
-import { pg_trgm } from '@electric-sql/pglite/contrib/pg_trgm'
-import { drizzle, type PgliteDatabase } from 'drizzle-orm/pglite'
-import { migrate } from 'drizzle-orm/pglite/migrator'
+import { drizzle, type PostgresJsDatabase } from 'drizzle-orm/postgres-js'
+import postgres from 'postgres'
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 
-import { MIGRATIONS_FOLDER } from '@/db/migrate'
+import { runMigrations } from '@/db/migrate'
 import {
   foodMasterNutrients,
   foodMasters,
@@ -13,96 +11,115 @@ import {
 } from '@/db/schema'
 import { createMealHistoryService } from '@/domain/meal-history/mealHistoryService'
 
-let pg: PGlite
-let db: PgliteDatabase
+const TEST_DATABASE_URL = process.env['TEST_DATABASE_URL']
 
-beforeAll(async () => {
-  pg = await PGlite.create({ extensions: { pg_trgm } })
-  db = drizzle(pg)
-  await migrate(db, { migrationsFolder: MIGRATIONS_FOLDER })
-})
+const LOCAL_HOSTS = new Set(['127.0.0.1', 'localhost', '::1'])
 
-afterAll(async () => {
-  await pg.close()
-})
-
-beforeEach(async () => {
-  await pg.exec(
-    'TRUNCATE meal_logs, food_master_nutrients, food_masters, nutrient_definitions RESTART IDENTITY CASCADE',
-  )
-})
-
-const seedNutrientDefinitions = async (): Promise<void> => {
-  await db.insert(nutrientDefinitions).values([
-    {
-      code: 'energy_kcal',
-      displayName: 'energy',
-      unit: 'kcal',
-      isMajor: true,
-      sortOrder: 1,
-    },
-    {
-      code: 'protein_g',
-      displayName: 'protein',
-      unit: 'g',
-      isMajor: true,
-      sortOrder: 2,
-    },
-    {
-      code: 'iron_mg',
-      displayName: 'iron',
-      unit: 'mg',
-      isMajor: false,
-      sortOrder: 3,
-    },
-  ])
+if (TEST_DATABASE_URL !== undefined) {
+  const host = new URL(TEST_DATABASE_URL).hostname
+  if (!LOCAL_HOSTS.has(host)) {
+    throw new Error(
+      `TEST_DATABASE_URL must point at a local Postgres (got host: ${host}); ` +
+        `these tests run DROP SCHEMA CASCADE`,
+    )
+  }
 }
 
-interface FoodMasterSeed {
-  readonly id: string
-  readonly name: string
-  readonly isEstimated?: boolean
-  readonly nutrients: Readonly<Record<string, number>>
-}
+const describeIfDb = TEST_DATABASE_URL === undefined ? describe.skip : describe
 
-const seedFoodMaster = async (food: FoodMasterSeed): Promise<void> => {
-  const isEstimated = food.isEstimated ?? false
-  await db.insert(foodMasters).values({
-    id: food.id,
-    name: food.name,
-    isEstimated,
-    source: isEstimated ? 'composition_table_estimate' : 'user_input',
-    sourceUrl: null,
+describeIfDb('MealHistoryService.query', () => {
+  let sql: postgres.Sql
+  let db: PostgresJsDatabase
+
+  beforeAll(async () => {
+    sql = postgres(TEST_DATABASE_URL ?? '', { max: 4, onnotice: () => {} })
+    await sql.unsafe('DROP SCHEMA IF EXISTS public CASCADE')
+    await sql.unsafe('DROP SCHEMA IF EXISTS drizzle CASCADE')
+    await sql.unsafe('CREATE SCHEMA public')
+    await runMigrations(sql)
+    db = drizzle(sql)
   })
-  await db.insert(foodMasterNutrients).values(
-    Object.entries(food.nutrients).map(([code, value]) => ({
-      foodMasterId: food.id,
-      nutrientCode: code,
-      value: String(value),
-    })),
-  )
-}
 
-interface MealLogSeed {
-  readonly id: string
-  readonly foodMasterId: string
-  readonly eatenAt: Date
-  readonly quantity: number
-  readonly unit?: string
-}
-
-const seedMealLog = async (entry: MealLogSeed): Promise<void> => {
-  await db.insert(mealLogs).values({
-    id: entry.id,
-    foodMasterId: entry.foodMasterId,
-    eatenAt: entry.eatenAt,
-    quantity: String(entry.quantity),
-    unit: entry.unit ?? 'g',
-    note: null,
+  afterAll(async () => {
+    await sql.end({ timeout: 5 })
   })
-}
 
-describe('MealHistoryService.query', () => {
+  beforeEach(async () => {
+    await sql.unsafe(
+      'TRUNCATE meal_logs, food_master_nutrients, food_masters, nutrient_definitions RESTART IDENTITY CASCADE',
+    )
+  })
+
+  const seedNutrientDefinitions = async (): Promise<void> => {
+    await db.insert(nutrientDefinitions).values([
+      {
+        code: 'energy_kcal',
+        displayName: 'energy',
+        unit: 'kcal',
+        isMajor: true,
+        sortOrder: 1,
+      },
+      {
+        code: 'protein_g',
+        displayName: 'protein',
+        unit: 'g',
+        isMajor: true,
+        sortOrder: 2,
+      },
+      {
+        code: 'iron_mg',
+        displayName: 'iron',
+        unit: 'mg',
+        isMajor: false,
+        sortOrder: 3,
+      },
+    ])
+  }
+
+  interface FoodMasterSeed {
+    readonly id: string
+    readonly name: string
+    readonly isEstimated?: boolean
+    readonly nutrients: Readonly<Record<string, number>>
+  }
+
+  const seedFoodMaster = async (food: FoodMasterSeed): Promise<void> => {
+    const isEstimated = food.isEstimated ?? false
+    await db.insert(foodMasters).values({
+      id: food.id,
+      name: food.name,
+      isEstimated,
+      source: isEstimated ? 'composition_table_estimate' : 'user_input',
+      sourceUrl: null,
+    })
+    await db.insert(foodMasterNutrients).values(
+      Object.entries(food.nutrients).map(([code, value]) => ({
+        foodMasterId: food.id,
+        nutrientCode: code,
+        value: String(value),
+      })),
+    )
+  }
+
+  interface MealLogSeed {
+    readonly id: string
+    readonly foodMasterId: string
+    readonly eatenAt: Date
+    readonly quantity: number
+    readonly unit?: string
+  }
+
+  const seedMealLog = async (entry: MealLogSeed): Promise<void> => {
+    await db.insert(mealLogs).values({
+      id: entry.id,
+      foodMasterId: entry.foodMasterId,
+      eatenAt: entry.eatenAt,
+      quantity: String(entry.quantity),
+      unit: entry.unit ?? 'g',
+      note: null,
+    })
+  }
+
   it('aggregates major nutrients by default within the period', async () => {
     await seedNutrientDefinitions()
     await seedFoodMaster({
@@ -127,7 +144,6 @@ describe('MealHistoryService.query', () => {
       eatenAt: new Date('2026-06-01T12:00:00Z'),
       quantity: 50,
     })
-    // Outside the period; must be excluded.
     await seedMealLog({
       id: 'log-3',
       foodMasterId: 'rice',

@@ -43,42 +43,42 @@ export const createMealHistoryService = (
         'day',
       )
     const sumExpr =
-      sql<string>`SUM(${foodMasterNutrients.value} * ${mealLogs.quantity} / ${sql.raw(String(PER_100G_BASE))})`.as(
+      sql<string>`SUM(${foodMasterNutrients.value} * ${mealLogs.quantity} / ${PER_100G_BASE})`.as(
         'sum_value',
       )
 
-    const [aggregateRows, entryRows] = await db.transaction(
-      (tx) =>
-        Promise.all([
-          tx
-            .select({
-              day: dayExpr,
-              nutrientCode: foodMasterNutrients.nutrientCode,
-              value: sumExpr,
-            })
-            .from(mealLogs)
-            .innerJoin(
-              foodMasterNutrients,
-              eq(foodMasterNutrients.foodMasterId, mealLogs.foodMasterId),
-            )
-            .where(and(...periodWhere, nutrientWhere))
-            .groupBy(dayExpr, foodMasterNutrients.nutrientCode)
-            .orderBy(dayExpr, foodMasterNutrients.nutrientCode),
-          tx
-            .select({
-              id: mealLogs.id,
-              foodMasterId: mealLogs.foodMasterId,
-              eatenAt: mealLogs.eatenAt,
-              quantity: mealLogs.quantity,
-              unit: mealLogs.unit,
-              note: mealLogs.note,
-              isEstimated: foodMasters.isEstimated,
-            })
-            .from(mealLogs)
-            .innerJoin(foodMasters, eq(foodMasters.id, mealLogs.foodMasterId))
-            .where(and(...periodWhere))
-            .orderBy(asc(mealLogs.eatenAt), asc(mealLogs.id)),
-        ]),
+    const { aggregateRows, entryRows } = await db.transaction(
+      async (tx) => {
+        const aggregate = await tx
+          .select({
+            day: dayExpr,
+            nutrientCode: foodMasterNutrients.nutrientCode,
+            value: sumExpr,
+          })
+          .from(mealLogs)
+          .innerJoin(
+            foodMasterNutrients,
+            eq(foodMasterNutrients.foodMasterId, mealLogs.foodMasterId),
+          )
+          .where(and(...periodWhere, nutrientWhere))
+          .groupBy(dayExpr, foodMasterNutrients.nutrientCode)
+          .orderBy(dayExpr, foodMasterNutrients.nutrientCode)
+        const entries = await tx
+          .select({
+            id: mealLogs.id,
+            foodMasterId: mealLogs.foodMasterId,
+            eatenAt: mealLogs.eatenAt,
+            quantity: mealLogs.quantity,
+            unit: mealLogs.unit,
+            note: mealLogs.note,
+            isEstimated: foodMasters.isEstimated,
+          })
+          .from(mealLogs)
+          .innerJoin(foodMasters, eq(foodMasters.id, mealLogs.foodMasterId))
+          .where(and(...periodWhere))
+          .orderBy(asc(mealLogs.eatenAt), asc(mealLogs.id))
+        return { aggregateRows: aggregate, entryRows: entries }
+      },
       { isolationLevel: 'repeatable read', accessMode: 'read only' },
     )
 
