@@ -90,17 +90,14 @@ const CAFE_LATTE: FoodMasterRef = {
   },
 }
 
-const buildService = (
-  foodMasters: ReadonlyArray<FoodMasterRef>,
-  overrides: { now?: Date } = {},
-) => {
+const buildService = (foodMasters: ReadonlyArray<FoodMasterRef>) => {
   const { repository, inserted } = createFakeRepository({ foodMasters })
   const ids = ['ml_1', 'ml_2', 'ml_3']
   let idx = 0
   const service = createMealLogService({
     repository,
     idGenerator: () => ids[idx++] ?? 'ml_overflow',
-    now: () => overrides.now ?? NOW,
+    now: () => NOW,
   })
   return { service, inserted }
 }
