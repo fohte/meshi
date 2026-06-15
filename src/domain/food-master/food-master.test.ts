@@ -1,0 +1,330 @@
+import { drizzle, type PostgresJsDatabase } from 'drizzle-orm/postgres-js'
+import postgres from 'postgres'
+import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
+
+import { runMigrations } from '@/db/migrate'
+import {
+  createFoodMasterRepository,
+  createFoodMasterService,
+  FoodMasterDomainError,
+  type FoodMasterService,
+  type RegisterFoodMasterInput,
+} from '@/domain/food-master'
+
+const TEST_DATABASE_URL = process.env['TEST_DATABASE_URL']
+
+const LOCAL_HOSTS = new Set(['127.0.0.1', 'localhost', '::1'])
+
+if (TEST_DATABASE_URL !== undefined) {
+  const host = new URL(TEST_DATABASE_URL).hostname
+  if (!LOCAL_HOSTS.has(host)) {
+    throw new Error(
+      `TEST_DATABASE_URL must point at a local Postgres (got host: ${host}); ` +
+        `these tests run DROP SCHEMA CASCADE`,
+    )
+  }
+}
+
+const describeIfDb = TEST_DATABASE_URL === undefined ? describe.skip : describe
+
+interface IdCounter {
+  next(): number
+}
+
+const createCountingIdGenerator = (
+  counter: IdCounter,
+): ((prefix: string) => string) => {
+  return (prefix) => `${prefix}_test_${String(counter.next()).padStart(4, '0')}`
+}
+
+const baseInput: RegisterFoodMasterInput = {
+  name: 'rice',
+  nutrition: { energy_kcal: 168, protein_g: 2.5 },
+  source: 'user_input',
+  isEstimated: false,
+}
+
+describeIfDb('FoodMasterService + Repository', () => {
+  let sql: postgres.Sql
+  let db: PostgresJsDatabase
+  let service: FoodMasterService
+  let idCounter: IdCounter
+
+  beforeAll(async () => {
+    sql = postgres(TEST_DATABASE_URL ?? '', { max: 4, onnotice: () => {} })
+    await sql.unsafe('DROP SCHEMA IF EXISTS public CASCADE')
+    await sql.unsafe('DROP SCHEMA IF EXISTS drizzle CASCADE')
+    await sql.unsafe('CREATE SCHEMA public')
+    await runMigrations(sql)
+    db = drizzle(sql)
+  })
+
+  afterAll(async () => {
+    await sql.end({ timeout: 5 })
+  })
+
+  beforeEach(async () => {
+    await sql.unsafe(
+      'TRUNCATE meal_logs, food_master_aliases, food_master_nutrients, ' +
+        'food_composition_nutrients, food_compositions, food_masters, ' +
+        'nutrient_definitions, user_profiles RESTART IDENTITY CASCADE',
+    )
+    await sql`
+      INSERT INTO nutrient_definitions (code, display_name, unit, is_major, sort_order)
+      VALUES
+        ('energy_kcal', 'energy', 'kcal', true, 0),
+        ('protein_g', 'protein', 'g', true, 1),
+        ('iron_mg', 'iron', 'mg', false, 2)
+    `
+    let n = 0
+    idCounter = {
+      next: () => {
+        n += 1
+        return n
+      },
+    }
+    const repo = createFoodMasterRepository(db, {
+      generateId: createCountingIdGenerator(idCounter),
+    })
+    service = createFoodMasterService(repo)
+  })
+
+  const normalize = <T extends { createdAt: Date }>(
+    fm: T,
+  ): Omit<T, 'createdAt'> & { createdAt: '<date>' } => ({
+    ...fm,
+    createdAt: '<date>',
+  })
+
+  it('registers a confirmed food master and round-trips it through getById', async () => {
+    const registered = await service.register({
+      name: 'rice',
+      aliases: ['ご飯', 'cooked rice'],
+      nutrition: { energy_kcal: 168, protein_g: 2.5, iron_mg: 0.1 },
+      source: 'web_search',
+      isEstimated: false,
+      sourceUrl: 'https://example.com/rice',
+    })
+
+    expect(normalize(registered)).toEqual({
+      id: 'fm_test_0001',
+      name: 'rice',
+      aliases: ['ご飯', 'cooked rice'],
+      isEstimated: false,
+      source: 'web_search',
+      sourceUrl: 'https://example.com/rice',
+      nutrition: { energy_kcal: 168, protein_g: 2.5, iron_mg: 0.1 },
+      createdAt: '<date>',
+    })
+
+    const fetched = await service.getById('fm_test_0001')
+    expect(fetched === null ? null : normalize(fetched)).toEqual(
+      normalize(registered),
+    )
+  })
+
+  it('accepts an estimated food master backed by the composition table', async () => {
+    const registered = await service.register({
+      name: 'homemade curry',
+      nutrition: { energy_kcal: 250 },
+      source: 'composition_table_estimate',
+      isEstimated: true,
+    })
+
+    expect(normalize(registered)).toEqual({
+      id: 'fm_test_0001',
+      name: 'homemade curry',
+      aliases: [],
+      isEstimated: true,
+      source: 'composition_table_estimate',
+      sourceUrl: null,
+      nutrition: { energy_kcal: 250 },
+      createdAt: '<date>',
+    })
+  })
+
+  it("rejects is_estimated=true combined with source='web_search'", async () => {
+    const outcome = await service
+      .register({
+        ...baseInput,
+        name: 'guess from web',
+        source: 'web_search',
+        isEstimated: true,
+      })
+      .then(() => ({ kind: 'ok' as const }))
+      .catch((err: unknown) => ({
+        kind: 'error' as const,
+        code: err instanceof FoodMasterDomainError ? err.code : 'unexpected',
+      }))
+
+    expect(outcome).toEqual({
+      kind: 'error',
+      code: 'invalid_source_combination',
+    })
+
+    const rows = await sql<{ count: string }[]>`
+      SELECT count(*)::text AS count FROM food_masters
+    `
+    expect(rows).toEqual([{ count: '0' }])
+  })
+
+  it("allows source='web_search' without source_url (recommendation only)", async () => {
+    const registered = await service.register({
+      name: 'milk',
+      nutrition: { energy_kcal: 67 },
+      source: 'web_search',
+      isEstimated: false,
+    })
+
+    expect(normalize(registered)).toEqual({
+      id: 'fm_test_0001',
+      name: 'milk',
+      aliases: [],
+      isEstimated: false,
+      source: 'web_search',
+      sourceUrl: null,
+      nutrition: { energy_kcal: 67 },
+      createdAt: '<date>',
+    })
+  })
+
+  it('rejects registrations with nutrient_code not present in nutrient_definitions', async () => {
+    const outcome = await service
+      .register({
+        ...baseInput,
+        name: 'mystery food',
+        nutrition: { energy_kcal: 100, mystery_nutrient_g: 5 },
+      })
+      .then(() => ({ kind: 'ok' as const }))
+      .catch((err: unknown) =>
+        err instanceof FoodMasterDomainError
+          ? { kind: 'error' as const, code: err.code, details: err.details }
+          : { kind: 'error' as const, code: 'unexpected', details: {} },
+      )
+
+    expect(outcome).toEqual({
+      kind: 'error',
+      code: 'unknown_nutrient_code',
+      details: { unknown: ['mystery_nutrient_g'] },
+    })
+
+    const rows = await sql<{ count: string }[]>`
+      SELECT count(*)::text AS count FROM food_masters
+    `
+    expect(rows).toEqual([{ count: '0' }])
+  })
+
+  it('rejects duplicate name registration', async () => {
+    await service.register(baseInput)
+    const outcome = await service
+      .register({ ...baseInput, nutrition: { energy_kcal: 200 } })
+      .then(() => ({ kind: 'ok' as const }))
+      .catch((err: unknown) =>
+        err instanceof FoodMasterDomainError
+          ? { kind: 'error' as const, code: err.code }
+          : { kind: 'error' as const, code: 'unexpected' },
+      )
+
+    expect(outcome).toEqual({ kind: 'error', code: 'duplicate_name' })
+
+    const rows = await sql<{ count: string }[]>`
+      SELECT count(*)::text AS count FROM food_masters
+    `
+    expect(rows).toEqual([{ count: '1' }])
+  })
+
+  it('rejects empty name', async () => {
+    const outcome = await service
+      .register({ ...baseInput, name: '   ' })
+      .then(() => ({ kind: 'ok' as const }))
+      .catch((err: unknown) =>
+        err instanceof FoodMasterDomainError
+          ? { kind: 'error' as const, code: err.code }
+          : { kind: 'error' as const, code: 'unexpected' },
+      )
+
+    expect(outcome).toEqual({ kind: 'error', code: 'empty_name' })
+  })
+
+  it('rejects negative nutrient values', async () => {
+    const outcome = await service
+      .register({
+        ...baseInput,
+        name: 'broken',
+        nutrition: { energy_kcal: -1 },
+      })
+      .then(() => ({ kind: 'ok' as const }))
+      .catch((err: unknown) =>
+        err instanceof FoodMasterDomainError
+          ? { kind: 'error' as const, code: err.code }
+          : { kind: 'error' as const, code: 'unexpected' },
+      )
+
+    expect(outcome).toEqual({ kind: 'error', code: 'negative_nutrient_value' })
+  })
+
+  it('rejects duplicate aliases within the same input before hitting the DB', async () => {
+    const outcome = await service
+      .register({
+        ...baseInput,
+        name: 'apple',
+        aliases: ['りんご', 'りんご'],
+      })
+      .then(() => ({ kind: 'ok' as const }))
+      .catch((err: unknown) =>
+        err instanceof FoodMasterDomainError
+          ? { kind: 'error' as const, code: err.code }
+          : { kind: 'error' as const, code: 'unexpected' },
+      )
+
+    expect(outcome).toEqual({ kind: 'error', code: 'duplicate_alias_in_input' })
+  })
+
+  it('rejects empty alias strings', async () => {
+    const outcome = await service
+      .register({
+        ...baseInput,
+        name: 'apple',
+        aliases: ['ok', ''],
+      })
+      .then(() => ({ kind: 'ok' as const }))
+      .catch((err: unknown) =>
+        err instanceof FoodMasterDomainError
+          ? { kind: 'error' as const, code: err.code }
+          : { kind: 'error' as const, code: 'unexpected' },
+      )
+
+    expect(outcome).toEqual({ kind: 'error', code: 'empty_alias' })
+  })
+
+  it('distinguishes alias-UNIQUE collision from name collision', async () => {
+    await service.register({
+      name: 'apple',
+      nutrition: { energy_kcal: 50 },
+      source: 'user_input',
+      isEstimated: false,
+      aliases: ['りんご'],
+    })
+
+    const outcome = await service
+      .register({
+        name: 'red apple',
+        nutrition: { energy_kcal: 52 },
+        source: 'user_input',
+        isEstimated: false,
+        aliases: ['りんご'],
+      })
+      .then(() => ({ kind: 'ok' as const }))
+      .catch((err: unknown) =>
+        err instanceof FoodMasterDomainError
+          ? { kind: 'error' as const, code: err.code }
+          : { kind: 'error' as const, code: 'unexpected' },
+      )
+
+    expect(outcome).toEqual({ kind: 'error', code: 'duplicate_alias' })
+  })
+
+  it('returns null for unknown id', async () => {
+    expect(await service.getById('fm_does_not_exist')).toEqual(null)
+  })
+})
