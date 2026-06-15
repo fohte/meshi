@@ -88,20 +88,26 @@ export const createDrizzleFoodMatcher = (
       if (query.trim() === '' || limit <= 0) return []
 
       const raw = await sql`
-        WITH name_matches AS (
-          SELECT
-            fm.id,
-            fm.name,
-            fm.is_estimated,
-            GREATEST(similarity(fm.name, ${query}), COALESCE(a.alias_sim, 0))
-              AS name_sim
-          FROM food_masters fm
-          LEFT JOIN LATERAL (
-            SELECT MAX(similarity(fma.alias, ${query})) AS alias_sim
+        WITH
+        -- Two index-friendly seeks (name trgm + alias trgm) UNION-ed and
+        -- aggregated. A single LATERAL with an OR predicate across name and
+        -- alias defeats the planner's ability to push either trigram
+        -- predicate into its GIN index, forcing an O(N) scan of food_masters.
+        name_matches AS (
+          SELECT id, name, is_estimated, MAX(name_sim) AS name_sim
+          FROM (
+            SELECT fm.id, fm.name, fm.is_estimated,
+                   similarity(fm.name, ${query}) AS name_sim
+            FROM food_masters fm
+            WHERE fm.name % ${query}
+            UNION ALL
+            SELECT fm.id, fm.name, fm.is_estimated,
+                   similarity(fma.alias, ${query}) AS name_sim
             FROM food_master_aliases fma
-            WHERE fma.food_master_id = fm.id AND fma.alias % ${query}
-          ) a ON true
-          WHERE fm.name % ${query} OR a.alias_sim IS NOT NULL
+            JOIN food_masters fm ON fm.id = fma.food_master_id
+            WHERE fma.alias % ${query}
+          ) _
+          GROUP BY id, name, is_estimated
         ),
         history_stats AS (
           SELECT
