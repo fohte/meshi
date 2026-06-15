@@ -136,35 +136,28 @@ const messagesToOpenAi = (
       continue
     }
     const toolResults = message.content.filter(isToolResultContent)
-    if (toolResults.length > 0) {
-      for (const r of toolResults) {
-        out.push({
-          role: 'tool',
-          tool_call_id: r.toolUseId,
-          content: r.content,
-        })
-      }
-      const nonToolResults = message.content.filter(
-        (c) => c.type !== 'tool_result',
-      )
-      if (nonToolResults.length > 0) {
-        out.push({
-          role: 'user',
-          content: contentToOpenAiUserParts(nonToolResults),
-        })
-      }
-      continue
+    for (const r of toolResults) {
+      out.push({
+        role: 'tool',
+        tool_call_id: r.toolUseId,
+        content: r.content,
+      })
     }
-    out.push({
-      role: 'user',
-      content: contentToOpenAiUserParts(message.content),
-    })
+    const userParts = message.content.filter(
+      (c) => c.type === 'text' || c.type === 'image',
+    )
+    if (userParts.length > 0) {
+      out.push({
+        role: 'user',
+        content: contentToOpenAiUserParts(userParts),
+      })
+    }
   }
   return out
 }
 
-const parseToolInput = (raw: string): unknown => {
-  if (raw === '') return {}
+const parseToolInput = (raw: string | null | undefined): unknown => {
+  if (raw === undefined || raw === null || raw === '') return {}
   try {
     return JSON.parse(raw)
   } catch (cause) {
@@ -197,16 +190,19 @@ const responseToAssistantMessage = (
   res: OpenAiChatResponse,
 ): { message: LlmMessage; toolCalls: LlmToolCall[] } => {
   const message = res.choices?.[0]?.message
+  if (message === undefined) {
+    throw new Error('OpenCode Go returned a choice with no message')
+  }
   const content: LlmContent[] = []
   if (
-    message?.content !== undefined &&
+    message.content !== undefined &&
     message.content !== null &&
     message.content !== ''
   ) {
     content.push({ type: 'text', text: message.content })
   }
   const toolCalls: LlmToolCall[] = []
-  for (const call of message?.tool_calls ?? []) {
+  for (const call of message.tool_calls ?? []) {
     const input = parseToolInput(call.function.arguments)
     content.push({
       type: 'tool_use',
@@ -281,16 +277,26 @@ export class OpenCodeLlmClient implements LlmClient {
         break
       }
 
-      const toolResults: LlmContent[] = []
-      for (const call of toolCalls) {
-        const result = await input.executeTool(call)
-        toolResults.push({
-          type: 'tool_result',
-          toolUseId: call.id,
-          content: result.content,
-          ...(result.isError === true ? { isError: true } : {}),
-        })
-      }
+      const toolResults: LlmContent[] = await Promise.all(
+        toolCalls.map(async (call): Promise<LlmContent> => {
+          try {
+            const result = await input.executeTool(call)
+            return {
+              type: 'tool_result',
+              toolUseId: call.id,
+              content: result.content,
+              ...(result.isError === true ? { isError: true } : {}),
+            }
+          } catch (error) {
+            return {
+              type: 'tool_result',
+              toolUseId: call.id,
+              content: error instanceof Error ? error.message : String(error),
+              isError: true,
+            }
+          }
+        }),
+      )
       messages = [...messages, { role: 'user', content: toolResults }]
     }
 

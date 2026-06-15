@@ -304,4 +304,217 @@ describe('OpenCodeLlmClient.runConversation', () => {
       executedCount: 1,
     })
   })
+
+  it('wraps executor errors as tool_result with isError=true', async () => {
+    mock = await startMockServer([
+      {
+        choices: [
+          {
+            finish_reason: 'tool_calls',
+            message: {
+              role: 'assistant',
+              content: null,
+              tool_calls: [
+                {
+                  id: 'call_err',
+                  type: 'function',
+                  function: {
+                    name: 'search_food_master',
+                    arguments: JSON.stringify({ query: 'x' }),
+                  },
+                },
+              ],
+            },
+          },
+        ],
+      },
+      {
+        choices: [
+          {
+            finish_reason: 'stop',
+            message: { role: 'assistant', content: 'recovered' },
+          },
+        ],
+      },
+    ])
+
+    const client = new OpenCodeLlmClient({
+      apiKey: 'k',
+      baseUrl: mock.url,
+    })
+    const result = await client.runConversation({
+      model: 'm',
+      system: '',
+      messages: initialMessages,
+      tools: [tool],
+      maxTurns: 5,
+      executeTool: () => Promise.reject(new Error('executor blew up')),
+    })
+
+    expect({
+      stopReason: result.stopReason,
+      finalText: result.finalText,
+      lastUserMessage: result.messages[result.messages.length - 2],
+    }).toEqual({
+      stopReason: 'end',
+      finalText: 'recovered',
+      lastUserMessage: {
+        role: 'user',
+        content: [
+          {
+            type: 'tool_result',
+            toolUseId: 'call_err',
+            content: 'executor blew up',
+            isError: true,
+          },
+        ],
+      },
+    })
+  })
+
+  it('executes parallel tool_calls concurrently', async () => {
+    mock = await startMockServer([
+      {
+        choices: [
+          {
+            finish_reason: 'tool_calls',
+            message: {
+              role: 'assistant',
+              content: null,
+              tool_calls: [
+                {
+                  id: 'a',
+                  type: 'function',
+                  function: {
+                    name: 'search_food_master',
+                    arguments: JSON.stringify({ query: 'a' }),
+                  },
+                },
+                {
+                  id: 'b',
+                  type: 'function',
+                  function: {
+                    name: 'search_food_master',
+                    arguments: JSON.stringify({ query: 'b' }),
+                  },
+                },
+              ],
+            },
+          },
+        ],
+      },
+      {
+        choices: [
+          {
+            finish_reason: 'stop',
+            message: { role: 'assistant', content: 'done' },
+          },
+        ],
+      },
+    ])
+
+    const client = new OpenCodeLlmClient({
+      apiKey: 'k',
+      baseUrl: mock.url,
+    })
+    const order: string[] = []
+    let resolveA: (() => void) | undefined
+    const aGate = new Promise<void>((r) => {
+      resolveA = r
+    })
+    const result = await client.runConversation({
+      model: 'm',
+      system: '',
+      messages: initialMessages,
+      tools: [tool],
+      maxTurns: 5,
+      executeTool: async (call) => {
+        order.push(`start:${call.id}`)
+        if (call.id === 'a') {
+          await aGate
+        } else if (call.id === 'b') {
+          resolveA?.()
+        }
+        order.push(`end:${call.id}`)
+        return { content: `ok:${call.id}` }
+      },
+    })
+
+    expect({ order, stopReason: result.stopReason }).toEqual({
+      order: ['start:a', 'start:b', 'end:b', 'end:a'],
+      stopReason: 'end',
+    })
+  })
+
+  it('throws when the response has a choice with no message', async () => {
+    mock = await startMockServer([{ choices: [{ finish_reason: 'stop' }] }])
+
+    const client = new OpenCodeLlmClient({
+      apiKey: 'k',
+      baseUrl: mock.url,
+    })
+    await expect(
+      client.runConversation({
+        model: 'm',
+        system: '',
+        messages: initialMessages,
+        tools: [],
+        maxTurns: 1,
+        executeTool: () => Promise.resolve({ content: '' }),
+      }),
+    ).rejects.toThrow('OpenCode Go returned a choice with no message')
+  })
+
+  it('parseToolInput treats null/undefined arguments as empty object', async () => {
+    mock = await startMockServer([
+      {
+        choices: [
+          {
+            finish_reason: 'tool_calls',
+            message: {
+              role: 'assistant',
+              content: null,
+              tool_calls: [
+                {
+                  id: 'call_null',
+                  type: 'function',
+                  function: { name: 'search_food_master', arguments: null },
+                },
+              ],
+            },
+          },
+        ],
+      },
+      {
+        choices: [
+          {
+            finish_reason: 'stop',
+            message: { role: 'assistant', content: 'ok' },
+          },
+        ],
+      },
+    ])
+
+    const client = new OpenCodeLlmClient({
+      apiKey: 'k',
+      baseUrl: mock.url,
+    })
+    const received: LlmToolCall[] = []
+    const result = await client.runConversation({
+      model: 'm',
+      system: '',
+      messages: initialMessages,
+      tools: [tool],
+      maxTurns: 5,
+      executeTool: (call) => {
+        received.push(call)
+        return Promise.resolve({ content: '{}' })
+      },
+    })
+
+    expect({ received, finalText: result.finalText }).toEqual({
+      received: [{ id: 'call_null', name: 'search_food_master', input: {} }],
+      finalText: 'ok',
+    })
+  })
 })
