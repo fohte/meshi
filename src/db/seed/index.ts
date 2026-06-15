@@ -7,28 +7,8 @@ import {
 } from '@/db/seed/food-composition'
 import { seedNutrientDefinitions } from '@/db/seed/nutrient-definitions'
 
-export type {
-  FoodCompositionRow,
-  LoadFoodCompositionOptions,
-  LoadFoodCompositionResult,
-} from '@/db/seed/food-composition'
-export {
-  FoodCompositionLoadError,
-  loadFoodComposition,
-  loadFoodCompositionDatasetFromFile,
-  parseFoodCompositionDataset,
-} from '@/db/seed/food-composition'
-export type {
-  NutrientDefinitionSeed,
-  NutrientUnit,
-} from '@/db/seed/nutrient-definitions'
-export {
-  MAJOR_NUTRIENT_DEFINITIONS,
-  MINOR_NUTRIENT_DEFINITIONS,
-  NUTRIENT_DEFINITION_SEEDS,
-  seedNutrientDefinitions,
-  upsertNutrientDefinitions,
-} from '@/db/seed/nutrient-definitions'
+export * from '@/db/seed/food-composition'
+export * from '@/db/seed/nutrient-definitions'
 
 export interface RunSeedOptions {
   readonly foodCompositionJsonPath?: string

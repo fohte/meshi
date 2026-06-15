@@ -7,8 +7,8 @@ export default defineConfig({
     },
   },
   test: {
-    // DB-backed test files share one Postgres and reset its schema in beforeAll;
-    // run them sequentially so their setups don't race.
+    // DB-backed tests run DROP SCHEMA in beforeAll against a shared Postgres;
+    // serialize files to avoid the schema resets racing each other.
     fileParallelism: false,
   },
 })
