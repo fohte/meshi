@@ -1,33 +1,10 @@
 import postgres from 'postgres'
-import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
+import { afterAll, beforeAll, beforeEach, expect, it } from 'vitest'
 
 import { runMigrations } from '@/db/migrate'
 import type { FoodMatchCandidate } from '@/domain/food-matcher'
 import { createDrizzleFoodMatcher } from '@/domain/food-matcher'
-
-const TEST_DATABASE_URL = process.env['TEST_DATABASE_URL']
-
-const LOCAL_HOSTS = new Set(['127.0.0.1', 'localhost', '::1'])
-
-if (TEST_DATABASE_URL !== undefined) {
-  const host = new URL(TEST_DATABASE_URL).hostname
-  if (!LOCAL_HOSTS.has(host)) {
-    throw new Error(
-      `TEST_DATABASE_URL must point at a local Postgres (got host: ${host}); ` +
-        `these tests run DROP SCHEMA CASCADE`,
-    )
-  }
-}
-
-const describeIfDb = TEST_DATABASE_URL === undefined ? describe.skip : describe
-
-const truncate = async (sql: postgres.Sql): Promise<void> => {
-  await sql.unsafe(
-    'TRUNCATE meal_logs, food_master_aliases, food_master_nutrients, ' +
-      'food_composition_nutrients, food_compositions, food_masters, ' +
-      'nutrient_definitions, user_profiles RESTART IDENTITY CASCADE',
-  )
-}
+import { describeIfDb, TEST_DATABASE_URL, truncate } from '@/test/db'
 
 const insertMaster = async (
   sql: postgres.Sql,
@@ -100,8 +77,6 @@ describeIfDb('createDrizzleFoodMatcher', () => {
     const matcher = createDrizzleFoodMatcher(sql)
     const result = await matcher.search({ query: 'rice', limit: 5 })
 
-    // recency: 1/(1+days_since). days_since ≈ 1 → 0.5; days_since ≈ 5 → 0.1667.
-    // history_recent score = 2.0 + name_sim * recency.
     const expectedA = Number((2 + SIM_RICE_RICE_X * 0.5).toFixed(3))
     const expectedB = Number((2 + SIM_RICE_RICE_X * (1 / (1 + 5))).toFixed(3))
     expect(normalize(result)).toEqual([
@@ -135,7 +110,6 @@ describeIfDb('createDrizzleFoodMatcher', () => {
     const matcher = createDrizzleFoodMatcher(sql)
     const result = await matcher.search({ query: 'soup', limit: 5 })
 
-    // history_frequent score = 1.0 + name_sim * (1 - exp(-cnt/3)).
     const expectedC = Number(
       (1 + SIM_SOUP_SOUP_X * (1 - Math.exp(-5 / 3))).toFixed(3),
     )

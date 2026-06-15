@@ -32,7 +32,22 @@ const rowSchema = z.object({
   is_estimated: z.boolean(),
   reason: reasonSchema,
   // postgres-js returns numeric / float as string for safety; accept both.
-  score: z.union([z.number(), z.string().transform((s) => Number(s))]),
+  // Reject NaN / Infinity instead of silently propagating them through the
+  // pipeline (Number("abc") is NaN, which the score-based ORDER BY hides).
+  score: z.union([
+    z.number().refine(Number.isFinite),
+    z.string().transform((s, ctx) => {
+      const n = Number(s)
+      if (!Number.isFinite(n)) {
+        ctx.addIssue({
+          code: 'custom',
+          message: `expected a finite numeric, got ${s}`,
+        })
+        return z.NEVER
+      }
+      return n
+    }),
+  ]),
 })
 
 const rowsSchema = z.array(rowSchema)

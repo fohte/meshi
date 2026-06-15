@@ -1,23 +1,8 @@
 import postgres from 'postgres'
-import { afterAll, beforeAll, describe, expect, it } from 'vitest'
+import { afterAll, beforeAll, expect, it } from 'vitest'
 
 import { runMigrations } from '@/db/migrate'
-
-const TEST_DATABASE_URL = process.env['TEST_DATABASE_URL']
-
-const LOCAL_HOSTS = new Set(['127.0.0.1', 'localhost', '::1'])
-
-if (TEST_DATABASE_URL !== undefined) {
-  const host = new URL(TEST_DATABASE_URL).hostname
-  if (!LOCAL_HOSTS.has(host)) {
-    throw new Error(
-      `TEST_DATABASE_URL must point at a local Postgres (got host: ${host}); ` +
-        `these tests run DROP SCHEMA CASCADE`,
-    )
-  }
-}
-
-const describeIfDb = TEST_DATABASE_URL === undefined ? describe.skip : describe
+import { describeIfDb, TEST_DATABASE_URL, truncate } from '@/test/db'
 
 describeIfDb('schema migrations', () => {
   let sql: postgres.Sql
@@ -272,14 +257,6 @@ const runOutcome = async (
           : undefined
       return { status: 'error', code } as const
     })
-
-const truncate = async (sql: postgres.Sql): Promise<void> => {
-  await sql.unsafe(
-    'TRUNCATE meal_logs, food_master_aliases, food_master_nutrients, ' +
-      'food_composition_nutrients, food_compositions, food_masters, ' +
-      'nutrient_definitions, user_profiles RESTART IDENTITY CASCADE',
-  )
-}
 
 describeIfDb('schema runtime constraints', () => {
   let sql: postgres.Sql
