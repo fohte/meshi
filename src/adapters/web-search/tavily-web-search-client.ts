@@ -22,19 +22,21 @@ interface TavilyRawResult {
   readonly content?: unknown
 }
 
-const toSnippet = (raw: TavilyRawResult): WebSearchSnippet | null => {
-  const title = typeof raw.title === 'string' ? raw.title : ''
-  const url = typeof raw.url === 'string' ? raw.url : ''
-  const text = typeof raw.content === 'string' ? raw.content : ''
+const toSnippet = (raw: unknown): WebSearchSnippet | null => {
+  if (typeof raw !== 'object' || raw === null) return null
+  const r = raw as TavilyRawResult
+  const title = typeof r.title === 'string' ? r.title : ''
+  const url = typeof r.url === 'string' ? r.url : ''
+  const text = typeof r.content === 'string' ? r.content : ''
   if (url === '') return null
   return { title, url, text }
 }
 
-const extractResults = (body: unknown): ReadonlyArray<TavilyRawResult> => {
+const extractResults = (body: unknown): ReadonlyArray<unknown> => {
   if (typeof body !== 'object' || body === null) return []
   const results = (body as { results?: unknown }).results
   if (!Array.isArray(results)) return []
-  return results as ReadonlyArray<TavilyRawResult>
+  return results
 }
 
 export const createTavilyWebSearchClient = (
@@ -70,7 +72,15 @@ export const createTavilyWebSearchClient = (
         )
       }
 
-      const body: unknown = await res.json()
+      let body: unknown
+      try {
+        body = await res.json()
+      } catch (cause) {
+        throw new WebSearchError(
+          `failed to parse web search response: ${cause instanceof Error ? cause.message : String(cause)}`,
+          res.status,
+        )
+      }
       const snippets: WebSearchSnippet[] = []
       for (const raw of extractResults(body)) {
         const snippet = toSnippet(raw)

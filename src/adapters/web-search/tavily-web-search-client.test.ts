@@ -126,4 +126,42 @@ describe('createTavilyWebSearchClient', () => {
 
     expect(await client.search('not-a-real-food')).toEqual({ snippets: [] })
   })
+
+  it('skips non-object entries inside the results array', async () => {
+    const { client } = setup(
+      jsonResponse(200, {
+        results: [
+          null,
+          'not an object',
+          { title: 'Ok', url: 'https://example.test/ok', content: 'snippet' },
+        ],
+      }),
+    )
+
+    expect(await client.search('mixed')).toEqual({
+      snippets: [
+        { title: 'Ok', url: 'https://example.test/ok', text: 'snippet' },
+      ],
+    })
+  })
+
+  it('wraps non-JSON 2xx bodies in WebSearchError', async () => {
+    const response = new Response('<html>oops</html>', {
+      status: 200,
+      headers: { 'content-type': 'text/html' },
+    })
+    const { client } = setup(response)
+
+    const error = await client.search('q').catch((e: unknown) => e)
+
+    expect({
+      isWebSearchError: error instanceof WebSearchError,
+      isRateLimit: error instanceof WebSearchRateLimitError,
+      status: error instanceof WebSearchError ? error.status : undefined,
+    }).toEqual({
+      isWebSearchError: true,
+      isRateLimit: false,
+      status: 200,
+    })
+  })
 })
