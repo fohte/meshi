@@ -171,6 +171,27 @@ describe('MealLogService.record', () => {
     })
   })
 
+  it.each(['G', ' g ', ' G '])(
+    'normalizes the unit %p so it scales as grams',
+    async (unit) => {
+      const { service } = buildService([RICE])
+
+      const result = await service.record({
+        foodMasterId: 'fm_rice',
+        eatenAt: EATEN_AT,
+        quantity: 100,
+        unit,
+      })
+
+      expect(result.nutrition).toEqual({
+        energy_kcal: 156,
+        protein_g: 2.5,
+        fat_g: 0.3,
+        carb_g: 37.1,
+      })
+    },
+  )
+
   it('treats non-gram units as per-serving so 0.5 杯 multiplies by 0.5', async () => {
     const { service } = buildService([CAFE_LATTE])
 

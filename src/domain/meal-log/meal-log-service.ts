@@ -64,7 +64,10 @@ const scaleNutrition = (
   quantity: number,
   unit: string,
 ): NutritionMap => {
-  const multiplier = unit === 'g' ? quantity / 100 : quantity
+  // Inputs come from LLM-driven free text so accept 'G' / ' g ' as the gram unit
+  // — otherwise we'd silently scale by ×100 instead of ×(quantity/100).
+  const multiplier =
+    unit.trim().toLowerCase() === 'g' ? quantity / 100 : quantity
   const out: Record<string, number> = {}
   for (const [key, value] of Object.entries(per100g)) {
     out[key] = value * multiplier

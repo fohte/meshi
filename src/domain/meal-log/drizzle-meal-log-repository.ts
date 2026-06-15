@@ -13,6 +13,25 @@ import type { FoodMasterRef, MealLogRow } from '@/domain/meal-log/types'
 
 type Db = ReturnType<typeof drizzle>
 
+const loadNutrition = async (
+  db: Db,
+  foodMasterId: string,
+): Promise<Record<string, number>> => {
+  const rows = await db
+    .select({
+      nutrientCode: foodMasterNutrients.nutrientCode,
+      value: foodMasterNutrients.value,
+    })
+    .from(foodMasterNutrients)
+    .where(eq(foodMasterNutrients.foodMasterId, foodMasterId))
+
+  const nutrition: Record<string, number> = {}
+  for (const row of rows) {
+    nutrition[row.nutrientCode] = Number(row.value)
+  }
+  return nutrition
+}
+
 const loadFoodMaster = async (
   db: Db,
   foodMasterId: string,
@@ -32,24 +51,11 @@ const loadFoodMaster = async (
     throw new FoodMasterNotFoundError(foodMasterId)
   }
 
-  const nutrientRows = await db
-    .select({
-      nutrientCode: foodMasterNutrients.nutrientCode,
-      value: foodMasterNutrients.value,
-    })
-    .from(foodMasterNutrients)
-    .where(eq(foodMasterNutrients.foodMasterId, foodMasterId))
-
-  const nutrition: Record<string, number> = {}
-  for (const row of nutrientRows) {
-    nutrition[row.nutrientCode] = Number(row.value)
-  }
-
   return {
     id: master.id,
     name: master.name,
     isEstimated: master.isEstimated,
-    nutritionPer100g: nutrition,
+    nutritionPer100g: await loadNutrition(db, foodMasterId),
   }
 }
 
@@ -97,14 +103,31 @@ export const createDrizzleMealLogRepository = (sql: Sql): MealLogRepository => {
 
     async findMealLogById(id: string): Promise<FoundMealLog | null> {
       const rows = await db
-        .select()
+        .select({
+          log: mealLogs,
+          food: {
+            id: foodMasters.id,
+            name: foodMasters.name,
+            isEstimated: foodMasters.isEstimated,
+          },
+        })
         .from(mealLogs)
+        .innerJoin(foodMasters, eq(mealLogs.foodMasterId, foodMasters.id))
         .where(eq(mealLogs.id, id))
         .limit(1)
+      // The FK on meal_logs.food_master_id is ON DELETE RESTRICT, so an existing
+      // meal_log always has its food_master. An empty innerJoin therefore means
+      // the meal_log itself does not exist, not that the food_master is missing.
       const row = rows[0]
       if (row === undefined) return null
-      const food = await loadFoodMaster(db, row.foodMasterId)
-      return { log: toRow(row), food }
+
+      return {
+        log: toRow(row.log),
+        food: {
+          ...row.food,
+          nutritionPer100g: await loadNutrition(db, row.food.id),
+        },
+      }
     },
   }
 }
