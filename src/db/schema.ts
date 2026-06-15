@@ -229,7 +229,7 @@ export const userProfiles = pgTable(
       .array()
       .notNull()
       .default(sql`'{}'::text[]`),
-    dailyTargets: jsonb('daily_targets'),
+    dailyTargets: jsonb('daily_targets').$type<Record<string, number>>(),
     updatedAt: timestamp('updated_at', { withTimezone: true, mode: 'date' })
       .notNull()
       .default(sql`now()`),
