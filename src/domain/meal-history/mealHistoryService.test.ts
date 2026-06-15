@@ -290,6 +290,44 @@ describeIfDb('MealHistoryService.query', () => {
     })
   })
 
+  it('returns empty totals when nutrientCodes is an empty array', async () => {
+    await seedNutrientDefinitions()
+    await seedFoodMaster({
+      id: 'rice',
+      name: 'rice',
+      nutrients: { energy_kcal: 156, protein_g: 2.5 },
+    })
+    await seedMealLog({
+      id: 'log-1',
+      foodMasterId: 'rice',
+      eatenAt: new Date('2026-06-01T03:00:00Z'),
+      quantity: 100,
+    })
+
+    const service = createMealHistoryService(db)
+    const result = await service.query({
+      periodFrom: new Date('2026-06-01T00:00:00Z'),
+      periodTo: new Date('2026-06-02T00:00:00Z'),
+      nutrientCodes: [],
+    })
+
+    expect(result).toEqual({
+      totals: {},
+      perDay: [],
+      entries: [
+        {
+          id: 'log-1',
+          foodMasterId: 'rice',
+          eatenAt: new Date('2026-06-01T03:00:00Z'),
+          quantity: 100,
+          unit: 'g',
+          note: null,
+        },
+      ],
+      hasEstimatedValues: false,
+    })
+  })
+
   it('sets hasEstimatedValues=true when any matching meal references an estimated food', async () => {
     await seedNutrientDefinitions()
     await seedFoodMaster({

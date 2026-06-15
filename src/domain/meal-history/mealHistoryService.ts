@@ -36,7 +36,9 @@ export const createMealHistoryService = (
     const nutrientWhere: SQL =
       input.nutrientCodes === undefined
         ? sql`${foodMasterNutrients.nutrientCode} IN (SELECT ${nutrientDefinitions.code} FROM ${nutrientDefinitions} WHERE ${nutrientDefinitions.isMajor} = true)`
-        : inArray(foodMasterNutrients.nutrientCode, [...input.nutrientCodes])
+        : input.nutrientCodes.length === 0
+          ? sql`false`
+          : inArray(foodMasterNutrients.nutrientCode, [...input.nutrientCodes])
 
     const dayExpr =
       sql<string>`to_char(date_trunc('day', ${mealLogs.eatenAt} AT TIME ZONE 'UTC'), 'YYYY-MM-DD')`.as(
