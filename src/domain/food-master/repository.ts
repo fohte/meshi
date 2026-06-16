@@ -221,7 +221,19 @@ export const createFoodMasterRepository = (
           registerInTx(tx, normalized, nutrientCodes, id),
         )
       }
-      return await registerInTx(sql, normalized, nutrientCodes, id)
+      // Inside an existing transaction (per-test). Wrap with a SAVEPOINT so a
+      // failed write does not poison the outer tx — Postgres aborts an entire
+      // transaction on the first error otherwise.
+      const savepoint = `fm_register_${generateId('sp').replace(/[^A-Za-z0-9_]/g, '_')}`
+      await sql.unsafe(`SAVEPOINT ${savepoint}`)
+      try {
+        const result = await registerInTx(sql, normalized, nutrientCodes, id)
+        await sql.unsafe(`RELEASE SAVEPOINT ${savepoint}`)
+        return result
+      } catch (err) {
+        await sql.unsafe(`ROLLBACK TO SAVEPOINT ${savepoint}`)
+        throw err
+      }
     } catch (err) {
       if (isUniqueViolation(err)) {
         const constraint = getConstraintName(err)
