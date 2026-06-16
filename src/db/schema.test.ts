@@ -3,9 +3,8 @@ import { expect, it } from 'vitest'
 import { describeIfDb, getTestSql, setupTx } from '@/test/db'
 
 describeIfDb('schema migrations', () => {
-  const sql = getTestSql()
-
   it('creates the expected tables', async () => {
+    const sql = getTestSql()
     const rows = await sql<{ table_name: string }[]>`
       SELECT table_name
       FROM information_schema.tables
@@ -25,6 +24,7 @@ describeIfDb('schema migrations', () => {
   })
 
   it('creates the food_source and nutrient_unit enums with expected values', async () => {
+    const sql = getTestSql()
     const rows = await sql<{ typname: string; labels: string[] }[]>`
       SELECT t.typname,
              array_agg(e.enumlabel ORDER BY e.enumsortorder) AS labels
@@ -44,6 +44,7 @@ describeIfDb('schema migrations', () => {
   })
 
   it('installs the pg_trgm extension', async () => {
+    const sql = getTestSql()
     const rows = await sql<{ extname: string }[]>`
       SELECT extname FROM pg_extension WHERE extname = 'pg_trgm'
     `
@@ -51,6 +52,7 @@ describeIfDb('schema migrations', () => {
   })
 
   it('creates composite primary keys on the *_nutrients tables', async () => {
+    const sql = getTestSql()
     const rows = await sql<{ table_name: string; columns: string[] }[]>`
       SELECT c.conrelid::regclass::text AS table_name,
              array_agg(a.attname ORDER BY u.ord) AS columns
@@ -76,6 +78,7 @@ describeIfDb('schema migrations', () => {
   })
 
   it('creates the partial index on food_masters.is_estimated', async () => {
+    const sql = getTestSql()
     const rows = await sql<{ indexdef: string }[]>`
       SELECT indexdef FROM pg_indexes
       WHERE indexname = 'food_masters_is_estimated_idx'
@@ -89,6 +92,7 @@ describeIfDb('schema migrations', () => {
   })
 
   it('creates the partial index on nutrient_definitions(is_major, sort_order)', async () => {
+    const sql = getTestSql()
     const rows = await sql<{ indexdef: string }[]>`
       SELECT indexdef FROM pg_indexes
       WHERE indexname = 'nutrient_definitions_major_sort_idx'
@@ -102,6 +106,7 @@ describeIfDb('schema migrations', () => {
   })
 
   it('creates GIN trigram indexes on the fuzzy-searchable text columns', async () => {
+    const sql = getTestSql()
     const rows = await sql<{ indexname: string; indexdef: string }[]>`
       SELECT indexname, indexdef FROM pg_indexes
       WHERE indexname IN (
@@ -131,6 +136,7 @@ describeIfDb('schema migrations', () => {
   })
 
   it('creates foreign keys with the expected ON UPDATE / ON DELETE actions', async () => {
+    const sql = getTestSql()
     const rows = await sql<
       {
         conname: string
@@ -197,6 +203,7 @@ describeIfDb('schema migrations', () => {
   })
 
   it('creates the expected CHECK constraints', async () => {
+    const sql = getTestSql()
     const rows = await sql<{ conname: string; table_name: string }[]>`
       SELECT c.conname,
              c.conrelid::regclass::text AS table_name

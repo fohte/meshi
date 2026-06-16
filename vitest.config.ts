@@ -7,8 +7,8 @@ export default defineConfig({
     },
   },
   test: {
-    // Runs DROP/CREATE/migrate once at process start. Per-test isolation is
-    // provided by the `txIt` fixture in src/test/db.ts (BEGIN/ROLLBACK), not
+    // Runs DROP/CREATE/migrate once at process start. Per-test isolation
+    // is provided by `setupTx()` in src/test/db.ts (BEGIN/ROLLBACK), not
     // by re-running migrations or TRUNCATE.
     globalSetup: ['./src/test/global-setup.ts'],
   },

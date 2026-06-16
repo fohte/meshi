@@ -2,10 +2,8 @@ import postgres from 'postgres'
 
 import { runMigrations } from '@/db/migrate'
 
-// Runs once before the vitest test process — wipe the public schema, then
-// apply migrations. Tests use per-test transactions and never re-run
-// migrations themselves; the schema state is stable for the whole run.
 export default async function setup(): Promise<void> {
+  // No-op when TEST_DATABASE_URL is unset so unit-only runs don't need a DB.
   const url = process.env['TEST_DATABASE_URL']
   if (url === undefined) return
 

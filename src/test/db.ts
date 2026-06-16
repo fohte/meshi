@@ -47,9 +47,8 @@ afterAll(async () => {
 // so the work is rolled back.
 export const getTestSql = (): postgres.Sql => getPool()
 
-// Wire up per-test BEGIN/ROLLBACK and return a getter for the active tx.
-// Concurrent tests never see each other's writes because each runs in its
-// own snapshot, and nothing is ever committed.
+// The returned getter throws if called outside a test — `reserved` is only
+// set between this fixture's beforeEach and afterEach.
 export const setupTx = (): (() => postgres.Sql) => {
   let reserved: postgres.ReservedSql | null = null
 
