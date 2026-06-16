@@ -1,12 +1,6 @@
-import { and, asc, eq, gte, inArray, lt, type SQL, sql } from 'drizzle-orm'
-import type { PgDatabase, PgQueryResultHKT } from 'drizzle-orm/pg-core'
+import { z } from 'zod'
 
-import {
-  foodMasterNutrients,
-  foodMasters,
-  mealLogs,
-  nutrientDefinitions,
-} from '@/db/schema'
+import type { Sql } from '@/db'
 import type {
   MealHistoryAggregate,
   MealHistoryDayTotals,
@@ -17,78 +11,110 @@ import type {
   QueryMealHistoryInput,
 } from '@/domain/meal-history/types'
 
-export type MealHistoryDb = PgDatabase<PgQueryResultHKT>
-
 const PER_100G_BASE = 100
 
-export const createMealHistoryService = (
-  db: MealHistoryDb,
-): MealHistoryService => ({
-  async query(input: QueryMealHistoryInput): Promise<MealHistoryAggregate> {
-    const periodWhere: SQL[] = [
-      gte(mealLogs.eatenAt, input.periodFrom),
-      lt(mealLogs.eatenAt, input.periodTo),
-    ]
-    if (input.foodFilter !== undefined && input.foodFilter.length > 0) {
-      periodWhere.push(inArray(mealLogs.foodMasterId, [...input.foodFilter]))
+const numericString = z.union([
+  z.number().refine(Number.isFinite),
+  z.string().transform((s, ctx) => {
+    const n = Number(s)
+    if (!Number.isFinite(n)) {
+      ctx.addIssue({ code: 'custom', message: `not a finite number: ${s}` })
+      return z.NEVER
     }
+    return n
+  }),
+])
 
-    const nutrientWhere: SQL =
-      input.nutrientCodes === undefined
-        ? sql`${foodMasterNutrients.nutrientCode} IN (SELECT ${nutrientDefinitions.code} FROM ${nutrientDefinitions} WHERE ${nutrientDefinitions.isMajor} = true)`
-        : input.nutrientCodes.length === 0
-          ? sql`false`
-          : inArray(foodMasterNutrients.nutrientCode, [...input.nutrientCodes])
+const aggregateRowSchema = z.object({
+  day: z.string(),
+  nutrient_code: z.string(),
+  value: numericString,
+})
 
-    const dayExpr =
-      sql<string>`to_char(date_trunc('day', ${mealLogs.eatenAt} AT TIME ZONE 'UTC'), 'YYYY-MM-DD')`.as(
-        'day',
-      )
-    const sumExpr =
-      sql<string>`SUM(${foodMasterNutrients.value} * ${mealLogs.quantity} / ${PER_100G_BASE})`.as(
-        'sum_value',
-      )
+const entryRowSchema = z.object({
+  id: z.string(),
+  food_master_id: z.string(),
+  eaten_at: z.date(),
+  quantity: numericString,
+  unit: z.string(),
+  note: z.string().nullable(),
+  is_estimated: z.boolean(),
+})
 
-    const aggregateRows = await db
-      .select({
-        day: dayExpr,
-        nutrientCode: foodMasterNutrients.nutrientCode,
-        value: sumExpr,
-      })
-      .from(mealLogs)
-      .innerJoin(
-        foodMasterNutrients,
-        eq(foodMasterNutrients.foodMasterId, mealLogs.foodMasterId),
-      )
-      .where(and(...periodWhere, nutrientWhere))
-      .groupBy(dayExpr, foodMasterNutrients.nutrientCode)
-      .orderBy(dayExpr, foodMasterNutrients.nutrientCode)
-    const entryRows = await db
-      .select({
-        id: mealLogs.id,
-        foodMasterId: mealLogs.foodMasterId,
-        eatenAt: mealLogs.eatenAt,
-        quantity: mealLogs.quantity,
-        unit: mealLogs.unit,
-        note: mealLogs.note,
-        isEstimated: foodMasters.isEstimated,
-      })
-      .from(mealLogs)
-      .innerJoin(foodMasters, eq(foodMasters.id, mealLogs.foodMasterId))
-      .where(and(...periodWhere))
-      .orderBy(asc(mealLogs.eatenAt), asc(mealLogs.id))
+export const createMealHistoryService = (sql: Sql): MealHistoryService => ({
+  async query(input: QueryMealHistoryInput): Promise<MealHistoryAggregate> {
+    const foodFilter =
+      input.foodFilter !== undefined && input.foodFilter.length > 0
+        ? input.foodFilter
+        : null
+    const nutrientCodes = input.nutrientCodes
+    const useMajorOnly = nutrientCodes === undefined
+    const emptyNutrientFilter =
+      nutrientCodes !== undefined && nutrientCodes.length === 0
+
+    const aggregateRaw = emptyNutrientFilter
+      ? []
+      : await sql`
+          SELECT
+            to_char(date_trunc('day', ml.eaten_at AT TIME ZONE 'UTC'), 'YYYY-MM-DD')
+              AS day,
+            fmn.nutrient_code AS nutrient_code,
+            SUM(fmn.value * ml.quantity / ${PER_100G_BASE}) AS value
+          FROM meal_logs ml
+          INNER JOIN food_master_nutrients fmn
+            ON fmn.food_master_id = ml.food_master_id
+          WHERE ml.eaten_at >= ${input.periodFrom}
+            AND ml.eaten_at < ${input.periodTo}
+            AND (
+              ${foodFilter === null}::boolean
+              OR ml.food_master_id = ANY(${foodFilter ?? []}::text[])
+            )
+            AND (
+              CASE
+                WHEN ${useMajorOnly}::boolean THEN fmn.nutrient_code IN (
+                  SELECT code FROM nutrient_definitions WHERE is_major = true
+                )
+                ELSE fmn.nutrient_code = ANY(${nutrientCodes ?? []}::text[])
+              END
+            )
+          GROUP BY day, fmn.nutrient_code
+          ORDER BY day, fmn.nutrient_code
+        `
+
+    const entryRaw = await sql`
+      SELECT
+        ml.id AS id,
+        ml.food_master_id AS food_master_id,
+        ml.eaten_at AS eaten_at,
+        ml.quantity AS quantity,
+        ml.unit AS unit,
+        ml.note AS note,
+        fm.is_estimated AS is_estimated
+      FROM meal_logs ml
+      INNER JOIN food_masters fm ON fm.id = ml.food_master_id
+      WHERE ml.eaten_at >= ${input.periodFrom}
+        AND ml.eaten_at < ${input.periodTo}
+        AND (
+          ${foodFilter === null}::boolean
+          OR ml.food_master_id = ANY(${foodFilter ?? []}::text[])
+        )
+      ORDER BY ml.eaten_at ASC, ml.id ASC
+    `
+
+    const aggregateRows = z.array(aggregateRowSchema).parse(aggregateRaw)
+    const entryRows = z.array(entryRowSchema).parse(entryRaw)
 
     const perDay = buildPerDay(aggregateRows)
     const totals = sumPerDay(perDay)
     const entries: MealLogEntry[] = entryRows.map((row) => ({
       id: row.id,
-      foodMasterId: row.foodMasterId,
-      eatenAt: row.eatenAt,
-      quantity: Number(row.quantity),
+      foodMasterId: row.food_master_id,
+      eatenAt: row.eaten_at,
+      quantity: row.quantity,
       unit: row.unit,
       note: row.note,
     }))
-    const hasEstimatedValues = entryRows.some((row) => row.isEstimated)
+    const hasEstimatedValues = entryRows.some((row) => row.is_estimated)
 
     return { totals, perDay, entries, hasEstimatedValues }
   },
@@ -97,14 +123,14 @@ export const createMealHistoryService = (
 const buildPerDay = (
   rows: ReadonlyArray<{
     day: string
-    nutrientCode: NutrientCode
-    value: string
+    nutrient_code: NutrientCode
+    value: number
   }>,
 ): ReadonlyArray<MealHistoryDayTotals> => {
   const byDay = new Map<string, Record<NutrientCode, number>>()
   for (const row of rows) {
     const day = byDay.get(row.day) ?? {}
-    day[row.nutrientCode] = Number(row.value)
+    day[row.nutrient_code] = row.value
     byDay.set(row.day, day)
   }
   return [...byDay.entries()]
