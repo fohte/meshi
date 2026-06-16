@@ -1,8 +1,6 @@
-import { drizzle, type PostgresJsDatabase } from 'drizzle-orm/postgres-js'
-import postgres from 'postgres'
-import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
+import { drizzle } from 'drizzle-orm/postgres-js'
+import { expect, it } from 'vitest'
 
-import { runMigrations } from '@/db/migrate'
 import {
   foodMasterNutrients,
   foodMasters,
@@ -10,47 +8,14 @@ import {
   nutrientDefinitions,
 } from '@/db/schema'
 import { createMealHistoryService } from '@/domain/meal-history/mealHistoryService'
-
-const TEST_DATABASE_URL = process.env['TEST_DATABASE_URL']
-
-const LOCAL_HOSTS = new Set(['127.0.0.1', 'localhost', '::1'])
-
-if (TEST_DATABASE_URL !== undefined) {
-  const host = new URL(TEST_DATABASE_URL).hostname
-  if (!LOCAL_HOSTS.has(host)) {
-    throw new Error(
-      `TEST_DATABASE_URL must point at a local Postgres (got host: ${host}); ` +
-        `these tests run DROP SCHEMA CASCADE`,
-    )
-  }
-}
-
-const describeIfDb = TEST_DATABASE_URL === undefined ? describe.skip : describe
+import { describeIfDb, setupTx } from '@/test/db'
 
 describeIfDb('MealHistoryService.query', () => {
-  let sql: postgres.Sql
-  let db: PostgresJsDatabase
+  const getTx = setupTx()
 
-  beforeAll(async () => {
-    sql = postgres(TEST_DATABASE_URL ?? '', { max: 4, onnotice: () => {} })
-    await sql.unsafe('DROP SCHEMA IF EXISTS public CASCADE')
-    await sql.unsafe('DROP SCHEMA IF EXISTS drizzle CASCADE')
-    await sql.unsafe('CREATE SCHEMA public')
-    await runMigrations(sql)
-    db = drizzle(sql)
-  })
-
-  afterAll(async () => {
-    await sql.end({ timeout: 5 })
-  })
-
-  beforeEach(async () => {
-    await sql.unsafe(
-      'TRUNCATE meal_logs, food_master_nutrients, food_masters, nutrient_definitions RESTART IDENTITY CASCADE',
-    )
-  })
-
-  const seedNutrientDefinitions = async (): Promise<void> => {
+  const seedNutrientDefinitions = async (
+    db: ReturnType<typeof drizzle>,
+  ): Promise<void> => {
     await db.insert(nutrientDefinitions).values([
       {
         code: 'energy_kcal',
@@ -83,7 +48,10 @@ describeIfDb('MealHistoryService.query', () => {
     readonly nutrients: Readonly<Record<string, number>>
   }
 
-  const seedFoodMaster = async (food: FoodMasterSeed): Promise<void> => {
+  const seedFoodMaster = async (
+    db: ReturnType<typeof drizzle>,
+    food: FoodMasterSeed,
+  ): Promise<void> => {
     const isEstimated = food.isEstimated ?? false
     await db.insert(foodMasters).values({
       id: food.id,
@@ -109,7 +77,10 @@ describeIfDb('MealHistoryService.query', () => {
     readonly unit?: string
   }
 
-  const seedMealLog = async (entry: MealLogSeed): Promise<void> => {
+  const seedMealLog = async (
+    db: ReturnType<typeof drizzle>,
+    entry: MealLogSeed,
+  ): Promise<void> => {
     await db.insert(mealLogs).values({
       id: entry.id,
       foodMasterId: entry.foodMasterId,
@@ -121,30 +92,31 @@ describeIfDb('MealHistoryService.query', () => {
   }
 
   it('aggregates major nutrients by default within the period', async () => {
-    await seedNutrientDefinitions()
-    await seedFoodMaster({
+    const db = drizzle(getTx())
+    await seedNutrientDefinitions(db)
+    await seedFoodMaster(db, {
       id: 'rice',
       name: 'rice',
       nutrients: { energy_kcal: 156, protein_g: 2.5, iron_mg: 0.1 },
     })
-    await seedFoodMaster({
+    await seedFoodMaster(db, {
       id: 'egg',
       name: 'egg',
       nutrients: { energy_kcal: 142, protein_g: 12, iron_mg: 1.5 },
     })
-    await seedMealLog({
+    await seedMealLog(db, {
       id: 'log-1',
       foodMasterId: 'rice',
       eatenAt: new Date('2026-06-01T03:00:00Z'),
       quantity: 200,
     })
-    await seedMealLog({
+    await seedMealLog(db, {
       id: 'log-2',
       foodMasterId: 'egg',
       eatenAt: new Date('2026-06-01T12:00:00Z'),
       quantity: 50,
     })
-    await seedMealLog({
+    await seedMealLog(db, {
       id: 'log-3',
       foodMasterId: 'rice',
       eatenAt: new Date('2026-06-02T00:00:00Z'),
@@ -194,24 +166,25 @@ describeIfDb('MealHistoryService.query', () => {
   })
 
   it('filters entries and aggregation by foodFilter', async () => {
-    await seedNutrientDefinitions()
-    await seedFoodMaster({
+    const db = drizzle(getTx())
+    await seedNutrientDefinitions(db)
+    await seedFoodMaster(db, {
       id: 'rice',
       name: 'rice',
       nutrients: { energy_kcal: 156, protein_g: 2.5 },
     })
-    await seedFoodMaster({
+    await seedFoodMaster(db, {
       id: 'egg',
       name: 'egg',
       nutrients: { energy_kcal: 142, protein_g: 12 },
     })
-    await seedMealLog({
+    await seedMealLog(db, {
       id: 'log-1',
       foodMasterId: 'rice',
       eatenAt: new Date('2026-06-01T03:00:00Z'),
       quantity: 200,
     })
-    await seedMealLog({
+    await seedMealLog(db, {
       id: 'log-2',
       foodMasterId: 'egg',
       eatenAt: new Date('2026-06-01T12:00:00Z'),
@@ -248,13 +221,14 @@ describeIfDb('MealHistoryService.query', () => {
   })
 
   it('aggregates only the specified nutrient codes when provided', async () => {
-    await seedNutrientDefinitions()
-    await seedFoodMaster({
+    const db = drizzle(getTx())
+    await seedNutrientDefinitions(db)
+    await seedFoodMaster(db, {
       id: 'spinach',
       name: 'spinach',
       nutrients: { energy_kcal: 25, protein_g: 2.2, iron_mg: 2 },
     })
-    await seedMealLog({
+    await seedMealLog(db, {
       id: 'log-1',
       foodMasterId: 'spinach',
       eatenAt: new Date('2026-06-01T03:00:00Z'),
@@ -291,13 +265,14 @@ describeIfDb('MealHistoryService.query', () => {
   })
 
   it('returns empty totals when nutrientCodes is an empty array', async () => {
-    await seedNutrientDefinitions()
-    await seedFoodMaster({
+    const db = drizzle(getTx())
+    await seedNutrientDefinitions(db)
+    await seedFoodMaster(db, {
       id: 'rice',
       name: 'rice',
       nutrients: { energy_kcal: 156, protein_g: 2.5 },
     })
-    await seedMealLog({
+    await seedMealLog(db, {
       id: 'log-1',
       foodMasterId: 'rice',
       eatenAt: new Date('2026-06-01T03:00:00Z'),
@@ -329,25 +304,26 @@ describeIfDb('MealHistoryService.query', () => {
   })
 
   it('sets hasEstimatedValues=true when any matching meal references an estimated food', async () => {
-    await seedNutrientDefinitions()
-    await seedFoodMaster({
+    const db = drizzle(getTx())
+    await seedNutrientDefinitions(db)
+    await seedFoodMaster(db, {
       id: 'rice',
       name: 'rice',
       nutrients: { energy_kcal: 156, protein_g: 2.5 },
     })
-    await seedFoodMaster({
+    await seedFoodMaster(db, {
       id: 'mystery_stew',
       name: 'mystery stew',
       isEstimated: true,
       nutrients: { energy_kcal: 200, protein_g: 8 },
     })
-    await seedMealLog({
+    await seedMealLog(db, {
       id: 'log-1',
       foodMasterId: 'rice',
       eatenAt: new Date('2026-06-01T03:00:00Z'),
       quantity: 100,
     })
-    await seedMealLog({
+    await seedMealLog(db, {
       id: 'log-2',
       foodMasterId: 'mystery_stew',
       eatenAt: new Date('2026-06-01T12:00:00Z'),
