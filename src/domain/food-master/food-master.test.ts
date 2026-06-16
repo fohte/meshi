@@ -1,8 +1,6 @@
-import { drizzle, type PostgresJsDatabase } from 'drizzle-orm/postgres-js'
-import postgres from 'postgres'
-import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
+import { drizzle } from 'drizzle-orm/postgres-js'
+import { beforeEach, expect, it } from 'vitest'
 
-import { runMigrations } from '@/db/migrate'
 import {
   createFoodMasterRepository,
   createFoodMasterService,
@@ -10,22 +8,7 @@ import {
   type FoodMasterService,
   type RegisterFoodMasterInput,
 } from '@/domain/food-master'
-
-const TEST_DATABASE_URL = process.env['TEST_DATABASE_URL']
-
-const LOCAL_HOSTS = new Set(['127.0.0.1', 'localhost', '::1'])
-
-if (TEST_DATABASE_URL !== undefined) {
-  const host = new URL(TEST_DATABASE_URL).hostname
-  if (!LOCAL_HOSTS.has(host)) {
-    throw new Error(
-      `TEST_DATABASE_URL must point at a local Postgres (got host: ${host}); ` +
-        `these tests run DROP SCHEMA CASCADE`,
-    )
-  }
-}
-
-const describeIfDb = TEST_DATABASE_URL === undefined ? describe.skip : describe
+import { describeIfDb, setupTx } from '@/test/db'
 
 interface IdCounter {
   next(): number
@@ -59,31 +42,12 @@ const baseInput: RegisterFoodMasterInput = {
 }
 
 describeIfDb('FoodMasterService + Repository', () => {
-  let sql: postgres.Sql
-  let db: PostgresJsDatabase
+  const getTx = setupTx()
   let service: FoodMasterService
-  let idCounter: IdCounter
-
-  beforeAll(async () => {
-    sql = postgres(TEST_DATABASE_URL ?? '', { max: 4, onnotice: () => {} })
-    await sql.unsafe('DROP SCHEMA IF EXISTS public CASCADE')
-    await sql.unsafe('DROP SCHEMA IF EXISTS drizzle CASCADE')
-    await sql.unsafe('CREATE SCHEMA public')
-    await runMigrations(sql)
-    db = drizzle(sql)
-  })
-
-  afterAll(async () => {
-    await sql.end({ timeout: 5 })
-  })
 
   beforeEach(async () => {
-    await sql.unsafe(
-      'TRUNCATE meal_logs, food_master_aliases, food_master_nutrients, ' +
-        'food_composition_nutrients, food_compositions, food_masters, ' +
-        'nutrient_definitions, user_profiles RESTART IDENTITY CASCADE',
-    )
-    await sql`
+    const tx = getTx()
+    await tx`
       INSERT INTO nutrient_definitions (code, display_name, unit, is_major, sort_order)
       VALUES
         ('energy_kcal', 'energy', 'kcal', true, 0),
@@ -91,13 +55,13 @@ describeIfDb('FoodMasterService + Repository', () => {
         ('iron_mg', 'iron', 'mg', false, 2)
     `
     let n = 0
-    idCounter = {
+    const idCounter: IdCounter = {
       next: () => {
         n += 1
         return n
       },
     }
-    const repo = createFoodMasterRepository(db, {
+    const repo = createFoodMasterRepository(drizzle(tx), {
       generateId: createCountingIdGenerator(idCounter),
     })
     service = createFoodMasterService(repo)
@@ -158,6 +122,7 @@ describeIfDb('FoodMasterService + Repository', () => {
   })
 
   it("rejects is_estimated=true combined with source='web_search'", async () => {
+    const tx = getTx()
     const captured = await captureDomainError(
       service.register({
         ...baseInput,
@@ -172,7 +137,7 @@ describeIfDb('FoodMasterService + Repository', () => {
       details: { source: 'web_search', isEstimated: true },
     })
 
-    const rows = await sql<{ count: string }[]>`
+    const rows = await tx<{ count: string }[]>`
       SELECT count(*)::text AS count FROM food_masters
     `
     expect(rows).toEqual([{ count: '0' }])
@@ -199,6 +164,7 @@ describeIfDb('FoodMasterService + Repository', () => {
   })
 
   it('rejects registrations with nutrient_code not present in nutrient_definitions', async () => {
+    const tx = getTx()
     const captured = await captureDomainError(
       service.register({
         ...baseInput,
@@ -212,13 +178,14 @@ describeIfDb('FoodMasterService + Repository', () => {
       details: { unknown: ['mystery_nutrient_g'] },
     })
 
-    const rows = await sql<{ count: string }[]>`
+    const rows = await tx<{ count: string }[]>`
       SELECT count(*)::text AS count FROM food_masters
     `
     expect(rows).toEqual([{ count: '0' }])
   })
 
   it('rejects duplicate name registration', async () => {
+    const tx = getTx()
     await service.register(baseInput)
     const captured = await captureDomainError(
       service.register({ ...baseInput, nutrition: { energy_kcal: 200 } }),
@@ -229,7 +196,7 @@ describeIfDb('FoodMasterService + Repository', () => {
       details: { name: baseInput.name },
     })
 
-    const rows = await sql<{ count: string }[]>`
+    const rows = await tx<{ count: string }[]>`
       SELECT count(*)::text AS count FROM food_masters
     `
     expect(rows).toEqual([{ count: '1' }])
