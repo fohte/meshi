@@ -1,4 +1,3 @@
-import { drizzle } from 'drizzle-orm/postgres-js'
 import { beforeEach, expect, it } from 'vitest'
 
 import {
@@ -61,8 +60,11 @@ describeIfDb('FoodMasterService + Repository', () => {
         return n
       },
     }
-    const repo = createFoodMasterRepository(drizzle(tx), {
+    const repo = createFoodMasterRepository(tx, {
       generateId: createCountingIdGenerator(idCounter),
+      // The outer per-test transaction already provides atomicity, and
+      // postgres-js rejects a nested BEGIN inside it.
+      wrapInTransaction: false,
     })
     service = createFoodMasterService(repo)
   })
