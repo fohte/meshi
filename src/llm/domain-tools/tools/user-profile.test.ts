@@ -113,7 +113,7 @@ describe('update_user_profile tool', () => {
     })
   })
 
-  it('sends an empty patch when no fields are supplied', async () => {
+  it('sends an empty patch when no fields are supplied and echoes the current profile', async () => {
     const { service, calls } = setup({
       update: (patch) => {
         calls.update.push(patch)
@@ -122,9 +122,21 @@ describe('update_user_profile tool', () => {
     })
     const tool = createUpdateUserProfileTool(service)
 
-    await tool.execute({})
+    const result = await tool.execute({})
 
-    expect(calls.update).toEqual([{}])
+    expect({ result: normalizeResult(result), calls }).toEqual({
+      result: {
+        ok: true,
+        value: {
+          likes: ['banana'],
+          dislikes: ['natto'],
+          allergies: ['shrimp'],
+          constraints: ['low-sodium'],
+          daily_targets: { energy_kcal: 2000 },
+        },
+      },
+      calls: { get: 0, update: [{}] },
+    })
   })
 
   it('translates daily_targets snake_case to dailyTargets in the patch', async () => {
@@ -139,9 +151,21 @@ describe('update_user_profile tool', () => {
     })
     const tool = createUpdateUserProfileTool(service)
 
-    await tool.execute({ daily_targets: { protein_g: 80 } })
+    const result = await tool.execute({ daily_targets: { protein_g: 80 } })
 
-    expect(calls.update).toEqual([{ dailyTargets: { protein_g: 80 } }])
+    expect({ result: normalizeResult(result), calls }).toEqual({
+      result: {
+        ok: true,
+        value: {
+          likes: ['banana'],
+          dislikes: ['natto'],
+          allergies: ['shrimp'],
+          constraints: ['low-sodium'],
+          daily_targets: { energy_kcal: 2000, protein_g: 80 },
+        },
+      },
+      calls: { get: 0, update: [{ dailyTargets: { protein_g: 80 } }] },
+    })
   })
 
   it('rejects empty strings inside likes with invalid_input', async () => {

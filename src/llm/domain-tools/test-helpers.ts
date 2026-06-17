@@ -1,9 +1,7 @@
 import type { Result, ToolError } from '@/llm/domain-tools/types'
 
 // Tool error messages come from upstream sources (Zod, DomainError, fetch) and
-// can drift across library versions or locales. Normalize the message to a
-// fixed sentinel so every test can still assert the full Result literal in one
-// equality check.
+// drift across library versions and locales.
 export interface NormalizedToolError {
   readonly code: string
   readonly message: '<dynamic>'
@@ -14,8 +12,7 @@ export type NormalizedResult<T> =
   | { readonly ok: true; readonly value: T }
   | { readonly ok: false; readonly error: NormalizedToolError }
 
-// Zod issue text is implementation-defined; collapse `details.issues` to a
-// length so tests can still verify zod fired without pinning the exact text.
+// Zod issue text is implementation-defined.
 const normalizeDetails = (
   details: Readonly<Record<string, unknown>>,
 ): Readonly<Record<string, unknown>> => {

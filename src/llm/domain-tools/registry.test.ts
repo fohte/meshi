@@ -14,9 +14,7 @@ import {
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === 'object' && value !== null
 
-// Mirror normalizeResult's masking on a JSON-parsed envelope: dynamic message
-// → '<dynamic>', issues array → count, so the full envelope can still be
-// asserted in one equality check.
+// Mirror normalizeResult's masking on the JSON-parsed envelope.
 const normalizeEnvelope = (raw: unknown): unknown => {
   if (!isRecord(raw) || !isRecord(raw['error'])) return raw
   const error = raw['error']
@@ -93,10 +91,10 @@ const stubDeps = (override: Partial<DomainToolsDeps> = {}): DomainToolsDeps => {
 }
 
 describe('createDomainToolsRegistry', () => {
-  it('registers all seven internal tools and exposes them via toLlmSchemas', () => {
+  it('registers all seven internal tools and exposes them via toLlmSchemas in the same order', () => {
     const registry = createDomainToolsRegistry(stubDeps())
 
-    expect(registry.list().map((t) => t.name)).toEqual([
+    const expectedNames = [
       'record_meal_log',
       'search_food_master',
       'register_food_master',
@@ -104,16 +102,12 @@ describe('createDomainToolsRegistry', () => {
       'get_user_profile',
       'update_user_profile',
       'web_search',
-    ])
-    expect(registry.toLlmSchemas().map((s) => s.name)).toEqual([
-      'record_meal_log',
-      'search_food_master',
-      'register_food_master',
-      'query_meal_history',
-      'get_user_profile',
-      'update_user_profile',
-      'web_search',
-    ])
+    ]
+
+    expect({
+      list: registry.list().map((t) => t.name),
+      schemas: registry.toLlmSchemas().map((s) => s.name),
+    }).toEqual({ list: expectedNames, schemas: expectedNames })
   })
 
   it('executeToolUse returns the JSON-encoded successful result on a known tool', async () => {

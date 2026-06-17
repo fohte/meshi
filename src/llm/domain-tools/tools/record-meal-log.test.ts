@@ -146,7 +146,7 @@ describe('record_meal_log tool', () => {
   })
 
   it('maps FoodMasterNotFoundError to its DomainError code', async () => {
-    const { tool } = setup({
+    const { tool, calls } = setup({
       record: () => Promise.reject(new FoodMasterNotFoundError('fm_missing')),
     })
 
@@ -157,12 +157,15 @@ describe('record_meal_log tool', () => {
       unit: 'g',
     })
 
-    expect(normalizeResult(result)).toEqual({
-      ok: false,
-      error: {
-        code: 'meal_log/food_master_not_found',
-        message: '<dynamic>',
+    expect({ result: normalizeResult(result), calls }).toEqual({
+      result: {
+        ok: false,
+        error: {
+          code: 'meal_log/food_master_not_found',
+          message: '<dynamic>',
+        },
       },
+      calls: { record: [] },
     })
   })
 })
