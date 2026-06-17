@@ -144,57 +144,70 @@ const buildExecutor = (
   invocations: RecordedToolInvocation[],
   state: { diverged: boolean; lastKey: string | null },
 ) => {
+  const recordAndReturn = (
+    call: LlmToolCall,
+    execResult: LlmToolExecutionResult,
+    structured: unknown,
+  ): LlmToolExecutionResult => {
+    invocations.push({
+      name: call.name,
+      input: call.input,
+      executionResult: execResult,
+      structured,
+    })
+    return execResult
+  }
+
   return async (call: LlmToolCall): Promise<LlmToolExecutionResult> => {
+    // Once divergence is set, refuse every subsequent call so an LLM that
+    // ignores the divergence error and pivots to a different tool does not
+    // get to run side-effectful tools (record_meal_log, register_food_master).
+    if (state.diverged) {
+      return recordAndReturn(
+        call,
+        encodeToolError('divergence_detected', DIVERGENCE_TOOL_MESSAGE),
+        null,
+      )
+    }
     const key = `${call.name}:${canonicalJson(call.input ?? {})}`
     if (state.lastKey !== null && state.lastKey === key) {
       state.diverged = true
-      const execResult = encodeToolError(
-        'divergence_detected',
-        DIVERGENCE_TOOL_MESSAGE,
+      return recordAndReturn(
+        call,
+        encodeToolError('divergence_detected', DIVERGENCE_TOOL_MESSAGE),
+        null,
       )
-      invocations.push({
-        name: call.name,
-        input: call.input,
-        executionResult: execResult,
-        structured: null,
-      })
-      return execResult
     }
     state.lastKey = key
 
     const tool = tools.get(call.name)
     if (tool === undefined) {
-      const execResult = encodeToolError(
-        'unknown_tool',
-        `unknown tool: ${call.name}`,
+      return recordAndReturn(
+        call,
+        encodeToolError('unknown_tool', `unknown tool: ${call.name}`),
+        null,
       )
-      invocations.push({
-        name: call.name,
-        input: call.input,
-        executionResult: execResult,
-        structured: null,
-      })
-      return execResult
     }
-    const result = await tool.execute(call.input)
-    if (result.ok) {
-      const execResult = encodeOk(result.value)
-      invocations.push({
-        name: call.name,
-        input: call.input,
-        executionResult: execResult,
-        structured: result.value,
-      })
-      return execResult
+    try {
+      const result = await tool.execute(call.input)
+      if (result.ok) {
+        return recordAndReturn(call, encodeOk(result.value), result.value)
+      }
+      return recordAndReturn(
+        call,
+        encodeToolError(result.error.code, result.error.message),
+        null,
+      )
+    } catch (e) {
+      return recordAndReturn(
+        call,
+        encodeToolError(
+          'internal_error',
+          e instanceof Error ? e.message : String(e),
+        ),
+        null,
+      )
     }
-    const execResult = encodeToolError(result.error.code, result.error.message)
-    invocations.push({
-      name: call.name,
-      input: call.input,
-      executionResult: execResult,
-      structured: null,
-    })
-    return execResult
   }
 }
 

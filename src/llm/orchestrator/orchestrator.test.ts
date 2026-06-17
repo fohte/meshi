@@ -496,6 +496,104 @@ describe('ConversationOrchestrator', () => {
     expect(invocations).toBe(1)
   })
 
+  it('refuses every subsequent tool call after divergence is detected', async () => {
+    let recordCalls = 0
+    const registry = createFakeRegistry([
+      {
+        name: 'search_food_master',
+        handle() {
+          return ok({ candidates: [] })
+        },
+      },
+      {
+        name: 'record_meal_log',
+        handle() {
+          recordCalls++
+          return ok({
+            meal_log_id: 'log_1',
+            nutrition: {},
+            is_estimated: false,
+          })
+        },
+      },
+    ])
+    const llm = createScriptedLlmClient([
+      {
+        type: 'tools',
+        calls: [{ name: 'search_food_master', input: { query: 'foo' } }],
+      },
+      {
+        type: 'tools',
+        calls: [{ name: 'search_food_master', input: { query: 'foo' } }],
+      },
+      {
+        type: 'tools',
+        calls: [
+          {
+            name: 'record_meal_log',
+            input: {
+              food_master_id: 'fm_1',
+              eaten_at_iso: '2026-06-18T12:00:00+09:00',
+              quantity: 1,
+              unit: '杯',
+            },
+          },
+        ],
+      },
+      { type: 'final', text: 'Done.' },
+    ])
+    const orchestrator = createConversationOrchestrator({
+      llmClient: llm,
+      registry,
+      ...baseOptions,
+    })
+
+    const result = await orchestrator.recordFromText({ text: 'foo' })
+
+    expect({
+      recorded: result.recorded,
+      recordCalls,
+      errorKind: result.error?.kind ?? null,
+    }).toEqual({
+      recorded: [],
+      recordCalls: 0,
+      errorKind: 'divergence_detected',
+    })
+  })
+
+  it('captures executor exceptions as an internal_error tool result', async () => {
+    const registry = createFakeRegistry([
+      {
+        name: 'search_food_master',
+        handle() {
+          throw new Error('db blew up')
+        },
+      },
+    ])
+    const llm = createScriptedLlmClient([
+      {
+        type: 'tools',
+        calls: [{ name: 'search_food_master', input: { query: 'x' } }],
+      },
+      { type: 'final', text: 'Failed to search.' },
+    ])
+    const orchestrator = createConversationOrchestrator({
+      llmClient: llm,
+      registry,
+      ...baseOptions,
+    })
+
+    const result = await orchestrator.recordFromText({ text: 'x' })
+
+    expect(result).toEqual({
+      recorded: [],
+      candidates: [],
+      hasEstimatedValues: false,
+      summaryText: 'Failed to search.',
+      error: null,
+    })
+  })
+
   it('returns an interpretation_failed result when interpretImage throws', async () => {
     const registry = createFakeRegistry([])
     const llm = createScriptedLlmClient([])
