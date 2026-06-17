@@ -2,7 +2,7 @@ import { readFile } from 'node:fs/promises'
 
 import { z } from 'zod'
 
-import type { Sql } from '@/db'
+import type { SqlOrTx } from '@/db'
 import {
   type NutrientDefinitionSeed,
   upsertNutrientDefinitions,
@@ -75,13 +75,26 @@ export const loadFoodCompositionDatasetFromFile = async (
   return parseFoodCompositionDataset(raw)
 }
 
-export const loadFoodComposition = async (
-  sql: Sql,
+// Runs every write directly on the passed `tx`. Production callers wrap with
+// `sql.begin(...)` for atomicity; tests pass a per-test reserved tx that
+// rolls back in afterEach.
+const loadFoodCompositionInTx = async (
+  tx: SqlOrTx,
   rows: ReadonlyArray<FoodCompositionRow>,
-  options: LoadFoodCompositionOptions = {},
+  options: LoadFoodCompositionOptions,
 ): Promise<LoadFoodCompositionResult> => {
-  if (rows.length === 0) {
-    return { foodCount: 0, nutrientRowCount: 0 }
+  const batchSize = options.batchSize ?? DEFAULT_BATCH_SIZE
+  if (!Number.isInteger(batchSize) || batchSize <= 0) {
+    throw new FoodCompositionLoadError(
+      `batchSize must be a positive integer (got: ${String(batchSize)})`,
+    )
+  }
+
+  if (
+    options.extraNutrientDefinitions &&
+    options.extraNutrientDefinitions.length > 0
+  ) {
+    await upsertNutrientDefinitions(tx, options.extraNutrientDefinitions)
   }
 
   const usedNutrientCodes = new Set<string>()
@@ -91,68 +104,69 @@ export const loadFoodComposition = async (
     }
   }
 
-  return await sql.begin(async (tx) => {
-    if (
-      options.extraNutrientDefinitions &&
-      options.extraNutrientDefinitions.length > 0
-    ) {
-      await upsertNutrientDefinitions(tx, options.extraNutrientDefinitions)
-    }
-
-    if (usedNutrientCodes.size > 0) {
-      const existing = await tx<{ code: string }[]>`
-        SELECT code FROM nutrient_definitions
-        WHERE code = ANY(${tx.array([...usedNutrientCodes])})
-      `
-      const known = new Set(existing.map((r) => r.code))
-      const missing = [...usedNutrientCodes].filter((c) => !known.has(c)).sort()
-      if (missing.length > 0) {
-        throw new FoodCompositionLoadError(
-          `unknown nutrient codes: ${missing.join(', ')}. ` +
-            `Pass them via extraNutrientDefinitions or add to NUTRIENT_DEFINITION_SEEDS.`,
-          missing,
-        )
-      }
-    }
-
-    const batchSize = options.batchSize ?? DEFAULT_BATCH_SIZE
-    if (!Number.isInteger(batchSize) || batchSize <= 0) {
+  if (usedNutrientCodes.size > 0) {
+    const existing = await tx<{ code: string }[]>`
+      SELECT code FROM nutrient_definitions
+      WHERE code = ANY(${tx.array([...usedNutrientCodes])})
+    `
+    const known = new Set(existing.map((r) => r.code))
+    const missing = [...usedNutrientCodes].filter((c) => !known.has(c)).sort()
+    if (missing.length > 0) {
       throw new FoodCompositionLoadError(
-        `batchSize must be a positive integer (got: ${String(batchSize)})`,
+        `unknown nutrient codes: ${missing.join(', ')}. ` +
+          `Pass them via extraNutrientDefinitions or add to NUTRIENT_DEFINITION_SEEDS.`,
+        missing,
       )
     }
+  }
 
-    const foodRows = rows.map((r) => ({ code: r.code, name: r.name }))
-    for (let i = 0; i < foodRows.length; i += batchSize) {
-      const batch = foodRows.slice(i, i + batchSize)
-      await tx`
-        INSERT INTO food_compositions ${tx(batch)}
-        ON CONFLICT (code) DO UPDATE SET name = EXCLUDED.name
-      `
-    }
-
-    const codes = rows.map((r) => r.code)
+  const foodRows = rows.map((r) => ({ code: r.code, name: r.name }))
+  for (let i = 0; i < foodRows.length; i += batchSize) {
+    const batch = foodRows.slice(i, i + batchSize)
     await tx`
-      DELETE FROM food_composition_nutrients
-      WHERE food_composition_code = ANY(${tx.array(codes)})
+      INSERT INTO food_compositions ${tx(batch)}
+      ON CONFLICT (code) DO UPDATE SET name = EXCLUDED.name
     `
+  }
 
-    const nutrientRows = rows.flatMap((row) =>
-      Object.entries(row.nutrients).map(([code, value]) => ({
-        food_composition_code: row.code,
-        nutrient_code: code,
-        value: String(value),
-      })),
-    )
+  const codes = rows.map((r) => r.code)
+  await tx`
+    DELETE FROM food_composition_nutrients
+    WHERE food_composition_code = ANY(${tx.array(codes)})
+  `
 
-    for (let i = 0; i < nutrientRows.length; i += batchSize) {
-      const batch = nutrientRows.slice(i, i + batchSize)
-      await tx`INSERT INTO food_composition_nutrients ${tx(batch)}`
-    }
+  const nutrientRows = rows.flatMap((row) =>
+    Object.entries(row.nutrients).map(([code, value]) => ({
+      food_composition_code: row.code,
+      nutrient_code: code,
+      value: String(value),
+    })),
+  )
 
-    return {
-      foodCount: rows.length,
-      nutrientRowCount: nutrientRows.length,
-    }
-  })
+  for (let i = 0; i < nutrientRows.length; i += batchSize) {
+    const batch = nutrientRows.slice(i, i + batchSize)
+    await tx`INSERT INTO food_composition_nutrients ${tx(batch)}`
+  }
+
+  return {
+    foodCount: rows.length,
+    nutrientRowCount: nutrientRows.length,
+  }
+}
+
+export const loadFoodComposition = async (
+  sql: SqlOrTx,
+  rows: ReadonlyArray<FoodCompositionRow>,
+  options: LoadFoodCompositionOptions = {},
+): Promise<LoadFoodCompositionResult> => {
+  if (rows.length === 0) {
+    return { foodCount: 0, nutrientRowCount: 0 }
+  }
+  // Only open a new transaction on a top-level Sql (which has `.begin`).
+  // A ReservedSql / TransactionSql passed by the caller doesn't have it,
+  // and the caller is expected to manage the surrounding transaction.
+  if ('begin' in sql && typeof sql.begin === 'function') {
+    return await sql.begin((tx) => loadFoodCompositionInTx(tx, rows, options))
+  }
+  return await loadFoodCompositionInTx(sql, rows, options)
 }

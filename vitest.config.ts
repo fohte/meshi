@@ -7,8 +7,9 @@ export default defineConfig({
     },
   },
   test: {
-    // DB-backed tests run DROP SCHEMA in beforeAll against a shared Postgres;
-    // serialize files to avoid the schema resets racing each other.
-    fileParallelism: false,
+    // Runs DROP/CREATE/migrate once at process start. Per-test isolation
+    // is provided by `setupTx()` in src/test/db.ts (BEGIN/ROLLBACK), not
+    // by re-running migrations or TRUNCATE.
+    globalSetup: ['./src/test/global-setup.ts'],
   },
 })
