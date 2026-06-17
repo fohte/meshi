@@ -1,6 +1,8 @@
 import {
-  interpretImage,
+  interpretImage as defaultInterpretImage,
+  type InterpretImageInput,
   type SupportedImageMimeType,
+  type VisionContentBlock,
 } from '@/adapters/image/image-interpreter'
 import type {
   LlmClient,
@@ -37,6 +39,10 @@ import type {
   RecordFromTextInput,
 } from '@/llm/orchestrator/types'
 
+export type InterpretImageFn = (
+  input: InterpretImageInput,
+) => Promise<ReadonlyArray<VisionContentBlock>>
+
 export interface ConversationOrchestratorOptions {
   readonly llmClient: LlmClient
   readonly registry: DomainToolsRegistry
@@ -44,14 +50,15 @@ export interface ConversationOrchestratorOptions {
   readonly visionModel: string
   readonly maxTurns: number
   readonly formatter?: ReplyFormatter
+  readonly interpretImage?: InterpretImageFn
 }
 
 interface RecordedToolInvocation {
   readonly name: string
   readonly input: unknown
   readonly executionResult: LlmToolExecutionResult
-  // Structured value when the underlying domain tool succeeded. Null for
-  // unknown tools and tools that returned an error.
+  // null when the tool was unknown, the call was rejected for divergence, or
+  // the domain tool returned an error.
   readonly structured: unknown
 }
 
@@ -217,10 +224,8 @@ const buildOrchestratorError = (
 
 const extractFoodMasterId = (input: unknown): string => {
   if (input === null || typeof input !== 'object') return ''
-  const record: Readonly<Record<string, unknown>> = Object.fromEntries(
-    Object.entries(input),
-  )
-  const raw = record['food_master_id']
+  // eslint-disable-next-line @typescript-eslint/no-unsafe-type-assertion -- input came from the LLM; we already narrowed to a non-null object and only read one string field.
+  const raw = (input as Readonly<Record<string, unknown>>)['food_master_id']
   return typeof raw === 'string' ? raw : ''
 }
 
@@ -291,12 +296,13 @@ const collectLastAggregate = (
 }
 
 const buildImageUserContent = async (
+  interpret: InterpretImageFn,
   image: { mimeType: SupportedImageMimeType; base64: string },
   hintText: string | undefined,
   occurredAt: Date | undefined,
   timezone: string | undefined,
 ): Promise<LlmContent[]> => {
-  const blocks = await interpretImage({
+  const blocks = await interpret({
     image,
     ...(hintText === undefined ? {} : { hintText }),
   })
@@ -344,6 +350,8 @@ export const createConversationOrchestrator = (
 ): ConversationOrchestrator => {
   const { llmClient, registry, textModel, visionModel, maxTurns } = options
   const formatter = options.formatter ?? createPassthroughReplyFormatter()
+  const interpret: InterpretImageFn =
+    options.interpretImage ?? defaultInterpretImage
   const toolMap = new Map<string, DomainTool>(
     registry.list().map((t) => [t.name, t]),
   )
@@ -413,12 +421,35 @@ export const createConversationOrchestrator = (
       return buildMealRecordResult(run)
     },
     async recordFromImage(input: RecordFromImageInput) {
-      const userContent = await buildImageUserContent(
-        input.image,
-        input.hintText,
-        input.occurredAt,
-        input.timezone,
-      )
+      let userContent: ReadonlyArray<LlmContent>
+      try {
+        userContent = await buildImageUserContent(
+          interpret,
+          input.image,
+          input.hintText,
+          input.occurredAt,
+          input.timezone,
+        )
+      } catch (e) {
+        const error: OrchestratorError = {
+          kind: 'interpretation_failed',
+          message: e instanceof Error ? e.message : String(e),
+        }
+        const summaryText = formatter.formatMealRecord({
+          recorded: [],
+          candidates: [],
+          hasEstimatedValues: false,
+          finalText: '',
+          error,
+        })
+        return {
+          recorded: [],
+          candidates: [],
+          hasEstimatedValues: false,
+          summaryText,
+          error,
+        }
+      }
       const run = await runConversation(
         visionModel,
         IMAGE_RECORD_SYSTEM,

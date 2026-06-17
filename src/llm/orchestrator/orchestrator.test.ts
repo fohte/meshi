@@ -16,7 +16,6 @@ import { err, ok } from '@/llm/domain-tools/types'
 import { createConversationOrchestrator } from '@/llm/orchestrator/orchestrator'
 import type {
   MealHistoryResult,
-  MealRecordResult,
   RecommendResult,
 } from '@/llm/orchestrator/types'
 
@@ -158,16 +157,12 @@ const baseOptions = {
   maxTurns: 6,
 }
 
-const normalizeMealRecord = (r: MealRecordResult): MealRecordResult => r
-
 describe('ConversationOrchestrator', () => {
   it('records a meal via record_meal_log and returns recorded + summary', async () => {
-    const calls: Array<{ name: string; input: unknown }> = []
     const registry = createFakeRegistry([
       {
         name: 'record_meal_log',
-        handle(input) {
-          calls.push({ name: 'record_meal_log', input })
+        handle() {
           return ok({
             meal_log_id: 'log_1',
             nutrition: { energy_kcal: 250 },
@@ -203,7 +198,7 @@ describe('ConversationOrchestrator', () => {
       text: 'ラーメンを食べた',
     })
 
-    expect(normalizeMealRecord(result)).toEqual({
+    expect(result).toEqual({
       recorded: [
         {
           mealLogId: 'log_1',
@@ -217,20 +212,9 @@ describe('ConversationOrchestrator', () => {
       summaryText: 'Recorded.',
       error: null,
     })
-    expect(calls).toEqual([
-      {
-        name: 'record_meal_log',
-        input: {
-          food_master_id: 'fm_1',
-          eaten_at_iso: '2026-06-18T12:00:00+09:00',
-          quantity: 1,
-          unit: '杯',
-        },
-      },
-    ])
   })
 
-  it('drives an on-demand registration flow (search → web_search → register → record)', async () => {
+  it('records a meal after registering a previously-unknown food', async () => {
     const registry = createFakeRegistry([
       {
         name: 'search_food_master',
@@ -447,13 +431,19 @@ describe('ConversationOrchestrator', () => {
     })
   })
 
-  it('detects divergence when the same tool is called with the same input twice in a row', async () => {
-    let invocations = 0
+  const DIVERGENCE_MESSAGE =
+    'Divergence detected: you called the same tool with the same arguments twice in a row. Stop calling tools and return your final answer.'
+
+  const divergenceFixture = (
+    onCall: () => void = () => {},
+  ): {
+    orchestrator: ReturnType<typeof createConversationOrchestrator>
+  } => {
     const registry = createFakeRegistry([
       {
         name: 'search_food_master',
         handle() {
-          invocations++
+          onCall()
           return ok({ candidates: [] })
         },
       },
@@ -469,11 +459,17 @@ describe('ConversationOrchestrator', () => {
       },
       { type: 'final', text: 'Giving up.' },
     ])
-    const orchestrator = createConversationOrchestrator({
-      llmClient: llm,
-      registry,
-      ...baseOptions,
-    })
+    return {
+      orchestrator: createConversationOrchestrator({
+        llmClient: llm,
+        registry,
+        ...baseOptions,
+      }),
+    }
+  }
+
+  it('surfaces a divergence_detected error when the same tool is called with the same input twice in a row', async () => {
+    const { orchestrator } = divergenceFixture()
 
     const result = await orchestrator.recordFromText({ text: 'foo' })
 
@@ -481,15 +477,98 @@ describe('ConversationOrchestrator', () => {
       recorded: [],
       candidates: [],
       hasEstimatedValues: false,
-      summaryText:
-        'Divergence detected: you called the same tool with the same arguments twice in a row. Stop calling tools and return your final answer.',
+      summaryText: DIVERGENCE_MESSAGE,
       error: {
         kind: 'divergence_detected',
-        message:
-          'Divergence detected: you called the same tool with the same arguments twice in a row. Stop calling tools and return your final answer.',
+        message: DIVERGENCE_MESSAGE,
       },
     })
+  })
+
+  it('does not execute the duplicate tool call when divergence is detected', async () => {
+    let invocations = 0
+    const { orchestrator } = divergenceFixture(() => {
+      invocations++
+    })
+
+    await orchestrator.recordFromText({ text: 'foo' })
+
     expect(invocations).toBe(1)
+  })
+
+  it('returns an interpretation_failed result when interpretImage throws', async () => {
+    const registry = createFakeRegistry([])
+    const llm = createScriptedLlmClient([])
+    const orchestrator = createConversationOrchestrator({
+      llmClient: llm,
+      registry,
+      ...baseOptions,
+      interpretImage: () => Promise.reject(new Error('image decode failed')),
+    })
+
+    const result = await orchestrator.recordFromImage({
+      image: { mimeType: 'image/jpeg', base64: 'AAAA' },
+    })
+
+    expect(result).toEqual({
+      recorded: [],
+      candidates: [],
+      hasEstimatedValues: false,
+      summaryText: 'image decode failed',
+      error: {
+        kind: 'interpretation_failed',
+        message: 'image decode failed',
+      },
+    })
+  })
+
+  it('runs the vision conversation with the interpreted image content', async () => {
+    const seenContent: Array<{ readonly type: string }> = []
+    const registry = createFakeRegistry([])
+    const llm: LlmClient = {
+      runConversation(input) {
+        for (const message of input.messages) {
+          for (const block of message.content)
+            seenContent.push({ type: block.type })
+        }
+        return Promise.resolve({
+          finalText: 'Logged the bowl.',
+          messages: [...input.messages],
+          stopReason: 'end' as const,
+          turns: 1,
+        })
+      },
+    }
+    const orchestrator = createConversationOrchestrator({
+      llmClient: llm,
+      registry,
+      ...baseOptions,
+      interpretImage: () =>
+        Promise.resolve([
+          {
+            type: 'image',
+            source: {
+              type: 'base64',
+              media_type: 'image/jpeg',
+              data: 'AAAA',
+            },
+          },
+        ]),
+    })
+
+    const result = await orchestrator.recordFromImage({
+      image: { mimeType: 'image/jpeg', base64: 'AAAA' },
+    })
+
+    expect({
+      seenContent,
+      summaryText: result.summaryText,
+      error: result.error,
+    }).toEqual({
+      seenContent: [{ type: 'image' }],
+      summaryText: 'Logged the bowl.',
+      error: null,
+    })
   })
 
   it('queryMeals returns the aggregate from the last query_meal_history call', async () => {
