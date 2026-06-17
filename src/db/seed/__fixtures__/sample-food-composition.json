@@ -1,0 +1,43 @@
+[
+  {
+    "code": "01088",
+    "name": "こめ [水稲めし] 精白米 うるち米",
+    "nutrients": {
+      "energy_kcal": 156,
+      "protein_g": 2.5,
+      "fat_g": 0.3,
+      "carb_g": 37.1,
+      "dietary_fiber_g": 1.5,
+      "salt_g": 0,
+      "potassium_mg": 29,
+      "iron_mg": 0.1
+    }
+  },
+  {
+    "code": "10193",
+    "name": "<魚類> さば 加工品 さば節",
+    "nutrients": {
+      "energy_kcal": 330,
+      "protein_g": 73.9,
+      "fat_g": 5.1,
+      "carb_g": 0.8,
+      "salt_g": 1.5,
+      "iron_mg": 7.2,
+      "vitamin_b12_µg": 14
+    }
+  },
+  {
+    "code": "12004",
+    "name": "鶏卵 全卵 生",
+    "nutrients": {
+      "energy_kcal": 142,
+      "protein_g": 12.2,
+      "fat_g": 10.2,
+      "carb_g": 0.4,
+      "salt_g": 0.4,
+      "iron_mg": 1.5,
+      "vitamin_a_µg": 210,
+      "vitamin_d_µg": 3.8
+    }
+  }
+]
