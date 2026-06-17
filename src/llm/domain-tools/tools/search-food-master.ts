@@ -1,0 +1,62 @@
+import { z } from 'zod'
+
+import type { FoodMatcher } from '@/domain/food-matcher/food-matcher'
+import { internalErr } from '@/llm/domain-tools/internal-error'
+import { parseToolInput } from '@/llm/domain-tools/parse'
+import {
+  type DomainTool,
+  ok,
+  type Result,
+  type ToolError,
+} from '@/llm/domain-tools/types'
+
+const inputSchema = z.object({
+  query: z.string().min(1),
+  limit: z.number().int().positive().max(50).optional().default(5),
+})
+
+export interface SearchFoodMasterCandidate {
+  readonly food_master_id: string | null
+  readonly composition_code: string | null
+  readonly name: string
+  readonly is_estimated: boolean
+  readonly score: number
+  readonly reason: string
+}
+
+export interface SearchFoodMasterOutput {
+  readonly candidates: ReadonlyArray<SearchFoodMasterCandidate>
+}
+
+export const createSearchFoodMasterTool = (
+  matcher: FoodMatcher,
+): DomainTool => ({
+  name: 'search_food_master',
+  description:
+    'Search the food_master table by free-text query. Returns ranked candidates including history-derived hits, fuzzy name matches, and composition-table fallbacks.',
+  inputSchema: z.toJSONSchema(inputSchema),
+  async execute(
+    input: unknown,
+  ): Promise<Result<SearchFoodMasterOutput, ToolError>> {
+    const parsed = parseToolInput(inputSchema, input)
+    if (!parsed.ok) return parsed
+    try {
+      const candidates = await matcher.search({
+        query: parsed.value.query,
+        limit: parsed.value.limit,
+      })
+      return ok({
+        candidates: candidates.map((c) => ({
+          food_master_id: c.foodMasterId,
+          composition_code: c.compositionCode,
+          name: c.name,
+          is_estimated: c.isEstimated,
+          score: c.score,
+          reason: c.reason,
+        })),
+      })
+    } catch (e) {
+      return internalErr(e)
+    }
+  },
+})
