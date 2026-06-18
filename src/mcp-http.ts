@@ -4,6 +4,7 @@ import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/
 import type { Transport } from '@modelcontextprotocol/sdk/shared/transport.js'
 
 import { createMcpServer } from '@/mcp'
+import type { MeshiToolDeps } from '@/mcp-tools'
 
 // Stateless mode: the SDK mandates a fresh transport per request
 // (webStandardStreamableHttp.js: "Stateless transport cannot be reused
@@ -13,8 +14,9 @@ import { createMcpServer } from '@/mcp'
 export const handleMcpRequest = async (
   req: IncomingMessage,
   res: ServerResponse,
+  deps: MeshiToolDeps,
 ): Promise<void> => {
-  const server = createMcpServer()
+  const server = createMcpServer(deps)
   const transport = new StreamableHTTPServerTransport({})
   res.on('close', () => {
     void transport.close()

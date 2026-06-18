@@ -4,7 +4,21 @@ import { describe, expect, it } from 'vitest'
 
 import { createApp } from '@/app'
 import type { Sql } from '@/db'
+import type { UserProfileService } from '@/domain/user-profile/user-profile-service'
+import type { ConversationOrchestrator } from '@/llm/orchestrator'
+import { createNullLogger } from '@/logger'
 import { createMcpServer, MCP_SERVER_NAME, MCP_SERVER_VERSION } from '@/mcp'
+
+const stubOrchestrator: ConversationOrchestrator = {
+  recordFromText: () => Promise.reject(new Error('stub')),
+  recordFromImage: () => Promise.reject(new Error('stub')),
+  queryMeals: () => Promise.reject(new Error('stub')),
+  recommendMeal: () => Promise.reject(new Error('stub')),
+}
+const stubProfileService: UserProfileService = {
+  get: () => Promise.reject(new Error('stub')),
+  update: () => Promise.reject(new Error('stub')),
+}
 
 const fakeSql = (
   tag: (strings: TemplateStringsArray) => Promise<unknown[]>,
@@ -39,7 +53,11 @@ describe('createApp', () => {
 
 describe('MCP server initialize', () => {
   it('responds with the meshi server identity over an in-memory transport', async () => {
-    const server = createMcpServer()
+    const server = createMcpServer({
+      orchestrator: stubOrchestrator,
+      profileService: stubProfileService,
+      logger: createNullLogger(),
+    })
     const [clientTransport, serverTransport] =
       InMemoryTransport.createLinkedPair()
     await server.connect(serverTransport)
@@ -52,7 +70,7 @@ describe('MCP server initialize', () => {
       capabilities: client.getServerCapabilities(),
     }).toEqual({
       version: { name: MCP_SERVER_NAME, version: MCP_SERVER_VERSION },
-      capabilities: { tools: {} },
+      capabilities: { tools: { listChanged: true } },
     })
 
     await client.close()

@@ -3,11 +3,30 @@ import type { AddressInfo } from 'node:net'
 
 import { afterEach, describe, expect, it } from 'vitest'
 
+import type { UserProfileService } from '@/domain/user-profile/user-profile-service'
+import type { ConversationOrchestrator } from '@/llm/orchestrator'
+import { createNullLogger } from '@/logger'
 import { handleMcpRequest } from '@/mcp-http'
+
+const stubOrchestrator: ConversationOrchestrator = {
+  recordFromText: () => Promise.reject(new Error('stub')),
+  recordFromImage: () => Promise.reject(new Error('stub')),
+  queryMeals: () => Promise.reject(new Error('stub')),
+  recommendMeal: () => Promise.reject(new Error('stub')),
+}
+const stubProfileService: UserProfileService = {
+  get: () => Promise.reject(new Error('stub')),
+  update: () => Promise.reject(new Error('stub')),
+}
+const stubDeps = {
+  orchestrator: stubOrchestrator,
+  profileService: stubProfileService,
+  logger: createNullLogger(),
+}
 
 const start = async (): Promise<{ server: Server; url: string }> => {
   const server = createServer((req, res) => {
-    void handleMcpRequest(req, res)
+    void handleMcpRequest(req, res, stubDeps)
   })
   await new Promise<void>((resolve) => {
     server.listen(0, '127.0.0.1', resolve)
@@ -77,7 +96,7 @@ describe('handleMcpRequest', () => {
         id: 1,
         result: {
           protocolVersion: '2024-11-05',
-          capabilities: { tools: {} },
+          capabilities: { tools: { listChanged: true } },
           serverInfo: { name: 'meshi', version: '0.0.0' },
         },
       },
