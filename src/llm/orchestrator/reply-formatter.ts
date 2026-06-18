@@ -96,7 +96,7 @@ const formatErrorReply = (error: OrchestratorError): string => {
 }
 
 const formatMealRecordTemplate = (input: MealRecordSummaryInput): string => {
-  if (input.error !== null) return formatErrorReply(input.error)
+  if (input.error) return formatErrorReply(input.error)
 
   if (input.recorded.length > 0) {
     const lines: string[] = []
@@ -125,7 +125,8 @@ const formatMealRecordTemplate = (input: MealRecordSummaryInput): string => {
     return lines.join('\n')
   }
 
-  if (input.finalText !== '') return input.finalText
+  const trimmed = input.finalText.trim()
+  if (trimmed !== '') return trimmed
   return '記録できませんでした。食品名と量がわかる形でもう一度入力してください。'
 }
 
@@ -135,11 +136,12 @@ const formatTotalsLine = (totals: Readonly<Record<string, number>>): string => {
 }
 
 const formatMealHistoryTemplate = (input: MealHistorySummaryInput): string => {
-  if (input.error !== null) return formatErrorReply(input.error)
+  if (input.error) return formatErrorReply(input.error)
 
   const aggregate = input.aggregate
   if (aggregate === null) {
-    if (input.finalText !== '') return input.finalText
+    const trimmed = input.finalText.trim()
+    if (trimmed !== '') return trimmed
     return '集計データが取得できませんでした。期間や条件を変えて試してください。'
   }
 
@@ -157,8 +159,9 @@ const formatMealHistoryTemplate = (input: MealHistorySummaryInput): string => {
 }
 
 const formatRecommendTemplate = (input: RecommendSummaryInput): string => {
-  if (input.error !== null) return formatErrorReply(input.error)
-  if (input.finalText !== '') return input.finalText
+  if (input.error) return formatErrorReply(input.error)
+  const trimmed = input.finalText.trim()
+  if (trimmed !== '') return trimmed
   return 'おすすめを提案できませんでした。条件を変えて試してください。'
 }
 
