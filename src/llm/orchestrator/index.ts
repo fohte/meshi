@@ -4,6 +4,7 @@ export {
 } from '@/llm/orchestrator/orchestrator'
 export {
   createPassthroughReplyFormatter,
+  createTemplateReplyFormatter,
   type MealHistorySummaryInput,
   type MealRecordSummaryInput,
   type RecommendSummaryInput,
