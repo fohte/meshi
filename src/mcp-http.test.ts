@@ -3,26 +3,10 @@ import type { AddressInfo } from 'node:net'
 
 import { afterEach, describe, expect, it } from 'vitest'
 
-import type { UserProfileService } from '@/domain/user-profile/user-profile-service'
-import type { ConversationOrchestrator } from '@/llm/orchestrator'
-import { createNullLogger } from '@/logger'
 import { handleMcpRequest } from '@/mcp-http'
+import { createStubMcpDeps } from '@/test/mcp-stubs'
 
-const stubOrchestrator: ConversationOrchestrator = {
-  recordFromText: () => Promise.reject(new Error('stub')),
-  recordFromImage: () => Promise.reject(new Error('stub')),
-  queryMeals: () => Promise.reject(new Error('stub')),
-  recommendMeal: () => Promise.reject(new Error('stub')),
-}
-const stubProfileService: UserProfileService = {
-  get: () => Promise.reject(new Error('stub')),
-  update: () => Promise.reject(new Error('stub')),
-}
-const stubDeps = {
-  orchestrator: stubOrchestrator,
-  profileService: stubProfileService,
-  logger: createNullLogger(),
-}
+const stubDeps = createStubMcpDeps()
 
 const start = async (): Promise<{ server: Server; url: string }> => {
   const server = createServer((req, res) => {

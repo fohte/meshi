@@ -263,7 +263,7 @@ describe('MeshiMcpServer tools/list', () => {
           'query_text',
           'timezone',
         ],
-        recommend_meal: ['additional_constraints', 'occurred_at', 'timezone'],
+        recommend_meal: ['additional_constraints', 'timezone'],
         record_meal_from_image: [
           'hint_text',
           'image',
@@ -344,10 +344,14 @@ describe('record_meal_from_text', () => {
         isError: result.isError ?? false,
         structuredContent: result.structuredContent,
         orchestratorCalls: h.calls.recordFromText,
+        events: h.logs.map((l) => l.event),
       }).toEqual({
         isError: true,
         structuredContent: undefined,
         orchestratorCalls: [],
+        // Schema validation fails before the handler runs, so neither
+        // tool_called nor tool_failed fires.
+        events: [],
       })
     } finally {
       await h.close()
@@ -523,10 +527,12 @@ describe('record_meal_from_image', () => {
           isError: result.isError ?? false,
           structuredContent: result.structuredContent,
           orchestratorCalls: h.calls.recordFromImage,
+          events: h.logs.map((l) => l.event),
         }).toEqual({
           isError: true,
           structuredContent: undefined,
           orchestratorCalls: [],
+          events: [],
         })
       } finally {
         await h.close()
@@ -616,17 +622,21 @@ describe('get_profile / update_profile', () => {
       expect({
         isError: result.isError ?? false,
         content: result.content,
-        structured: result.structuredContent,
+        structuredContent: result.structuredContent,
+        getCalls: h.profileCalls.get,
+        events: h.logs.map((l) => l.event),
       }).toEqual({
         isError: false,
         content: [{ type: 'text', text: 'プロファイルを取得しました。' }],
-        structured: {
+        structuredContent: {
           likes: ['rice'],
           dislikes: [],
           allergies: [],
           constraints: [],
           daily_targets: null,
         },
+        getCalls: 1,
+        events: ['meshi.tool_called', 'meshi.tool_succeeded'],
       })
     } finally {
       await h.close()
@@ -647,6 +657,7 @@ describe('get_profile / update_profile', () => {
         isError: result.isError ?? false,
         structuredContent: result.structuredContent,
         updateCalls: h.profileCalls.update,
+        events: h.logs.map((l) => l.event),
       }).toEqual({
         isError: false,
         structuredContent: {
@@ -659,6 +670,7 @@ describe('get_profile / update_profile', () => {
         updateCalls: [
           { dislikes: ['natto'], dailyTargets: { energy_kcal: 2000 } },
         ],
+        events: ['meshi.tool_called', 'meshi.tool_succeeded'],
       })
     } finally {
       await h.close()

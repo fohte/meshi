@@ -25,6 +25,8 @@ const TOOL_SUCCEEDED = 'meshi.tool_succeeded'
 const TOOL_FAILED = 'meshi.tool_failed'
 
 const isoDatetime = z.iso.datetime({ offset: true })
+// z.number() rejects NaN and Infinity by default in zod v4, so it is safe to
+// reuse this schema on the MCP input boundary (update_profile.daily_targets).
 const nutritionMap = z.record(z.string().min(1), z.number())
 
 const recordedMealOutput = z.object({
@@ -156,7 +158,6 @@ const recommendMealInput = {
     .min(1)
     .optional()
     .describe('追加条件 (例: 軽め、外食可)'),
-  occurred_at: isoDatetime.optional(),
   timezone: z.string().min(1).optional(),
 }
 
@@ -180,10 +181,8 @@ const errorResult = (
   const code =
     err instanceof Error && err.name !== 'Error' ? err.name : 'internal_error'
   logger.log(TOOL_FAILED, { tool: toolName, code, message })
-  // structuredContent is intentionally omitted: each tool declares a different
-  // outputSchema, so a generic error envelope would mismatch the declared shape
-  // and break clients that parse against outputSchema. The SDK skips output
-  // validation when isError is true, but downstream consumers may still parse.
+  // structuredContent omitted: there is no shape that satisfies every tool's
+  // outputSchema simultaneously.
   return {
     isError: true,
     content: [{ type: 'text', text: toErrorSummary(message) }],
