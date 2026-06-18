@@ -64,7 +64,7 @@ const formatNutrition = (n: Readonly<Record<string, number>>): string => {
   const parts: string[] = []
   for (const [key, label] of NUTRITION_LABEL) {
     const v = n[key]
-    if (typeof v !== 'number') continue
+    if (typeof v !== 'number' || !Number.isFinite(v)) continue
     parts.push(
       label === 'kcal'
         ? `${formatNumber(v)} kcal`
