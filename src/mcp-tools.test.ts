@@ -2,7 +2,10 @@ import { Client } from '@modelcontextprotocol/sdk/client/index.js'
 import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js'
 import { describe, expect, it } from 'vitest'
 
-import type { UserProfile } from '@/domain/user-profile/user-profile'
+import type {
+  UserProfile,
+  UserProfilePatch,
+} from '@/domain/user-profile/user-profile'
 import type { UserProfileService } from '@/domain/user-profile/user-profile-service'
 import type {
   ConversationOrchestrator,
@@ -153,7 +156,7 @@ const defaultProfile: UserProfile = {
 
 interface ProfileCalls {
   get: number
-  update: Partial<UserProfile>[]
+  update: UserProfilePatch[]
 }
 
 const makeProfileService = (
@@ -171,7 +174,19 @@ const makeProfileService = (
     update(patch) {
       calls.update.push(patch)
       if (overrides.update) return Promise.reject(overrides.update)
-      current = { ...current, ...patch }
+      const { dailyTargets, ...rest } = patch
+      // exhaustively cover the three cases — clear / set / keep — so the
+      // resulting object never carries a stray null in dailyTargets.
+      const base = { ...current, ...rest }
+      if (dailyTargets === null) {
+        // eslint-disable-next-line @typescript-eslint/no-unused-vars -- destructure to drop the field from the rest spread.
+        const { dailyTargets: _drop, ...cleared } = base
+        current = cleared
+      } else if (dailyTargets !== undefined) {
+        current = { ...base, dailyTargets }
+      } else {
+        current = base
+      }
       return Promise.resolve(current)
     },
   }
@@ -637,6 +652,41 @@ describe('get_profile / update_profile', () => {
         },
         getCalls: 1,
         events: ['meshi.tool_called', 'meshi.tool_succeeded'],
+      })
+    } finally {
+      await h.close()
+    }
+  })
+
+  it('clears daily_targets when update_profile receives null', async () => {
+    const h = await start({
+      profile: {
+        likes: ['rice'],
+        dislikes: [],
+        allergies: [],
+        constraints: [],
+        dailyTargets: { energy_kcal: 2000 },
+      },
+    })
+    try {
+      const result = await h.client.callTool({
+        name: 'update_profile',
+        arguments: { daily_targets: null },
+      })
+      expect({
+        isError: result.isError ?? false,
+        structuredContent: result.structuredContent,
+        updateCalls: h.profileCalls.update,
+      }).toEqual({
+        isError: false,
+        structuredContent: {
+          likes: ['rice'],
+          dislikes: [],
+          allergies: [],
+          constraints: [],
+          daily_targets: null,
+        },
+        updateCalls: [{ dailyTargets: null }],
       })
     } finally {
       await h.close()

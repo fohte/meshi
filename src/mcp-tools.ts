@@ -166,7 +166,8 @@ const updateProfileInput = {
   dislikes: z.array(z.string().min(1)).optional(),
   allergies: z.array(z.string().min(1)).optional(),
   constraints: z.array(z.string().min(1)).optional(),
-  daily_targets: nutritionMap.optional(),
+  // null clears any previously stored daily_targets; omit to keep them.
+  daily_targets: nutritionMap.nullable().optional(),
 }
 
 const toErrorSummary = (message: string): string =>
