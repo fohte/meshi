@@ -5,6 +5,7 @@ import { describe, expect, it } from 'vitest'
 import { createApp } from '@/app'
 import type { Sql } from '@/db'
 import { createMcpServer, MCP_SERVER_NAME, MCP_SERVER_VERSION } from '@/mcp'
+import { createStubMcpDeps } from '@/test/mcp-stubs'
 
 const fakeSql = (
   tag: (strings: TemplateStringsArray) => Promise<unknown[]>,
@@ -39,7 +40,7 @@ describe('createApp', () => {
 
 describe('MCP server initialize', () => {
   it('responds with the meshi server identity over an in-memory transport', async () => {
-    const server = createMcpServer()
+    const server = createMcpServer(createStubMcpDeps())
     const [clientTransport, serverTransport] =
       InMemoryTransport.createLinkedPair()
     await server.connect(serverTransport)
@@ -52,7 +53,7 @@ describe('MCP server initialize', () => {
       capabilities: client.getServerCapabilities(),
     }).toEqual({
       version: { name: MCP_SERVER_NAME, version: MCP_SERVER_VERSION },
-      capabilities: { tools: {} },
+      capabilities: { tools: { listChanged: true } },
     })
 
     await client.close()

@@ -36,7 +36,17 @@ const setup = (
     },
     update: (patch) => {
       calls.update.push(patch)
-      return Promise.resolve({ ...PROFILE, ...patch })
+      const { dailyTargets, ...rest } = patch
+      const base = { ...PROFILE, ...rest }
+      if (dailyTargets === null) {
+        // eslint-disable-next-line @typescript-eslint/no-unused-vars -- destructure to drop the field from the rest spread.
+        const { dailyTargets: _drop, ...cleared } = base
+        return Promise.resolve(cleared)
+      }
+      if (dailyTargets !== undefined) {
+        return Promise.resolve({ ...base, dailyTargets })
+      }
+      return Promise.resolve(base)
     },
     ...override,
   }

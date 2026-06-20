@@ -1,13 +1,31 @@
+import { randomUUID } from 'node:crypto'
 import { createServer } from 'node:http'
 
 import { getRequestListener } from '@hono/node-server'
 
+import { createDrizzleUserProfileRepository } from '@/adapters/db/drizzle-user-profile-repository'
+import { OpenCodeLlmClient } from '@/adapters/llm'
+import { createTavilyWebSearchClient } from '@/adapters/web-search/tavily-web-search-client'
 import { createApp } from '@/app'
 import { createSql, pingDb } from '@/db'
 import { runMigrations } from '@/db/migrate'
 import { seedNutrientDefinitions } from '@/db/seed'
+import { createFoodMasterRepository } from '@/domain/food-master/repository'
+import { createFoodMasterService } from '@/domain/food-master/service'
+import { createDrizzleFoodMatcher } from '@/domain/food-matcher'
+import { createMealHistoryService } from '@/domain/meal-history'
+import { createDrizzleMealLogRepository } from '@/domain/meal-log/drizzle-meal-log-repository'
+import { createMealLogService } from '@/domain/meal-log/meal-log-service'
+import { createUserProfileService } from '@/domain/user-profile/user-profile-service'
 import { EnvError, loadEnv } from '@/env'
+import { createDomainToolsRegistry } from '@/llm/domain-tools'
+import {
+  createConversationOrchestrator,
+  createTemplateReplyFormatter,
+} from '@/llm/orchestrator'
+import { createJsonStdoutLogger } from '@/logger'
 import { handleMcpRequest } from '@/mcp-http'
+import type { MeshiToolDeps } from '@/mcp-tools'
 
 const LISTEN_ADDR_RE = /^\[([^\]]+)\]:(\d+)$|^([^:]+):(\d+)$/
 
@@ -41,9 +59,48 @@ export const main = async (): Promise<void> => {
   const app = createApp({ sql })
   const honoListener = getRequestListener(app.fetch)
 
+  const mealLogService = createMealLogService({
+    repository: createDrizzleMealLogRepository(sql),
+    idGenerator: () => randomUUID(),
+    now: () => new Date(),
+  })
+  const foodMasterService = createFoodMasterService(
+    createFoodMasterRepository(sql),
+  )
+  const foodMatcher = createDrizzleFoodMatcher(sql)
+  const mealHistoryService = createMealHistoryService(sql)
+  const userProfileService = createUserProfileService(
+    createDrizzleUserProfileRepository(sql),
+  )
+  const webSearchClient = createTavilyWebSearchClient({
+    apiKey: env.WEB_SEARCH_API_KEY,
+  })
+  const llmClient = new OpenCodeLlmClient({ apiKey: env.OPENCODE_API_KEY })
+  const registry = createDomainToolsRegistry({
+    mealLogService,
+    foodMasterService,
+    foodMatcher,
+    mealHistoryService,
+    userProfileService,
+    webSearchClient,
+  })
+  const orchestrator = createConversationOrchestrator({
+    llmClient,
+    registry,
+    textModel: env.MESHI_LLM_MODEL,
+    visionModel: env.MESHI_LLM_VISION_MODEL,
+    maxTurns: env.MESHI_LLM_MAX_TURNS,
+    formatter: createTemplateReplyFormatter(),
+  })
+  const toolDeps: MeshiToolDeps = {
+    orchestrator,
+    profileService: userProfileService,
+    logger: createJsonStdoutLogger(),
+  }
+
   const server = createServer((req, res) => {
     if (isMcpRequest(req.url)) {
-      void handleMcpRequest(req, res)
+      void handleMcpRequest(req, res, toolDeps)
       return
     }
     void honoListener(req, res)

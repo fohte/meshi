@@ -131,6 +131,26 @@ describe('createUserProfileService', () => {
     } satisfies UserProfile)
   })
 
+  it('clears dailyTargets when the patch sets it to null', async () => {
+    const repo = createInMemoryRepository({
+      likes: [],
+      dislikes: [],
+      allergies: [],
+      constraints: [],
+      dailyTargets: { protein_g: 80, energy_kcal: 2000 },
+    })
+    const service = createUserProfileService(repo)
+
+    const updated = await service.update({ dailyTargets: null })
+
+    expect(updated).toEqual({
+      likes: [],
+      dislikes: [],
+      allergies: [],
+      constraints: [],
+    } satisfies UserProfile)
+  })
+
   it('keeps dailyTargets unset when the patch never mentions it', async () => {
     const repo = createInMemoryRepository()
     const service = createUserProfileService(repo)

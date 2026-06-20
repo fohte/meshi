@@ -8,7 +8,11 @@ export interface UserProfile {
   readonly dailyTargets?: NutritionTargets
 }
 
-export type UserProfilePatch = Partial<UserProfile>
+// dailyTargets accepts null to mean "clear the field"; the other keys keep
+// the Partial<UserProfile> semantics of "omit = keep current".
+export type UserProfilePatch = Omit<Partial<UserProfile>, 'dailyTargets'> & {
+  readonly dailyTargets?: NutritionTargets | null
+}
 
 export const DEFAULT_USER_PROFILE: UserProfile = {
   likes: [],
@@ -28,7 +32,9 @@ export const mergeUserProfile = (
   if (patch.dislikes !== undefined) next.dislikes = patch.dislikes
   if (patch.allergies !== undefined) next.allergies = patch.allergies
   if (patch.constraints !== undefined) next.constraints = patch.constraints
-  if (patch.dailyTargets !== undefined) {
+  if (patch.dailyTargets === null) {
+    delete next.dailyTargets
+  } else if (patch.dailyTargets !== undefined) {
     next.dailyTargets = { ...current.dailyTargets, ...patch.dailyTargets }
   }
   return next
