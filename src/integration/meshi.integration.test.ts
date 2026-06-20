@@ -93,22 +93,11 @@ interface HarnessOptions {
   readonly mealLogIds?: ReadonlyArray<string>
 }
 
-// `reserve()` returns a Sql whose call function lacks `.options`, but
-// drizzle's postgres-js driver requires `client.options.parsers` /
-// `serializers` and mutates them on construction (to leave timestamp /
-// jsonb encoding to drizzle). Share the pool's options object with the
-// transaction so drizzle's mutation actually reaches the wire serializer
-// — without that, jsonb values get double-encoded and violate the
-// `user_profiles_daily_targets_object` CHECK.
-//
-// The trade-off is that raw `tx\`... ${date}\`` binds also see drizzle's
-// identity serializer for type 1184 and would lose Date handling. Restore
-// that one type with a Date-aware passthrough so the meal-history service
-// (which sends Date binds directly) keeps working.
 const readOptions = (sql: Sql): unknown => Reflect.get(sql, 'options')
 
+// Borrow the pool's options onto ReservedSql so drizzle can mutate the
+// jsonb/timestamp serializers it needs at construction time.
 const prepareTxForDrizzle = (tx: Sql): Sql => {
-  // ReservedSql lacks `.options` at runtime even though the type extends Sql.
   if (readOptions(tx) !== undefined) return tx
   Object.defineProperty(tx, 'options', {
     value: readOptions(getTestSql()),
@@ -204,11 +193,9 @@ const startHarness = async (opts: HarnessOptions): Promise<Harness> => {
   const userProfileService = createUserProfileService(
     createDrizzleUserProfileRepository(tx),
   )
-  // drizzle's constructor mutates `tx.options.serializers/parsers` for
-  // timestamp OIDs to identity (so drizzle can format / decode them
-  // itself). The production code uses raw `tx\`... ${date}\`` binds and
-  // zod-parses results with `z.date()`, both of which need postgres-js's
-  // default serializer / parser. Restore the snapshotted handlers.
+  // Production code uses raw `tx\`... ${date}\`` binds and z.date() on
+  // results; drizzle's constructor flips the timestamp handlers to identity,
+  // so restore them.
   restoreTimestampHandlers(tx, timestampSnapshot)
   const webSearchClient = stubWebSearchClient(
     opts.webSearch ?? DEFAULT_WEB_SEARCH,
@@ -253,6 +240,14 @@ const startHarness = async (opts: HarnessOptions): Promise<Harness> => {
     async close() {
       await client.close()
       await server.close()
+      // Surface unused scripts so silent under-use of the scripted LLM
+      // (e.g. the orchestrator stopped earlier than the test expected)
+      // shows up as a test failure rather than dead test data.
+      if (remaining() !== 0) {
+        throw new Error(
+          `scripted LLM left ${String(remaining())} run(s) unused`,
+        )
+      }
     },
   }
 }
@@ -304,9 +299,20 @@ const seedMealLog = async (
   `
 }
 
-const recordResultSchema = z.object({
+const candidateResultSchema = z.object({
   recorded: z.array(z.unknown()),
-  candidates: z.array(z.unknown()),
+  candidates: z.array(
+    z.object({
+      food_master_id: z.string().nullable(),
+      composition_code: z.string().nullable(),
+      name: z.string(),
+      is_estimated: z.boolean(),
+      reason: z.string(),
+      score: z.number(),
+    }),
+  ),
+  has_estimated_values: z.boolean(),
+  error: z.null(),
 })
 
 // Loosely-typed envelope: MCP's CallTool return is a union that includes a
@@ -596,21 +602,63 @@ describeIfDb('meshi integration', () => {
         }),
       )
 
-      const structured = recordResultSchema.parse(result.structuredContent)
+      const structured = candidateResultSchema.parse(result.structuredContent)
+      // The trigram score is non-deterministic, so collapse it into rank order
+      // while keeping every other field literal.
+      const normalizedCandidates = [...structured.candidates]
+        .sort((a, b) =>
+          (a.food_master_id ?? '') < (b.food_master_id ?? '') ? -1 : 1,
+        )
+        .map((c) => ({
+          food_master_id: c.food_master_id,
+          composition_code: c.composition_code,
+          name: c.name,
+          is_estimated: c.is_estimated,
+          reason: c.reason,
+        }))
+      const candidateNames = normalizedCandidates.map((c) => c.name).sort()
+
       expect({
         isError: result.isError ?? false,
-        recordedCount: structured.recorded.length,
-        candidatesNotEmpty: structured.candidates.length > 0,
-        // candidates render in the template summary
-        contentLeadsWithCandidates:
-          textContent(result)[0]?.startsWith(
-            '食品を一意に特定できませんでした。',
-          ) ?? false,
+        recorded: structured.recorded,
+        has_estimated_values: structured.has_estimated_values,
+        error: structured.error,
+        candidates: normalizedCandidates,
+        content: textContent(result).map((line) => {
+          // matcher orders by trigram score, which is non-deterministic
+          // between the two equally-similar names — sort the rendered list.
+          const lines = line.split('\n')
+          const [header, ...rest] = lines
+          if (header === undefined) return line
+          return [header, ...[...rest].sort()].join('\n')
+        }),
       }).toEqual({
         isError: false,
-        recordedCount: 0,
-        candidatesNotEmpty: true,
-        contentLeadsWithCandidates: true,
+        recorded: [],
+        has_estimated_values: false,
+        error: null,
+        candidates: [
+          {
+            food_master_id: 'fm_salmon_sushi',
+            composition_code: null,
+            name: 'salmon sushi',
+            is_estimated: false,
+            reason: 'fuzzy_name',
+          },
+          {
+            food_master_id: 'fm_salmon_teriyaki',
+            composition_code: null,
+            name: 'salmon teriyaki',
+            is_estimated: false,
+            reason: 'fuzzy_name',
+          },
+        ],
+        content: [
+          [
+            '食品を一意に特定できませんでした。次の候補から選んで、もう一度入力してください。',
+            ...candidateNames.map((n) => `- ${n}: fuzzy_name`),
+          ].join('\n'),
+        ],
       })
 
       const rows = await tx<
