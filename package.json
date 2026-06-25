@@ -1,7 +1,7 @@
 {
   "name": "meshi",
   "private": true,
-  "packageManager": "pnpm@11.5.3",
+  "packageManager": "pnpm@11.8.0",
   "type": "module",
   "scripts": {
     "start": "tsx src/index.ts",
