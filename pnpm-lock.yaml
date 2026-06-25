@@ -10,7 +10,7 @@ importers:
     dependencies:
       '@hono/node-server':
         specifier: 2.0.5
-        version: 2.0.5(hono@4.12.25)
+        version: 2.0.5(hono@4.12.26)
       '@modelcontextprotocol/sdk':
         specifier: 1.29.0
         version: 1.29.0(zod@4.4.3)
@@ -18,8 +18,8 @@ importers:
         specifier: 0.45.2
         version: 0.45.2(postgres@3.4.9)
       hono:
-        specifier: 4.12.25
-        version: 4.12.25
+        specifier: 4.12.26
+        version: 4.12.26
       postgres:
         specifier: 3.4.9
         version: 3.4.9
@@ -1664,6 +1664,10 @@ packages:
     resolution: {integrity: sha512-2NFaIyNVgJmBs/ecmtGzlmluTFs5cHEWGTdu0t1HBwYzoGXOL5nUQBRMXsXWla5i4KkG//QMzVP88m1+I3fdAQ==}
     engines: {node: '>=16.9.0'}
 
+  hono@4.12.26:
+    resolution: {integrity: sha512-uyZtpnYxM9CmQ7QsQknM4zN8EftNqhON1qYeIKM0Se67CCEe2c44xyGURwB0axX2fBDu1dqHrHAc1hmNT8ITkw==}
+    engines: {node: '>=16.9.0'}
+
   http-errors@2.0.1:
     resolution: {integrity: sha512-4FbRdAX+bSdmo4AUFuS0WNiPz8NgFt+r8ThgNWmlrjQjt1Q7ZR9+zTlce2859x4KSXrwIsaeTqDoKQmtP8pLmQ==}
     engines: {node: '>= 0.8'}
@@ -2759,9 +2763,9 @@ snapshots:
     dependencies:
       hono: 4.12.25
 
-  '@hono/node-server@2.0.5(hono@4.12.25)':
+  '@hono/node-server@2.0.5(hono@4.12.26)':
     dependencies:
-      hono: 4.12.25
+      hono: 4.12.26
 
   '@humanfs/core@0.19.2':
     dependencies:
@@ -3675,6 +3679,8 @@ snapshots:
       function-bind: 1.1.2
 
   hono@4.12.25: {}
+
+  hono@4.12.26: {}
 
   http-errors@2.0.1:
     dependencies:
