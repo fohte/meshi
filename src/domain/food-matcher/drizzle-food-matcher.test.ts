@@ -1,36 +1,17 @@
-import type postgres from 'postgres'
 import { describe, expect, it } from 'vitest'
 
 import type { FoodMatchCandidate } from '@/domain/food-matcher'
 import { createDrizzleFoodMatcher } from '@/domain/food-matcher'
 import { describeIfDb, setupTx } from '@/test/db'
+import { seedFoodComposition, seedFoodMaster, seedMealLog } from '@/test/seed'
 
-const insertMaster = async (
-  sql: postgres.Sql,
-  id: string,
-  name: string,
-): Promise<void> => {
-  await sql`
-    INSERT INTO food_masters (id, name, source)
-    VALUES (${id}, ${name}, 'user_input')
-  `
-}
+const MS_PER_DAY = 24 * 60 * 60 * 1000
 
-// Insert a meal_log with eaten_at = now() - interval 'N days' computed in SQL
-// so days_since is exact relative to the SELECT (the only drift is the time
-// between INSERT and SELECT, which is well under a second).
-const insertMealLog = async (
-  sql: postgres.Sql,
-  id: string,
-  foodMasterId: string,
-  daysAgo: number,
-): Promise<void> => {
-  await sql.unsafe(
-    `INSERT INTO meal_logs (id, food_master_id, eaten_at, quantity, unit)
-     VALUES ($1, $2, now() - ($3 || ' days')::interval, 1, 'g')`,
-    [id, foodMasterId, String(daysAgo)],
-  )
-}
+// A Date `daysAgo` days before now, for a meal_log's eaten_at. The scoring
+// formula only reads days_since at ~day granularity, and scores are rounded
+// to 3dp before asserting, so the sub-second gap between this call and the
+// eventual SELECT is negligible.
+const daysAgo = (n: number): Date => new Date(Date.now() - n * MS_PER_DAY)
 
 // Round score to 3 decimal places so the assertion is robust against the tiny
 // drift between INSERT-side now() and SELECT-side now().
@@ -53,10 +34,28 @@ describeIfDb('createDrizzleFoodMatcher', () => {
   describe('history-based matches', () => {
     it('ranks recently-eaten foods above older ones, both as history_recent', async () => {
       const tx = getTx()
-      await insertMaster(tx, 'fm_recent_a', 'rice_a')
-      await insertMaster(tx, 'fm_recent_b', 'rice_b')
-      await insertMealLog(tx, 'ml_ra', 'fm_recent_a', 1)
-      await insertMealLog(tx, 'ml_rb', 'fm_recent_b', 5)
+      await seedFoodMaster(tx, {
+        id: 'fm_recent_a',
+        name: 'rice_a',
+        source: 'user_input',
+      })
+      await seedFoodMaster(tx, {
+        id: 'fm_recent_b',
+        name: 'rice_b',
+        source: 'user_input',
+      })
+      await seedMealLog(tx, {
+        id: 'ml_ra',
+        foodMasterId: 'fm_recent_a',
+        eatenAt: daysAgo(1),
+        quantity: 1,
+      })
+      await seedMealLog(tx, {
+        id: 'ml_rb',
+        foodMasterId: 'fm_recent_b',
+        eatenAt: daysAgo(5),
+        quantity: 1,
+      })
 
       const matcher = createDrizzleFoodMatcher(tx)
       const result = await matcher.search({ query: 'rice', limit: 5 })
@@ -85,12 +84,30 @@ describeIfDb('createDrizzleFoodMatcher', () => {
 
     it('marks old-but-frequent foods as history_frequent above one-off (fuzzy_name) matches', async () => {
       const tx = getTx()
-      await insertMaster(tx, 'fm_freq_c', 'soup_c')
-      await insertMaster(tx, 'fm_freq_d', 'soup_d')
+      await seedFoodMaster(tx, {
+        id: 'fm_freq_c',
+        name: 'soup_c',
+        source: 'user_input',
+      })
+      await seedFoodMaster(tx, {
+        id: 'fm_freq_d',
+        name: 'soup_d',
+        source: 'user_input',
+      })
       for (let i = 0; i < 5; i++) {
-        await insertMealLog(tx, `ml_fc_${String(i)}`, 'fm_freq_c', 30)
+        await seedMealLog(tx, {
+          id: `ml_fc_${String(i)}`,
+          foodMasterId: 'fm_freq_c',
+          eatenAt: daysAgo(30),
+          quantity: 1,
+        })
       }
-      await insertMealLog(tx, 'ml_fd', 'fm_freq_d', 30)
+      await seedMealLog(tx, {
+        id: 'ml_fd',
+        foodMasterId: 'fm_freq_d',
+        eatenAt: daysAgo(30),
+        quantity: 1,
+      })
 
       const matcher = createDrizzleFoodMatcher(tx)
       const result = await matcher.search({ query: 'soup', limit: 5 })
@@ -122,7 +139,11 @@ describeIfDb('createDrizzleFoodMatcher', () => {
   describe('non-history matches', () => {
     it('returns fuzzy_name candidates when the name matches but there is no history', async () => {
       const tx = getTx()
-      await insertMaster(tx, 'fm_fuzz', 'bread_e')
+      await seedFoodMaster(tx, {
+        id: 'fm_fuzz',
+        name: 'bread_e',
+        source: 'user_input',
+      })
 
       const matcher = createDrizzleFoodMatcher(tx)
       const result = await matcher.search({ query: 'bread', limit: 5 })
@@ -141,10 +162,7 @@ describeIfDb('createDrizzleFoodMatcher', () => {
 
     it('falls back to the composition table when no food_master matches', async () => {
       const tx = getTx()
-      await tx`
-        INSERT INTO food_compositions (code, name)
-        VALUES ('comp_noodle', 'noodle')
-      `
+      await seedFoodComposition(tx, { code: 'comp_noodle', name: 'noodle' })
 
       const matcher = createDrizzleFoodMatcher(tx)
       const result = await matcher.search({ query: 'noodle', limit: 5 })
@@ -163,11 +181,12 @@ describeIfDb('createDrizzleFoodMatcher', () => {
 
     it('suppresses composition fallback when a food_master already matches', async () => {
       const tx = getTx()
-      await insertMaster(tx, 'fm_curry', 'curry_f')
-      await tx`
-        INSERT INTO food_compositions (code, name)
-        VALUES ('comp_curry', 'curry')
-      `
+      await seedFoodMaster(tx, {
+        id: 'fm_curry',
+        name: 'curry_f',
+        source: 'user_input',
+      })
+      await seedFoodComposition(tx, { code: 'comp_curry', name: 'curry' })
 
       const matcher = createDrizzleFoodMatcher(tx)
       const result = await matcher.search({ query: 'curry', limit: 5 })
@@ -186,7 +205,11 @@ describeIfDb('createDrizzleFoodMatcher', () => {
 
     it('returns an empty array when nothing matches', async () => {
       const tx = getTx()
-      await insertMaster(tx, 'fm_other', 'pasta_g')
+      await seedFoodMaster(tx, {
+        id: 'fm_other',
+        name: 'pasta_g',
+        source: 'user_input',
+      })
 
       const matcher = createDrizzleFoodMatcher(tx)
       const result = await matcher.search({ query: 'tofu', limit: 5 })

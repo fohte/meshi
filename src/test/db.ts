@@ -76,3 +76,22 @@ export const setupTx = (): (() => postgres.Sql) => {
     return reserved
   }
 }
+
+// For repositories that build a `drizzle(sql)` instance internally
+// (e.g. createDrizzleMealLogRepository). drizzle-orm's postgres-js session
+// reads `client.options.parsers`/`client.options.serializers` while
+// constructing, but postgres-js's `sql.reserve()` rebuilds the tagged-
+// template function from scratch and never copies `.options` onto it, so
+// `drizzle(tx)` throws on a plain `setupTx()` result. `.options` only holds
+// pool-wide, connection-agnostic type parser config (identical for every
+// connection in the pool), so copying the reference onto the reserved
+// connection is safe.
+export const setupDrizzleTx = (): (() => postgres.Sql) => {
+  const getTx = setupTx()
+
+  return () => {
+    const tx = getTx()
+    Object.assign(tx, { options: getPool().options })
+    return tx
+  }
+}
