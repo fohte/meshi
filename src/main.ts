@@ -116,10 +116,12 @@ export const main = async (): Promise<void> => {
     console.log(`received ${signal}, shutting down`)
     server.closeAllConnections()
     server.close((closeErr) => {
-      // initObservability registers its own SIGTERM/SIGINT listener that
-      // flushes independently; Node invokes both listeners concurrently, so
-      // without awaiting it here process.exit() below could race ahead of
-      // that flush and drop telemetry.
+      // initObservability also registers its own SIGTERM/SIGINT listener
+      // that flushes independently and then re-delivers the signal, which
+      // falls through to Node's default disposition (immediate exit) once
+      // no listener remains. Awaiting the same handle here can't fully win
+      // that race, but it stops this handler's own process.exit() from
+      // cutting the flush short in the common case where it finishes first.
       void Promise.allSettled([
         sql.end({ timeout: 5 }),
         observability?.shutdown(),

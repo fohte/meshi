@@ -8,7 +8,23 @@ import {
   type ObservabilityHandle,
 } from '@fohte/service-kit/observability'
 
-export const observability: ObservabilityHandle | undefined =
-  isObservabilityConfigured(process.env)
-    ? initObservability(process.env)
+import { createJsonStdoutLogger } from '@/logger'
+
+const jsonLogger = createJsonStdoutLogger()
+const observabilityLogger = {
+  info: (payload: Record<string, unknown>, msg: string) => {
+    jsonLogger.log(msg, payload)
+  },
+  warn: (payload: Record<string, unknown>, msg: string) => {
+    jsonLogger.log(msg, payload)
+  },
+}
+
+export const initFromEnv = (
+  env: Readonly<Record<string, string | undefined>> = process.env,
+): ObservabilityHandle | undefined =>
+  isObservabilityConfigured(env)
+    ? initObservability(env, { logger: observabilityLogger })
     : undefined
+
+export const observability = initFromEnv()
