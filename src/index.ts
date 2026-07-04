@@ -1,3 +1,5 @@
+import '@/bootstrap'
+
 import { EnvError } from '@/env'
 import { main } from '@/main'
 

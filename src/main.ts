@@ -7,6 +7,7 @@ import { createDrizzleUserProfileRepository } from '@/adapters/db/drizzle-user-p
 import { OpenCodeLlmClient } from '@/adapters/llm'
 import { createTavilyWebSearchClient } from '@/adapters/web-search/tavily-web-search-client'
 import { createApp } from '@/app'
+import { observability } from '@/bootstrap'
 import { createSql, pingDb } from '@/db'
 import { runMigrations } from '@/db/migrate'
 import { seedNutrientDefinitions } from '@/db/seed'
@@ -115,9 +116,26 @@ export const main = async (): Promise<void> => {
     console.log(`received ${signal}, shutting down`)
     server.closeAllConnections()
     server.close((closeErr) => {
-      void sql.end({ timeout: 5 }).finally(() => {
-        process.exit(closeErr ? 1 : 0)
-      })
+      // initObservability also registers its own SIGTERM/SIGINT listener
+      // that flushes independently and then re-delivers the signal, which
+      // falls through to Node's default disposition (immediate exit) once
+      // no listener remains. Awaiting the same handle here can't fully win
+      // that race, but it stops this handler's own process.exit() from
+      // cutting the flush short in the common case where it finishes first.
+      void Promise.allSettled([
+        sql.end({ timeout: 5 }),
+        observability?.shutdown(),
+      ])
+        .then((results) => {
+          for (const result of results) {
+            if (result.status === 'rejected') {
+              console.error('shutdown error:', result.reason)
+            }
+          }
+        })
+        .finally(() => {
+          process.exit(closeErr ? 1 : 0)
+        })
     })
   }
 
