@@ -82,25 +82,33 @@ export const setupTx = (): (() => postgres.Sql) => {
 // reads `client.options.parsers`/`client.options.serializers` while
 // constructing, but postgres-js's `sql.reserve()` rebuilds the tagged-
 // template function from scratch and never copies `.options` onto it, so
-// `drizzle(tx)` throws on a plain `setupTx()` result. `.options` only holds
-// pool-wide, connection-agnostic type parser config (identical for every
-// connection in the pool), so copying the reference onto the reserved
-// connection is safe.
+// `drizzle(tx)` throws on a plain `setupTx()` result.
 //
 // Constructing drizzle() also flips the timestamp/jsonb type parsers to
-// identity pass-through on that shared `.options` object (it decodes those
-// types itself instead). If a test issues a *raw* `tx\`...\`` query for a
-// timestamp/jsonb column on the same connection after calling the drizzle
-// repository, it'll get the raw wire value instead of a parsed Date/object —
-// snapshot and restore the relevant parsers/serializers around the raw call
-// if that combination comes up (see `prepareTxForDrizzle` in
-// src/integration/meshi.integration.test.ts for the pattern).
+// identity pass-through on `.options` (it decodes those types itself
+// instead), so `.options.parsers`/`.serializers` are cloned onto the
+// reserved connection rather than shared by reference — otherwise that
+// mutation would apply pool-wide and any other connection reading a
+// timestamp/jsonb column would get the raw wire value instead of a parsed
+// Date/object. If a test issues a *raw* `tx\`...\`` query for one of those
+// columns on this same connection after calling the drizzle repository,
+// it'll still see the same effect there; snapshot and restore the relevant
+// parsers/serializers around the raw call if that combination comes up (see
+// `prepareTxForDrizzle` in src/integration/meshi.integration.test.ts for the
+// pattern).
 export const setupDrizzleTx = (): (() => postgres.Sql) => {
   const getTx = setupTx()
 
   return () => {
     const tx = getTx()
-    Object.assign(tx, { options: getPool().options })
+    const poolOptions = getPool().options
+    Object.assign(tx, {
+      options: {
+        ...poolOptions,
+        parsers: { ...poolOptions.parsers },
+        serializers: { ...poolOptions.serializers },
+      },
+    })
     return tx
   }
 }
