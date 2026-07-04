@@ -125,9 +125,17 @@ export const main = async (): Promise<void> => {
       void Promise.allSettled([
         sql.end({ timeout: 5 }),
         observability?.shutdown(),
-      ]).finally(() => {
-        process.exit(closeErr ? 1 : 0)
-      })
+      ])
+        .then((results) => {
+          for (const result of results) {
+            if (result.status === 'rejected') {
+              console.error('shutdown error:', result.reason)
+            }
+          }
+        })
+        .finally(() => {
+          process.exit(closeErr ? 1 : 0)
+        })
     })
   }
 

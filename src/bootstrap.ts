@@ -22,9 +22,13 @@ const observabilityLogger = {
 
 export const initFromEnv = (
   env: Readonly<Record<string, string | undefined>> = process.env,
-): ObservabilityHandle | undefined =>
-  isObservabilityConfigured(env)
+): ObservabilityHandle | undefined => {
+  // Vitest sets NODE_ENV=test; skip initializing real Sentry/OTel
+  // connections so test runs don't hang on open handles or ship telemetry.
+  if (env['NODE_ENV'] === 'test') return undefined
+  return isObservabilityConfigured(env)
     ? initObservability(env, { logger: observabilityLogger })
     : undefined
+}
 
 export const observability = initFromEnv()
