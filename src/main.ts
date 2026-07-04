@@ -7,6 +7,7 @@ import { createDrizzleUserProfileRepository } from '@/adapters/db/drizzle-user-p
 import { OpenCodeLlmClient } from '@/adapters/llm'
 import { createTavilyWebSearchClient } from '@/adapters/web-search/tavily-web-search-client'
 import { createApp } from '@/app'
+import { observability } from '@/bootstrap'
 import { createSql, pingDb } from '@/db'
 import { runMigrations } from '@/db/migrate'
 import { seedNutrientDefinitions } from '@/db/seed'
@@ -115,7 +116,14 @@ export const main = async (): Promise<void> => {
     console.log(`received ${signal}, shutting down`)
     server.closeAllConnections()
     server.close((closeErr) => {
-      void sql.end({ timeout: 5 }).finally(() => {
+      // initObservability registers its own SIGTERM/SIGINT listener that
+      // flushes independently; Node invokes both listeners concurrently, so
+      // without awaiting it here process.exit() below could race ahead of
+      // that flush and drop telemetry.
+      void Promise.allSettled([
+        sql.end({ timeout: 5 }),
+        observability?.shutdown(),
+      ]).finally(() => {
         process.exit(closeErr ? 1 : 0)
       })
     })
