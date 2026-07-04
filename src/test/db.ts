@@ -86,6 +86,15 @@ export const setupTx = (): (() => postgres.Sql) => {
 // pool-wide, connection-agnostic type parser config (identical for every
 // connection in the pool), so copying the reference onto the reserved
 // connection is safe.
+//
+// Constructing drizzle() also flips the timestamp/jsonb type parsers to
+// identity pass-through on that shared `.options` object (it decodes those
+// types itself instead). If a test issues a *raw* `tx\`...\`` query for a
+// timestamp/jsonb column on the same connection after calling the drizzle
+// repository, it'll get the raw wire value instead of a parsed Date/object —
+// snapshot and restore the relevant parsers/serializers around the raw call
+// if that combination comes up (see `prepareTxForDrizzle` in
+// src/integration/meshi.integration.test.ts for the pattern).
 export const setupDrizzleTx = (): (() => postgres.Sql) => {
   const getTx = setupTx()
 

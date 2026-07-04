@@ -38,7 +38,7 @@ const seedFoodMasterNutrient = async (
 
 export const seedFoodMaster = async (
   sql: Sql,
-  values: typeof foodMasters.$inferInsert & {
+  values: Omit<typeof foodMasters.$inferInsert, 'createdAt'> & {
     nutrients?: Readonly<Record<string, number>>
   },
 ): Promise<void> => {
@@ -73,7 +73,10 @@ export const seedFoodMaster = async (
 
 export const seedMealLog = async (
   sql: Sql,
-  values: Omit<typeof mealLogs.$inferInsert, 'quantity' | 'unit'> & {
+  values: Omit<
+    typeof mealLogs.$inferInsert,
+    'quantity' | 'unit' | 'createdAt'
+  > & {
     quantity: number
     unit?: string
   },
