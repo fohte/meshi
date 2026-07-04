@@ -3,64 +3,34 @@ import { expect, it } from 'vitest'
 
 import { createMealHistoryService } from '@/domain/meal-history/mealHistoryService'
 import { describeIfDb, setupTx } from '@/test/db'
+import {
+  seedFoodMaster,
+  seedMealLog,
+  seedNutrientDefinition,
+} from '@/test/seed'
 
 const seedNutrientDefinitions = async (sql: postgres.Sql): Promise<void> => {
-  await sql`
-    INSERT INTO nutrient_definitions (code, display_name, unit, is_major, sort_order)
-    VALUES
-      ('energy_kcal', 'energy', 'kcal', true, 1),
-      ('protein_g', 'protein', 'g', true, 2),
-      ('iron_mg', 'iron', 'mg', false, 3)
-  `
-}
-
-interface FoodMasterSeed {
-  readonly id: string
-  readonly name: string
-  readonly isEstimated?: boolean
-  readonly nutrients: Readonly<Record<string, number>>
-}
-
-const seedFoodMaster = async (
-  sql: postgres.Sql,
-  food: FoodMasterSeed,
-): Promise<void> => {
-  const isEstimated = food.isEstimated ?? false
-  const source = isEstimated ? 'composition_table_estimate' : 'user_input'
-  await sql`
-    INSERT INTO food_masters (id, name, is_estimated, source)
-    VALUES (${food.id}, ${food.name}, ${isEstimated}, ${source})
-  `
-  for (const [code, value] of Object.entries(food.nutrients)) {
-    await sql`
-      INSERT INTO food_master_nutrients (food_master_id, nutrient_code, value)
-      VALUES (${food.id}, ${code}, ${value})
-    `
-  }
-}
-
-interface MealLogSeed {
-  readonly id: string
-  readonly foodMasterId: string
-  readonly eatenAt: Date
-  readonly quantity: number
-  readonly unit?: string
-}
-
-const seedMealLog = async (
-  sql: postgres.Sql,
-  entry: MealLogSeed,
-): Promise<void> => {
-  await sql`
-    INSERT INTO meal_logs (id, food_master_id, eaten_at, quantity, unit)
-    VALUES (
-      ${entry.id},
-      ${entry.foodMasterId},
-      ${entry.eatenAt},
-      ${entry.quantity},
-      ${entry.unit ?? 'g'}
-    )
-  `
+  await seedNutrientDefinition(sql, {
+    code: 'energy_kcal',
+    displayName: 'energy',
+    unit: 'kcal',
+    isMajor: true,
+    sortOrder: 1,
+  })
+  await seedNutrientDefinition(sql, {
+    code: 'protein_g',
+    displayName: 'protein',
+    unit: 'g',
+    isMajor: true,
+    sortOrder: 2,
+  })
+  await seedNutrientDefinition(sql, {
+    code: 'iron_mg',
+    displayName: 'iron',
+    unit: 'mg',
+    isMajor: false,
+    sortOrder: 3,
+  })
 }
 
 describeIfDb('MealHistoryService.query', () => {
@@ -72,11 +42,13 @@ describeIfDb('MealHistoryService.query', () => {
     await seedFoodMaster(tx, {
       id: 'rice',
       name: 'rice',
+      source: 'user_input',
       nutrients: { energy_kcal: 156, protein_g: 2.5, iron_mg: 0.1 },
     })
     await seedFoodMaster(tx, {
       id: 'egg',
       name: 'egg',
+      source: 'user_input',
       nutrients: { energy_kcal: 142, protein_g: 12, iron_mg: 1.5 },
     })
     await seedMealLog(tx, {
@@ -146,11 +118,13 @@ describeIfDb('MealHistoryService.query', () => {
     await seedFoodMaster(tx, {
       id: 'rice',
       name: 'rice',
+      source: 'user_input',
       nutrients: { energy_kcal: 156, protein_g: 2.5 },
     })
     await seedFoodMaster(tx, {
       id: 'egg',
       name: 'egg',
+      source: 'user_input',
       nutrients: { energy_kcal: 142, protein_g: 12 },
     })
     await seedMealLog(tx, {
@@ -201,6 +175,7 @@ describeIfDb('MealHistoryService.query', () => {
     await seedFoodMaster(tx, {
       id: 'spinach',
       name: 'spinach',
+      source: 'user_input',
       nutrients: { energy_kcal: 25, protein_g: 2.2, iron_mg: 2 },
     })
     await seedMealLog(tx, {
@@ -245,6 +220,7 @@ describeIfDb('MealHistoryService.query', () => {
     await seedFoodMaster(tx, {
       id: 'rice',
       name: 'rice',
+      source: 'user_input',
       nutrients: { energy_kcal: 156, protein_g: 2.5 },
     })
     await seedMealLog(tx, {
@@ -284,12 +260,14 @@ describeIfDb('MealHistoryService.query', () => {
     await seedFoodMaster(tx, {
       id: 'rice',
       name: 'rice',
+      source: 'user_input',
       nutrients: { energy_kcal: 156, protein_g: 2.5 },
     })
     await seedFoodMaster(tx, {
       id: 'mystery_stew',
       name: 'mystery stew',
       isEstimated: true,
+      source: 'composition_table_estimate',
       nutrients: { energy_kcal: 200, protein_g: 8 },
     })
     await seedMealLog(tx, {
