@@ -27,10 +27,18 @@
     "@tsconfig/strictest": "2.0.8",
     "@types/node": "24.13.2",
     "concurrently": "10.0.3",
+<<<<<<< before updating
     "drizzle-kit": "0.31.10",
+    "eslint": "10.5.0",
+    "prettier": "3.8.4",
+    "tsx": "4.22.4",
+||||||| last update
+    "eslint": "10.5.0",
+    "prettier": "3.8.4",
+=======
     "eslint": "10.6.0",
     "prettier": "3.9.4",
-    "tsx": "4.22.4",
+>>>>>>> after updating
     "typescript": "6.0.3",
     "vitest": "4.1.9"
   },
