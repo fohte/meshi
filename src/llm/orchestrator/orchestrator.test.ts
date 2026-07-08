@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+import { z } from 'zod'
 
 import type {
   LlmClient,
@@ -28,11 +29,20 @@ type ScriptedStep =
   | { readonly type: 'tools'; readonly calls: ReadonlyArray<ScriptedToolCall> }
   | { readonly type: 'final'; readonly text: string }
 
+// Each element is the script for one sequential llmClient.runConversation()
+// call. recordFromText makes one call to split the input into items, then
+// one further call per item — callScripts[0] is always the split call.
 const createScriptedLlmClient = (
-  steps: ReadonlyArray<ScriptedStep>,
+  callScripts: ReadonlyArray<ReadonlyArray<ScriptedStep>>,
 ): LlmClient => {
+  let callIndex = 0
   return {
     async runConversation(input: LlmRunInput): Promise<LlmRunOutput> {
+      const steps = callScripts[callIndex]
+      callIndex++
+      if (steps === undefined) {
+        throw new Error(`no scripted steps for call #${String(callIndex)}`)
+      }
       let messages: LlmMessage[] = [...input.messages]
       let turns = 0
       let finalText = ''
@@ -101,6 +111,10 @@ const createScriptedLlmClient = (
   }
 }
 
+const splitStep = (items: ReadonlyArray<string>): ScriptedStep[] => [
+  { type: 'final', text: JSON.stringify(items) },
+]
+
 type FakeResult =
   | { readonly ok: true; readonly value: unknown }
   | {
@@ -154,8 +168,11 @@ const createFakeRegistry = (
 const baseOptions = {
   textModel: 'text-model',
   visionModel: 'vision-model',
+  lightweightModel: 'lightweight-model',
   maxTurns: 6,
 }
+
+const recordMealLogInputSchema = z.object({ food_master_id: z.string() })
 
 describe('ConversationOrchestrator', () => {
   it('records a meal via record_meal_log and returns recorded + summary', async () => {
@@ -172,21 +189,24 @@ describe('ConversationOrchestrator', () => {
       },
     ])
     const llm = createScriptedLlmClient([
-      {
-        type: 'tools',
-        calls: [
-          {
-            name: 'record_meal_log',
-            input: {
-              food_master_id: 'fm_1',
-              eaten_at_iso: '2026-06-18T12:00:00+09:00',
-              quantity: 1,
-              unit: '杯',
+      splitStep(['ラーメンを食べた']),
+      [
+        {
+          type: 'tools',
+          calls: [
+            {
+              name: 'record_meal_log',
+              input: {
+                food_master_id: 'fm_1',
+                eaten_at_iso: '2026-06-18T12:00:00+09:00',
+                quantity: 1,
+                unit: '杯',
+              },
             },
-          },
-        ],
-      },
-      { type: 'final', text: 'Recorded.' },
+          ],
+        },
+        { type: 'final', text: 'Recorded.' },
+      ],
     ])
     const orchestrator = createConversationOrchestrator({
       llmClient: llm,
@@ -254,40 +274,43 @@ describe('ConversationOrchestrator', () => {
       },
     ])
     const llm = createScriptedLlmClient([
-      {
-        type: 'tools',
-        calls: [
-          { name: 'search_food_master', input: { query: 'foo', limit: 5 } },
-        ],
-      },
-      {
-        type: 'tools',
-        calls: [{ name: 'web_search', input: { query: 'foo nutrition' } }],
-      },
-      {
-        type: 'tools',
-        calls: [
-          {
-            name: 'register_food_master',
-            input: { name: 'foo', source: 'web_search' },
-          },
-        ],
-      },
-      {
-        type: 'tools',
-        calls: [
-          {
-            name: 'record_meal_log',
-            input: {
-              food_master_id: 'fm_new',
-              eaten_at_iso: '2026-06-18T12:00:00+09:00',
-              quantity: 1,
-              unit: 'serving',
+      splitStep(['foo を食べた']),
+      [
+        {
+          type: 'tools',
+          calls: [
+            { name: 'search_food_master', input: { query: 'foo', limit: 5 } },
+          ],
+        },
+        {
+          type: 'tools',
+          calls: [{ name: 'web_search', input: { query: 'foo nutrition' } }],
+        },
+        {
+          type: 'tools',
+          calls: [
+            {
+              name: 'register_food_master',
+              input: { name: 'foo', source: 'web_search' },
             },
-          },
-        ],
-      },
-      { type: 'final', text: 'Recorded foo.' },
+          ],
+        },
+        {
+          type: 'tools',
+          calls: [
+            {
+              name: 'record_meal_log',
+              input: {
+                food_master_id: 'fm_new',
+                eaten_at_iso: '2026-06-18T12:00:00+09:00',
+                quantity: 1,
+                unit: 'serving',
+              },
+            },
+          ],
+        },
+        { type: 'final', text: 'Recorded foo.' },
+      ],
     ])
     const orchestrator = createConversationOrchestrator({
       llmClient: llm,
@@ -342,14 +365,17 @@ describe('ConversationOrchestrator', () => {
       },
     ])
     const llm = createScriptedLlmClient([
-      {
-        type: 'tools',
-        calls: [{ name: 'search_food_master', input: { query: 'apple' } }],
-      },
-      {
-        type: 'final',
-        text: 'I am not sure which apple you mean.',
-      },
+      splitStep(['apple']),
+      [
+        {
+          type: 'tools',
+          calls: [{ name: 'search_food_master', input: { query: 'apple' } }],
+        },
+        {
+          type: 'final',
+          text: 'I am not sure which apple you mean.',
+        },
+      ],
     ])
     const orchestrator = createConversationOrchestrator({
       llmClient: llm,
@@ -395,18 +421,21 @@ describe('ConversationOrchestrator', () => {
       },
     ])
     const llm = createScriptedLlmClient([
-      {
-        type: 'tools',
-        calls: [{ name: 'search_food_master', input: { query: 'a' } }],
-      },
-      {
-        type: 'tools',
-        calls: [{ name: 'search_food_master', input: { query: 'b' } }],
-      },
-      {
-        type: 'tools',
-        calls: [{ name: 'search_food_master', input: { query: 'c' } }],
-      },
+      splitStep(['x']),
+      [
+        {
+          type: 'tools',
+          calls: [{ name: 'search_food_master', input: { query: 'a' } }],
+        },
+        {
+          type: 'tools',
+          calls: [{ name: 'search_food_master', input: { query: 'b' } }],
+        },
+        {
+          type: 'tools',
+          calls: [{ name: 'search_food_master', input: { query: 'c' } }],
+        },
+      ],
     ])
     const orchestrator = createConversationOrchestrator({
       llmClient: llm,
@@ -431,6 +460,235 @@ describe('ConversationOrchestrator', () => {
     })
   })
 
+  it('splits multiple items into independent conversations and records each', async () => {
+    const registry = createFakeRegistry([
+      {
+        name: 'record_meal_log',
+        handle(input) {
+          const { food_master_id: foodMasterId } =
+            recordMealLogInputSchema.parse(input)
+          return foodMasterId === 'fm_1'
+            ? ok({
+                meal_log_id: 'log_1',
+                nutrition: { energy_kcal: 100 },
+                is_estimated: false,
+              })
+            : ok({
+                meal_log_id: 'log_2',
+                nutrition: { energy_kcal: 200 },
+                is_estimated: false,
+              })
+        },
+      },
+    ])
+    const llm = createScriptedLlmClient([
+      splitStep(['ラーメン', 'ポテチ']),
+      [
+        {
+          type: 'tools',
+          calls: [
+            {
+              name: 'record_meal_log',
+              input: {
+                food_master_id: 'fm_1',
+                eaten_at_iso: '2026-06-18T12:00:00+09:00',
+                quantity: 1,
+                unit: '杯',
+              },
+            },
+          ],
+        },
+        { type: 'final', text: 'Recorded ramen.' },
+      ],
+      [
+        {
+          type: 'tools',
+          calls: [
+            {
+              name: 'record_meal_log',
+              input: {
+                food_master_id: 'fm_2',
+                eaten_at_iso: '2026-06-18T12:00:00+09:00',
+                quantity: 1,
+                unit: '袋',
+              },
+            },
+          ],
+        },
+        { type: 'final', text: 'Recorded chips.' },
+      ],
+    ])
+    const orchestrator = createConversationOrchestrator({
+      llmClient: llm,
+      registry,
+      ...baseOptions,
+    })
+
+    const result = await orchestrator.recordFromText({
+      text: 'ラーメンとポテチを食べた',
+    })
+
+    expect(result).toEqual({
+      recorded: [
+        {
+          mealLogId: 'log_1',
+          foodMasterId: 'fm_1',
+          nutrition: { energy_kcal: 100 },
+          isEstimated: false,
+        },
+        {
+          mealLogId: 'log_2',
+          foodMasterId: 'fm_2',
+          nutrition: { energy_kcal: 200 },
+          isEstimated: false,
+        },
+      ],
+      candidates: [],
+      hasEstimatedValues: false,
+      summaryText: ['Recorded ramen.', 'Recorded chips.'].join('\n'),
+      error: null,
+    })
+  })
+
+  it('records other items even when one item hits max_turns_exceeded', async () => {
+    const registry = createFakeRegistry([
+      {
+        name: 'record_meal_log',
+        handle() {
+          return ok({
+            meal_log_id: 'log_ok',
+            nutrition: { energy_kcal: 100 },
+            is_estimated: false,
+          })
+        },
+      },
+      {
+        name: 'search_food_master',
+        handle() {
+          return ok({ candidates: [] })
+        },
+      },
+    ])
+    const llm = createScriptedLlmClient([
+      splitStep(['known food', 'unknown food']),
+      [
+        {
+          type: 'tools',
+          calls: [
+            {
+              name: 'record_meal_log',
+              input: {
+                food_master_id: 'fm_ok',
+                eaten_at_iso: '2026-06-18T12:00:00+09:00',
+                quantity: 1,
+                unit: '個',
+              },
+            },
+          ],
+        },
+        { type: 'final', text: 'Recorded known food.' },
+      ],
+      [
+        {
+          type: 'tools',
+          calls: [{ name: 'search_food_master', input: { query: 'a' } }],
+        },
+        {
+          type: 'tools',
+          calls: [{ name: 'search_food_master', input: { query: 'b' } }],
+        },
+        {
+          type: 'tools',
+          calls: [{ name: 'search_food_master', input: { query: 'c' } }],
+        },
+      ],
+    ])
+    const orchestrator = createConversationOrchestrator({
+      llmClient: llm,
+      registry,
+      ...baseOptions,
+      maxTurns: 2,
+    })
+
+    const result = await orchestrator.recordFromText({
+      text: 'known food と unknown food を食べた',
+    })
+
+    expect(result).toEqual({
+      recorded: [
+        {
+          mealLogId: 'log_ok',
+          foodMasterId: 'fm_ok',
+          nutrition: { energy_kcal: 100 },
+          isEstimated: false,
+        },
+      ],
+      candidates: [],
+      hasEstimatedValues: false,
+      summaryText: 'Recorded known food.',
+      error: null,
+    })
+  })
+
+  it('falls back to a single conversation for the whole text when the split reply is not valid JSON', async () => {
+    const registry = createFakeRegistry([
+      {
+        name: 'record_meal_log',
+        handle() {
+          return ok({
+            meal_log_id: 'log_1',
+            nutrition: { energy_kcal: 250 },
+            is_estimated: false,
+          })
+        },
+      },
+    ])
+    const llm = createScriptedLlmClient([
+      [{ type: 'final', text: 'not json' }],
+      [
+        {
+          type: 'tools',
+          calls: [
+            {
+              name: 'record_meal_log',
+              input: {
+                food_master_id: 'fm_1',
+                eaten_at_iso: '2026-06-18T12:00:00+09:00',
+                quantity: 1,
+                unit: '杯',
+              },
+            },
+          ],
+        },
+        { type: 'final', text: 'Recorded.' },
+      ],
+    ])
+    const orchestrator = createConversationOrchestrator({
+      llmClient: llm,
+      registry,
+      ...baseOptions,
+    })
+
+    const result = await orchestrator.recordFromText({
+      text: 'ラーメンを食べた',
+    })
+
+    expect(result).toEqual({
+      recorded: [
+        {
+          mealLogId: 'log_1',
+          foodMasterId: 'fm_1',
+          nutrition: { energy_kcal: 250 },
+          isEstimated: false,
+        },
+      ],
+      candidates: [],
+      hasEstimatedValues: false,
+      summaryText: 'Recorded.',
+      error: null,
+    })
+  })
+
   const DIVERGENCE_MESSAGE =
     'Divergence detected: you called the same tool with the same arguments twice in a row. Stop calling tools and return your final answer.'
 
@@ -449,15 +707,18 @@ describe('ConversationOrchestrator', () => {
       },
     ])
     const llm = createScriptedLlmClient([
-      {
-        type: 'tools',
-        calls: [{ name: 'search_food_master', input: { query: 'foo' } }],
-      },
-      {
-        type: 'tools',
-        calls: [{ name: 'search_food_master', input: { query: 'foo' } }],
-      },
-      { type: 'final', text: 'Giving up.' },
+      splitStep(['foo']),
+      [
+        {
+          type: 'tools',
+          calls: [{ name: 'search_food_master', input: { query: 'foo' } }],
+        },
+        {
+          type: 'tools',
+          calls: [{ name: 'search_food_master', input: { query: 'foo' } }],
+        },
+        { type: 'final', text: 'Giving up.' },
+      ],
     ])
     return {
       orchestrator: createConversationOrchestrator({
@@ -518,29 +779,32 @@ describe('ConversationOrchestrator', () => {
       },
     ])
     const llm = createScriptedLlmClient([
-      {
-        type: 'tools',
-        calls: [{ name: 'search_food_master', input: { query: 'foo' } }],
-      },
-      {
-        type: 'tools',
-        calls: [{ name: 'search_food_master', input: { query: 'foo' } }],
-      },
-      {
-        type: 'tools',
-        calls: [
-          {
-            name: 'record_meal_log',
-            input: {
-              food_master_id: 'fm_1',
-              eaten_at_iso: '2026-06-18T12:00:00+09:00',
-              quantity: 1,
-              unit: '杯',
+      splitStep(['foo']),
+      [
+        {
+          type: 'tools',
+          calls: [{ name: 'search_food_master', input: { query: 'foo' } }],
+        },
+        {
+          type: 'tools',
+          calls: [{ name: 'search_food_master', input: { query: 'foo' } }],
+        },
+        {
+          type: 'tools',
+          calls: [
+            {
+              name: 'record_meal_log',
+              input: {
+                food_master_id: 'fm_1',
+                eaten_at_iso: '2026-06-18T12:00:00+09:00',
+                quantity: 1,
+                unit: '杯',
+              },
             },
-          },
-        ],
-      },
-      { type: 'final', text: 'Done.' },
+          ],
+        },
+        { type: 'final', text: 'Done.' },
+      ],
     ])
     const orchestrator = createConversationOrchestrator({
       llmClient: llm,
@@ -571,11 +835,14 @@ describe('ConversationOrchestrator', () => {
       },
     ])
     const llm = createScriptedLlmClient([
-      {
-        type: 'tools',
-        calls: [{ name: 'search_food_master', input: { query: 'x' } }],
-      },
-      { type: 'final', text: 'Failed to search.' },
+      splitStep(['x']),
+      [
+        {
+          type: 'tools',
+          calls: [{ name: 'search_food_master', input: { query: 'x' } }],
+        },
+        { type: 'final', text: 'Failed to search.' },
+      ],
     ])
     const orchestrator = createConversationOrchestrator({
       llmClient: llm,
@@ -696,19 +963,21 @@ describe('ConversationOrchestrator', () => {
       },
     ])
     const llm = createScriptedLlmClient([
-      {
-        type: 'tools',
-        calls: [
-          {
-            name: 'query_meal_history',
-            input: {
-              period_from_iso: '2026-06-17T00:00:00Z',
-              period_to_iso: '2026-06-19T00:00:00Z',
+      [
+        {
+          type: 'tools',
+          calls: [
+            {
+              name: 'query_meal_history',
+              input: {
+                period_from_iso: '2026-06-17T00:00:00Z',
+                period_to_iso: '2026-06-19T00:00:00Z',
+              },
             },
-          },
-        ],
-      },
-      { type: 'final', text: '1800 kcal over 2 days.' },
+          ],
+        },
+        { type: 'final', text: '1800 kcal over 2 days.' },
+      ],
     ])
     const orchestrator = createConversationOrchestrator({
       llmClient: llm,
@@ -755,11 +1024,13 @@ describe('ConversationOrchestrator', () => {
       },
     ])
     const llm = createScriptedLlmClient([
-      {
-        type: 'tools',
-        calls: [{ name: 'get_user_profile', input: {} }],
-      },
-      { type: 'final', text: 'Try a salad.' },
+      [
+        {
+          type: 'tools',
+          calls: [{ name: 'get_user_profile', input: {} }],
+        },
+        { type: 'final', text: 'Try a salad.' },
+      ],
     ])
     const orchestrator = createConversationOrchestrator({
       llmClient: llm,
@@ -785,11 +1056,14 @@ describe('ConversationOrchestrator', () => {
       },
     ])
     const llm = createScriptedLlmClient([
-      {
-        type: 'tools',
-        calls: [{ name: 'search_food_master', input: { query: 'x' } }],
-      },
-      { type: 'final', text: 'Could not search right now.' },
+      splitStep(['x']),
+      [
+        {
+          type: 'tools',
+          calls: [{ name: 'search_food_master', input: { query: 'x' } }],
+        },
+        { type: 'final', text: 'Could not search right now.' },
+      ],
     ])
     const orchestrator = createConversationOrchestrator({
       llmClient: llm,

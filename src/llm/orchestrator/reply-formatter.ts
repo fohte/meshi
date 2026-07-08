@@ -98,6 +98,8 @@ const formatErrorReply = (error: OrchestratorError): string => {
 const formatMealRecordTemplate = (input: MealRecordSummaryInput): string => {
   if (input.error) return formatErrorReply(input.error)
 
+  const sections: string[] = []
+
   if (input.recorded.length > 0) {
     const lines: string[] = []
     lines.push(`記録しました (${String(input.recorded.length)} 件)。`)
@@ -110,7 +112,7 @@ const formatMealRecordTemplate = (input: MealRecordSummaryInput): string => {
     if (input.hasEstimatedValues) {
       lines.push('※ 推測値が含まれています。値は目安としてご確認ください。')
     }
-    return lines.join('\n')
+    sections.push(lines.join('\n'))
   }
 
   if (input.candidates.length > 0) {
@@ -122,8 +124,13 @@ const formatMealRecordTemplate = (input: MealRecordSummaryInput): string => {
       const suffix = c.isEstimated ? ' (推測値)' : ''
       lines.push(`- ${c.name}${suffix}: ${c.reason}`)
     }
-    return lines.join('\n')
+    sections.push(lines.join('\n'))
   }
+
+  // Both can be non-empty when a multi-item request records some items
+  // while others still need clarification; show both instead of the
+  // recorded-only section silently dropping the outstanding candidates.
+  if (sections.length > 0) return sections.join('\n\n')
 
   const trimmed = input.finalText.trim()
   if (trimmed !== '') return trimmed

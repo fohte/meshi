@@ -1,3 +1,5 @@
+import { z } from 'zod'
+
 import {
   interpretImage as defaultInterpretImage,
   type InterpretImageInput,
@@ -48,6 +50,7 @@ export interface ConversationOrchestratorOptions {
   readonly registry: DomainToolsRegistry
   readonly textModel: string
   readonly visionModel: string
+  readonly lightweightModel: string
   readonly maxTurns: number
   readonly formatter?: ReplyFormatter
   readonly interpretImage?: InterpretImageFn
@@ -96,6 +99,13 @@ const RECOMMEND_SYSTEM = [
   'You are the meshi internal LLM agent that recommends a meal.',
   'Use get_user_profile and query_meal_history as needed, then return your recommendation as the assistant text without calling further tools.',
   'Each tool call must use a meaningfully different input from the previous one.',
+].join('\n')
+
+const ITEM_SPLIT_SYSTEM = [
+  'You split a natural-language meal utterance into one entry per distinct food item.',
+  "Keep each item's original wording (quantity, brand, description) verbatim; do not translate, summarize, merge, or invent items.",
+  'Reply with only a JSON array of strings and nothing else: no markdown, no code fences, no explanation.',
+  'If the utterance describes a single food item, reply with a JSON array containing exactly that one string.',
 ].join('\n')
 
 const canonicalJson = (value: unknown): string => {
@@ -214,6 +224,35 @@ const buildExecutor = (
 const initialMessages = (
   userContent: ReadonlyArray<LlmContent>,
 ): LlmMessage[] => [{ role: 'user', content: userContent }]
+
+const itemListSchema = z.array(z.string().min(1)).min(1)
+
+// Splits free text into independent food items so each gets its own bounded
+// tool-use conversation; a shared conversation would need turns proportional
+// to the item count and could exhaust maxTurns before recording anything.
+const splitTextIntoItems = async (
+  llmClient: LlmClient,
+  model: string,
+  text: string,
+): Promise<ReadonlyArray<string>> => {
+  try {
+    const out = await llmClient.runConversation({
+      model,
+      system: ITEM_SPLIT_SYSTEM,
+      messages: initialMessages([{ type: 'text', text }]),
+      tools: [],
+      maxTurns: 1,
+      executeTool: () =>
+        Promise.reject(new Error('item splitting must not call tools')),
+    })
+    const raw: unknown = JSON.parse(out.finalText)
+    const parsed = itemListSchema.safeParse(raw)
+    if (parsed.success) return parsed.data
+  } catch {
+    // Invalid JSON or a transport failure: fall back to a single item below.
+  }
+  return [text]
+}
 
 const buildOrchestratorError = (
   diverged: boolean,
@@ -361,7 +400,14 @@ const formatTextUserContent = (
 export const createConversationOrchestrator = (
   options: ConversationOrchestratorOptions,
 ): ConversationOrchestrator => {
-  const { llmClient, registry, textModel, visionModel, maxTurns } = options
+  const {
+    llmClient,
+    registry,
+    textModel,
+    visionModel,
+    lightweightModel,
+    maxTurns,
+  } = options
   const formatter = options.formatter ?? createPassthroughReplyFormatter()
   const interpret: InterpretImageFn =
     options.interpretImage ?? defaultInterpretImage
@@ -396,18 +442,37 @@ export const createConversationOrchestrator = (
   }
 
   const buildMealRecordResult = (
-    run: ConversationRunResult,
+    runs: ReadonlyArray<ConversationRunResult>,
   ): MealRecordResult => {
-    const recorded = collectRecorded(run.invocations)
-    const candidates =
-      recorded.length === 0 ? collectLastSearchCandidates(run.invocations) : []
+    const recorded: RecordedMeal[] = []
+    const candidates: FoodCandidate[] = []
+    const finalTexts: string[] = []
+    let diverged = false
+    let hitMaxTurns = false
+    for (const run of runs) {
+      const runRecorded = collectRecorded(run.invocations)
+      recorded.push(...runRecorded)
+      if (runRecorded.length === 0) {
+        candidates.push(...collectLastSearchCandidates(run.invocations))
+      }
+      if (run.finalText.trim() !== '') finalTexts.push(run.finalText.trim())
+      if (run.diverged) diverged = true
+      if (run.stopReason === 'max_turns') hitMaxTurns = true
+    }
     const hasEstimatedValues = recorded.some((r) => r.isEstimated)
-    const error = buildOrchestratorError(run.diverged, run.stopReason)
+    // A per-item failure (max_turns/divergence) only becomes a top-level
+    // error when no item produced anything usable; otherwise the items that
+    // did succeed would be hidden behind an error the formatter treats as
+    // fatal (see formatMealRecordTemplate's early return on `error`).
+    const error =
+      recorded.length === 0 && candidates.length === 0
+        ? buildOrchestratorError(diverged, hitMaxTurns ? 'max_turns' : 'end')
+        : null
     const summaryText = formatter.formatMealRecord({
       recorded,
       candidates,
       hasEstimatedValues,
-      finalText: run.finalText,
+      finalText: finalTexts.join('\n'),
       error,
     })
     return {
@@ -421,17 +486,22 @@ export const createConversationOrchestrator = (
 
   return {
     async recordFromText(input: RecordFromTextInput) {
-      const userContent = formatTextUserContent(
+      const items = await splitTextIntoItems(
+        llmClient,
+        lightweightModel,
         input.text,
-        input.occurredAt,
-        input.timezone,
       )
-      const run = await runConversation(
-        textModel,
-        TEXT_RECORD_SYSTEM,
-        userContent,
+      const runs = await Promise.all(
+        items.map((item) => {
+          const userContent = formatTextUserContent(
+            item,
+            input.occurredAt,
+            input.timezone,
+          )
+          return runConversation(textModel, TEXT_RECORD_SYSTEM, userContent)
+        }),
       )
-      return buildMealRecordResult(run)
+      return buildMealRecordResult(runs)
     },
     async recordFromImage(input: RecordFromImageInput) {
       let userContent: ReadonlyArray<LlmContent>
@@ -468,7 +538,7 @@ export const createConversationOrchestrator = (
         IMAGE_RECORD_SYSTEM,
         userContent,
       )
-      return buildMealRecordResult(run)
+      return buildMealRecordResult([run])
     },
     async queryMeals(input: QueryMealsInput): Promise<MealHistoryResult> {
       const body = [

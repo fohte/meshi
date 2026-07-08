@@ -216,6 +216,7 @@ const startHarness = async (opts: HarnessOptions): Promise<Harness> => {
     registry,
     textModel: 'test-text-model',
     visionModel: 'test-vision-model',
+    lightweightModel: 'test-lightweight-model',
     maxTurns: 10,
     formatter: createTemplateReplyFormatter(),
   })
@@ -395,6 +396,7 @@ describeIfDb('meshi integration', () => {
       tx,
       mealLogIds: ['ml_scenario1'],
       scripts: [
+        { finalText: JSON.stringify(['昼に白米 200g を食べました']) },
         {
           toolCalls: [
             { name: 'search_food_master', input: { query: '白米' } },
@@ -481,6 +483,11 @@ describeIfDb('meshi integration', () => {
         ],
       },
       scripts: [
+        {
+          finalText: JSON.stringify([
+            'スターバックスの抹茶ラテ Tall (350g) を飲みました',
+          ]),
+        },
         {
           toolCalls: [
             {
@@ -585,6 +592,7 @@ describeIfDb('meshi integration', () => {
     const harness = await startHarness({
       tx,
       scripts: [
+        { finalText: JSON.stringify(['salmon を食べた']) },
         {
           toolCalls: [
             { name: 'search_food_master', input: { query: 'salmon' } },

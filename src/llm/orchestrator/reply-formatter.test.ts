@@ -106,6 +106,42 @@ describe('createTemplateReplyFormatter', () => {
       )
     })
 
+    it('shows both recorded items and outstanding candidates for a mixed multi-item result', () => {
+      const text = formatter.formatMealRecord({
+        recorded: [
+          {
+            mealLogId: 'log_1',
+            foodMasterId: 'fm_rice',
+            nutrition: { energy_kcal: 252 },
+            isEstimated: false,
+          },
+        ],
+        candidates: [
+          {
+            foodMasterId: 'fm_apple',
+            compositionCode: null,
+            name: 'りんご',
+            isEstimated: false,
+            score: 0.9,
+            reason: '名前一致',
+          },
+        ],
+        hasEstimatedValues: false,
+        finalText: '',
+        error: null,
+      })
+
+      expect(text).toEqual(
+        [
+          ['記録しました (1 件)。', '- fm_rice: 252 kcal'].join('\n'),
+          [
+            '食品を一意に特定できませんでした。次の候補から選んで、もう一度入力してください。',
+            '- りんご: 名前一致',
+          ].join('\n'),
+        ].join('\n\n'),
+      )
+    })
+
     it('emits a recoverable hint when interpretation fails', () => {
       const text = formatter.formatMealRecord({
         recorded: [],
