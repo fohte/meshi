@@ -70,8 +70,32 @@ const readBody = (req: IncomingMessage): Promise<string> =>
     req.on('error', reject)
   })
 
+const MOCK_ERROR_RESPONSE = Symbol('mockErrorResponse')
+
+interface MockErrorResponse {
+  readonly [MOCK_ERROR_RESPONSE]: true
+  readonly status: number
+  readonly body: string
+}
+
+// A symbol key can never appear on a plain JSON fixture object, so this is
+// unambiguous against the success-response entries below.
+const mockErrorResponse = (
+  status: number,
+  body: string,
+): MockErrorResponse => ({
+  [MOCK_ERROR_RESPONSE]: true,
+  status,
+  body,
+})
+
+const isMockErrorResponse = (
+  response: Record<string, unknown> | MockErrorResponse,
+): response is MockErrorResponse =>
+  (response as Partial<MockErrorResponse>)[MOCK_ERROR_RESPONSE] === true
+
 const startMockServer = async (
-  responses: ReadonlyArray<Record<string, unknown>>,
+  responses: ReadonlyArray<Record<string, unknown> | MockErrorResponse>,
 ): Promise<MockServer> => {
   const requests: RecordedRequest[] = []
   let index = 0
@@ -85,6 +109,11 @@ const startMockServer = async (
       })
       const response = responses[index] ?? responses[responses.length - 1]
       index++
+      if (response !== undefined && isMockErrorResponse(response)) {
+        res.writeHead(response.status, { 'content-type': 'text/plain' })
+        res.end(response.body)
+        return
+      }
       res.writeHead(200, { 'content-type': 'application/json' })
       res.end(JSON.stringify(response))
     })()
@@ -651,6 +680,41 @@ describe('OpenCodeLlmClient tracing', () => {
     ])
   })
 
+  it('falls back to the OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT env var when captureMessageContent is not set', async () => {
+    mock = await startMockServer([
+      {
+        choices: [
+          {
+            finish_reason: 'stop',
+            message: { role: 'assistant', content: 'Logged ramen.' },
+          },
+        ],
+      },
+    ])
+
+    const client = new OpenCodeLlmClient({
+      apiKey: 'test-key',
+      baseUrl: mock.url,
+      env: { OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT: 'true' },
+    })
+    await client.runConversation({
+      model: 'test-model',
+      system: '',
+      messages: initialMessages,
+      tools: [],
+      maxTurns: 1,
+      executeTool: () => Promise.resolve({ content: '' }),
+    })
+
+    const [span] = exporter.getFinishedSpans()
+    expect({
+      hasInputMessages:
+        span?.attributes[ATTR_GEN_AI_INPUT_MESSAGES] !== undefined,
+      hasOutputMessages:
+        span?.attributes[ATTR_GEN_AI_OUTPUT_MESSAGES] !== undefined,
+    }).toEqual({ hasInputMessages: true, hasOutputMessages: true })
+  })
+
   it('captures gen_ai.input.messages / gen_ai.output.messages per turn when captureMessageContent is enabled', async () => {
     const toolResultContent = JSON.stringify({ candidates: [{ id: 1 }] })
     mock = await startMockServer([
@@ -774,22 +838,11 @@ describe('OpenCodeLlmClient tracing', () => {
   })
 
   it('records the HTTP error as a span exception and marks the span ERROR', async () => {
-    const server = createServer((_req, res) => {
-      res.writeHead(500, { 'content-type': 'text/plain' })
-      res.end('boom')
-    })
-    await new Promise<void>((resolve) => {
-      server.listen(0, '127.0.0.1', resolve)
-    })
-    const addr = server.address()
-    if (addr === null || typeof addr === 'string') {
-      throw new Error('expected AddressInfo from server.address()')
-    }
-    const baseUrl = `http://127.0.0.1:${String((addr satisfies AddressInfo).port)}/v1`
+    mock = await startMockServer([mockErrorResponse(500, 'boom')])
 
     const client = new OpenCodeLlmClient({
       apiKey: 'k',
-      baseUrl,
+      baseUrl: mock.url,
       captureMessageContent: false,
     })
 
@@ -803,13 +856,6 @@ describe('OpenCodeLlmClient tracing', () => {
         executeTool: () => Promise.resolve({ content: '' }),
       }),
     ).rejects.toThrow(OpenCodeLlmHttpError)
-
-    await new Promise<void>((resolve, reject) => {
-      server.close((err) => {
-        if (err === undefined) resolve()
-        else reject(err)
-      })
-    })
 
     const spans = exporter.getFinishedSpans()
     expect(

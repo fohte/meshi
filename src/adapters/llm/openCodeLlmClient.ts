@@ -29,7 +29,7 @@ export const OPENCODE_GO_BASE_URL = 'https://opencode.ai/zen/go/v1'
 // Identifies this HTTP client's telemetry format flavor to consumers of the
 // span (OpenCode Go proxies to multiple underlying model providers, so this
 // is the gateway being called, not the resolved model's own provider).
-const GEN_AI_PROVIDER_NAME = 'opencode'
+const GEN_AI_PROVIDER_NAME_VALUE_OPENCODE = 'opencode'
 
 // Mirrors the env var used by other OpenTelemetry GenAI instrumentations
 // (e.g. opentelemetry-instrumentation-openai-v2, Elastic's EDOT Node.js SDK)
@@ -45,6 +45,7 @@ export interface OpenCodeLlmClientOptions {
   readonly baseUrl?: string
   readonly fetch?: typeof fetch
   readonly captureMessageContent?: boolean
+  readonly env?: Readonly<Record<string, string | undefined>>
 }
 
 interface OpenAiChatMessage {
@@ -110,10 +111,14 @@ const openAiChatResponseSchema = z.object({
       }),
     )
     .nonempty('OpenCode Go returned a response with no choices'),
+  // Fields are individually optional, not just the object itself: OpenCode Go
+  // proxies to multiple underlying providers, and a provider quirk in this
+  // telemetry-only field shouldn't fail parsing of the response the
+  // conversation actually depends on (choices/tool_calls).
   usage: z
     .object({
-      prompt_tokens: z.number(),
-      completion_tokens: z.number(),
+      prompt_tokens: z.number().optional(),
+      completion_tokens: z.number().optional(),
     })
     .optional(),
 })
@@ -335,6 +340,27 @@ const openAiContentToGenAiParts = (
   )
 }
 
+// Structural type covering both the request-side OpenAiToolCall (arguments:
+// string) and the response schema's zod-inferred tool call (arguments:
+// string | null | undefined), so this one helper serves both directions.
+interface GenAiSourceToolCall {
+  readonly id: string
+  readonly function: {
+    readonly name: string
+    readonly arguments?: string | null | undefined
+  }
+}
+
+const toolCallsToGenAiParts = (
+  toolCalls: ReadonlyArray<GenAiSourceToolCall> | undefined,
+): GenAiToolCallPart[] =>
+  (toolCalls ?? []).map((call) => ({
+    type: 'tool_call',
+    id: call.id,
+    name: call.function.name,
+    arguments: parseToolInput(call.function.arguments),
+  }))
+
 const openAiMessageToGenAiMessage = (
   message: OpenAiChatMessage,
 ): GenAiMessage => {
@@ -350,41 +376,28 @@ const openAiMessageToGenAiMessage = (
       ],
     }
   }
-  const parts = openAiContentToGenAiParts(message.content)
-  for (const call of message.tool_calls ?? []) {
-    parts.push({
-      type: 'tool_call',
-      id: call.id,
-      name: call.function.name,
-      arguments: parseToolInput(call.function.arguments),
-    })
+  return {
+    role: message.role,
+    parts: [
+      ...openAiContentToGenAiParts(message.content),
+      ...toolCallsToGenAiParts(message.tool_calls),
+    ],
   }
-  return { role: message.role, parts }
 }
 
 const choiceToGenAiOutputMessage = (
   choice: OpenAiChatResponse['choices'][number],
 ): GenAiOutputMessage => {
   const { message } = choice
-  const parts: GenAiMessagePart[] = []
-  if (
+  const textParts: GenAiMessagePart[] =
     message.content !== undefined &&
     message.content !== null &&
     message.content !== ''
-  ) {
-    parts.push({ type: 'text', content: message.content })
-  }
-  for (const call of message.tool_calls ?? []) {
-    parts.push({
-      type: 'tool_call',
-      id: call.id,
-      name: call.function.name,
-      arguments: parseToolInput(call.function.arguments),
-    })
-  }
+      ? [{ type: 'text', content: message.content }]
+      : []
   return {
     role: message.role ?? 'assistant',
-    parts,
+    parts: [...textParts, ...toolCallsToGenAiParts(message.tool_calls)],
     ...(choice.finish_reason !== undefined
       ? { finish_reason: choice.finish_reason }
       : {}),
@@ -399,11 +412,14 @@ const setGenAiResponseAttributes = (
   if (json.model !== undefined) {
     span.setAttribute(ATTR_GEN_AI_RESPONSE_MODEL, json.model)
   }
-  if (json.usage !== undefined) {
-    span.setAttributes({
-      [ATTR_GEN_AI_USAGE_INPUT_TOKENS]: json.usage.prompt_tokens,
-      [ATTR_GEN_AI_USAGE_OUTPUT_TOKENS]: json.usage.completion_tokens,
-    })
+  if (json.usage?.prompt_tokens !== undefined) {
+    span.setAttribute(ATTR_GEN_AI_USAGE_INPUT_TOKENS, json.usage.prompt_tokens)
+  }
+  if (json.usage?.completion_tokens !== undefined) {
+    span.setAttribute(
+      ATTR_GEN_AI_USAGE_OUTPUT_TOKENS,
+      json.usage.completion_tokens,
+    )
   }
   const finishReasons = json.choices
     .map((c) => c.finish_reason)
@@ -431,7 +447,7 @@ export class OpenCodeLlmClient implements LlmClient {
     this.fetchImpl = options.fetch ?? fetch
     this.captureMessageContent =
       options.captureMessageContent ??
-      process.env[CAPTURE_MESSAGE_CONTENT_ENV_VAR] === 'true'
+      (options.env ?? process.env)[CAPTURE_MESSAGE_CONTENT_ENV_VAR] === 'true'
   }
 
   // One span per model inference call, matching the GenAI semantic
@@ -446,7 +462,7 @@ export class OpenCodeLlmClient implements LlmClient {
         try {
           span.setAttributes({
             [ATTR_GEN_AI_OPERATION_NAME]: GEN_AI_OPERATION_NAME_VALUE_CHAT,
-            [ATTR_GEN_AI_PROVIDER_NAME]: GEN_AI_PROVIDER_NAME,
+            [ATTR_GEN_AI_PROVIDER_NAME]: GEN_AI_PROVIDER_NAME_VALUE_OPENCODE,
             [ATTR_GEN_AI_REQUEST_MODEL]: body.model,
           })
           if (this.captureMessageContent) {
