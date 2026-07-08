@@ -1,12 +1,39 @@
 import { createServer, type Server } from 'node:http'
 import type { AddressInfo } from 'node:net'
 
-import { afterEach, describe, expect, it } from 'vitest'
+import { trace } from '@opentelemetry/api'
+import {
+  BasicTracerProvider,
+  InMemorySpanExporter,
+  SimpleSpanProcessor,
+} from '@opentelemetry/sdk-trace-base'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import { handleMcpRequest } from '@/mcp-http'
 import { createStubMcpDeps } from '@/test/mcp-stubs'
 
 const stubDeps = createStubMcpDeps()
+
+// A real tracer, so the finished span's name/attributes can be asserted
+// directly instead of inspecting mock call args.
+const spanExporter = new InMemorySpanExporter()
+const tracerProvider = new BasicTracerProvider({
+  spanProcessors: [new SimpleSpanProcessor(spanExporter)],
+})
+const tracer = tracerProvider.getTracer('mcp-http.test')
+
+const postJsonRpc = (
+  url: string,
+  body: Readonly<Record<string, unknown>>,
+): Promise<Response> =>
+  fetch(url, {
+    method: 'POST',
+    headers: {
+      'content-type': 'application/json',
+      accept: 'application/json, text/event-stream',
+    },
+    body: JSON.stringify(body),
+  })
 
 const start = async (): Promise<{ server: Server; url: string }> => {
   const server = createServer((req, res) => {
@@ -46,28 +73,23 @@ describe('handleMcpRequest', () => {
       server = undefined
       await stop(s)
     }
+    vi.restoreAllMocks()
+    spanExporter.reset()
   })
 
   it('responds to a JSON-RPC initialize over real HTTP', async () => {
     const started = await start()
     server = started.server
 
-    const res = await fetch(started.url, {
-      method: 'POST',
-      headers: {
-        'content-type': 'application/json',
-        accept: 'application/json, text/event-stream',
+    const res = await postJsonRpc(started.url, {
+      jsonrpc: '2.0',
+      id: 1,
+      method: 'initialize',
+      params: {
+        protocolVersion: '2024-11-05',
+        capabilities: {},
+        clientInfo: { name: 'smoke', version: '0' },
       },
-      body: JSON.stringify({
-        jsonrpc: '2.0',
-        id: 1,
-        method: 'initialize',
-        params: {
-          protocolVersion: '2024-11-05',
-          capabilities: {},
-          clientInfo: { name: 'smoke', version: '0' },
-        },
-      }),
     })
 
     expect({
@@ -85,5 +107,59 @@ describe('handleMcpRequest', () => {
         },
       },
     })
+  })
+
+  it.each([
+    {
+      label: 'tools/call with a tool name',
+      body: {
+        jsonrpc: '2.0',
+        id: 1,
+        method: 'tools/call',
+        params: {
+          name: 'record_meal_from_text',
+          arguments: { text: 'ラーメン' },
+        },
+      },
+      expectedSpan: {
+        name: 'tools/call record_meal_from_text',
+        attributes: {
+          'mcp.method.name': 'tools/call',
+          'gen_ai.tool.name': 'record_meal_from_text',
+          'gen_ai.operation.name': 'execute_tool',
+        },
+      },
+    },
+    {
+      label: 'a method with no tool target',
+      body: {
+        jsonrpc: '2.0',
+        id: 1,
+        method: 'initialize',
+        params: {
+          protocolVersion: '2024-11-05',
+          capabilities: {},
+          clientInfo: { name: 'smoke', version: '0' },
+        },
+      },
+      expectedSpan: {
+        name: 'initialize',
+        attributes: { 'mcp.method.name': 'initialize' },
+      },
+    },
+  ])('renames the active span for $label', async ({ body, expectedSpan }) => {
+    const started = await start()
+    server = started.server
+    const span = tracer.startSpan('POST')
+    vi.spyOn(trace, 'getActiveSpan').mockReturnValue(span)
+
+    await postJsonRpc(started.url, body)
+    span.end()
+
+    expect(
+      spanExporter
+        .getFinishedSpans()
+        .map((s) => ({ name: s.name, attributes: s.attributes })),
+    ).toEqual([expectedSpan])
   })
 })
