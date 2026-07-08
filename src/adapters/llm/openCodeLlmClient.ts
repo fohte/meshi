@@ -1,3 +1,16 @@
+import { type Span, SpanKind, SpanStatusCode, trace } from '@opentelemetry/api'
+import {
+  ATTR_GEN_AI_INPUT_MESSAGES,
+  ATTR_GEN_AI_OPERATION_NAME,
+  ATTR_GEN_AI_OUTPUT_MESSAGES,
+  ATTR_GEN_AI_PROVIDER_NAME,
+  ATTR_GEN_AI_REQUEST_MODEL,
+  ATTR_GEN_AI_RESPONSE_FINISH_REASONS,
+  ATTR_GEN_AI_RESPONSE_MODEL,
+  ATTR_GEN_AI_USAGE_INPUT_TOKENS,
+  ATTR_GEN_AI_USAGE_OUTPUT_TOKENS,
+  GEN_AI_OPERATION_NAME_VALUE_CHAT,
+} from '@opentelemetry/semantic-conventions/incubating'
 import { z } from 'zod'
 
 import type {
@@ -13,10 +26,25 @@ import type {
 
 export const OPENCODE_GO_BASE_URL = 'https://opencode.ai/zen/go/v1'
 
+// Identifies this HTTP client's telemetry format flavor to consumers of the
+// span (OpenCode Go proxies to multiple underlying model providers, so this
+// is the gateway being called, not the resolved model's own provider).
+const GEN_AI_PROVIDER_NAME = 'opencode'
+
+// Mirrors the env var used by other OpenTelemetry GenAI instrumentations
+// (e.g. opentelemetry-instrumentation-openai-v2, Elastic's EDOT Node.js SDK)
+// to gate capture of message content, which is opt-in per the GenAI semantic
+// conventions because it may contain PII.
+const CAPTURE_MESSAGE_CONTENT_ENV_VAR =
+  'OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT'
+
+const tracer = trace.getTracer('meshi-opencode-llm-client')
+
 export interface OpenCodeLlmClientOptions {
   readonly apiKey: string
   readonly baseUrl?: string
   readonly fetch?: typeof fetch
+  readonly captureMessageContent?: boolean
 }
 
 interface OpenAiChatMessage {
@@ -69,9 +97,11 @@ const openAiToolCallSchema = z.object({
 })
 
 const openAiChatResponseSchema = z.object({
+  model: z.string().optional(),
   choices: z
     .array(
       z.object({
+        finish_reason: z.string().optional(),
         message: z.object({
           role: z.string().optional(),
           content: z.string().nullish(),
@@ -80,6 +110,12 @@ const openAiChatResponseSchema = z.object({
       }),
     )
     .nonempty('OpenCode Go returned a response with no choices'),
+  usage: z
+    .object({
+      prompt_tokens: z.number(),
+      completion_tokens: z.number(),
+    })
+    .optional(),
 })
 
 type OpenAiChatResponse = z.infer<typeof openAiChatResponseSchema>
@@ -246,15 +282,211 @@ const responseToAssistantMessage = (
   return { message: { role: 'assistant', content }, toolCalls }
 }
 
+// Shapes below follow the GenAI semantic conventions' message format
+// (gen_ai.input.messages / gen_ai.output.messages):
+// https://github.com/open-telemetry/semantic-conventions-genai/blob/main/docs/gen-ai/gen-ai-spans.md
+
+interface GenAiTextPart {
+  readonly type: 'text'
+  readonly content: string
+}
+
+interface GenAiToolCallPart {
+  readonly type: 'tool_call'
+  readonly id: string
+  readonly name: string
+  readonly arguments: unknown
+}
+
+interface GenAiToolCallResponsePart {
+  readonly type: 'tool_call_response'
+  readonly id: string
+  readonly response: string
+}
+
+type GenAiMessagePart =
+  | GenAiTextPart
+  | GenAiToolCallPart
+  | GenAiToolCallResponsePart
+
+interface GenAiMessage {
+  readonly role: string
+  readonly parts: ReadonlyArray<GenAiMessagePart>
+}
+
+interface GenAiOutputMessage extends GenAiMessage {
+  readonly finish_reason?: string
+}
+
+const openAiContentToGenAiParts = (
+  content: OpenAiChatMessage['content'],
+): GenAiMessagePart[] => {
+  if (content === null || content === '') return []
+  if (typeof content === 'string') {
+    return [{ type: 'text', content }]
+  }
+  // Raw image bytes are redacted: they bloat span payloads and, unlike text,
+  // carry no debugging value once reduced to an opaque data URL.
+  return content.map(
+    (part): GenAiMessagePart =>
+      part.type === 'text'
+        ? { type: 'text', content: part.text }
+        : { type: 'text', content: '[image omitted]' },
+  )
+}
+
+const openAiMessageToGenAiMessage = (
+  message: OpenAiChatMessage,
+): GenAiMessage => {
+  if (message.role === 'tool') {
+    return {
+      role: 'tool',
+      parts: [
+        {
+          type: 'tool_call_response',
+          id: message.tool_call_id ?? '',
+          response: typeof message.content === 'string' ? message.content : '',
+        },
+      ],
+    }
+  }
+  const parts = openAiContentToGenAiParts(message.content)
+  for (const call of message.tool_calls ?? []) {
+    parts.push({
+      type: 'tool_call',
+      id: call.id,
+      name: call.function.name,
+      arguments: parseToolInput(call.function.arguments),
+    })
+  }
+  return { role: message.role, parts }
+}
+
+const choiceToGenAiOutputMessage = (
+  choice: OpenAiChatResponse['choices'][number],
+): GenAiOutputMessage => {
+  const { message } = choice
+  const parts: GenAiMessagePart[] = []
+  if (
+    message.content !== undefined &&
+    message.content !== null &&
+    message.content !== ''
+  ) {
+    parts.push({ type: 'text', content: message.content })
+  }
+  for (const call of message.tool_calls ?? []) {
+    parts.push({
+      type: 'tool_call',
+      id: call.id,
+      name: call.function.name,
+      arguments: parseToolInput(call.function.arguments),
+    })
+  }
+  return {
+    role: message.role ?? 'assistant',
+    parts,
+    ...(choice.finish_reason !== undefined
+      ? { finish_reason: choice.finish_reason }
+      : {}),
+  }
+}
+
+const setGenAiResponseAttributes = (
+  span: Span,
+  json: OpenAiChatResponse,
+  captureMessageContent: boolean,
+): void => {
+  if (json.model !== undefined) {
+    span.setAttribute(ATTR_GEN_AI_RESPONSE_MODEL, json.model)
+  }
+  if (json.usage !== undefined) {
+    span.setAttributes({
+      [ATTR_GEN_AI_USAGE_INPUT_TOKENS]: json.usage.prompt_tokens,
+      [ATTR_GEN_AI_USAGE_OUTPUT_TOKENS]: json.usage.completion_tokens,
+    })
+  }
+  const finishReasons = json.choices
+    .map((c) => c.finish_reason)
+    .filter((r): r is string => r !== undefined)
+  if (finishReasons.length > 0) {
+    span.setAttribute(ATTR_GEN_AI_RESPONSE_FINISH_REASONS, finishReasons)
+  }
+  if (captureMessageContent) {
+    span.setAttribute(
+      ATTR_GEN_AI_OUTPUT_MESSAGES,
+      JSON.stringify(json.choices.map(choiceToGenAiOutputMessage)),
+    )
+  }
+}
+
 export class OpenCodeLlmClient implements LlmClient {
   private readonly apiKey: string
   private readonly baseUrl: string
   private readonly fetchImpl: typeof fetch
+  private readonly captureMessageContent: boolean
 
   constructor(options: OpenCodeLlmClientOptions) {
     this.apiKey = options.apiKey
     this.baseUrl = options.baseUrl ?? OPENCODE_GO_BASE_URL
     this.fetchImpl = options.fetch ?? fetch
+    this.captureMessageContent =
+      options.captureMessageContent ??
+      process.env[CAPTURE_MESSAGE_CONTENT_ENV_VAR] === 'true'
+  }
+
+  // One span per model inference call, matching the GenAI semantic
+  // conventions' `{gen_ai.operation.name} {gen_ai.request.model}` span.
+  private async callChatCompletions(
+    body: OpenAiChatRequest,
+  ): Promise<OpenAiChatResponse> {
+    return tracer.startActiveSpan(
+      `${GEN_AI_OPERATION_NAME_VALUE_CHAT} ${body.model}`,
+      { kind: SpanKind.CLIENT },
+      async (span) => {
+        try {
+          span.setAttributes({
+            [ATTR_GEN_AI_OPERATION_NAME]: GEN_AI_OPERATION_NAME_VALUE_CHAT,
+            [ATTR_GEN_AI_PROVIDER_NAME]: GEN_AI_PROVIDER_NAME,
+            [ATTR_GEN_AI_REQUEST_MODEL]: body.model,
+          })
+          if (this.captureMessageContent) {
+            span.setAttribute(
+              ATTR_GEN_AI_INPUT_MESSAGES,
+              JSON.stringify(body.messages.map(openAiMessageToGenAiMessage)),
+            )
+          }
+
+          const res = await this.fetchImpl(`${this.baseUrl}/chat/completions`, {
+            method: 'POST',
+            headers: {
+              'content-type': 'application/json',
+              authorization: `Bearer ${this.apiKey}`,
+            },
+            body: JSON.stringify(body),
+          })
+          if (!res.ok) {
+            throw new OpenCodeLlmHttpError(res.status, await res.text())
+          }
+          const raw: unknown = await res.json()
+          const parsed = openAiChatResponseSchema.safeParse(raw)
+          if (!parsed.success) {
+            throw new OpenCodeLlmInvalidResponseError(parsed.error, raw)
+          }
+          const json = parsed.data
+          setGenAiResponseAttributes(span, json, this.captureMessageContent)
+          return json
+        } catch (error) {
+          span.recordException(error instanceof Error ? error : String(error))
+          span.setStatus({
+            code: SpanStatusCode.ERROR,
+            message: error instanceof Error ? error.message : String(error),
+          })
+          throw error
+        } finally {
+          span.end()
+        }
+      },
+    )
   }
 
   async runConversation(input: LlmRunInput): Promise<LlmRunOutput> {
@@ -274,23 +506,7 @@ export class OpenCodeLlmClient implements LlmClient {
         messages: messagesToOpenAi(input.system, messages),
         ...(tools.length > 0 ? { tools } : {}),
       }
-      const res = await this.fetchImpl(`${this.baseUrl}/chat/completions`, {
-        method: 'POST',
-        headers: {
-          'content-type': 'application/json',
-          authorization: `Bearer ${this.apiKey}`,
-        },
-        body: JSON.stringify(body),
-      })
-      if (!res.ok) {
-        throw new OpenCodeLlmHttpError(res.status, await res.text())
-      }
-      const raw: unknown = await res.json()
-      const parsed = openAiChatResponseSchema.safeParse(raw)
-      if (!parsed.success) {
-        throw new OpenCodeLlmInvalidResponseError(parsed.error, raw)
-      }
-      const json = parsed.data
+      const json = await this.callChatCompletions(body)
       const { message: assistantMessage, toolCalls } =
         responseToAssistantMessage(json)
       messages = [...messages, assistantMessage]
