@@ -41,6 +41,12 @@ interface ScriptedRun {
   readonly finalText?: string
 }
 
+// recordFromText's first runConversation call splits the input into items;
+// use this for that call's script in record_meal_from_text scenarios.
+const splitRun = (items: ReadonlyArray<string>): ScriptedRun => ({
+  finalText: JSON.stringify(items),
+})
+
 const scriptedLlmClient = (
   scripts: ReadonlyArray<ScriptedRun>,
 ): { client: LlmClient; remaining: () => number } => {
@@ -216,6 +222,7 @@ const startHarness = async (opts: HarnessOptions): Promise<Harness> => {
     registry,
     textModel: 'test-text-model',
     visionModel: 'test-vision-model',
+    lightweightModel: 'test-lightweight-model',
     maxTurns: 10,
     formatter: createTemplateReplyFormatter(),
   })
@@ -395,6 +402,7 @@ describeIfDb('meshi integration', () => {
       tx,
       mealLogIds: ['ml_scenario1'],
       scripts: [
+        splitRun(['昼に白米 200g を食べました']),
         {
           toolCalls: [
             { name: 'search_food_master', input: { query: '白米' } },
@@ -481,6 +489,7 @@ describeIfDb('meshi integration', () => {
         ],
       },
       scripts: [
+        splitRun(['スターバックスの抹茶ラテ Tall (350g) を飲みました']),
         {
           toolCalls: [
             {
@@ -585,6 +594,7 @@ describeIfDb('meshi integration', () => {
     const harness = await startHarness({
       tx,
       scripts: [
+        splitRun(['salmon を食べた']),
         {
           toolCalls: [
             { name: 'search_food_master', input: { query: 'salmon' } },

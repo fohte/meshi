@@ -90,6 +90,7 @@ export const main = async (): Promise<void> => {
     registry,
     textModel: env.MESHI_LLM_MODEL,
     visionModel: env.MESHI_LLM_VISION_MODEL,
+    lightweightModel: env.MESHI_LLM_LIGHTWEIGHT_MODEL,
     maxTurns: env.MESHI_LLM_MAX_TURNS,
     formatter: createTemplateReplyFormatter(),
   })
