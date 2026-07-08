@@ -877,4 +877,76 @@ describe('OpenCodeLlmClient tracing', () => {
       },
     ])
   })
+
+  it('records a span exception without failing the call when a non-primary choice has malformed tool call arguments', async () => {
+    // responseToAssistantMessage only reads choices[0] (fine here), but
+    // setGenAiResponseAttributes walks every choice for gen_ai.output.messages
+    // — this exercises the resulting throw from the malformed second choice.
+    mock = await startMockServer([
+      {
+        choices: [
+          {
+            finish_reason: 'stop',
+            message: { role: 'assistant', content: 'Logged ramen.' },
+          },
+          {
+            finish_reason: 'stop',
+            message: {
+              role: 'assistant',
+              content: null,
+              tool_calls: [
+                {
+                  id: 'call_bad',
+                  type: 'function',
+                  function: {
+                    name: 'search_food_master',
+                    arguments: 'not valid json',
+                  },
+                },
+              ],
+            },
+          },
+        ],
+      },
+    ])
+
+    const client = new OpenCodeLlmClient({
+      apiKey: 'test-key',
+      baseUrl: mock.url,
+      captureMessageContent: true,
+    })
+    const result = await client.runConversation({
+      model: 'test-model',
+      system: '',
+      messages: initialMessages,
+      tools: [],
+      maxTurns: 1,
+      executeTool: () => Promise.resolve({ content: '' }),
+    })
+
+    const spans = exporter.getFinishedSpans()
+    expect({
+      finalText: result.finalText,
+      spans: spans.map((span) => ({
+        status: span.status,
+        exceptionTypes: span.events
+          .filter((e) => e.name === 'exception')
+          .map((e) => e.attributes?.[ATTR_EXCEPTION_TYPE]),
+        hasFinishReasons:
+          span.attributes[ATTR_GEN_AI_RESPONSE_FINISH_REASONS] !== undefined,
+        hasOutputMessages:
+          span.attributes[ATTR_GEN_AI_OUTPUT_MESSAGES] !== undefined,
+      })),
+    }).toEqual({
+      finalText: 'Logged ramen.',
+      spans: [
+        {
+          status: { code: SpanStatusCode.UNSET },
+          exceptionTypes: ['Error'],
+          hasFinishReasons: true,
+          hasOutputMessages: false,
+        },
+      ],
+    })
+  })
 })

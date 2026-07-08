@@ -404,6 +404,10 @@ const choiceToGenAiOutputMessage = (
   }
 }
 
+const recordSpanException = (span: Span, error: unknown): void => {
+  span.recordException(error instanceof Error ? error : String(error))
+}
+
 const setGenAiResponseAttributes = (
   span: Span,
   json: OpenAiChatResponse,
@@ -445,10 +449,6 @@ export class OpenCodeLlmClient implements LlmClient {
     this.apiKey = options.apiKey
     this.baseUrl = options.baseUrl ?? OPENCODE_GO_BASE_URL
     this.fetchImpl = options.fetch ?? fetch
-    // No `typeof process !== 'undefined'` guard: meshi is a Node.js-only
-    // server (node:http, @hono/node-server, the postgres TCP driver), and
-    // process.env is already referenced unguarded elsewhere (bootstrap.ts,
-    // env.ts, db/migrate.ts).
     this.captureMessageContent =
       options.captureMessageContent ??
       (options.env ?? process.env)[CAPTURE_MESSAGE_CONTENT_ENV_VAR] === 'true'
@@ -476,9 +476,7 @@ export class OpenCodeLlmClient implements LlmClient {
                 JSON.stringify(body.messages.map(openAiMessageToGenAiMessage)),
               )
             } catch (error) {
-              span.recordException(
-                error instanceof Error ? error : String(error),
-              )
+              recordSpanException(span, error)
             }
           }
 
@@ -502,11 +500,11 @@ export class OpenCodeLlmClient implements LlmClient {
           try {
             setGenAiResponseAttributes(span, json, this.captureMessageContent)
           } catch (error) {
-            span.recordException(error instanceof Error ? error : String(error))
+            recordSpanException(span, error)
           }
           return json
         } catch (error) {
-          span.recordException(error instanceof Error ? error : String(error))
+          recordSpanException(span, error)
           span.setStatus({
             code: SpanStatusCode.ERROR,
             message: error instanceof Error ? error.message : String(error),
