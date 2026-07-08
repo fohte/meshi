@@ -1,7 +1,11 @@
 import { defineConfig } from 'drizzle-kit'
 
-const url =
-  process.env['DATABASE_URL'] ?? 'postgres://meshi:meshi@127.0.0.1:5432/meshi'
+const url = process.env['DATABASE_URL']
+if (url === undefined) {
+  throw new Error(
+    'DATABASE_URL is required (run `docker compose port postgres 5432` for the local Postgres URL)',
+  )
+}
 
 export default defineConfig({
   dialect: 'postgresql',

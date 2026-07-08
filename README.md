@@ -10,7 +10,7 @@
 
 - Node.js (LTS, see `.mise.toml`)
 - pnpm (via Corepack or mise)
-- Docker (for local Postgres)
+- Docker (for local Postgres, and optionally for running the app itself)
 
 ### Local Postgres
 
@@ -50,7 +50,7 @@ OPENCODE_API_KEY=dev
 MESHI_LLM_MODEL=...
 MESHI_LLM_VISION_MODEL=...
 MESHI_LLM_LIGHTWEIGHT_MODEL=...
-DATABASE_URL=postgres://meshi:meshi@127.0.0.1:5432/meshi
+DATABASE_URL=postgres://meshi:meshi@127.0.0.1:<port from `docker compose port postgres 5432`>/meshi
 WEB_SEARCH_API_KEY=dev
 MCP_LISTEN_ADDR=0.0.0.0:8080
 ```
@@ -62,13 +62,7 @@ pnpm start    # one-shot
 pnpm dev      # tsx watch
 ```
 
-The MCP endpoint is served at `POST /mcp`; `GET /health` reports DB connectivity.
-
-The `nutrient_definitions` master is seeded automatically on startup after migrations (idempotent). The MEXT food composition table (`food_compositions` + `food_composition_nutrients`) is loaded separately via the CLI below — it is not bundled and must be pointed at a JSON dataset.
-
-#### Run via Docker Compose
-
-Instead of `pnpm dev`, the app can run inside a container (source is bind-mounted, so it hot-reloads the same way):
+Or run it in a container instead (source is bind-mounted, so it hot-reloads the same way):
 
 ```sh
 OPENCODE_API_KEY=dev MESHI_LLM_MODEL=... MESHI_LLM_VISION_MODEL=... MESHI_LLM_LIGHTWEIGHT_MODEL=... WEB_SEARCH_API_KEY=dev \
@@ -76,6 +70,10 @@ OPENCODE_API_KEY=dev MESHI_LLM_MODEL=... MESHI_LLM_VISION_MODEL=... MESHI_LLM_LI
 ```
 
 It's published to a random host port; find it with `docker compose port app 8080`.
+
+The MCP endpoint is served at `POST /mcp`; `GET /health` reports DB connectivity.
+
+The `nutrient_definitions` master is seeded automatically on startup after migrations (idempotent). The MEXT food composition table (`food_compositions` + `food_composition_nutrients`) is loaded separately via the CLI below — it is not bundled and must be pointed at a JSON dataset.
 
 ### Seed / load
 
