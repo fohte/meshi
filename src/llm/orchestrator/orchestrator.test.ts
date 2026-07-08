@@ -30,14 +30,23 @@ type ScriptedStep =
   | { readonly type: 'final'; readonly text: string }
 
 // Each element is the script for one sequential llmClient.runConversation()
-// call. recordFromText makes one call to split the input into items, then
-// one further call per item — callScripts[0] is always the split call.
+// call. Most flows (recordFromImage/queryMeals/recommendMeal) make exactly
+// one such call, so callScripts[0] is their conversation. recordFromText is
+// the exception: it first calls to split the input into items, then makes
+// one further call per item, so its tests prepend splitStep(...) as
+// callScripts[0] and put each item's conversation after it.
+//
+// onCall, if given, is invoked synchronously with each call's LlmRunInput
+// before any steps run, so tests can assert which text a given call
+// actually received instead of trusting call order alone.
 const createScriptedLlmClient = (
   callScripts: ReadonlyArray<ReadonlyArray<ScriptedStep>>,
+  onCall?: (input: LlmRunInput) => void,
 ): LlmClient => {
   let callIndex = 0
   return {
     async runConversation(input: LlmRunInput): Promise<LlmRunOutput> {
+      onCall?.(input)
       const steps = callScripts[callIndex]
       callIndex++
       if (steps === undefined) {
@@ -114,6 +123,15 @@ const createScriptedLlmClient = (
 const splitStep = (items: ReadonlyArray<string>): ScriptedStep[] => [
   { type: 'final', text: JSON.stringify(items) },
 ]
+
+const userText = (input: LlmRunInput): string =>
+  input.messages
+    .flatMap((m) => m.content)
+    .filter(
+      (c): c is Extract<LlmContent, { type: 'text' }> => c.type === 'text',
+    )
+    .map((c) => c.text)
+    .join('\n')
 
 type FakeResult =
   | { readonly ok: true; readonly value: unknown }
@@ -481,43 +499,47 @@ describe('ConversationOrchestrator', () => {
         },
       },
     ])
-    const llm = createScriptedLlmClient([
-      splitStep(['ラーメン', 'ポテチ']),
+    const seenUserTexts: string[] = []
+    const llm = createScriptedLlmClient(
       [
-        {
-          type: 'tools',
-          calls: [
-            {
-              name: 'record_meal_log',
-              input: {
-                food_master_id: 'fm_1',
-                eaten_at_iso: '2026-06-18T12:00:00+09:00',
-                quantity: 1,
-                unit: '杯',
+        splitStep(['ラーメン', 'ポテチ']),
+        [
+          {
+            type: 'tools',
+            calls: [
+              {
+                name: 'record_meal_log',
+                input: {
+                  food_master_id: 'fm_1',
+                  eaten_at_iso: '2026-06-18T12:00:00+09:00',
+                  quantity: 1,
+                  unit: '杯',
+                },
               },
-            },
-          ],
-        },
-        { type: 'final', text: 'Recorded ramen.' },
-      ],
-      [
-        {
-          type: 'tools',
-          calls: [
-            {
-              name: 'record_meal_log',
-              input: {
-                food_master_id: 'fm_2',
-                eaten_at_iso: '2026-06-18T12:00:00+09:00',
-                quantity: 1,
-                unit: '袋',
+            ],
+          },
+          { type: 'final', text: 'Recorded ramen.' },
+        ],
+        [
+          {
+            type: 'tools',
+            calls: [
+              {
+                name: 'record_meal_log',
+                input: {
+                  food_master_id: 'fm_2',
+                  eaten_at_iso: '2026-06-18T12:00:00+09:00',
+                  quantity: 1,
+                  unit: '袋',
+                },
               },
-            },
-          ],
-        },
-        { type: 'final', text: 'Recorded chips.' },
+            ],
+          },
+          { type: 'final', text: 'Recorded chips.' },
+        ],
       ],
-    ])
+      (input) => seenUserTexts.push(userText(input)),
+    )
     const orchestrator = createConversationOrchestrator({
       llmClient: llm,
       registry,
@@ -528,25 +550,30 @@ describe('ConversationOrchestrator', () => {
       text: 'ラーメンとポテチを食べた',
     })
 
-    expect(result).toEqual({
-      recorded: [
-        {
-          mealLogId: 'log_1',
-          foodMasterId: 'fm_1',
-          nutrition: { energy_kcal: 100 },
-          isEstimated: false,
-        },
-        {
-          mealLogId: 'log_2',
-          foodMasterId: 'fm_2',
-          nutrition: { energy_kcal: 200 },
-          isEstimated: false,
-        },
-      ],
-      candidates: [],
-      hasEstimatedValues: false,
-      summaryText: ['Recorded ramen.', 'Recorded chips.'].join('\n'),
-      error: null,
+    // Pin each item conversation to the item it was actually given — the
+    // scripts above only line up with the fm_1/fm_2 handling by call order.
+    expect({ result, itemConversationTexts: seenUserTexts.slice(1) }).toEqual({
+      result: {
+        recorded: [
+          {
+            mealLogId: 'log_1',
+            foodMasterId: 'fm_1',
+            nutrition: { energy_kcal: 100 },
+            isEstimated: false,
+          },
+          {
+            mealLogId: 'log_2',
+            foodMasterId: 'fm_2',
+            nutrition: { energy_kcal: 200 },
+            isEstimated: false,
+          },
+        ],
+        candidates: [],
+        hasEstimatedValues: false,
+        summaryText: ['Recorded ramen.', 'Recorded chips.'].join('\n'),
+        error: null,
+      },
+      itemConversationTexts: ['ラーメン', 'ポテチ'],
     })
   })
 
@@ -569,40 +596,44 @@ describe('ConversationOrchestrator', () => {
         },
       },
     ])
-    const llm = createScriptedLlmClient([
-      splitStep(['known food', 'unknown food']),
+    const seenUserTexts: string[] = []
+    const llm = createScriptedLlmClient(
       [
-        {
-          type: 'tools',
-          calls: [
-            {
-              name: 'record_meal_log',
-              input: {
-                food_master_id: 'fm_ok',
-                eaten_at_iso: '2026-06-18T12:00:00+09:00',
-                quantity: 1,
-                unit: '個',
+        splitStep(['known food', 'unknown food']),
+        [
+          {
+            type: 'tools',
+            calls: [
+              {
+                name: 'record_meal_log',
+                input: {
+                  food_master_id: 'fm_ok',
+                  eaten_at_iso: '2026-06-18T12:00:00+09:00',
+                  quantity: 1,
+                  unit: '個',
+                },
               },
-            },
-          ],
-        },
-        { type: 'final', text: 'Recorded known food.' },
+            ],
+          },
+          { type: 'final', text: 'Recorded known food.' },
+        ],
+        [
+          {
+            type: 'tools',
+            calls: [{ name: 'search_food_master', input: { query: 'a' } }],
+          },
+          {
+            type: 'tools',
+            calls: [{ name: 'search_food_master', input: { query: 'b' } }],
+          },
+          {
+            type: 'tools',
+            calls: [{ name: 'search_food_master', input: { query: 'c' } }],
+          },
+        ],
       ],
-      [
-        {
-          type: 'tools',
-          calls: [{ name: 'search_food_master', input: { query: 'a' } }],
-        },
-        {
-          type: 'tools',
-          calls: [{ name: 'search_food_master', input: { query: 'b' } }],
-        },
-        {
-          type: 'tools',
-          calls: [{ name: 'search_food_master', input: { query: 'c' } }],
-        },
-      ],
-    ])
+      (input) => seenUserTexts.push(userText(input)),
+    )
     const orchestrator = createConversationOrchestrator({
       llmClient: llm,
       registry,
@@ -612,6 +643,220 @@ describe('ConversationOrchestrator', () => {
 
     const result = await orchestrator.recordFromText({
       text: 'known food と unknown food を食べた',
+    })
+
+    // Pin each item conversation to the item it was actually given — the
+    // scripts above only line up with "records"/"hits max_turns" by call order.
+    expect({ result, itemConversationTexts: seenUserTexts.slice(1) }).toEqual({
+      result: {
+        recorded: [
+          {
+            mealLogId: 'log_ok',
+            foodMasterId: 'fm_ok',
+            nutrition: { energy_kcal: 100 },
+            isEstimated: false,
+          },
+        ],
+        candidates: [],
+        hasEstimatedValues: false,
+        summaryText: 'Recorded known food.',
+        error: null,
+      },
+      itemConversationTexts: ['known food', 'unknown food'],
+    })
+  })
+
+  it('falls back to a single conversation for the whole text when the split reply is not valid JSON', async () => {
+    const registry = createFakeRegistry([
+      {
+        name: 'record_meal_log',
+        handle() {
+          return ok({
+            meal_log_id: 'log_1',
+            nutrition: { energy_kcal: 250 },
+            is_estimated: false,
+          })
+        },
+      },
+    ])
+    const seenUserTexts: string[] = []
+    const llm = createScriptedLlmClient(
+      [
+        [{ type: 'final', text: 'not json' }],
+        [
+          {
+            type: 'tools',
+            calls: [
+              {
+                name: 'record_meal_log',
+                input: {
+                  food_master_id: 'fm_1',
+                  eaten_at_iso: '2026-06-18T12:00:00+09:00',
+                  quantity: 1,
+                  unit: '杯',
+                },
+              },
+            ],
+          },
+          { type: 'final', text: 'Recorded.' },
+        ],
+      ],
+      (input) => seenUserTexts.push(userText(input)),
+    )
+    const orchestrator = createConversationOrchestrator({
+      llmClient: llm,
+      registry,
+      ...baseOptions,
+    })
+
+    const result = await orchestrator.recordFromText({
+      text: 'ラーメンを食べた',
+    })
+
+    expect({ result, itemConversationText: seenUserTexts[1] }).toEqual({
+      result: {
+        recorded: [
+          {
+            mealLogId: 'log_1',
+            foodMasterId: 'fm_1',
+            nutrition: { energy_kcal: 250 },
+            isEstimated: false,
+          },
+        ],
+        candidates: [],
+        hasEstimatedValues: false,
+        summaryText: 'Recorded.',
+        error: null,
+      },
+      itemConversationText: 'ラーメンを食べた',
+    })
+  })
+
+  it('falls back to a single conversation when the split call itself rejects', async () => {
+    const registry = createFakeRegistry([
+      {
+        name: 'record_meal_log',
+        handle() {
+          return ok({
+            meal_log_id: 'log_1',
+            nutrition: { energy_kcal: 250 },
+            is_estimated: false,
+          })
+        },
+      },
+    ])
+    let calls = 0
+    const seenUserTexts: string[] = []
+    const llm: LlmClient = {
+      runConversation(input) {
+        calls++
+        seenUserTexts.push(userText(input))
+        if (calls === 1) {
+          return Promise.reject(new Error('split call transport failure'))
+        }
+        return input
+          .executeTool({
+            id: 't1',
+            name: 'record_meal_log',
+            input: {
+              food_master_id: 'fm_1',
+              eaten_at_iso: '2026-06-18T12:00:00+09:00',
+              quantity: 1,
+              unit: '杯',
+            },
+          })
+          .then(() => ({
+            finalText: 'Recorded.',
+            messages: [...input.messages],
+            stopReason: 'end' as const,
+            turns: 1,
+          }))
+      },
+    }
+    const orchestrator = createConversationOrchestrator({
+      llmClient: llm,
+      registry,
+      ...baseOptions,
+    })
+
+    const result = await orchestrator.recordFromText({
+      text: 'ラーメンを食べた',
+    })
+
+    expect({ result, itemConversationText: seenUserTexts[1] }).toEqual({
+      result: {
+        recorded: [
+          {
+            mealLogId: 'log_1',
+            foodMasterId: 'fm_1',
+            nutrition: { energy_kcal: 250 },
+            isEstimated: false,
+          },
+        ],
+        candidates: [],
+        hasEstimatedValues: false,
+        summaryText: 'Recorded.',
+        error: null,
+      },
+      itemConversationText: 'ラーメンを食べた',
+    })
+  })
+
+  it('records other items even when one item conversation rejects', async () => {
+    const registry = createFakeRegistry([
+      {
+        name: 'record_meal_log',
+        handle() {
+          return ok({
+            meal_log_id: 'log_ok',
+            nutrition: { energy_kcal: 100 },
+            is_estimated: false,
+          })
+        },
+      },
+    ])
+    let calls = 0
+    const llm: LlmClient = {
+      runConversation(input) {
+        calls++
+        if (calls === 1) {
+          return Promise.resolve({
+            finalText: JSON.stringify(['known food', 'flaky food']),
+            messages: [...input.messages],
+            stopReason: 'end' as const,
+            turns: 1,
+          })
+        }
+        if (calls === 2) {
+          return input
+            .executeTool({
+              id: 't1',
+              name: 'record_meal_log',
+              input: {
+                food_master_id: 'fm_ok',
+                eaten_at_iso: '2026-06-18T12:00:00+09:00',
+                quantity: 1,
+                unit: '個',
+              },
+            })
+            .then(() => ({
+              finalText: 'Recorded known food.',
+              messages: [...input.messages],
+              stopReason: 'end' as const,
+              turns: 1,
+            }))
+        }
+        return Promise.reject(new Error('transient network failure'))
+      },
+    }
+    const orchestrator = createConversationOrchestrator({
+      llmClient: llm,
+      registry,
+      ...baseOptions,
+    })
+
+    const result = await orchestrator.recordFromText({
+      text: 'known food と flaky food を食べた',
     })
 
     expect(result).toEqual({
@@ -630,62 +875,40 @@ describe('ConversationOrchestrator', () => {
     })
   })
 
-  it('falls back to a single conversation for the whole text when the split reply is not valid JSON', async () => {
-    const registry = createFakeRegistry([
-      {
-        name: 'record_meal_log',
-        handle() {
-          return ok({
-            meal_log_id: 'log_1',
-            nutrition: { energy_kcal: 250 },
-            is_estimated: false,
+  it('surfaces item_conversation_failed when every item conversation rejects', async () => {
+    const registry = createFakeRegistry([])
+    let calls = 0
+    const llm: LlmClient = {
+      runConversation(input) {
+        calls++
+        if (calls === 1) {
+          return Promise.resolve({
+            finalText: JSON.stringify(['x']),
+            messages: [...input.messages],
+            stopReason: 'end' as const,
+            turns: 1,
           })
-        },
+        }
+        return Promise.reject(new Error('network down'))
       },
-    ])
-    const llm = createScriptedLlmClient([
-      [{ type: 'final', text: 'not json' }],
-      [
-        {
-          type: 'tools',
-          calls: [
-            {
-              name: 'record_meal_log',
-              input: {
-                food_master_id: 'fm_1',
-                eaten_at_iso: '2026-06-18T12:00:00+09:00',
-                quantity: 1,
-                unit: '杯',
-              },
-            },
-          ],
-        },
-        { type: 'final', text: 'Recorded.' },
-      ],
-    ])
+    }
     const orchestrator = createConversationOrchestrator({
       llmClient: llm,
       registry,
       ...baseOptions,
     })
 
-    const result = await orchestrator.recordFromText({
-      text: 'ラーメンを食べた',
-    })
+    const result = await orchestrator.recordFromText({ text: 'x' })
 
     expect(result).toEqual({
-      recorded: [
-        {
-          mealLogId: 'log_1',
-          foodMasterId: 'fm_1',
-          nutrition: { energy_kcal: 250 },
-          isEstimated: false,
-        },
-      ],
+      recorded: [],
       candidates: [],
       hasEstimatedValues: false,
-      summaryText: 'Recorded.',
-      error: null,
+      summaryText: 'One or more item conversations failed unexpectedly.',
+      error: {
+        kind: 'item_conversation_failed',
+        message: 'One or more item conversations failed unexpectedly.',
+      },
     })
   })
 

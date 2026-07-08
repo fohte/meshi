@@ -73,6 +73,14 @@ interface ConversationRunResult {
   readonly diverged: boolean
 }
 
+// recordFromText runs one conversation per item concurrently; a rejected
+// promise (network/transport failure) is captured as 'crashed' instead of
+// being allowed to reject the whole Promise.all, which would otherwise
+// discard every other item's already-recorded meals.
+type ItemOutcome =
+  | { readonly kind: 'run'; readonly run: ConversationRunResult }
+  | { readonly kind: 'crashed' }
+
 const TEXT_RECORD_SYSTEM = [
   'You are the meshi internal LLM agent that records a meal log from a natural language utterance.',
   'Use the search_food_master tool to locate the food. If nothing matches, use web_search and register_food_master to add it, then call record_meal_log.',
@@ -248,11 +256,15 @@ const splitTextIntoItems = async (
     const raw: unknown = JSON.parse(out.finalText)
     const parsed = itemListSchema.safeParse(raw)
     if (parsed.success) return parsed.data
-  } catch {
+  } catch (e) {
     // Invalid JSON or a transport failure: fall back to a single item below.
+    console.error('meshi: item split failed, treating input as one item', e)
   }
   return [text]
 }
+
+const MAX_TURNS_MESSAGE =
+  'The internal LLM loop reached the maximum number of turns without finishing.'
 
 const buildOrchestratorError = (
   diverged: boolean,
@@ -267,8 +279,27 @@ const buildOrchestratorError = (
   if (stopReason === 'max_turns') {
     return {
       kind: 'max_turns_exceeded',
-      message:
-        'The internal LLM loop reached the maximum number of turns without finishing.',
+      message: MAX_TURNS_MESSAGE,
+    }
+  }
+  return null
+}
+
+const buildMealRecordAggregateError = (flags: {
+  readonly diverged: boolean
+  readonly hitMaxTurns: boolean
+  readonly anyCrashed: boolean
+}): OrchestratorError | null => {
+  if (flags.diverged) {
+    return { kind: 'divergence_detected', message: DIVERGENCE_TOOL_MESSAGE }
+  }
+  if (flags.hitMaxTurns) {
+    return { kind: 'max_turns_exceeded', message: MAX_TURNS_MESSAGE }
+  }
+  if (flags.anyCrashed) {
+    return {
+      kind: 'item_conversation_failed',
+      message: 'One or more item conversations failed unexpectedly.',
     }
   }
   return null
@@ -442,37 +473,50 @@ export const createConversationOrchestrator = (
   }
 
   const buildMealRecordResult = (
-    runs: ReadonlyArray<ConversationRunResult>,
+    outcomes: ReadonlyArray<ItemOutcome>,
   ): MealRecordResult => {
     const recorded: RecordedMeal[] = []
     const candidates: FoodCandidate[] = []
     const finalTexts: string[] = []
+    const unresolvedNotes: string[] = []
     let diverged = false
     let hitMaxTurns = false
-    for (const run of runs) {
+    let anyCrashed = false
+    for (const outcome of outcomes) {
+      if (outcome.kind === 'crashed') {
+        anyCrashed = true
+        continue
+      }
+      const run = outcome.run
       const runRecorded = collectRecorded(run.invocations)
       recorded.push(...runRecorded)
+      const trimmedFinalText = run.finalText.trim()
+      if (trimmedFinalText !== '') finalTexts.push(trimmedFinalText)
       if (runRecorded.length === 0) {
-        candidates.push(...collectLastSearchCandidates(run.invocations))
+        const runCandidates = collectLastSearchCandidates(run.invocations)
+        candidates.push(...runCandidates)
+        if (runCandidates.length === 0 && trimmedFinalText !== '') {
+          unresolvedNotes.push(trimmedFinalText)
+        }
       }
-      if (run.finalText.trim() !== '') finalTexts.push(run.finalText.trim())
       if (run.diverged) diverged = true
       if (run.stopReason === 'max_turns') hitMaxTurns = true
     }
     const hasEstimatedValues = recorded.some((r) => r.isEstimated)
-    // A per-item failure (max_turns/divergence) only becomes a top-level
-    // error when no item produced anything usable; otherwise the items that
-    // did succeed would be hidden behind an error the formatter treats as
-    // fatal (see formatMealRecordTemplate's early return on `error`).
+    // A per-item failure (max_turns/divergence/crash) only becomes a
+    // top-level error when no item produced anything usable; otherwise the
+    // items that did succeed would be hidden behind an error the formatter
+    // treats as fatal (see formatMealRecordTemplate's early return on `error`).
     const error =
       recorded.length === 0 && candidates.length === 0
-        ? buildOrchestratorError(diverged, hitMaxTurns ? 'max_turns' : 'end')
+        ? buildMealRecordAggregateError({ diverged, hitMaxTurns, anyCrashed })
         : null
     const summaryText = formatter.formatMealRecord({
       recorded,
       candidates,
       hasEstimatedValues,
       finalText: finalTexts.join('\n'),
+      unresolvedNotes,
       error,
     })
     return {
@@ -491,7 +535,7 @@ export const createConversationOrchestrator = (
         lightweightModel,
         input.text,
       )
-      const runs = await Promise.all(
+      const settled = await Promise.allSettled(
         items.map((item) => {
           const userContent = formatTextUserContent(
             item,
@@ -501,7 +545,17 @@ export const createConversationOrchestrator = (
           return runConversation(textModel, TEXT_RECORD_SYSTEM, userContent)
         }),
       )
-      return buildMealRecordResult(runs)
+      const outcomes: ItemOutcome[] = settled.map((settledItem) => {
+        if (settledItem.status === 'fulfilled') {
+          return { kind: 'run', run: settledItem.value }
+        }
+        console.error(
+          'meshi: an item conversation failed, other items are unaffected',
+          settledItem.reason,
+        )
+        return { kind: 'crashed' }
+      })
+      return buildMealRecordResult(outcomes)
     },
     async recordFromImage(input: RecordFromImageInput) {
       let userContent: ReadonlyArray<LlmContent>
@@ -538,7 +592,7 @@ export const createConversationOrchestrator = (
         IMAGE_RECORD_SYSTEM,
         userContent,
       )
-      return buildMealRecordResult([run])
+      return buildMealRecordResult([{ kind: 'run', run }])
     },
     async queryMeals(input: QueryMealsInput): Promise<MealHistoryResult> {
       const body = [

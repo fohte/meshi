@@ -197,6 +197,51 @@ describe('createTemplateReplyFormatter', () => {
       )
     })
 
+    it('explains an item conversation failure', () => {
+      const text = formatter.formatMealRecord({
+        recorded: [],
+        candidates: [],
+        hasEstimatedValues: false,
+        finalText: '',
+        error: {
+          kind: 'item_conversation_failed',
+          message: 'network down',
+        },
+      })
+
+      expect(text).toEqual(
+        [
+          '一部の品目の処理中にエラーが発生しました。',
+          'しばらくしてからもう一度お試しください。',
+        ].join('\n'),
+      )
+    })
+
+    it('appends an unresolved item note alongside a recorded item', () => {
+      const text = formatter.formatMealRecord({
+        recorded: [
+          {
+            mealLogId: 'log_1',
+            foodMasterId: 'fm_rice',
+            nutrition: { energy_kcal: 252 },
+            isEstimated: false,
+          },
+        ],
+        candidates: [],
+        hasEstimatedValues: false,
+        finalText: '',
+        unresolvedNotes: ['それが食品かどうか判断できませんでした。'],
+        error: null,
+      })
+
+      expect(text).toEqual(
+        [
+          ['記録しました (1 件)。', '- fm_rice: 252 kcal'].join('\n'),
+          'それが食品かどうか判断できませんでした。',
+        ].join('\n\n'),
+      )
+    })
+
     it('falls back to a generic hint when nothing was recorded or proposed', () => {
       const text = formatter.formatMealRecord({
         recorded: [],
