@@ -1,10 +1,37 @@
 import { createServer, type IncomingMessage, type Server } from 'node:http'
 import type { AddressInfo } from 'node:net'
 
-import { afterEach, describe, expect, it } from 'vitest'
+import { SpanKind, SpanStatusCode, trace } from '@opentelemetry/api'
+import {
+  BasicTracerProvider,
+  InMemorySpanExporter,
+  SimpleSpanProcessor,
+} from '@opentelemetry/sdk-trace-base'
+import { ATTR_EXCEPTION_TYPE } from '@opentelemetry/semantic-conventions'
+import {
+  ATTR_GEN_AI_INPUT_MESSAGES,
+  ATTR_GEN_AI_OPERATION_NAME,
+  ATTR_GEN_AI_OUTPUT_MESSAGES,
+  ATTR_GEN_AI_PROVIDER_NAME,
+  ATTR_GEN_AI_REQUEST_MODEL,
+  ATTR_GEN_AI_RESPONSE_FINISH_REASONS,
+  ATTR_GEN_AI_RESPONSE_MODEL,
+  ATTR_GEN_AI_USAGE_INPUT_TOKENS,
+  ATTR_GEN_AI_USAGE_OUTPUT_TOKENS,
+} from '@opentelemetry/semantic-conventions/incubating'
+import {
+  afterAll,
+  afterEach,
+  beforeAll,
+  beforeEach,
+  describe,
+  expect,
+  it,
+} from 'vitest'
 
 import {
   OpenCodeLlmClient,
+  OpenCodeLlmHttpError,
   OpenCodeLlmInvalidResponseError,
 } from '@/adapters/llm/openCodeLlmClient'
 import type {
@@ -43,8 +70,32 @@ const readBody = (req: IncomingMessage): Promise<string> =>
     req.on('error', reject)
   })
 
+const MOCK_ERROR_RESPONSE = Symbol('mockErrorResponse')
+
+interface MockErrorResponse {
+  readonly [MOCK_ERROR_RESPONSE]: true
+  readonly status: number
+  readonly body: string
+}
+
+// A symbol key can never appear on a plain JSON fixture object, so this is
+// unambiguous against the success-response entries below.
+const mockErrorResponse = (
+  status: number,
+  body: string,
+): MockErrorResponse => ({
+  [MOCK_ERROR_RESPONSE]: true,
+  status,
+  body,
+})
+
+const isMockErrorResponse = (
+  response: Record<string, unknown> | MockErrorResponse,
+): response is MockErrorResponse =>
+  (response as Partial<MockErrorResponse>)[MOCK_ERROR_RESPONSE] === true
+
 const startMockServer = async (
-  responses: ReadonlyArray<Record<string, unknown>>,
+  responses: ReadonlyArray<Record<string, unknown> | MockErrorResponse>,
 ): Promise<MockServer> => {
   const requests: RecordedRequest[] = []
   let index = 0
@@ -58,6 +109,11 @@ const startMockServer = async (
       })
       const response = responses[index] ?? responses[responses.length - 1]
       index++
+      if (response !== undefined && isMockErrorResponse(response)) {
+        res.writeHead(response.status, { 'content-type': 'text/plain' })
+        res.end(response.body)
+        return
+      }
       res.writeHead(200, { 'content-type': 'application/json' })
       res.end(JSON.stringify(response))
     })()
@@ -537,6 +593,360 @@ describe('OpenCodeLlmClient.runConversation', () => {
     expect({ received, finalText: result.finalText }).toEqual({
       received: [{ id: 'call_null', name: 'search_food_master', input: {} }],
       finalText: 'ok',
+    })
+  })
+})
+
+describe('OpenCodeLlmClient tracing', () => {
+  const exporter = new InMemorySpanExporter()
+  const provider = new BasicTracerProvider({
+    spanProcessors: [new SimpleSpanProcessor(exporter)],
+  })
+
+  beforeAll(() => {
+    trace.setGlobalTracerProvider(provider)
+  })
+
+  afterAll(async () => {
+    trace.disable()
+    await provider.shutdown()
+  })
+
+  beforeEach(() => {
+    exporter.reset()
+  })
+
+  let mock: MockServer | undefined
+
+  afterEach(async () => {
+    if (mock !== undefined) {
+      const m = mock
+      mock = undefined
+      await m.close()
+    }
+  })
+
+  it('records gen_ai attributes and token usage on the inference span', async () => {
+    mock = await startMockServer([
+      {
+        model: 'resolved-model',
+        choices: [
+          {
+            finish_reason: 'stop',
+            message: { role: 'assistant', content: 'Logged ramen.' },
+          },
+        ],
+        usage: { prompt_tokens: 42, completion_tokens: 7 },
+      },
+    ])
+
+    const client = new OpenCodeLlmClient({
+      apiKey: 'test-key',
+      baseUrl: mock.url,
+      captureMessageContent: false,
+    })
+    await client.runConversation({
+      model: 'test-model',
+      system: '',
+      messages: initialMessages,
+      tools: [],
+      maxTurns: 1,
+      executeTool: () => Promise.resolve({ content: '' }),
+    })
+
+    const spans = exporter.getFinishedSpans()
+    expect(
+      spans.map((span) => ({
+        name: span.name,
+        kind: span.kind,
+        status: span.status,
+        attributes: span.attributes,
+      })),
+    ).toEqual([
+      {
+        name: 'chat test-model',
+        kind: SpanKind.CLIENT,
+        status: { code: SpanStatusCode.UNSET },
+        attributes: {
+          [ATTR_GEN_AI_OPERATION_NAME]: 'chat',
+          [ATTR_GEN_AI_PROVIDER_NAME]: 'opencode',
+          [ATTR_GEN_AI_REQUEST_MODEL]: 'test-model',
+          [ATTR_GEN_AI_RESPONSE_MODEL]: 'resolved-model',
+          [ATTR_GEN_AI_USAGE_INPUT_TOKENS]: 42,
+          [ATTR_GEN_AI_USAGE_OUTPUT_TOKENS]: 7,
+          [ATTR_GEN_AI_RESPONSE_FINISH_REASONS]: ['stop'],
+        },
+      },
+    ])
+  })
+
+  it('falls back to the OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT env var when captureMessageContent is not set', async () => {
+    mock = await startMockServer([
+      {
+        choices: [
+          {
+            finish_reason: 'stop',
+            message: { role: 'assistant', content: 'Logged ramen.' },
+          },
+        ],
+      },
+    ])
+
+    const client = new OpenCodeLlmClient({
+      apiKey: 'test-key',
+      baseUrl: mock.url,
+      env: { OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT: 'true' },
+    })
+    await client.runConversation({
+      model: 'test-model',
+      system: '',
+      messages: initialMessages,
+      tools: [],
+      maxTurns: 1,
+      executeTool: () => Promise.resolve({ content: '' }),
+    })
+
+    const [span] = exporter.getFinishedSpans()
+    expect({
+      hasInputMessages:
+        span?.attributes[ATTR_GEN_AI_INPUT_MESSAGES] !== undefined,
+      hasOutputMessages:
+        span?.attributes[ATTR_GEN_AI_OUTPUT_MESSAGES] !== undefined,
+    }).toEqual({ hasInputMessages: true, hasOutputMessages: true })
+  })
+
+  it('captures gen_ai.input.messages / gen_ai.output.messages per turn when captureMessageContent is enabled', async () => {
+    const toolResultContent = JSON.stringify({ candidates: [{ id: 1 }] })
+    mock = await startMockServer([
+      {
+        choices: [
+          {
+            finish_reason: 'tool_calls',
+            message: {
+              role: 'assistant',
+              content: null,
+              tool_calls: [
+                {
+                  id: 'call_1',
+                  type: 'function',
+                  function: {
+                    name: 'search_food_master',
+                    arguments: JSON.stringify({ query: 'ramen' }),
+                  },
+                },
+              ],
+            },
+          },
+        ],
+      },
+      {
+        choices: [
+          {
+            finish_reason: 'stop',
+            message: { role: 'assistant', content: 'Logged ramen.' },
+          },
+        ],
+      },
+    ])
+
+    const client = new OpenCodeLlmClient({
+      apiKey: 'test-key',
+      baseUrl: mock.url,
+      captureMessageContent: true,
+    })
+    await client.runConversation({
+      model: 'test-model',
+      system: 'you log meals',
+      messages: initialMessages,
+      tools: [tool],
+      maxTurns: 5,
+      executeTool: () => Promise.resolve({ content: toolResultContent }),
+    })
+
+    const spans = exporter.getFinishedSpans()
+    expect(
+      spans.map((span) => ({
+        inputMessages: JSON.parse(
+          String(span.attributes[ATTR_GEN_AI_INPUT_MESSAGES]),
+        ) as unknown,
+        outputMessages: JSON.parse(
+          String(span.attributes[ATTR_GEN_AI_OUTPUT_MESSAGES]),
+        ) as unknown,
+      })),
+    ).toEqual([
+      {
+        inputMessages: [
+          {
+            role: 'system',
+            parts: [{ type: 'text', content: 'you log meals' }],
+          },
+          { role: 'user', parts: [{ type: 'text', content: 'I ate ramen' }] },
+        ],
+        outputMessages: [
+          {
+            role: 'assistant',
+            parts: [
+              {
+                type: 'tool_call',
+                id: 'call_1',
+                name: 'search_food_master',
+                arguments: { query: 'ramen' },
+              },
+            ],
+            finish_reason: 'tool_calls',
+          },
+        ],
+      },
+      {
+        inputMessages: [
+          {
+            role: 'system',
+            parts: [{ type: 'text', content: 'you log meals' }],
+          },
+          { role: 'user', parts: [{ type: 'text', content: 'I ate ramen' }] },
+          {
+            role: 'assistant',
+            parts: [
+              {
+                type: 'tool_call',
+                id: 'call_1',
+                name: 'search_food_master',
+                arguments: { query: 'ramen' },
+              },
+            ],
+          },
+          {
+            role: 'tool',
+            parts: [
+              {
+                type: 'tool_call_response',
+                id: 'call_1',
+                response: toolResultContent,
+              },
+            ],
+          },
+        ],
+        outputMessages: [
+          {
+            role: 'assistant',
+            parts: [{ type: 'text', content: 'Logged ramen.' }],
+            finish_reason: 'stop',
+          },
+        ],
+      },
+    ])
+  })
+
+  it('records the HTTP error as a span exception and marks the span ERROR', async () => {
+    mock = await startMockServer([mockErrorResponse(500, 'boom')])
+
+    const client = new OpenCodeLlmClient({
+      apiKey: 'k',
+      baseUrl: mock.url,
+      captureMessageContent: false,
+    })
+
+    await expect(
+      client.runConversation({
+        model: 'test-model',
+        system: '',
+        messages: initialMessages,
+        tools: [],
+        maxTurns: 1,
+        executeTool: () => Promise.resolve({ content: '' }),
+      }),
+    ).rejects.toThrow(OpenCodeLlmHttpError)
+
+    const spans = exporter.getFinishedSpans()
+    expect(
+      spans.map((span) => ({
+        name: span.name,
+        status: span.status,
+        exceptionTypes: span.events
+          .filter((e) => e.name === 'exception')
+          .map((e) => e.attributes?.[ATTR_EXCEPTION_TYPE]),
+      })),
+    ).toEqual([
+      {
+        name: 'chat test-model',
+        status: {
+          code: SpanStatusCode.ERROR,
+          message: 'OpenCode Go HTTP 500: boom',
+        },
+        exceptionTypes: ['OpenCodeLlmHttpError'],
+      },
+    ])
+  })
+
+  it('records a span exception without failing the call when a non-primary choice has malformed tool call arguments', async () => {
+    // responseToAssistantMessage only reads choices[0] (fine here), but
+    // setGenAiResponseAttributes walks every choice for gen_ai.output.messages
+    // — this exercises the resulting throw from the malformed second choice.
+    mock = await startMockServer([
+      {
+        choices: [
+          {
+            finish_reason: 'stop',
+            message: { role: 'assistant', content: 'Logged ramen.' },
+          },
+          {
+            finish_reason: 'stop',
+            message: {
+              role: 'assistant',
+              content: null,
+              tool_calls: [
+                {
+                  id: 'call_bad',
+                  type: 'function',
+                  function: {
+                    name: 'search_food_master',
+                    arguments: 'not valid json',
+                  },
+                },
+              ],
+            },
+          },
+        ],
+      },
+    ])
+
+    const client = new OpenCodeLlmClient({
+      apiKey: 'test-key',
+      baseUrl: mock.url,
+      captureMessageContent: true,
+    })
+    const result = await client.runConversation({
+      model: 'test-model',
+      system: '',
+      messages: initialMessages,
+      tools: [],
+      maxTurns: 1,
+      executeTool: () => Promise.resolve({ content: '' }),
+    })
+
+    const spans = exporter.getFinishedSpans()
+    expect({
+      finalText: result.finalText,
+      spans: spans.map((span) => ({
+        status: span.status,
+        exceptionTypes: span.events
+          .filter((e) => e.name === 'exception')
+          .map((e) => e.attributes?.[ATTR_EXCEPTION_TYPE]),
+        hasFinishReasons:
+          span.attributes[ATTR_GEN_AI_RESPONSE_FINISH_REASONS] !== undefined,
+        hasOutputMessages:
+          span.attributes[ATTR_GEN_AI_OUTPUT_MESSAGES] !== undefined,
+      })),
+    }).toEqual({
+      finalText: 'Logged ramen.',
+      spans: [
+        {
+          status: { code: SpanStatusCode.UNSET },
+          exceptionTypes: ['Error'],
+          hasFinishReasons: true,
+          hasOutputMessages: false,
+        },
+      ],
     })
   })
 })
