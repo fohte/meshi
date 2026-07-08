@@ -10,7 +10,7 @@
 
 - Node.js (LTS, see `.mise.toml`)
 - pnpm (via Corepack or mise)
-- Docker (for local Postgres)
+- Docker (for local Postgres, and optionally for running the app itself)
 
 ### Local Postgres
 
@@ -20,7 +20,13 @@ Start a local Postgres instance with the bundled compose file:
 pnpm db:up
 ```
 
-This boots Postgres on `127.0.0.1:5432` with database `meshi` and user `meshi` / password `meshi`. Stop it with `pnpm db:down`.
+This boots Postgres with database `meshi` and user `meshi` / password `meshi`, published to a random host port to avoid clashing with other projects' Postgres instances. Find it with:
+
+```sh
+docker compose port postgres 5432
+```
+
+Stop it with `pnpm db:down`.
 
 ### Environment variables
 
@@ -44,7 +50,7 @@ OPENCODE_API_KEY=dev
 MESHI_LLM_MODEL=...
 MESHI_LLM_VISION_MODEL=...
 MESHI_LLM_LIGHTWEIGHT_MODEL=...
-DATABASE_URL=postgres://meshi:meshi@127.0.0.1:5432/meshi
+DATABASE_URL=postgres://meshi:meshi@127.0.0.1:<port from `docker compose port postgres 5432`>/meshi
 WEB_SEARCH_API_KEY=dev
 MCP_LISTEN_ADDR=0.0.0.0:8080
 ```
@@ -55,6 +61,15 @@ MCP_LISTEN_ADDR=0.0.0.0:8080
 pnpm start    # one-shot
 pnpm dev      # tsx watch
 ```
+
+Or run it in a container instead (source is bind-mounted, so it hot-reloads the same way):
+
+```sh
+OPENCODE_API_KEY=dev MESHI_LLM_MODEL=... MESHI_LLM_VISION_MODEL=... MESHI_LLM_LIGHTWEIGHT_MODEL=... WEB_SEARCH_API_KEY=dev \
+  docker compose up app
+```
+
+It's published to a random host port; find it with `docker compose port app 8080`.
 
 The MCP endpoint is served at `POST /mcp`; `GET /health` reports DB connectivity.
 

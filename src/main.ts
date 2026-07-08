@@ -9,7 +9,7 @@ import { createTavilyWebSearchClient } from '@/adapters/web-search/tavily-web-se
 import { createApp } from '@/app'
 import { observability } from '@/bootstrap'
 import { createSql, pingDb } from '@/db'
-import { runMigrations } from '@/db/migrate'
+import { runMigrations } from '@/db/migrations'
 import { seedNutrientDefinitions } from '@/db/seed'
 import { createFoodMasterRepository } from '@/domain/food-master/repository'
 import { createFoodMasterService } from '@/domain/food-master/service'
