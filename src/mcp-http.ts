@@ -93,10 +93,16 @@ const readJsonRpcBody = async (req: IncomingMessage): Promise<unknown> => {
 // the span — matching the `jsonrpc: "2.0"` envelope the SDK itself requires
 // keeps span names representative of requests the SDK actually processes,
 // rather than being derived from bodies it will go on to reject.
+// Length-capped: these values flow straight into the span name/attributes,
+// and /mcp has no auth in front of it, so an unbounded string here would let
+// any client inflate span cardinality/payload size in the telemetry backend.
 const jsonRpcCallSchema = z.object({
   jsonrpc: z.literal('2.0'),
-  method: z.string(),
-  params: z.object({ name: z.string() }).partial().optional(),
+  method: z.string().max(128),
+  params: z
+    .object({ name: z.string().max(128) })
+    .partial()
+    .optional(),
 })
 
 // Batched JSON-RPC requests (an array body) are rare for MCP clients, which

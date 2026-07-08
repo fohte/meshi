@@ -109,29 +109,19 @@ describe('handleMcpRequest', () => {
     })
   })
 
-  it('renames the active span with the JSON-RPC method and tool name for tools/call', async () => {
-    const started = await start()
-    server = started.server
-    const span = tracer.startSpan('POST')
-    vi.spyOn(trace, 'getActiveSpan').mockReturnValue(span)
-
-    await postJsonRpc(started.url, {
-      jsonrpc: '2.0',
-      id: 1,
-      method: 'tools/call',
-      params: {
-        name: 'record_meal_from_text',
-        arguments: { text: 'ラーメン' },
+  it.each([
+    {
+      label: 'tools/call with a tool name',
+      body: {
+        jsonrpc: '2.0',
+        id: 1,
+        method: 'tools/call',
+        params: {
+          name: 'record_meal_from_text',
+          arguments: { text: 'ラーメン' },
+        },
       },
-    })
-    span.end()
-
-    expect(
-      spanExporter
-        .getFinishedSpans()
-        .map((s) => ({ name: s.name, attributes: s.attributes })),
-    ).toEqual([
-      {
+      expectedSpan: {
         name: 'tools/call record_meal_from_text',
         attributes: {
           'mcp.method.name': 'tools/call',
@@ -139,38 +129,37 @@ describe('handleMcpRequest', () => {
           'gen_ai.operation.name': 'execute_tool',
         },
       },
-    ])
-  })
-
-  it('renames the active span with only the JSON-RPC method when there is no tool target', async () => {
+    },
+    {
+      label: 'a method with no tool target',
+      body: {
+        jsonrpc: '2.0',
+        id: 1,
+        method: 'initialize',
+        params: {
+          protocolVersion: '2024-11-05',
+          capabilities: {},
+          clientInfo: { name: 'smoke', version: '0' },
+        },
+      },
+      expectedSpan: {
+        name: 'initialize',
+        attributes: { 'mcp.method.name': 'initialize' },
+      },
+    },
+  ])('renames the active span for $label', async ({ body, expectedSpan }) => {
     const started = await start()
     server = started.server
     const span = tracer.startSpan('POST')
     vi.spyOn(trace, 'getActiveSpan').mockReturnValue(span)
 
-    await postJsonRpc(started.url, {
-      jsonrpc: '2.0',
-      id: 1,
-      method: 'initialize',
-      params: {
-        protocolVersion: '2024-11-05',
-        capabilities: {},
-        clientInfo: { name: 'smoke', version: '0' },
-      },
-    })
+    await postJsonRpc(started.url, body)
     span.end()
 
     expect(
       spanExporter
         .getFinishedSpans()
         .map((s) => ({ name: s.name, attributes: s.attributes })),
-    ).toEqual([
-      {
-        name: 'initialize',
-        attributes: {
-          'mcp.method.name': 'initialize',
-        },
-      },
-    ])
+    ).toEqual([expectedSpan])
   })
 })
