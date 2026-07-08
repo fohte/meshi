@@ -235,6 +235,15 @@ const initialMessages = (
 
 const itemListSchema = z.array(z.string().min(1)).min(1)
 
+// Lightweight models frequently wrap JSON replies in a markdown code fence
+// despite system prompt instructions not to; strip it so JSON.parse doesn't
+// throw on well-formed-but-fenced output.
+const stripCodeFence = (text: string): string => {
+  const trimmed = text.trim()
+  const match = /^```(?:json)?\n?([\s\S]*?)\n?```$/.exec(trimmed)
+  return match?.[1] ?? trimmed
+}
+
 // Splits free text into independent food items so each gets its own bounded
 // tool-use conversation; a shared conversation would need turns proportional
 // to the item count and could exhaust maxTurns before recording anything.
@@ -253,7 +262,7 @@ const splitTextIntoItems = async (
       executeTool: () =>
         Promise.reject(new Error('item splitting must not call tools')),
     })
-    const raw: unknown = JSON.parse(out.finalText)
+    const raw: unknown = JSON.parse(stripCodeFence(out.finalText))
     const parsed = itemListSchema.safeParse(raw)
     if (parsed.success) return parsed.data
   } catch (e) {

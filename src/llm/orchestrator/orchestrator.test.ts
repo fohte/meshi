@@ -577,6 +577,103 @@ describe('ConversationOrchestrator', () => {
     })
   })
 
+  it('splits items when the split reply is wrapped in a markdown code fence', async () => {
+    const registry = createFakeRegistry([
+      {
+        name: 'record_meal_log',
+        handle(input) {
+          const { food_master_id: foodMasterId } =
+            recordMealLogInputSchema.parse(input)
+          return foodMasterId === 'fm_1'
+            ? ok({
+                meal_log_id: 'log_1',
+                nutrition: { energy_kcal: 100 },
+                is_estimated: false,
+              })
+            : ok({
+                meal_log_id: 'log_2',
+                nutrition: { energy_kcal: 200 },
+                is_estimated: false,
+              })
+        },
+      },
+    ])
+    const llm = createScriptedLlmClient([
+      [
+        {
+          type: 'final',
+          text: ['```json', JSON.stringify(['ラーメン', 'ポテチ']), '```'].join(
+            '\n',
+          ),
+        },
+      ],
+      [
+        {
+          type: 'tools',
+          calls: [
+            {
+              name: 'record_meal_log',
+              input: {
+                food_master_id: 'fm_1',
+                eaten_at_iso: '2026-06-18T12:00:00+09:00',
+                quantity: 1,
+                unit: '杯',
+              },
+            },
+          ],
+        },
+        { type: 'final', text: 'Recorded ramen.' },
+      ],
+      [
+        {
+          type: 'tools',
+          calls: [
+            {
+              name: 'record_meal_log',
+              input: {
+                food_master_id: 'fm_2',
+                eaten_at_iso: '2026-06-18T12:00:00+09:00',
+                quantity: 1,
+                unit: '袋',
+              },
+            },
+          ],
+        },
+        { type: 'final', text: 'Recorded chips.' },
+      ],
+    ])
+    const orchestrator = createConversationOrchestrator({
+      llmClient: llm,
+      registry,
+      ...baseOptions,
+    })
+
+    const result = await orchestrator.recordFromText({
+      text: 'ラーメンとポテチを食べた',
+    })
+
+    expect(result).toEqual({
+      recorded: [
+        {
+          mealLogId: 'log_1',
+          foodMasterId: 'fm_1',
+          nutrition: { energy_kcal: 100 },
+          isEstimated: false,
+        },
+        {
+          mealLogId: 'log_2',
+          foodMasterId: 'fm_2',
+          nutrition: { energy_kcal: 200 },
+          isEstimated: false,
+        },
+      ],
+      candidates: [],
+      hasEstimatedValues: false,
+      summaryText: ['Recorded ramen.', 'Recorded chips.'].join('\n'),
+      error: null,
+    })
+  })
+
   it('records other items even when one item hits max_turns_exceeded', async () => {
     const registry = createFakeRegistry([
       {
