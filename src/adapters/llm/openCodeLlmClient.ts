@@ -445,6 +445,10 @@ export class OpenCodeLlmClient implements LlmClient {
     this.apiKey = options.apiKey
     this.baseUrl = options.baseUrl ?? OPENCODE_GO_BASE_URL
     this.fetchImpl = options.fetch ?? fetch
+    // No `typeof process !== 'undefined'` guard: meshi is a Node.js-only
+    // server (node:http, @hono/node-server, the postgres TCP driver), and
+    // process.env is already referenced unguarded elsewhere (bootstrap.ts,
+    // env.ts, db/migrate.ts).
     this.captureMessageContent =
       options.captureMessageContent ??
       (options.env ?? process.env)[CAPTURE_MESSAGE_CONTENT_ENV_VAR] === 'true'
@@ -466,10 +470,16 @@ export class OpenCodeLlmClient implements LlmClient {
             [ATTR_GEN_AI_REQUEST_MODEL]: body.model,
           })
           if (this.captureMessageContent) {
-            span.setAttribute(
-              ATTR_GEN_AI_INPUT_MESSAGES,
-              JSON.stringify(body.messages.map(openAiMessageToGenAiMessage)),
-            )
+            try {
+              span.setAttribute(
+                ATTR_GEN_AI_INPUT_MESSAGES,
+                JSON.stringify(body.messages.map(openAiMessageToGenAiMessage)),
+              )
+            } catch (error) {
+              span.recordException(
+                error instanceof Error ? error : String(error),
+              )
+            }
           }
 
           const res = await this.fetchImpl(`${this.baseUrl}/chat/completions`, {
@@ -489,7 +499,11 @@ export class OpenCodeLlmClient implements LlmClient {
             throw new OpenCodeLlmInvalidResponseError(parsed.error, raw)
           }
           const json = parsed.data
-          setGenAiResponseAttributes(span, json, this.captureMessageContent)
+          try {
+            setGenAiResponseAttributes(span, json, this.captureMessageContent)
+          } catch (error) {
+            span.recordException(error instanceof Error ? error : String(error))
+          }
           return json
         } catch (error) {
           span.recordException(error instanceof Error ? error : String(error))
