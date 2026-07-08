@@ -3,18 +3,44 @@ services:
     image: postgres:17-alpine
     container_name: meshi-postgres
     environment:
-      POSTGRES_USER: meshi
-      POSTGRES_PASSWORD: meshi
-      POSTGRES_DB: meshi
+      POSTGRES_USER: ${POSTGRES_USER:-meshi}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-meshi}
+      POSTGRES_DB: ${POSTGRES_DB:-meshi}
     ports:
-      - '127.0.0.1:5432:5432'
+      - '127.0.0.1::5432'
     volumes:
       - meshi-postgres:/var/lib/postgresql/data
     healthcheck:
-      test: ['CMD-SHELL', 'pg_isready -U meshi -d meshi']
+      test:
+        [
+          'CMD-SHELL',
+          'pg_isready -U ${POSTGRES_USER:-meshi} -d ${POSTGRES_DB:-meshi}',
+        ]
       interval: 5s
       timeout: 5s
       retries: 10
 
+  app:
+    build:
+      context: .
+      target: dev
+    environment:
+      DATABASE_URL: postgres://${POSTGRES_USER:-meshi}:${POSTGRES_PASSWORD:-meshi}@postgres:5432/${POSTGRES_DB:-meshi}
+      MCP_LISTEN_ADDR: 0.0.0.0:8080
+      OPENCODE_API_KEY: ${OPENCODE_API_KEY}
+      MESHI_LLM_MODEL: ${MESHI_LLM_MODEL}
+      MESHI_LLM_VISION_MODEL: ${MESHI_LLM_VISION_MODEL}
+      MESHI_LLM_LIGHTWEIGHT_MODEL: ${MESHI_LLM_LIGHTWEIGHT_MODEL}
+      WEB_SEARCH_API_KEY: ${WEB_SEARCH_API_KEY}
+    ports:
+      - '127.0.0.1::8080'
+    volumes:
+      - .:/app
+      - meshi-app-node-modules:/app/node_modules
+    depends_on:
+      postgres:
+        condition: service_healthy
+
 volumes:
   meshi-postgres:
+  meshi-app-node-modules:

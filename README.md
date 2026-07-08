@@ -20,7 +20,13 @@ Start a local Postgres instance with the bundled compose file:
 pnpm db:up
 ```
 
-This boots Postgres on `127.0.0.1:5432` with database `meshi` and user `meshi` / password `meshi`. Stop it with `pnpm db:down`.
+This boots Postgres with database `meshi` and user `meshi` / password `meshi`, published to a random host port to avoid clashing with other projects' Postgres instances. Find it with:
+
+```sh
+docker compose port postgres 5432
+```
+
+Stop it with `pnpm db:down`.
 
 ### Environment variables
 
@@ -59,6 +65,17 @@ pnpm dev      # tsx watch
 The MCP endpoint is served at `POST /mcp`; `GET /health` reports DB connectivity.
 
 The `nutrient_definitions` master is seeded automatically on startup after migrations (idempotent). The MEXT food composition table (`food_compositions` + `food_composition_nutrients`) is loaded separately via the CLI below — it is not bundled and must be pointed at a JSON dataset.
+
+#### Run via Docker Compose
+
+Instead of `pnpm dev`, the app can run inside a container (source is bind-mounted, so it hot-reloads the same way):
+
+```sh
+OPENCODE_API_KEY=dev MESHI_LLM_MODEL=... MESHI_LLM_VISION_MODEL=... MESHI_LLM_LIGHTWEIGHT_MODEL=... WEB_SEARCH_API_KEY=dev \
+  docker compose up app
+```
+
+It's published to a random host port; find it with `docker compose port app 8080`.
 
 ### Seed / load
 
