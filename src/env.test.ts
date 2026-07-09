@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { EnvError, loadEnv } from '@/env'
+import { EnvError, loadEnv, requireDatabaseUrl } from '@/env'
 
 const fullSource = {
   OPENCODE_API_KEY: 'k',
@@ -11,6 +11,19 @@ const fullSource = {
   DATABASE_URL: 'postgres://localhost/meshi',
   WEB_SEARCH_API_KEY: 'wk',
   MCP_LISTEN_ADDR: '0.0.0.0:8080',
+  OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT: 'true',
+} as const
+
+const fullEnv = {
+  OPENCODE_API_KEY: 'k',
+  MESHI_LLM_MODEL: 'm',
+  MESHI_LLM_VISION_MODEL: 'vm',
+  MESHI_LLM_LIGHTWEIGHT_MODEL: 'lm',
+  MESHI_LLM_MAX_TURNS: 8,
+  DATABASE_URL: 'postgres://localhost/meshi',
+  WEB_SEARCH_API_KEY: 'wk',
+  MCP_LISTEN_ADDR: '0.0.0.0:8080',
+  OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT: true,
 } as const
 
 const captureIssues = (run: () => unknown): readonly string[] => {
@@ -25,22 +38,49 @@ const captureIssues = (run: () => unknown): readonly string[] => {
 
 describe('loadEnv', () => {
   it('parses a complete environment', () => {
-    expect(loadEnv(fullSource)).toEqual({
-      OPENCODE_API_KEY: 'k',
-      MESHI_LLM_MODEL: 'm',
-      MESHI_LLM_VISION_MODEL: 'vm',
-      MESHI_LLM_LIGHTWEIGHT_MODEL: 'lm',
-      MESHI_LLM_MAX_TURNS: 8,
-      DATABASE_URL: 'postgres://localhost/meshi',
-      WEB_SEARCH_API_KEY: 'wk',
-      MCP_LISTEN_ADDR: '0.0.0.0:8080',
-    })
+    expect(loadEnv(fullSource)).toEqual(fullEnv)
   })
 
   it('defaults MESHI_LLM_MAX_TURNS to 12 when omitted', () => {
     const { MESHI_LLM_MAX_TURNS: _max, ...rest } = fullSource
     void _max
-    expect(loadEnv(rest).MESHI_LLM_MAX_TURNS).toBe(12)
+    expect(loadEnv(rest)).toEqual({ ...fullEnv, MESHI_LLM_MAX_TURNS: 12 })
+  })
+
+  it('defaults OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT to false when omitted', () => {
+    const {
+      OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT: _capture,
+      ...rest
+    } = fullSource
+    void _capture
+    expect(loadEnv(rest)).toEqual({
+      ...fullEnv,
+      OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT: false,
+    })
+  })
+
+  it('treats OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT values other than "true" as false', () => {
+    expect(
+      loadEnv({
+        ...fullSource,
+        OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT: 'yes',
+      }),
+    ).toEqual({
+      ...fullEnv,
+      OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT: false,
+    })
+  })
+
+  it('parses OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT case-insensitively', () => {
+    expect(
+      loadEnv({
+        ...fullSource,
+        OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT: 'TRUE',
+      }),
+    ).toEqual({
+      ...fullEnv,
+      OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT: true,
+    })
   })
 
   it('fails fast listing every missing required key', () => {
@@ -65,5 +105,25 @@ describe('loadEnv', () => {
     expect(
       captureIssues(() => loadEnv({ ...fullSource, MESHI_LLM_MAX_TURNS: '0' })),
     ).toEqual(['MESHI_LLM_MAX_TURNS must be a positive integer (got: 0)'])
+  })
+})
+
+describe('requireDatabaseUrl', () => {
+  it('returns DATABASE_URL when set', () => {
+    expect(
+      requireDatabaseUrl({ DATABASE_URL: 'postgres://localhost/meshi' }),
+    ).toBe('postgres://localhost/meshi')
+  })
+
+  it('throws EnvError when DATABASE_URL is missing', () => {
+    expect(captureIssues(() => requireDatabaseUrl({}))).toEqual([
+      'missing required env: DATABASE_URL',
+    ])
+  })
+
+  it('throws EnvError when DATABASE_URL is an empty string', () => {
+    expect(
+      captureIssues(() => requireDatabaseUrl({ DATABASE_URL: '' })),
+    ).toEqual(['missing required env: DATABASE_URL'])
   })
 })

@@ -1,15 +1,10 @@
 import { createSql } from '@/db'
 import { runMigrations } from '@/db/migrations'
-import { EnvError } from '@/env'
+import { EnvError, requireDatabaseUrl } from '@/env'
 
 // infra runs this as `node dist/db/migrate.js` in an init container.
 const main = async (): Promise<void> => {
-  const databaseUrl = process.env['DATABASE_URL']
-  if (databaseUrl === undefined || databaseUrl === '') {
-    throw new EnvError(['missing required env: DATABASE_URL'])
-  }
-
-  const sql = createSql(databaseUrl)
+  const sql = createSql(requireDatabaseUrl())
   try {
     await runMigrations(sql)
     console.log('migrations applied')

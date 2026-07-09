@@ -76,7 +76,11 @@ export const main = async (): Promise<void> => {
   const webSearchClient = createTavilyWebSearchClient({
     apiKey: env.WEB_SEARCH_API_KEY,
   })
-  const llmClient = new OpenCodeLlmClient({ apiKey: env.OPENCODE_API_KEY })
+  const llmClient = new OpenCodeLlmClient({
+    apiKey: env.OPENCODE_API_KEY,
+    captureMessageContent:
+      env.OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT,
+  })
   const registry = createDomainToolsRegistry({
     mealLogService,
     foodMasterService,
