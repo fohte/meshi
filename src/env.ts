@@ -26,14 +26,17 @@ export class EnvError extends Error {
   }
 }
 
-// Standalone from loadEnv/Env: the migration init container only ever needs
-// this one var and must not fail on the rest of the app's required env.
+const missingEnvMessage = (key: string): string =>
+  `missing required env: ${key}`
+
+// Standalone from loadEnv/Env: src/db/migrate.ts only ever needs this one
+// var and must not fail on the rest of the app's required env.
 export const requireDatabaseUrl = (
   source: Readonly<Record<string, string | undefined>> = process.env,
 ): string => {
   const raw = source['DATABASE_URL']
   if (raw === undefined || raw === '') {
-    throw new EnvError(['missing required env: DATABASE_URL'])
+    throw new EnvError([missingEnvMessage('DATABASE_URL')])
   }
   return raw
 }
@@ -46,7 +49,7 @@ export const loadEnv = (
   const requireString = (key: keyof Env): string => {
     const raw = source[key]
     if (raw === undefined || raw === '') {
-      issues.push(`missing required env: ${key}`)
+      issues.push(missingEnvMessage(key))
       return ''
     }
     return raw
