@@ -2,7 +2,7 @@
 
 ## Environment variables
 
-Every env var the code reads — via `src/env.ts`'s `Env` interface or a direct `process.env` lookup anywhere under `src/` — must be added to the environment variables table in `README.md` (Name / Required / Description / Example) in the same change. A `process.env` read that bypasses `src/env.ts` (e.g. an init script, or an option defaulted from env in a constructor) is still in scope: the README table is the single source of truth for what the deployment must set, independent of which code path reads it.
+Every env var the code reads — via `src/env.ts`'s `Env` interface or a direct `process.env` lookup anywhere under `src/` — must be added to the environment variables table in `README.md` (Name / Required / Description / Example) in the same change. Prefer reading through `src/env.ts` (the `Env` interface, or a standalone helper like `requireDatabaseUrl` for scripts that shouldn't need the full `Env`) over a bare `process.env` lookup. A direct `process.env` read is only acceptable when it's genuinely outside the app's own `Env` schema — e.g. `TEST_DATABASE_URL` in `src/test/db.ts`, which configures the test harness, not the running server — and it is still in scope for the README table: the table is the single source of truth for what the deployment or test setup must configure, independent of which code path reads it.
 
 ## Test code rules
 

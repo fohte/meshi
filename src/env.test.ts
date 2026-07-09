@@ -11,6 +11,7 @@ const fullSource = {
   DATABASE_URL: 'postgres://localhost/meshi',
   WEB_SEARCH_API_KEY: 'wk',
   MCP_LISTEN_ADDR: '0.0.0.0:8080',
+  OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT: 'true',
 } as const
 
 const captureIssues = (run: () => unknown): readonly string[] => {
@@ -34,6 +35,7 @@ describe('loadEnv', () => {
       DATABASE_URL: 'postgres://localhost/meshi',
       WEB_SEARCH_API_KEY: 'wk',
       MCP_LISTEN_ADDR: '0.0.0.0:8080',
+      OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT: true,
     })
   })
 
@@ -41,6 +43,26 @@ describe('loadEnv', () => {
     const { MESHI_LLM_MAX_TURNS: _max, ...rest } = fullSource
     void _max
     expect(loadEnv(rest).MESHI_LLM_MAX_TURNS).toBe(12)
+  })
+
+  it('defaults OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT to false when omitted', () => {
+    const {
+      OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT: _capture,
+      ...rest
+    } = fullSource
+    void _capture
+    expect(
+      loadEnv(rest).OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT,
+    ).toBe(false)
+  })
+
+  it('treats OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT values other than "true" as false', () => {
+    expect(
+      loadEnv({
+        ...fullSource,
+        OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT: 'yes',
+      }).OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT,
+    ).toBe(false)
   })
 
   it('fails fast listing every missing required key', () => {

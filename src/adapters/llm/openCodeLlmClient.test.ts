@@ -680,41 +680,6 @@ describe('OpenCodeLlmClient tracing', () => {
     ])
   })
 
-  it('falls back to the OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT env var when captureMessageContent is not set', async () => {
-    mock = await startMockServer([
-      {
-        choices: [
-          {
-            finish_reason: 'stop',
-            message: { role: 'assistant', content: 'Logged ramen.' },
-          },
-        ],
-      },
-    ])
-
-    const client = new OpenCodeLlmClient({
-      apiKey: 'test-key',
-      baseUrl: mock.url,
-      env: { OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT: 'true' },
-    })
-    await client.runConversation({
-      model: 'test-model',
-      system: '',
-      messages: initialMessages,
-      tools: [],
-      maxTurns: 1,
-      executeTool: () => Promise.resolve({ content: '' }),
-    })
-
-    const [span] = exporter.getFinishedSpans()
-    expect({
-      hasInputMessages:
-        span?.attributes[ATTR_GEN_AI_INPUT_MESSAGES] !== undefined,
-      hasOutputMessages:
-        span?.attributes[ATTR_GEN_AI_OUTPUT_MESSAGES] !== undefined,
-    }).toEqual({ hasInputMessages: true, hasOutputMessages: true })
-  })
-
   it('captures gen_ai.input.messages / gen_ai.output.messages per turn when captureMessageContent is enabled', async () => {
     const toolResultContent = JSON.stringify({ candidates: [{ id: 1 }] })
     mock = await startMockServer([

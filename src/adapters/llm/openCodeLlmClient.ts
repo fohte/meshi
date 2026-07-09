@@ -31,13 +31,6 @@ export const OPENCODE_GO_BASE_URL = 'https://opencode.ai/zen/go/v1'
 // is the gateway being called, not the resolved model's own provider).
 const GEN_AI_PROVIDER_NAME_VALUE_OPENCODE = 'opencode'
 
-// Mirrors the env var used by other OpenTelemetry GenAI instrumentations
-// (e.g. opentelemetry-instrumentation-openai-v2, Elastic's EDOT Node.js SDK)
-// to gate capture of message content, which is opt-in per the GenAI semantic
-// conventions because it may contain PII.
-const CAPTURE_MESSAGE_CONTENT_ENV_VAR =
-  'OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT'
-
 const tracer = trace.getTracer('meshi-opencode-llm-client')
 
 export interface OpenCodeLlmClientOptions {
@@ -45,7 +38,6 @@ export interface OpenCodeLlmClientOptions {
   readonly baseUrl?: string
   readonly fetch?: typeof fetch
   readonly captureMessageContent?: boolean
-  readonly env?: Readonly<Record<string, string | undefined>>
 }
 
 interface OpenAiChatMessage {
@@ -449,9 +441,7 @@ export class OpenCodeLlmClient implements LlmClient {
     this.apiKey = options.apiKey
     this.baseUrl = options.baseUrl ?? OPENCODE_GO_BASE_URL
     this.fetchImpl = options.fetch ?? fetch
-    this.captureMessageContent =
-      options.captureMessageContent ??
-      (options.env ?? process.env)[CAPTURE_MESSAGE_CONTENT_ENV_VAR] === 'true'
+    this.captureMessageContent = options.captureMessageContent ?? false
   }
 
   // One span per model inference call, matching the GenAI semantic
