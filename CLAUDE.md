@@ -1,5 +1,9 @@
 # CLAUDE.md
 
+## Environment variables
+
+Every env var the code reads — via `src/env.ts`'s `Env` interface or a direct `process.env` lookup anywhere under `src/` — must be added to the environment variables table in `README.md` (Name / Required / Description / Example) in the same change. A `process.env` read that bypasses `src/env.ts` (e.g. an init script, or an option defaulted from env in a constructor) is still in scope: the README table is the single source of truth for what the deployment must set, independent of which code path reads it.
+
 ## Test code rules
 
 ### Assert on the whole output with a single equality check

@@ -30,30 +30,19 @@ Stop it with `pnpm db:down`.
 
 ### Environment variables
 
-The server fails fast on missing required env at startup. Set the following before running:
+The server fails fast on missing required env at startup. This table covers every env var read anywhere in the codebase, not just via `src/env.ts` — see the "Environment variables" rule in `CLAUDE.md` for why that matters.
 
-| Name                          | Description                                                      |
-| ----------------------------- | ---------------------------------------------------------------- |
-| `OPENCODE_API_KEY`            | OpenCode Go API key (text + vision LLM)                          |
-| `MESHI_LLM_MODEL`             | Default text LLM model id                                        |
-| `MESHI_LLM_VISION_MODEL`      | Vision LLM model id (must support tool use)                      |
-| `MESHI_LLM_LIGHTWEIGHT_MODEL` | Cheaper text LLM for lightweight prompts                         |
-| `MESHI_LLM_MAX_TURNS`         | Internal tool-use loop cap (optional, defaults to `12`)          |
-| `DATABASE_URL`                | Postgres connection string (verified with `SELECT 1` at startup) |
-| `WEB_SEARCH_API_KEY`          | Web search API key                                               |
-| `MCP_LISTEN_ADDR`             | MCP server listen address, e.g. `0.0.0.0:8080`                   |
-
-Example `.env` for local development:
-
-```sh
-OPENCODE_API_KEY=dev
-MESHI_LLM_MODEL=...
-MESHI_LLM_VISION_MODEL=...
-MESHI_LLM_LIGHTWEIGHT_MODEL=...
-DATABASE_URL=postgres://meshi:meshi@127.0.0.1:<port from `docker compose port postgres 5432`>/meshi
-WEB_SEARCH_API_KEY=dev
-MCP_LISTEN_ADDR=0.0.0.0:8080
-```
+| Name                                                 | Required                   | Description                                                                                                                                           | Example                                                             |
+| ---------------------------------------------------- | -------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------- |
+| `OPENCODE_API_KEY`                                   | Required                   | OpenCode Go API key (text + vision LLM)                                                                                                               | `dev`                                                               |
+| `MESHI_LLM_MODEL`                                    | Required                   | Default text LLM model id                                                                                                                             | `...`                                                               |
+| `MESHI_LLM_VISION_MODEL`                             | Required                   | Vision LLM model id (must support tool use)                                                                                                           | `...`                                                               |
+| `MESHI_LLM_LIGHTWEIGHT_MODEL`                        | Required                   | Cheaper text LLM for lightweight prompts                                                                                                              | `...`                                                               |
+| `MESHI_LLM_MAX_TURNS`                                | Optional (default `12`)    | Internal tool-use loop cap                                                                                                                            | `12`                                                                |
+| `DATABASE_URL`                                       | Required                   | Postgres connection string (verified with `SELECT 1` at startup)                                                                                      | `postgres://meshi:meshi@127.0.0.1:<port from docker compose>/meshi` |
+| `WEB_SEARCH_API_KEY`                                 | Required                   | Web search API key                                                                                                                                    | `dev`                                                               |
+| `MCP_LISTEN_ADDR`                                    | Required                   | MCP server listen address                                                                                                                             | `0.0.0.0:8080`                                                      |
+| `OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT` | Optional (default `false`) | Capture LLM prompt/completion content on GenAI spans (may contain PII); read directly from `process.env` in `OpenCodeLlmClient`, not via `src/env.ts` | `true`                                                              |
 
 ### Run
 
