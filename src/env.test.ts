@@ -71,6 +71,18 @@ describe('loadEnv', () => {
     })
   })
 
+  it('parses OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT case-insensitively', () => {
+    expect(
+      loadEnv({
+        ...fullSource,
+        OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT: 'TRUE',
+      }),
+    ).toEqual({
+      ...fullEnv,
+      OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT: true,
+    })
+  })
+
   it('fails fast listing every missing required key', () => {
     expect(captureIssues(() => loadEnv({}))).toEqual([
       'missing required env: OPENCODE_API_KEY',

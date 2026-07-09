@@ -78,7 +78,9 @@ export const loadEnv = (
     WEB_SEARCH_API_KEY: requireString('WEB_SEARCH_API_KEY'),
     MCP_LISTEN_ADDR: requireString('MCP_LISTEN_ADDR'),
     OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT:
-      source['OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT'] === 'true',
+      source[
+        'OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT'
+      ]?.toLowerCase() === 'true',
   }
 
   if (issues.length > 0) {
