@@ -285,9 +285,16 @@ describe('OpenCodeLlmClient.runConversation', () => {
       },
     })
 
-    expect(result.stopReason).toBe('max_turns')
-    expect(result.turns).toBe(2)
-    expect(result.finalText).toBe('')
+    const actual = {
+      stopReason: result.stopReason,
+      turns: result.turns,
+      finalText: result.finalText,
+    }
+    expect(actual).toEqual({
+      stopReason: 'max_turns',
+      turns: 2,
+      finalText: '',
+    })
     expect(mock.requests.length).toBe(2)
     expect(executedCount).toBe(1)
   })
@@ -338,18 +345,25 @@ describe('OpenCodeLlmClient.runConversation', () => {
       executeTool: () => Promise.reject(new Error('executor blew up')),
     })
 
-    expect(result.stopReason).toBe('end')
-    expect(result.finalText).toBe('recovered')
-    expect(result.messages[result.messages.length - 2]).toEqual({
-      role: 'user',
-      content: [
-        {
-          type: 'tool_result',
-          toolUseId: 'call_err',
-          content: 'executor blew up',
-          isError: true,
-        },
-      ],
+    const actual = {
+      stopReason: result.stopReason,
+      finalText: result.finalText,
+      lastUserMessage: result.messages[result.messages.length - 2],
+    }
+    expect(actual).toEqual({
+      stopReason: 'end',
+      finalText: 'recovered',
+      lastUserMessage: {
+        role: 'user',
+        content: [
+          {
+            type: 'tool_result',
+            toolUseId: 'call_err',
+            content: 'executor blew up',
+            isError: true,
+          },
+        ],
+      },
     })
   })
 
