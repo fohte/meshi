@@ -550,15 +550,9 @@ describe('ConversationOrchestrator', () => {
 
     const result = await orchestrator.recordFromText({ text: 'foo' })
 
-    expect({
-      recorded: result.recorded,
-      recordCalls,
-      errorKind: result.error?.kind ?? null,
-    }).toEqual({
-      recorded: [],
-      recordCalls: 0,
-      errorKind: 'divergence_detected',
-    })
+    expect(result.recorded).toEqual([])
+    expect(recordCalls).toBe(0)
+    expect(result.error?.kind ?? null).toBe('divergence_detected')
   })
 
   it('captures executor exceptions as an internal_error tool result', async () => {
@@ -658,15 +652,9 @@ describe('ConversationOrchestrator', () => {
       image: { mimeType: 'image/jpeg', base64: 'AAAA' },
     })
 
-    expect({
-      seenContent,
-      summaryText: result.summaryText,
-      error: result.error,
-    }).toEqual({
-      seenContent: [{ type: 'image' }],
-      summaryText: 'Logged the bowl.',
-      error: null,
-    })
+    expect(seenContent).toEqual([{ type: 'image' }])
+    expect(result.summaryText).toBe('Logged the bowl.')
+    expect(result.error).toBeNull()
   })
 
   it('queryMeals returns the aggregate from the last query_meal_history call', async () => {

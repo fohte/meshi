@@ -84,15 +84,13 @@ describe('interpretImage', () => {
       { downsample },
     )
 
-    expect({ result, downsampleCalls: calls.length }).toEqual({
-      result: [
-        {
-          type: 'image',
-          source: { type: 'base64', media_type: 'image/jpeg', data: base64 },
-        },
-      ],
-      downsampleCalls: 0,
-    })
+    expect(result).toEqual([
+      {
+        type: 'image',
+        source: { type: 'base64', media_type: 'image/jpeg', data: base64 },
+      },
+    ])
+    expect(calls).toHaveLength(0)
   })
 
   it('invokes the downsampler when the decoded image exceeds 10 MB', async () => {

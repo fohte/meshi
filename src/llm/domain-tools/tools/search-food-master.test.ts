@@ -52,32 +52,30 @@ describe('search_food_master tool', () => {
 
     const result = await tool.execute({ query: '白米', limit: 3 })
 
-    expect({ result: normalizeResult(result), calls }).toEqual({
-      result: {
-        ok: true,
-        value: {
-          candidates: [
-            {
-              food_master_id: 'fm_rice',
-              composition_code: null,
-              name: '白米',
-              is_estimated: false,
-              score: 0.9,
-              reason: 'history_recent',
-            },
-            {
-              food_master_id: null,
-              composition_code: '01088',
-              name: 'こめ (玄米)',
-              is_estimated: true,
-              score: 0.4,
-              reason: 'composition_table',
-            },
-          ],
-        },
+    expect(normalizeResult(result)).toEqual({
+      ok: true,
+      value: {
+        candidates: [
+          {
+            food_master_id: 'fm_rice',
+            composition_code: null,
+            name: '白米',
+            is_estimated: false,
+            score: 0.9,
+            reason: 'history_recent',
+          },
+          {
+            food_master_id: null,
+            composition_code: '01088',
+            name: 'こめ (玄米)',
+            is_estimated: true,
+            score: 0.4,
+            reason: 'composition_table',
+          },
+        ],
       },
-      calls: [{ query: '白米', limit: 3 }],
     })
+    expect(calls).toEqual([{ query: '白米', limit: 3 }])
   })
 
   it('defaults limit to 5 when not supplied', async () => {
@@ -89,16 +87,14 @@ describe('search_food_master tool', () => {
   it('rejects empty query with invalid_input and skips the matcher', async () => {
     const { tool, calls } = setup()
     const result = await tool.execute({ query: '' })
-    expect({ result: normalizeResult(result), calls }).toEqual({
-      result: {
-        ok: false,
-        error: {
-          code: 'invalid_input',
-          message: '<dynamic>',
-          details: { issues: { count: 1 } },
-        },
+    expect(normalizeResult(result)).toEqual({
+      ok: false,
+      error: {
+        code: 'invalid_input',
+        message: '<dynamic>',
+        details: { issues: { count: 1 } },
       },
-      calls: [],
     })
+    expect(calls).toEqual([])
   })
 })

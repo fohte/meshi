@@ -104,10 +104,8 @@ describe('createDomainToolsRegistry', () => {
       'web_search',
     ]
 
-    expect({
-      list: registry.list().map((t) => t.name),
-      schemas: registry.toLlmSchemas().map((s) => s.name),
-    }).toEqual({ list: expectedNames, schemas: expectedNames })
+    expect(registry.list().map((t) => t.name)).toEqual(expectedNames)
+    expect(registry.toLlmSchemas().map((s) => s.name)).toEqual(expectedNames)
   })
 
   it('executeToolUse returns the JSON-encoded successful result on a known tool', async () => {
@@ -161,17 +159,12 @@ describe('createDomainToolsRegistry', () => {
     })
     const parsed: unknown = JSON.parse(result.content)
 
-    expect({
-      isError: result.isError,
-      parsed: normalizeEnvelope(parsed),
-    }).toEqual({
-      isError: true,
-      parsed: {
-        error: {
-          code: 'invalid_input',
-          message: '<dynamic>',
-          details: { issues: { count: 1 } },
-        },
+    expect(result.isError).toBe(true)
+    expect(normalizeEnvelope(parsed)).toEqual({
+      error: {
+        code: 'invalid_input',
+        message: '<dynamic>',
+        details: { issues: { count: 1 } },
       },
     })
   })

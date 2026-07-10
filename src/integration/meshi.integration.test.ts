@@ -421,30 +421,24 @@ describeIfDb('meshi integration', () => {
         }),
       )
 
-      expect({
-        isError: result.isError ?? false,
-        content: textContent(result),
-        structuredContent: result.structuredContent,
-      }).toEqual({
-        isError: false,
-        content: [
-          ['記録しました (1 件)。', '- fm_rice: 336 kcal / P 5g / C 74g'].join(
-            '\n',
-          ),
+      expect(result.isError ?? false).toBe(false)
+      expect(textContent(result)).toEqual([
+        ['記録しました (1 件)。', '- fm_rice: 336 kcal / P 5g / C 74g'].join(
+          '\n',
+        ),
+      ])
+      expect(result.structuredContent).toEqual({
+        recorded: [
+          {
+            meal_log_id: 'ml_scenario1',
+            food_master_id: 'fm_rice',
+            nutrition: { energy_kcal: 336, protein_g: 5, carbohydrate_g: 74 },
+            is_estimated: false,
+          },
         ],
-        structuredContent: {
-          recorded: [
-            {
-              meal_log_id: 'ml_scenario1',
-              food_master_id: 'fm_rice',
-              nutrition: { energy_kcal: 336, protein_g: 5, carbohydrate_g: 74 },
-              is_estimated: false,
-            },
-          ],
-          candidates: [],
-          has_estimated_values: false,
-          error: null,
-        },
+        candidates: [],
+        has_estimated_values: false,
+        error: null,
       })
 
       const rows = await tx<
@@ -526,24 +520,19 @@ describeIfDb('meshi integration', () => {
         }),
       )
 
-      expect({
-        isError: result.isError ?? false,
-        structuredContent: result.structuredContent,
-      }).toEqual({
-        isError: false,
-        structuredContent: {
-          recorded: [
-            {
-              meal_log_id: 'ml_scenario2',
-              food_master_id: 'fm_test_0001',
-              nutrition: { energy_kcal: 210, protein_g: 7 },
-              is_estimated: false,
-            },
-          ],
-          candidates: [],
-          has_estimated_values: false,
-          error: null,
-        },
+      expect(result.isError ?? false).toBe(false)
+      expect(result.structuredContent).toEqual({
+        recorded: [
+          {
+            meal_log_id: 'ml_scenario2',
+            food_master_id: 'fm_test_0001',
+            nutrition: { energy_kcal: 210, protein_g: 7 },
+            is_estimated: false,
+          },
+        ],
+        candidates: [],
+        has_estimated_values: false,
+        error: null,
       })
       expect(textContent(result)).toEqual([
         ['記録しました (1 件)。', '- fm_test_0001: 210 kcal / P 7g'].join('\n'),
@@ -618,13 +607,28 @@ describeIfDb('meshi integration', () => {
         }))
       const candidateNames = normalizedCandidates.map((c) => c.name).sort()
 
-      expect({
-        isError: result.isError ?? false,
-        recorded: structured.recorded,
-        has_estimated_values: structured.has_estimated_values,
-        error: structured.error,
-        candidates: normalizedCandidates,
-        content: textContent(result).map((line) => {
+      expect(result.isError ?? false).toBe(false)
+      expect(structured.recorded).toEqual([])
+      expect(structured.has_estimated_values).toBe(false)
+      expect(structured.error).toBeNull()
+      expect(normalizedCandidates).toEqual([
+        {
+          food_master_id: 'fm_salmon_sushi',
+          composition_code: null,
+          name: 'salmon sushi',
+          is_estimated: false,
+          reason: 'fuzzy_name',
+        },
+        {
+          food_master_id: 'fm_salmon_teriyaki',
+          composition_code: null,
+          name: 'salmon teriyaki',
+          is_estimated: false,
+          reason: 'fuzzy_name',
+        },
+      ])
+      expect(
+        textContent(result).map((line) => {
           // matcher orders by trigram score, which is non-deterministic
           // between the two equally-similar names — sort the rendered list.
           const lines = line.split('\n')
@@ -632,34 +636,12 @@ describeIfDb('meshi integration', () => {
           if (header === undefined) return line
           return [header, ...[...rest].sort()].join('\n')
         }),
-      }).toEqual({
-        isError: false,
-        recorded: [],
-        has_estimated_values: false,
-        error: null,
-        candidates: [
-          {
-            food_master_id: 'fm_salmon_sushi',
-            composition_code: null,
-            name: 'salmon sushi',
-            is_estimated: false,
-            reason: 'fuzzy_name',
-          },
-          {
-            food_master_id: 'fm_salmon_teriyaki',
-            composition_code: null,
-            name: 'salmon teriyaki',
-            is_estimated: false,
-            reason: 'fuzzy_name',
-          },
-        ],
-        content: [
-          [
-            '食品を一意に特定できませんでした。次の候補から選んで、もう一度入力してください。',
-            ...candidateNames.map((n) => `- ${n}: fuzzy_name`),
-          ].join('\n'),
-        ],
-      })
+      ).toEqual([
+        [
+          '食品を一意に特定できませんでした。次の候補から選んで、もう一度入力してください。',
+          ...candidateNames.map((n) => `- ${n}: fuzzy_name`),
+        ].join('\n'),
+      ])
 
       const rows = await tx<
         { count: string }[]
@@ -715,49 +697,43 @@ describeIfDb('meshi integration', () => {
         }),
       )
 
-      expect({
-        isError: result.isError ?? false,
-        structuredContent: result.structuredContent,
-        content: textContent(result),
-      }).toEqual({
-        isError: false,
-        structuredContent: {
-          aggregate: {
-            totals: { energy_kcal: 336, protein_g: 5, carbohydrate_g: 74 },
-            per_day: [
-              {
-                date: '2026-06-12',
-                totals: {
-                  energy_kcal: 336,
-                  protein_g: 5,
-                  carbohydrate_g: 74,
-                },
+      expect(result.isError ?? false).toBe(false)
+      expect(result.structuredContent).toEqual({
+        aggregate: {
+          totals: { energy_kcal: 336, protein_g: 5, carbohydrate_g: 74 },
+          per_day: [
+            {
+              date: '2026-06-12',
+              totals: {
+                energy_kcal: 336,
+                protein_g: 5,
+                carbohydrate_g: 74,
               },
-            ],
-            entries: [
-              {
-                meal_log_id: 'ml_history_1',
-                food_master_id: 'fm_rice',
-                eaten_at_iso: '2026-06-12T03:30:00.000Z',
-                quantity: 200,
-                unit: 'g',
-                note: null,
-              },
-            ],
-            has_estimated_values: false,
-          },
+            },
+          ],
+          entries: [
+            {
+              meal_log_id: 'ml_history_1',
+              food_master_id: 'fm_rice',
+              eaten_at_iso: '2026-06-12T03:30:00.000Z',
+              quantity: 200,
+              unit: 'g',
+              note: null,
+            },
+          ],
           has_estimated_values: false,
-          error: null,
         },
-        content: [
-          [
-            '集計結果:',
-            '- 合計: 336 kcal / P 5g / C 74g',
-            '- 期間内の日数: 1 日',
-            '- 記録件数: 1 件',
-          ].join('\n'),
-        ],
+        has_estimated_values: false,
+        error: null,
       })
+      expect(textContent(result)).toEqual([
+        [
+          '集計結果:',
+          '- 合計: 336 kcal / P 5g / C 74g',
+          '- 期間内の日数: 1 日',
+          '- 記録件数: 1 件',
+        ].join('\n'),
+      ])
     } finally {
       await harness.close()
     }
@@ -798,15 +774,9 @@ describeIfDb('meshi integration', () => {
         }),
       )
 
-      expect({
-        isError: result.isError ?? false,
-        structuredContent: result.structuredContent,
-        content: textContent(result),
-      }).toEqual({
-        isError: false,
-        structuredContent: { error: null },
-        content: ['サバ味噌煮定食はいかがでしょう。'],
-      })
+      expect(result.isError ?? false).toBe(false)
+      expect(result.structuredContent).toEqual({ error: null })
+      expect(textContent(result)).toEqual(['サバ味噌煮定食はいかがでしょう。'])
     } finally {
       await harness.close()
     }
@@ -861,36 +831,30 @@ describeIfDb('meshi integration', () => {
         }),
       )
 
-      expect({
-        isError: result.isError ?? false,
-        structuredContent: result.structuredContent,
-        content: textContent(result),
-      }).toEqual({
-        isError: false,
-        structuredContent: {
-          recorded: [
-            {
-              meal_log_id: 'ml_image_1',
-              food_master_id: 'fm_rice',
-              nutrition: {
-                energy_kcal: 252,
-                protein_g: 3.75,
-                carbohydrate_g: 55.5,
-              },
-              is_estimated: false,
+      expect(result.isError ?? false).toBe(false)
+      expect(result.structuredContent).toEqual({
+        recorded: [
+          {
+            meal_log_id: 'ml_image_1',
+            food_master_id: 'fm_rice',
+            nutrition: {
+              energy_kcal: 252,
+              protein_g: 3.75,
+              carbohydrate_g: 55.5,
             },
-          ],
-          candidates: [],
-          has_estimated_values: false,
-          error: null,
-        },
-        content: [
-          [
-            '記録しました (1 件)。',
-            '- fm_rice: 252 kcal / P 3.8g / C 55.5g',
-          ].join('\n'),
+            is_estimated: false,
+          },
         ],
+        candidates: [],
+        has_estimated_values: false,
+        error: null,
       })
+      expect(textContent(result)).toEqual([
+        [
+          '記録しました (1 件)。',
+          '- fm_rice: 252 kcal / P 3.8g / C 55.5g',
+        ].join('\n'),
+      ])
 
       const logs = await tx<
         { id: string; quantity: string }[]
@@ -920,20 +884,14 @@ describeIfDb('meshi integration', () => {
         }),
       )
 
-      expect({
-        isError: updated.isError ?? false,
-        content: textContent(updated),
-        structuredContent: updated.structuredContent,
-      }).toEqual({
-        isError: false,
-        content: ['プロファイルを更新しました。'],
-        structuredContent: {
-          likes: ['和食'],
-          dislikes: [],
-          allergies: ['そば'],
-          constraints: [],
-          daily_targets: { energy_kcal: 2200 },
-        },
+      expect(updated.isError ?? false).toBe(false)
+      expect(textContent(updated)).toEqual(['プロファイルを更新しました。'])
+      expect(updated.structuredContent).toEqual({
+        likes: ['和食'],
+        dislikes: [],
+        allergies: ['そば'],
+        constraints: [],
+        daily_targets: { energy_kcal: 2200 },
       })
 
       const fetched = normalizeResult(
@@ -943,20 +901,14 @@ describeIfDb('meshi integration', () => {
         }),
       )
 
-      expect({
-        isError: fetched.isError ?? false,
-        content: textContent(fetched),
-        structuredContent: fetched.structuredContent,
-      }).toEqual({
-        isError: false,
-        content: ['プロファイルを取得しました。'],
-        structuredContent: {
-          likes: ['和食'],
-          dislikes: [],
-          allergies: ['そば'],
-          constraints: [],
-          daily_targets: { energy_kcal: 2200 },
-        },
+      expect(fetched.isError ?? false).toBe(false)
+      expect(textContent(fetched)).toEqual(['プロファイルを取得しました。'])
+      expect(fetched.structuredContent).toEqual({
+        likes: ['和食'],
+        dislikes: [],
+        allergies: ['そば'],
+        constraints: [],
+        daily_targets: { energy_kcal: 2200 },
       })
 
       const rows = await tx<

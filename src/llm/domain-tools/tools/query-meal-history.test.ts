@@ -49,34 +49,32 @@ describe('query_meal_history tool', () => {
       nutrient_codes: ['energy_kcal'],
     })
 
-    expect({ result: normalizeResult(result), calls }).toEqual({
-      result: {
-        ok: true,
-        value: {
-          totals: { energy_kcal: 1850 },
-          per_day: [{ date: '2026-05-19', totals: { energy_kcal: 1850 } }],
-          entries: [
-            {
-              meal_log_id: 'ml_1',
-              food_master_id: 'fm_rice',
-              eaten_at_iso: '2026-05-19T03:00:00.000Z',
-              quantity: 1,
-              unit: '杯',
-              note: null,
-            },
-          ],
-          has_estimated_values: true,
-        },
+    expect(normalizeResult(result)).toEqual({
+      ok: true,
+      value: {
+        totals: { energy_kcal: 1850 },
+        per_day: [{ date: '2026-05-19', totals: { energy_kcal: 1850 } }],
+        entries: [
+          {
+            meal_log_id: 'ml_1',
+            food_master_id: 'fm_rice',
+            eaten_at_iso: '2026-05-19T03:00:00.000Z',
+            quantity: 1,
+            unit: '杯',
+            note: null,
+          },
+        ],
+        has_estimated_values: true,
       },
-      calls: [
-        {
-          periodFrom: new Date('2026-05-01T00:00:00+09:00'),
-          periodTo: new Date('2026-05-20T00:00:00+09:00'),
-          foodFilter: ['fm_rice'],
-          nutrientCodes: ['energy_kcal'],
-        },
-      ],
     })
+    expect(calls).toEqual([
+      {
+        periodFrom: new Date('2026-05-01T00:00:00+09:00'),
+        periodTo: new Date('2026-05-20T00:00:00+09:00'),
+        foodFilter: ['fm_rice'],
+        nutrientCodes: ['energy_kcal'],
+      },
+    ])
   })
 
   it('omits optional filters when not supplied', async () => {
@@ -101,16 +99,14 @@ describe('query_meal_history tool', () => {
       period_from_iso: 'not-a-date',
       period_to_iso: '2026-05-20T00:00:00+09:00',
     })
-    expect({ result: normalizeResult(result), calls }).toEqual({
-      result: {
-        ok: false,
-        error: {
-          code: 'invalid_input',
-          message: '<dynamic>',
-          details: { issues: { count: 1 } },
-        },
+    expect(normalizeResult(result)).toEqual({
+      ok: false,
+      error: {
+        code: 'invalid_input',
+        message: '<dynamic>',
+        details: { issues: { count: 1 } },
       },
-      calls: [],
     })
+    expect(calls).toEqual([])
   })
 })

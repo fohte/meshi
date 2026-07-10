@@ -45,9 +45,7 @@ describeIfDb('seedNutrientDefinitions', () => {
     const rows = await tx<{ count: number }[]>`
       SELECT count(*)::int AS count FROM nutrient_definitions
     `
-    expect({ count: rows[0]?.count }).toEqual({
-      count: NUTRIENT_DEFINITION_SEEDS.length,
-    })
+    expect(rows[0]?.count).toBe(NUTRIENT_DEFINITION_SEEDS.length)
   })
 })
 
@@ -73,32 +71,27 @@ describeIfDb('loadFoodComposition', () => {
       SELECT count(*)::int AS count FROM food_composition_nutrients
     `
 
-    expect({
-      loadResult: result,
-      foodCount: foodCount[0]?.count,
-      nutrientRowCount: nutrientRowCount[0]?.count,
-      nutrientCounts: nutrientCounts.map((r) => ({
+    expect(result).toEqual({ foodCount: 3, nutrientRowCount: 23 })
+    expect(foodCount[0]?.count).toBe(3)
+    expect(nutrientRowCount[0]?.count).toBe(23)
+    expect(
+      nutrientCounts.map((r) => ({
         nutrient_code: r.nutrient_code,
         count: r.count,
       })),
-    }).toEqual({
-      loadResult: { foodCount: 3, nutrientRowCount: 23 },
-      foodCount: 3,
-      nutrientRowCount: 23,
-      nutrientCounts: [
-        { nutrient_code: 'carb_g', count: 3 },
-        { nutrient_code: 'dietary_fiber_g', count: 1 },
-        { nutrient_code: 'energy_kcal', count: 3 },
-        { nutrient_code: 'fat_g', count: 3 },
-        { nutrient_code: 'iron_mg', count: 3 },
-        { nutrient_code: 'potassium_mg', count: 1 },
-        { nutrient_code: 'protein_g', count: 3 },
-        { nutrient_code: 'salt_g', count: 3 },
-        { nutrient_code: 'vitamin_a_µg', count: 1 },
-        { nutrient_code: 'vitamin_b12_µg', count: 1 },
-        { nutrient_code: 'vitamin_d_µg', count: 1 },
-      ],
-    })
+    ).toEqual([
+      { nutrient_code: 'carb_g', count: 3 },
+      { nutrient_code: 'dietary_fiber_g', count: 1 },
+      { nutrient_code: 'energy_kcal', count: 3 },
+      { nutrient_code: 'fat_g', count: 3 },
+      { nutrient_code: 'iron_mg', count: 3 },
+      { nutrient_code: 'potassium_mg', count: 1 },
+      { nutrient_code: 'protein_g', count: 3 },
+      { nutrient_code: 'salt_g', count: 3 },
+      { nutrient_code: 'vitamin_a_µg', count: 1 },
+      { nutrient_code: 'vitamin_b12_µg', count: 1 },
+      { nutrient_code: 'vitamin_d_µg', count: 1 },
+    ])
   })
 
   it('re-loading the same dataset replaces nutrient rows (no stale duplicates)', async () => {
@@ -110,7 +103,7 @@ describeIfDb('loadFoodComposition', () => {
     const countRows = await tx<{ count: number }[]>`
       SELECT count(*)::int AS count FROM food_composition_nutrients
     `
-    expect({ count: countRows[0]?.count }).toEqual({ count: 23 })
+    expect(countRows[0]?.count).toBe(23)
   })
 
   it('splits inserts across batches when the dataset exceeds batchSize', async () => {
@@ -135,15 +128,9 @@ describeIfDb('loadFoodComposition', () => {
       SELECT count(*)::int AS count FROM food_composition_nutrients
       WHERE food_composition_code LIKE 'B%'
     `
-    expect({
-      result,
-      foodCount: foodRows[0]?.count,
-      nutrientCount: nutrientRows[0]?.count,
-    }).toEqual({
-      result: { foodCount: 5, nutrientRowCount: 10 },
-      foodCount: 5,
-      nutrientCount: 10,
-    })
+    expect(result).toEqual({ foodCount: 5, nutrientRowCount: 10 })
+    expect(foodRows[0]?.count).toBe(5)
+    expect(nutrientRows[0]?.count).toBe(10)
   })
 
   it('rejects a non-positive batchSize', async () => {
@@ -192,13 +179,11 @@ describeIfDb('loadFoodComposition', () => {
       WHERE food_composition_code = '99999'
       ORDER BY nutrient_code
     `
-    expect({ result, rows }).toEqual({
-      result: { foodCount: 1, nutrientRowCount: 2 },
-      rows: [
-        { nutrient_code: 'custom_nutrient_g', value: '1.5' },
-        { nutrient_code: 'protein_g', value: '10' },
-      ],
-    })
+    expect(result).toEqual({ foodCount: 1, nutrientRowCount: 2 })
+    expect(rows).toEqual([
+      { nutrient_code: 'custom_nutrient_g', value: '1.5' },
+      { nutrient_code: 'protein_g', value: '10' },
+    ])
   })
 
   it('throws FoodCompositionLoadError listing missing nutrient codes', async () => {
@@ -231,8 +216,7 @@ describeIfDb('loadFoodComposition', () => {
 describe('parseFoodCompositionDataset', () => {
   it('throws FoodCompositionLoadError when the dataset contains duplicate codes', () => {
     const outcome = (():
-      | { status: 'ok' }
-      | { status: 'error'; message: string } => {
+      { status: 'ok' } | { status: 'error'; message: string } => {
       try {
         parseFoodCompositionDataset([
           { code: '01001', name: 'a', nutrients: { protein_g: 1 } },

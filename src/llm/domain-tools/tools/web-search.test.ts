@@ -65,26 +65,24 @@ describe('web_search tool', () => {
       limit: 3,
     })
 
-    expect({ result: normalizeResult(result), captured }).toEqual({
-      result: {
-        ok: true,
-        value: {
-          snippets: [
-            {
-              title: 'Banana nutrition',
-              url: 'https://example.test/banana',
-              text: 'A banana has about 89 kcal per 100g.',
-            },
-          ],
-        },
+    expect(normalizeResult(result)).toEqual({
+      ok: true,
+      value: {
+        snippets: [
+          {
+            title: 'Banana nutrition',
+            url: 'https://example.test/banana',
+            text: 'A banana has about 89 kcal per 100g.',
+          },
+        ],
       },
-      captured: [
-        {
-          url: 'https://api.example.test/search',
-          body: { query: 'banana nutrition', max_results: 3 },
-        },
-      ],
     })
+    expect(captured).toEqual([
+      {
+        url: 'https://api.example.test/search',
+        body: { query: 'banana nutrition', max_results: 3 },
+      },
+    ])
   })
 
   it('rejects empty query with invalid_input and never calls the upstream', async () => {
@@ -93,17 +91,15 @@ describe('web_search tool', () => {
     )
     const result = await tool.execute({ query: '' })
 
-    expect({ result: normalizeResult(result), captured }).toEqual({
-      result: {
-        ok: false,
-        error: {
-          code: 'invalid_input',
-          message: '<dynamic>',
-          details: { issues: { count: 1 } },
-        },
+    expect(normalizeResult(result)).toEqual({
+      ok: false,
+      error: {
+        code: 'invalid_input',
+        message: '<dynamic>',
+        details: { issues: { count: 1 } },
       },
-      captured: [],
     })
+    expect(captured).toEqual([])
   })
 
   it('maps WebSearchRateLimitError to web_search/rate_limited', async () => {

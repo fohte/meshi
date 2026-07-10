@@ -70,19 +70,14 @@ describe('handleMcpRequest', () => {
       }),
     })
 
-    expect({
-      status: res.status,
-      payload: parseSseDataLine(await res.text()),
-    }).toEqual({
-      status: 200,
-      payload: {
-        jsonrpc: '2.0',
-        id: 1,
-        result: {
-          protocolVersion: '2024-11-05',
-          capabilities: { tools: { listChanged: true } },
-          serverInfo: { name: 'meshi', version: '0.0.0' },
-        },
+    expect(res.status).toBe(200)
+    expect(parseSseDataLine(await res.text())).toEqual({
+      jsonrpc: '2.0',
+      id: 1,
+      result: {
+        protocolVersion: '2024-11-05',
+        capabilities: { tools: { listChanged: true } },
+        serverInfo: { name: 'meshi', version: '0.0.0' },
       },
     })
   })

@@ -22,16 +22,10 @@ describeIfDb('createDrizzleMealLogRepository', () => {
     const error = await repo
       .findFoodMaster('fm_does_not_exist')
       .catch((e: unknown) => e)
-    expect({
-      isNotFound: error instanceof FoodMasterNotFoundError,
-      id:
-        error instanceof FoodMasterNotFoundError
-          ? error.foodMasterId
-          : undefined,
-    }).toEqual({
-      isNotFound: true,
-      id: 'fm_does_not_exist',
-    })
+    expect(error).toBeInstanceOf(FoodMasterNotFoundError)
+    expect(
+      error instanceof FoodMasterNotFoundError ? error.foodMasterId : undefined,
+    ).toBe('fm_does_not_exist')
   })
 
   it('round-trips a meal log through insertMealLog + findMealLogById', async () => {
@@ -65,24 +59,20 @@ describeIfDb('createDrizzleMealLogRepository', () => {
       createdAt: CREATED_AT_PLACEHOLDER,
     }
 
-    expect({
-      inserted: normalizeRow(inserted),
-      fetched:
-        fetched === null
-          ? null
-          : { log: normalizeRow(fetched.log), food: fetched.food },
-    }).toEqual({
-      inserted: expectedRow,
-      fetched: {
-        log: expectedRow,
-        food: {
-          id: 'fm_rice',
-          name: '白米',
-          isEstimated: false,
-          nutritionPer100g: {
-            protein_g: 2.5,
-            carb_g: 37.1,
-          },
+    expect(normalizeRow(inserted)).toEqual(expectedRow)
+    expect(
+      fetched === null
+        ? null
+        : { log: normalizeRow(fetched.log), food: fetched.food },
+    ).toEqual({
+      log: expectedRow,
+      food: {
+        id: 'fm_rice',
+        name: '白米',
+        isEstimated: false,
+        nutritionPer100g: {
+          protein_g: 2.5,
+          carb_g: 37.1,
         },
       },
     })

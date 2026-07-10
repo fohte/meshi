@@ -312,37 +312,34 @@ describe('record_meal_from_text', () => {
           timezone: 'Asia/Tokyo',
         },
       })
-      expect({
-        isError: result.isError ?? false,
-        content: result.content,
-        structuredContent: result.structuredContent,
-        orchestratorCalls: h.calls.recordFromText,
-        events: h.logs.map((l) => l.event),
-      }).toEqual({
-        isError: false,
-        content: [{ type: 'text', text: '白米 200g を記録しました。' }],
-        structuredContent: {
-          recorded: [
-            {
-              meal_log_id: 'log-1',
-              food_master_id: 'food-1',
-              nutrition: { energy_kcal: 312 },
-              is_estimated: false,
-            },
-          ],
-          candidates: [],
-          has_estimated_values: false,
-          error: null,
-        },
-        orchestratorCalls: [
+      expect(result.isError ?? false).toBe(false)
+      expect(result.content).toEqual([
+        { type: 'text', text: '白米 200g を記録しました。' },
+      ])
+      expect(result.structuredContent).toEqual({
+        recorded: [
           {
-            text: '白米 200g',
-            occurredAt: new Date('2026-06-12T12:30:00+09:00'),
-            timezone: 'Asia/Tokyo',
+            meal_log_id: 'log-1',
+            food_master_id: 'food-1',
+            nutrition: { energy_kcal: 312 },
+            is_estimated: false,
           },
         ],
-        events: ['meshi.tool_called', 'meshi.tool_succeeded'],
+        candidates: [],
+        has_estimated_values: false,
+        error: null,
       })
+      expect(h.calls.recordFromText).toEqual([
+        {
+          text: '白米 200g',
+          occurredAt: new Date('2026-06-12T12:30:00+09:00'),
+          timezone: 'Asia/Tokyo',
+        },
+      ])
+      expect(h.logs.map((l) => l.event)).toEqual([
+        'meshi.tool_called',
+        'meshi.tool_succeeded',
+      ])
     } finally {
       await h.close()
     }
@@ -355,19 +352,12 @@ describe('record_meal_from_text', () => {
         name: 'record_meal_from_text',
         arguments: {},
       })
-      expect({
-        isError: result.isError ?? false,
-        structuredContent: result.structuredContent,
-        orchestratorCalls: h.calls.recordFromText,
-        events: h.logs.map((l) => l.event),
-      }).toEqual({
-        isError: true,
-        structuredContent: undefined,
-        orchestratorCalls: [],
-        // Schema validation fails before the handler runs, so neither
-        // tool_called nor tool_failed fires.
-        events: [],
-      })
+      expect(result.isError ?? false).toBe(true)
+      expect(result.structuredContent).toBeUndefined()
+      expect(h.calls.recordFromText).toEqual([])
+      // Schema validation fails before the handler runs, so neither
+      // tool_called nor tool_failed fires.
+      expect(h.logs.map((l) => l.event)).toEqual([])
     } finally {
       await h.close()
     }
@@ -382,20 +372,17 @@ describe('record_meal_from_text', () => {
         name: 'record_meal_from_text',
         arguments: { text: 'foo' },
       })
-      expect({
-        isError: result.isError,
-        structuredContent: result.structuredContent,
-        events: h.logs.map((l) => l.event),
-      }).toEqual({
-        isError: true,
-        structuredContent: {
-          recorded: [],
-          candidates: [],
-          has_estimated_values: false,
-          error: { kind: 'max_turns_exceeded', message: 'max turns' },
-        },
-        events: ['meshi.tool_called', 'meshi.tool_failed'],
+      expect(result.isError).toBe(true)
+      expect(result.structuredContent).toEqual({
+        recorded: [],
+        candidates: [],
+        has_estimated_values: false,
+        error: { kind: 'max_turns_exceeded', message: 'max turns' },
       })
+      expect(h.logs.map((l) => l.event)).toEqual([
+        'meshi.tool_called',
+        'meshi.tool_failed',
+      ])
     } finally {
       await h.close()
     }
@@ -410,17 +397,13 @@ describe('record_meal_from_text', () => {
         name: 'record_meal_from_text',
         arguments: { text: 'foo' },
       })
-      expect({
-        isError: result.isError,
-        content: result.content,
-        structuredContent: result.structuredContent,
-        events: h.logs.map((l) => l.event),
-      }).toEqual({
-        isError: true,
-        content: [{ type: 'text', text: 'boom' }],
-        structuredContent: undefined,
-        events: ['meshi.tool_called', 'meshi.tool_failed'],
-      })
+      expect(result.isError).toBe(true)
+      expect(result.content).toEqual([{ type: 'text', text: 'boom' }])
+      expect(result.structuredContent).toBeUndefined()
+      expect(h.logs.map((l) => l.event)).toEqual([
+        'meshi.tool_called',
+        'meshi.tool_failed',
+      ])
     } finally {
       await h.close()
     }
@@ -435,28 +418,24 @@ describe('record_meal_from_text', () => {
         name: 'record_meal_from_text',
         arguments: { text: 'rice' },
       })
-      expect({
-        isError: result.isError ?? false,
-        content: result.content,
-        structuredContent: result.structuredContent,
-      }).toEqual({
-        isError: false,
-        content: [{ type: 'text', text: '食品を一意に特定できませんでした。' }],
-        structuredContent: {
-          recorded: [],
-          candidates: [
-            {
-              food_master_id: 'food-9',
-              composition_code: null,
-              name: '白米',
-              is_estimated: false,
-              score: 0.5,
-              reason: 'history_recent',
-            },
-          ],
-          has_estimated_values: false,
-          error: null,
-        },
+      expect(result.isError ?? false).toBe(false)
+      expect(result.content).toEqual([
+        { type: 'text', text: '食品を一意に特定できませんでした。' },
+      ])
+      expect(result.structuredContent).toEqual({
+        recorded: [],
+        candidates: [
+          {
+            food_master_id: 'food-9',
+            composition_code: null,
+            name: '白米',
+            is_estimated: false,
+            score: 0.5,
+            reason: 'history_recent',
+          },
+        ],
+        has_estimated_values: false,
+        error: null,
       })
     } finally {
       await h.close()
@@ -477,34 +456,29 @@ describe('record_meal_from_image', () => {
           hint_text: 'ラーメン',
         },
       })
-      expect({
-        isError: result.isError ?? false,
-        content: result.content,
-        structuredContent: result.structuredContent,
-        orchestratorCalls: h.calls.recordFromImage,
-      }).toEqual({
-        isError: false,
-        content: [{ type: 'text', text: '白米 200g を記録しました。' }],
-        structuredContent: {
-          recorded: [
-            {
-              meal_log_id: 'log-1',
-              food_master_id: 'food-1',
-              nutrition: { energy_kcal: 312 },
-              is_estimated: false,
-            },
-          ],
-          candidates: [],
-          has_estimated_values: false,
-          error: null,
-        },
-        orchestratorCalls: [
+      expect(result.isError ?? false).toBe(false)
+      expect(result.content).toEqual([
+        { type: 'text', text: '白米 200g を記録しました。' },
+      ])
+      expect(result.structuredContent).toEqual({
+        recorded: [
           {
-            image: { mimeType: 'image/png', base64 },
-            hintText: 'ラーメン',
+            meal_log_id: 'log-1',
+            food_master_id: 'food-1',
+            nutrition: { energy_kcal: 312 },
+            is_estimated: false,
           },
         ],
+        candidates: [],
+        has_estimated_values: false,
+        error: null,
       })
+      expect(h.calls.recordFromImage).toEqual([
+        {
+          image: { mimeType: 'image/png', base64 },
+          hintText: 'ラーメン',
+        },
+      ])
     } finally {
       await h.close()
     }
@@ -538,17 +512,10 @@ describe('record_meal_from_image', () => {
             image: { type: 'image', mimeType, data },
           },
         })
-        expect({
-          isError: result.isError ?? false,
-          structuredContent: result.structuredContent,
-          orchestratorCalls: h.calls.recordFromImage,
-          events: h.logs.map((l) => l.event),
-        }).toEqual({
-          isError: true,
-          structuredContent: undefined,
-          orchestratorCalls: [],
-          events: [],
-        })
+        expect(result.isError ?? false).toBe(true)
+        expect(result.structuredContent).toBeUndefined()
+        expect(h.calls.recordFromImage).toEqual([])
+        expect(h.logs.map((l) => l.event)).toEqual([])
       } finally {
         await h.close()
       }
@@ -568,32 +535,26 @@ describe('query_meals', () => {
           period_to_iso: '2026-06-15T00:00:00+09:00',
         },
       })
-      expect({
-        isError: result.isError ?? false,
-        content: result.content,
-        structured: result.structuredContent,
-      }).toEqual({
-        isError: false,
-        content: [{ type: 'text', text: '集計結果...' }],
-        structured: {
-          aggregate: {
-            totals: { energy_kcal: 1850 },
-            per_day: [{ date: '2026-06-12', totals: { energy_kcal: 1850 } }],
-            entries: [
-              {
-                meal_log_id: 'log-1',
-                food_master_id: 'food-1',
-                eaten_at_iso: '2026-06-12T12:30:00+09:00',
-                quantity: 1,
-                unit: '杯',
-                note: null,
-              },
-            ],
-            has_estimated_values: false,
-          },
+      expect(result.isError ?? false).toBe(false)
+      expect(result.content).toEqual([{ type: 'text', text: '集計結果...' }])
+      expect(result.structuredContent).toEqual({
+        aggregate: {
+          totals: { energy_kcal: 1850 },
+          per_day: [{ date: '2026-06-12', totals: { energy_kcal: 1850 } }],
+          entries: [
+            {
+              meal_log_id: 'log-1',
+              food_master_id: 'food-1',
+              eaten_at_iso: '2026-06-12T12:30:00+09:00',
+              quantity: 1,
+              unit: '杯',
+              note: null,
+            },
+          ],
           has_estimated_values: false,
-          error: null,
         },
+        has_estimated_values: false,
+        error: null,
       })
     } finally {
       await h.close()
@@ -609,17 +570,12 @@ describe('recommend_meal', () => {
         name: 'recommend_meal',
         arguments: { additional_constraints: '軽め' },
       })
-      expect({
-        isError: result.isError ?? false,
-        content: result.content,
-        structuredContent: result.structuredContent,
-        recommendCalls: h.calls.recommendMeal,
-      }).toEqual({
-        isError: false,
-        content: [{ type: 'text', text: 'サバ味噌煮定食はどうでしょう' }],
-        structuredContent: { error: null },
-        recommendCalls: [{ conditions: '軽め' }],
-      })
+      expect(result.isError ?? false).toBe(false)
+      expect(result.content).toEqual([
+        { type: 'text', text: 'サバ味噌煮定食はどうでしょう' },
+      ])
+      expect(result.structuredContent).toEqual({ error: null })
+      expect(h.calls.recommendMeal).toEqual([{ conditions: '軽め' }])
     } finally {
       await h.close()
     }
@@ -634,25 +590,22 @@ describe('get_profile / update_profile', () => {
         name: 'get_profile',
         arguments: {},
       })
-      expect({
-        isError: result.isError ?? false,
-        content: result.content,
-        structuredContent: result.structuredContent,
-        getCalls: h.profileCalls.get,
-        events: h.logs.map((l) => l.event),
-      }).toEqual({
-        isError: false,
-        content: [{ type: 'text', text: 'プロファイルを取得しました。' }],
-        structuredContent: {
-          likes: ['rice'],
-          dislikes: [],
-          allergies: [],
-          constraints: [],
-          daily_targets: null,
-        },
-        getCalls: 1,
-        events: ['meshi.tool_called', 'meshi.tool_succeeded'],
+      expect(result.isError ?? false).toBe(false)
+      expect(result.content).toEqual([
+        { type: 'text', text: 'プロファイルを取得しました。' },
+      ])
+      expect(result.structuredContent).toEqual({
+        likes: ['rice'],
+        dislikes: [],
+        allergies: [],
+        constraints: [],
+        daily_targets: null,
       })
+      expect(h.profileCalls.get).toBe(1)
+      expect(h.logs.map((l) => l.event)).toEqual([
+        'meshi.tool_called',
+        'meshi.tool_succeeded',
+      ])
     } finally {
       await h.close()
     }
@@ -673,21 +626,15 @@ describe('get_profile / update_profile', () => {
         name: 'update_profile',
         arguments: { daily_targets: null },
       })
-      expect({
-        isError: result.isError ?? false,
-        structuredContent: result.structuredContent,
-        updateCalls: h.profileCalls.update,
-      }).toEqual({
-        isError: false,
-        structuredContent: {
-          likes: ['rice'],
-          dislikes: [],
-          allergies: [],
-          constraints: [],
-          daily_targets: null,
-        },
-        updateCalls: [{ dailyTargets: null }],
+      expect(result.isError ?? false).toBe(false)
+      expect(result.structuredContent).toEqual({
+        likes: ['rice'],
+        dislikes: [],
+        allergies: [],
+        constraints: [],
+        daily_targets: null,
       })
+      expect(h.profileCalls.update).toEqual([{ dailyTargets: null }])
     } finally {
       await h.close()
     }
@@ -703,25 +650,21 @@ describe('get_profile / update_profile', () => {
           daily_targets: { energy_kcal: 2000 },
         },
       })
-      expect({
-        isError: result.isError ?? false,
-        structuredContent: result.structuredContent,
-        updateCalls: h.profileCalls.update,
-        events: h.logs.map((l) => l.event),
-      }).toEqual({
-        isError: false,
-        structuredContent: {
-          likes: ['rice'],
-          dislikes: ['natto'],
-          allergies: [],
-          constraints: [],
-          daily_targets: { energy_kcal: 2000 },
-        },
-        updateCalls: [
-          { dislikes: ['natto'], dailyTargets: { energy_kcal: 2000 } },
-        ],
-        events: ['meshi.tool_called', 'meshi.tool_succeeded'],
+      expect(result.isError ?? false).toBe(false)
+      expect(result.structuredContent).toEqual({
+        likes: ['rice'],
+        dislikes: ['natto'],
+        allergies: [],
+        constraints: [],
+        daily_targets: { energy_kcal: 2000 },
       })
+      expect(h.profileCalls.update).toEqual([
+        { dislikes: ['natto'], dailyTargets: { energy_kcal: 2000 } },
+      ])
+      expect(h.logs.map((l) => l.event)).toEqual([
+        'meshi.tool_called',
+        'meshi.tool_succeeded',
+      ])
     } finally {
       await h.close()
     }
