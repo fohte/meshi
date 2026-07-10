@@ -1,7 +1,5 @@
 export type FoodSource =
-  | 'web_search'
-  | 'composition_table_estimate'
-  | 'user_input'
+  'web_search' | 'composition_table_estimate' | 'user_input'
 
 export type NutrientCode = string
 

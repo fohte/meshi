@@ -62,9 +62,7 @@ export interface MealHistoryAggregateSnapshot {
 }
 
 export type OrchestratorErrorKind =
-  | 'max_turns_exceeded'
-  | 'divergence_detected'
-  | 'interpretation_failed'
+  'max_turns_exceeded' | 'divergence_detected' | 'interpretation_failed'
 
 export interface OrchestratorError {
   readonly kind: OrchestratorErrorKind

@@ -24,10 +24,7 @@ export interface LlmToolResultContent {
 }
 
 export type LlmContent =
-  | LlmTextContent
-  | LlmImageContent
-  | LlmToolUseContent
-  | LlmToolResultContent
+  LlmTextContent | LlmImageContent | LlmToolUseContent | LlmToolResultContent
 
 export interface LlmMessage {
   readonly role: 'user' | 'assistant'
