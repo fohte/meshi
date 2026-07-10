@@ -216,91 +216,83 @@ describe('OpenCodeLlmClient.runConversation', () => {
       },
     })
 
-    expect({
-      result,
-      executed,
-      requestCount: mock.requests.length,
-      firstAuth: mock.requests[0]?.authorization,
-      secondRequestBody: mock.requests[1]?.body,
-    }).toEqual({
-      result: {
-        finalText: 'Logged ramen.',
-        stopReason: 'end',
-        turns: 2,
-        messages: [
-          { role: 'user', content: [{ type: 'text', text: 'I ate ramen' }] },
-          {
-            role: 'assistant',
-            content: [
-              {
-                type: 'tool_use',
-                id: 'call_1',
-                name: 'search_food_master',
-                input: { query: 'ramen' },
-              },
-            ],
-          },
-          {
-            role: 'user',
-            content: [
-              {
-                type: 'tool_result',
-                toolUseId: 'call_1',
-                content: JSON.stringify({ candidates: [{ id: 1 }] }),
-              },
-            ],
-          },
-          {
-            role: 'assistant',
-            content: [{ type: 'text', text: 'Logged ramen.' }],
-          },
-        ],
-      },
-      executed: [
-        { id: 'call_1', name: 'search_food_master', input: { query: 'ramen' } },
-      ],
-      requestCount: 2,
-      firstAuth: 'Bearer test-key',
-      secondRequestBody: {
-        model: 'test-model',
-        messages: [
-          { role: 'system', content: 'you log meals' },
-          { role: 'user', content: 'I ate ramen' },
-          {
-            role: 'assistant',
-            content: null,
-            tool_calls: [
-              {
-                id: 'call_1',
-                type: 'function',
-                function: {
-                  name: 'search_food_master',
-                  arguments: JSON.stringify({ query: 'ramen' }),
-                },
-              },
-            ],
-          },
-          {
-            role: 'tool',
-            tool_call_id: 'call_1',
-            content: JSON.stringify({ candidates: [{ id: 1 }] }),
-          },
-        ],
-        tools: [
-          {
-            type: 'function',
-            function: {
+    expect(result).toEqual({
+      finalText: 'Logged ramen.',
+      stopReason: 'end',
+      turns: 2,
+      messages: [
+        { role: 'user', content: [{ type: 'text', text: 'I ate ramen' }] },
+        {
+          role: 'assistant',
+          content: [
+            {
+              type: 'tool_use',
+              id: 'call_1',
               name: 'search_food_master',
-              description: 'search foods',
-              parameters: {
-                type: 'object',
-                properties: { query: { type: 'string' } },
-                required: ['query'],
+              input: { query: 'ramen' },
+            },
+          ],
+        },
+        {
+          role: 'user',
+          content: [
+            {
+              type: 'tool_result',
+              toolUseId: 'call_1',
+              content: JSON.stringify({ candidates: [{ id: 1 }] }),
+            },
+          ],
+        },
+        {
+          role: 'assistant',
+          content: [{ type: 'text', text: 'Logged ramen.' }],
+        },
+      ],
+    })
+    expect(executed).toEqual([
+      { id: 'call_1', name: 'search_food_master', input: { query: 'ramen' } },
+    ])
+    expect(mock.requests.length).toBe(2)
+    expect(mock.requests[0]?.authorization).toBe('Bearer test-key')
+    expect(mock.requests[1]?.body).toEqual({
+      model: 'test-model',
+      messages: [
+        { role: 'system', content: 'you log meals' },
+        { role: 'user', content: 'I ate ramen' },
+        {
+          role: 'assistant',
+          content: null,
+          tool_calls: [
+            {
+              id: 'call_1',
+              type: 'function',
+              function: {
+                name: 'search_food_master',
+                arguments: JSON.stringify({ query: 'ramen' }),
               },
             },
+          ],
+        },
+        {
+          role: 'tool',
+          tool_call_id: 'call_1',
+          content: JSON.stringify({ candidates: [{ id: 1 }] }),
+        },
+      ],
+      tools: [
+        {
+          type: 'function',
+          function: {
+            name: 'search_food_master',
+            description: 'search foods',
+            parameters: {
+              type: 'object',
+              properties: { query: { type: 'string' } },
+              required: ['query'],
+            },
           },
-        ],
-      },
+        },
+      ],
     })
   })
 
@@ -349,19 +341,18 @@ describe('OpenCodeLlmClient.runConversation', () => {
       },
     })
 
-    expect({
+    const actual = {
       stopReason: result.stopReason,
       turns: result.turns,
       finalText: result.finalText,
-      requestCount: mock.requests.length,
-      executedCount,
-    }).toEqual({
+    }
+    expect(actual).toEqual({
       stopReason: 'max_turns',
       turns: 2,
       finalText: '',
-      requestCount: 2,
-      executedCount: 1,
     })
+    expect(mock.requests.length).toBe(2)
+    expect(executedCount).toBe(1)
   })
 
   it('wraps executor errors as tool_result with isError=true', async () => {
@@ -410,11 +401,12 @@ describe('OpenCodeLlmClient.runConversation', () => {
       executeTool: () => Promise.reject(new Error('executor blew up')),
     })
 
-    expect({
+    const actual = {
       stopReason: result.stopReason,
       finalText: result.finalText,
       lastUserMessage: result.messages[result.messages.length - 2],
-    }).toEqual({
+    }
+    expect(actual).toEqual({
       stopReason: 'end',
       finalText: 'recovered',
       lastUserMessage: {
@@ -499,10 +491,8 @@ describe('OpenCodeLlmClient.runConversation', () => {
       },
     })
 
-    expect({ order, stopReason: result.stopReason }).toEqual({
-      order: ['start:a', 'start:b', 'end:b', 'end:a'],
-      stopReason: 'end',
-    })
+    expect(order).toEqual(['start:a', 'start:b', 'end:b', 'end:a'])
+    expect(result.stopReason).toBe('end')
   })
 
   it('wraps malformed responses in OpenCodeLlmInvalidResponseError', async () => {
@@ -590,10 +580,10 @@ describe('OpenCodeLlmClient.runConversation', () => {
       },
     })
 
-    expect({ received, finalText: result.finalText }).toEqual({
-      received: [{ id: 'call_null', name: 'search_food_master', input: {} }],
-      finalText: 'ok',
-    })
+    expect(received).toEqual([
+      { id: 'call_null', name: 'search_food_master', input: {} },
+    ])
+    expect(result.finalText).toBe('ok')
   })
 })
 
@@ -890,9 +880,9 @@ describe('OpenCodeLlmClient tracing', () => {
     })
 
     const spans = exporter.getFinishedSpans()
-    expect({
-      finalText: result.finalText,
-      spans: spans.map((span) => ({
+    expect(result.finalText).toBe('Logged ramen.')
+    expect(
+      spans.map((span) => ({
         status: span.status,
         exceptionTypes: span.events
           .filter((e) => e.name === 'exception')
@@ -902,16 +892,13 @@ describe('OpenCodeLlmClient tracing', () => {
         hasOutputMessages:
           span.attributes[ATTR_GEN_AI_OUTPUT_MESSAGES] !== undefined,
       })),
-    }).toEqual({
-      finalText: 'Logged ramen.',
-      spans: [
-        {
-          status: { code: SpanStatusCode.UNSET },
-          exceptionTypes: ['Error'],
-          hasFinishReasons: true,
-          hasOutputMessages: false,
-        },
-      ],
-    })
+    ).toEqual([
+      {
+        status: { code: SpanStatusCode.UNSET },
+        exceptionTypes: ['Error'],
+        hasFinishReasons: true,
+        hasOutputMessages: false,
+      },
+    ])
   })
 })

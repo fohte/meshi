@@ -60,36 +60,32 @@ describe('get_user_profile tool', () => {
 
     const result = await tool.execute({})
 
-    expect({ result: normalizeResult(result), calls }).toEqual({
-      result: {
-        ok: true,
-        value: {
-          likes: ['banana'],
-          dislikes: ['natto'],
-          allergies: ['shrimp'],
-          constraints: ['low-sodium'],
-          daily_targets: { energy_kcal: 2000 },
-        },
+    expect(normalizeResult(result)).toEqual({
+      ok: true,
+      value: {
+        likes: ['banana'],
+        dislikes: ['natto'],
+        allergies: ['shrimp'],
+        constraints: ['low-sodium'],
+        daily_targets: { energy_kcal: 2000 },
       },
-      calls: { get: 1, update: [] },
     })
+    expect(calls).toEqual({ get: 1, update: [] })
   })
 
   it('rejects unknown input fields with invalid_input', async () => {
     const { service, calls } = setup()
     const tool = createGetUserProfileTool(service)
     const result = await tool.execute({ unexpected: true })
-    expect({ result: normalizeResult(result), calls }).toEqual({
-      result: {
-        ok: false,
-        error: {
-          code: 'invalid_input',
-          message: '<dynamic>',
-          details: { issues: { count: 1 } },
-        },
+    expect(normalizeResult(result)).toEqual({
+      ok: false,
+      error: {
+        code: 'invalid_input',
+        message: '<dynamic>',
+        details: { issues: { count: 1 } },
       },
-      calls: { get: 0, update: [] },
     })
+    expect(calls).toEqual({ get: 0, update: [] })
   })
 })
 
@@ -108,19 +104,17 @@ describe('update_user_profile tool', () => {
 
     const result = await tool.execute({ likes: ['mango'] })
 
-    expect({ result: normalizeResult(result), calls }).toEqual({
-      result: {
-        ok: true,
-        value: {
-          likes: ['mango'],
-          dislikes: ['natto'],
-          allergies: ['shrimp'],
-          constraints: ['low-sodium'],
-          daily_targets: { energy_kcal: 2000 },
-        },
+    expect(normalizeResult(result)).toEqual({
+      ok: true,
+      value: {
+        likes: ['mango'],
+        dislikes: ['natto'],
+        allergies: ['shrimp'],
+        constraints: ['low-sodium'],
+        daily_targets: { energy_kcal: 2000 },
       },
-      calls: { get: 0, update: [{ likes: ['mango'] }] },
     })
+    expect(calls).toEqual({ get: 0, update: [{ likes: ['mango'] }] })
   })
 
   it('sends an empty patch when no fields are supplied and echoes the current profile', async () => {
@@ -134,19 +128,17 @@ describe('update_user_profile tool', () => {
 
     const result = await tool.execute({})
 
-    expect({ result: normalizeResult(result), calls }).toEqual({
-      result: {
-        ok: true,
-        value: {
-          likes: ['banana'],
-          dislikes: ['natto'],
-          allergies: ['shrimp'],
-          constraints: ['low-sodium'],
-          daily_targets: { energy_kcal: 2000 },
-        },
+    expect(normalizeResult(result)).toEqual({
+      ok: true,
+      value: {
+        likes: ['banana'],
+        dislikes: ['natto'],
+        allergies: ['shrimp'],
+        constraints: ['low-sodium'],
+        daily_targets: { energy_kcal: 2000 },
       },
-      calls: { get: 0, update: [{}] },
     })
+    expect(calls).toEqual({ get: 0, update: [{}] })
   })
 
   it('translates daily_targets snake_case to dailyTargets in the patch', async () => {
@@ -163,18 +155,19 @@ describe('update_user_profile tool', () => {
 
     const result = await tool.execute({ daily_targets: { protein_g: 80 } })
 
-    expect({ result: normalizeResult(result), calls }).toEqual({
-      result: {
-        ok: true,
-        value: {
-          likes: ['banana'],
-          dislikes: ['natto'],
-          allergies: ['shrimp'],
-          constraints: ['low-sodium'],
-          daily_targets: { energy_kcal: 2000, protein_g: 80 },
-        },
+    expect(normalizeResult(result)).toEqual({
+      ok: true,
+      value: {
+        likes: ['banana'],
+        dislikes: ['natto'],
+        allergies: ['shrimp'],
+        constraints: ['low-sodium'],
+        daily_targets: { energy_kcal: 2000, protein_g: 80 },
       },
-      calls: { get: 0, update: [{ dailyTargets: { protein_g: 80 } }] },
+    })
+    expect(calls).toEqual({
+      get: 0,
+      update: [{ dailyTargets: { protein_g: 80 } }],
     })
   })
 
@@ -183,16 +176,14 @@ describe('update_user_profile tool', () => {
     const tool = createUpdateUserProfileTool(service)
     const result = await tool.execute({ likes: ['banana', ''] })
 
-    expect({ result: normalizeResult(result), calls }).toEqual({
-      result: {
-        ok: false,
-        error: {
-          code: 'invalid_input',
-          message: '<dynamic>',
-          details: { issues: { count: 1 } },
-        },
+    expect(normalizeResult(result)).toEqual({
+      ok: false,
+      error: {
+        code: 'invalid_input',
+        message: '<dynamic>',
+        details: { issues: { count: 1 } },
       },
-      calls: { get: 0, update: [] },
     })
+    expect(calls).toEqual({ get: 0, update: [] })
   })
 })

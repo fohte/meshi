@@ -302,9 +302,7 @@ interface GenAiToolCallResponsePart {
 }
 
 type GenAiMessagePart =
-  | GenAiTextPart
-  | GenAiToolCallPart
-  | GenAiToolCallResponsePart
+  GenAiTextPart | GenAiToolCallPart | GenAiToolCallResponsePart
 
 interface GenAiMessage {
   readonly role: string
@@ -324,11 +322,10 @@ const openAiContentToGenAiParts = (
   }
   // Raw image bytes are redacted: they bloat span payloads and, unlike text,
   // carry no debugging value once reduced to an opaque data URL.
-  return content.map(
-    (part): GenAiMessagePart =>
-      part.type === 'text'
-        ? { type: 'text', content: part.text }
-        : { type: 'text', content: '[image omitted]' },
+  return content.map((part): GenAiMessagePart =>
+    part.type === 'text'
+      ? { type: 'text', content: part.text }
+      : { type: 'text', content: '[image omitted]' },
   )
 }
 

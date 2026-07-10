@@ -54,19 +54,20 @@ describe('register_food_master tool', () => {
       source_url: 'https://example.test/banana',
     })
 
-    expect({ result: normalizeResult(result), calls }).toEqual({
-      result: { ok: true, value: { food_master_id: 'fm_new' } },
-      calls: [
-        {
-          name: 'バナナ',
-          aliases: ['banana'],
-          nutrition: { energy_kcal: 89, protein_g: 1.1 },
-          source: 'web_search',
-          isEstimated: false,
-          sourceUrl: 'https://example.test/banana',
-        },
-      ],
+    expect(normalizeResult(result)).toEqual({
+      ok: true,
+      value: { food_master_id: 'fm_new' },
     })
+    expect(calls).toEqual([
+      {
+        name: 'バナナ',
+        aliases: ['banana'],
+        nutrition: { energy_kcal: 89, protein_g: 1.1 },
+        source: 'web_search',
+        isEstimated: false,
+        sourceUrl: 'https://example.test/banana',
+      },
+    ])
   })
 
   it('omits aliases and source_url when not supplied', async () => {
@@ -99,17 +100,15 @@ describe('register_food_master tool', () => {
       is_estimated: false,
     })
 
-    expect({ result: normalizeResult(result), calls }).toEqual({
-      result: {
-        ok: false,
-        error: {
-          code: 'invalid_input',
-          message: '<dynamic>',
-          details: { issues: { count: 1 } },
-        },
+    expect(normalizeResult(result)).toEqual({
+      ok: false,
+      error: {
+        code: 'invalid_input',
+        message: '<dynamic>',
+        details: { issues: { count: 1 } },
       },
-      calls: [],
     })
+    expect(calls).toEqual([])
   })
 
   it('maps FoodMasterDomainError to a namespaced tool error code with details', async () => {

@@ -1,8 +1,5 @@
 export type FoodMatchReason =
-  | 'history_recent'
-  | 'history_frequent'
-  | 'fuzzy_name'
-  | 'composition_table'
+  'history_recent' | 'history_frequent' | 'fuzzy_name' | 'composition_table'
 
 export interface FoodMatchCandidate {
   readonly reason: FoodMatchReason

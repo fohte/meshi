@@ -429,11 +429,12 @@ describeIfDb('meshi integration', () => {
         }),
       )
 
-      expect({
+      const actual = {
         isError: result.isError ?? false,
         content: textContent(result),
         structuredContent: result.structuredContent,
-      }).toEqual({
+      }
+      expect(actual).toEqual({
         isError: false,
         content: [
           ['記録しました (1 件)。', '- fm_rice: 336 kcal / P 5g / C 74g'].join(
@@ -535,10 +536,12 @@ describeIfDb('meshi integration', () => {
         }),
       )
 
-      expect({
+      const actual = {
         isError: result.isError ?? false,
         structuredContent: result.structuredContent,
-      }).toEqual({
+        content: textContent(result),
+      }
+      expect(actual).toEqual({
         isError: false,
         structuredContent: {
           recorded: [
@@ -553,10 +556,12 @@ describeIfDb('meshi integration', () => {
           has_estimated_values: false,
           error: null,
         },
+        content: [
+          ['記録しました (1 件)。', '- fm_test_0001: 210 kcal / P 7g'].join(
+            '\n',
+          ),
+        ],
       })
-      expect(textContent(result)).toEqual([
-        ['記録しました (1 件)。', '- fm_test_0001: 210 kcal / P 7g'].join('\n'),
-      ])
 
       const masters = await tx<{ id: string; name: string; source: string }[]>`
         SELECT id, name, source FROM food_masters ORDER BY id
@@ -628,12 +633,14 @@ describeIfDb('meshi integration', () => {
         }))
       const candidateNames = normalizedCandidates.map((c) => c.name).sort()
 
-      expect({
+      const actual = {
         isError: result.isError ?? false,
-        recorded: structured.recorded,
-        has_estimated_values: structured.has_estimated_values,
-        error: structured.error,
-        candidates: normalizedCandidates,
+        structuredContent: {
+          recorded: structured.recorded,
+          has_estimated_values: structured.has_estimated_values,
+          error: structured.error,
+          candidates: normalizedCandidates,
+        },
         content: textContent(result).map((line) => {
           // matcher orders by trigram score, which is non-deterministic
           // between the two equally-similar names — sort the rendered list.
@@ -642,27 +649,30 @@ describeIfDb('meshi integration', () => {
           if (header === undefined) return line
           return [header, ...[...rest].sort()].join('\n')
         }),
-      }).toEqual({
+      }
+      expect(actual).toEqual({
         isError: false,
-        recorded: [],
-        has_estimated_values: false,
-        error: null,
-        candidates: [
-          {
-            food_master_id: 'fm_salmon_sushi',
-            composition_code: null,
-            name: 'salmon sushi',
-            is_estimated: false,
-            reason: 'fuzzy_name',
-          },
-          {
-            food_master_id: 'fm_salmon_teriyaki',
-            composition_code: null,
-            name: 'salmon teriyaki',
-            is_estimated: false,
-            reason: 'fuzzy_name',
-          },
-        ],
+        structuredContent: {
+          recorded: [],
+          has_estimated_values: false,
+          error: null,
+          candidates: [
+            {
+              food_master_id: 'fm_salmon_sushi',
+              composition_code: null,
+              name: 'salmon sushi',
+              is_estimated: false,
+              reason: 'fuzzy_name',
+            },
+            {
+              food_master_id: 'fm_salmon_teriyaki',
+              composition_code: null,
+              name: 'salmon teriyaki',
+              is_estimated: false,
+              reason: 'fuzzy_name',
+            },
+          ],
+        },
         content: [
           [
             '食品を一意に特定できませんでした。次の候補から選んで、もう一度入力してください。',
@@ -725,11 +735,12 @@ describeIfDb('meshi integration', () => {
         }),
       )
 
-      expect({
+      const actual = {
         isError: result.isError ?? false,
         structuredContent: result.structuredContent,
         content: textContent(result),
-      }).toEqual({
+      }
+      expect(actual).toEqual({
         isError: false,
         structuredContent: {
           aggregate: {
@@ -808,11 +819,12 @@ describeIfDb('meshi integration', () => {
         }),
       )
 
-      expect({
+      const actual = {
         isError: result.isError ?? false,
         structuredContent: result.structuredContent,
         content: textContent(result),
-      }).toEqual({
+      }
+      expect(actual).toEqual({
         isError: false,
         structuredContent: { error: null },
         content: ['サバ味噌煮定食はいかがでしょう。'],
@@ -871,11 +883,12 @@ describeIfDb('meshi integration', () => {
         }),
       )
 
-      expect({
+      const actual = {
         isError: result.isError ?? false,
         structuredContent: result.structuredContent,
         content: textContent(result),
-      }).toEqual({
+      }
+      expect(actual).toEqual({
         isError: false,
         structuredContent: {
           recorded: [
@@ -930,11 +943,12 @@ describeIfDb('meshi integration', () => {
         }),
       )
 
-      expect({
+      const actualUpdated = {
         isError: updated.isError ?? false,
         content: textContent(updated),
         structuredContent: updated.structuredContent,
-      }).toEqual({
+      }
+      expect(actualUpdated).toEqual({
         isError: false,
         content: ['プロファイルを更新しました。'],
         structuredContent: {
@@ -953,11 +967,12 @@ describeIfDb('meshi integration', () => {
         }),
       )
 
-      expect({
+      const actualFetched = {
         isError: fetched.isError ?? false,
         content: textContent(fetched),
         structuredContent: fetched.structuredContent,
-      }).toEqual({
+      }
+      expect(actualFetched).toEqual({
         isError: false,
         content: ['プロファイルを取得しました。'],
         structuredContent: {

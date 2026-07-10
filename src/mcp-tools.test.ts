@@ -312,13 +312,12 @@ describe('record_meal_from_text', () => {
           timezone: 'Asia/Tokyo',
         },
       })
-      expect({
+      const actual = {
         isError: result.isError ?? false,
         content: result.content,
         structuredContent: result.structuredContent,
-        orchestratorCalls: h.calls.recordFromText,
-        events: h.logs.map((l) => l.event),
-      }).toEqual({
+      }
+      expect(actual).toEqual({
         isError: false,
         content: [{ type: 'text', text: '白米 200g を記録しました。' }],
         structuredContent: {
@@ -334,15 +333,18 @@ describe('record_meal_from_text', () => {
           has_estimated_values: false,
           error: null,
         },
-        orchestratorCalls: [
-          {
-            text: '白米 200g',
-            occurredAt: new Date('2026-06-12T12:30:00+09:00'),
-            timezone: 'Asia/Tokyo',
-          },
-        ],
-        events: ['meshi.tool_called', 'meshi.tool_succeeded'],
       })
+      expect(h.calls.recordFromText).toEqual([
+        {
+          text: '白米 200g',
+          occurredAt: new Date('2026-06-12T12:30:00+09:00'),
+          timezone: 'Asia/Tokyo',
+        },
+      ])
+      expect(h.logs.map((l) => l.event)).toEqual([
+        'meshi.tool_called',
+        'meshi.tool_succeeded',
+      ])
     } finally {
       await h.close()
     }
@@ -355,19 +357,15 @@ describe('record_meal_from_text', () => {
         name: 'record_meal_from_text',
         arguments: {},
       })
-      expect({
+      const actual = {
         isError: result.isError ?? false,
         structuredContent: result.structuredContent,
-        orchestratorCalls: h.calls.recordFromText,
-        events: h.logs.map((l) => l.event),
-      }).toEqual({
-        isError: true,
-        structuredContent: undefined,
-        orchestratorCalls: [],
-        // Schema validation fails before the handler runs, so neither
-        // tool_called nor tool_failed fires.
-        events: [],
-      })
+      }
+      expect(actual).toEqual({ isError: true, structuredContent: undefined })
+      expect(h.calls.recordFromText).toEqual([])
+      // Schema validation fails before the handler runs, so neither
+      // tool_called nor tool_failed fires.
+      expect(h.logs.map((l) => l.event)).toEqual([])
     } finally {
       await h.close()
     }
@@ -382,11 +380,11 @@ describe('record_meal_from_text', () => {
         name: 'record_meal_from_text',
         arguments: { text: 'foo' },
       })
-      expect({
+      const actual = {
         isError: result.isError,
         structuredContent: result.structuredContent,
-        events: h.logs.map((l) => l.event),
-      }).toEqual({
+      }
+      expect(actual).toEqual({
         isError: true,
         structuredContent: {
           recorded: [],
@@ -394,8 +392,11 @@ describe('record_meal_from_text', () => {
           has_estimated_values: false,
           error: { kind: 'max_turns_exceeded', message: 'max turns' },
         },
-        events: ['meshi.tool_called', 'meshi.tool_failed'],
       })
+      expect(h.logs.map((l) => l.event)).toEqual([
+        'meshi.tool_called',
+        'meshi.tool_failed',
+      ])
     } finally {
       await h.close()
     }
@@ -410,17 +411,20 @@ describe('record_meal_from_text', () => {
         name: 'record_meal_from_text',
         arguments: { text: 'foo' },
       })
-      expect({
+      const actual = {
         isError: result.isError,
         content: result.content,
         structuredContent: result.structuredContent,
-        events: h.logs.map((l) => l.event),
-      }).toEqual({
+      }
+      expect(actual).toEqual({
         isError: true,
         content: [{ type: 'text', text: 'boom' }],
         structuredContent: undefined,
-        events: ['meshi.tool_called', 'meshi.tool_failed'],
       })
+      expect(h.logs.map((l) => l.event)).toEqual([
+        'meshi.tool_called',
+        'meshi.tool_failed',
+      ])
     } finally {
       await h.close()
     }
@@ -435,11 +439,12 @@ describe('record_meal_from_text', () => {
         name: 'record_meal_from_text',
         arguments: { text: 'rice' },
       })
-      expect({
+      const actual = {
         isError: result.isError ?? false,
         content: result.content,
         structuredContent: result.structuredContent,
-      }).toEqual({
+      }
+      expect(actual).toEqual({
         isError: false,
         content: [{ type: 'text', text: '食品を一意に特定できませんでした。' }],
         structuredContent: {
@@ -477,12 +482,12 @@ describe('record_meal_from_image', () => {
           hint_text: 'ラーメン',
         },
       })
-      expect({
+      const actual = {
         isError: result.isError ?? false,
         content: result.content,
         structuredContent: result.structuredContent,
-        orchestratorCalls: h.calls.recordFromImage,
-      }).toEqual({
+      }
+      expect(actual).toEqual({
         isError: false,
         content: [{ type: 'text', text: '白米 200g を記録しました。' }],
         structuredContent: {
@@ -498,13 +503,13 @@ describe('record_meal_from_image', () => {
           has_estimated_values: false,
           error: null,
         },
-        orchestratorCalls: [
-          {
-            image: { mimeType: 'image/png', base64 },
-            hintText: 'ラーメン',
-          },
-        ],
       })
+      expect(h.calls.recordFromImage).toEqual([
+        {
+          image: { mimeType: 'image/png', base64 },
+          hintText: 'ラーメン',
+        },
+      ])
     } finally {
       await h.close()
     }
@@ -538,17 +543,13 @@ describe('record_meal_from_image', () => {
             image: { type: 'image', mimeType, data },
           },
         })
-        expect({
+        const actual = {
           isError: result.isError ?? false,
           structuredContent: result.structuredContent,
-          orchestratorCalls: h.calls.recordFromImage,
-          events: h.logs.map((l) => l.event),
-        }).toEqual({
-          isError: true,
-          structuredContent: undefined,
-          orchestratorCalls: [],
-          events: [],
-        })
+        }
+        expect(actual).toEqual({ isError: true, structuredContent: undefined })
+        expect(h.calls.recordFromImage).toEqual([])
+        expect(h.logs.map((l) => l.event)).toEqual([])
       } finally {
         await h.close()
       }
@@ -568,14 +569,15 @@ describe('query_meals', () => {
           period_to_iso: '2026-06-15T00:00:00+09:00',
         },
       })
-      expect({
+      const actual = {
         isError: result.isError ?? false,
         content: result.content,
-        structured: result.structuredContent,
-      }).toEqual({
+        structuredContent: result.structuredContent,
+      }
+      expect(actual).toEqual({
         isError: false,
         content: [{ type: 'text', text: '集計結果...' }],
-        structured: {
+        structuredContent: {
           aggregate: {
             totals: { energy_kcal: 1850 },
             per_day: [{ date: '2026-06-12', totals: { energy_kcal: 1850 } }],
@@ -609,17 +611,17 @@ describe('recommend_meal', () => {
         name: 'recommend_meal',
         arguments: { additional_constraints: '軽め' },
       })
-      expect({
+      const actual = {
         isError: result.isError ?? false,
         content: result.content,
         structuredContent: result.structuredContent,
-        recommendCalls: h.calls.recommendMeal,
-      }).toEqual({
+      }
+      expect(actual).toEqual({
         isError: false,
         content: [{ type: 'text', text: 'サバ味噌煮定食はどうでしょう' }],
         structuredContent: { error: null },
-        recommendCalls: [{ conditions: '軽め' }],
       })
+      expect(h.calls.recommendMeal).toEqual([{ conditions: '軽め' }])
     } finally {
       await h.close()
     }
@@ -634,13 +636,12 @@ describe('get_profile / update_profile', () => {
         name: 'get_profile',
         arguments: {},
       })
-      expect({
+      const actual = {
         isError: result.isError ?? false,
         content: result.content,
         structuredContent: result.structuredContent,
-        getCalls: h.profileCalls.get,
-        events: h.logs.map((l) => l.event),
-      }).toEqual({
+      }
+      expect(actual).toEqual({
         isError: false,
         content: [{ type: 'text', text: 'プロファイルを取得しました。' }],
         structuredContent: {
@@ -650,9 +651,12 @@ describe('get_profile / update_profile', () => {
           constraints: [],
           daily_targets: null,
         },
-        getCalls: 1,
-        events: ['meshi.tool_called', 'meshi.tool_succeeded'],
       })
+      expect(h.profileCalls.get).toBe(1)
+      expect(h.logs.map((l) => l.event)).toEqual([
+        'meshi.tool_called',
+        'meshi.tool_succeeded',
+      ])
     } finally {
       await h.close()
     }
@@ -673,11 +677,11 @@ describe('get_profile / update_profile', () => {
         name: 'update_profile',
         arguments: { daily_targets: null },
       })
-      expect({
+      const actual = {
         isError: result.isError ?? false,
         structuredContent: result.structuredContent,
-        updateCalls: h.profileCalls.update,
-      }).toEqual({
+      }
+      expect(actual).toEqual({
         isError: false,
         structuredContent: {
           likes: ['rice'],
@@ -686,8 +690,8 @@ describe('get_profile / update_profile', () => {
           constraints: [],
           daily_targets: null,
         },
-        updateCalls: [{ dailyTargets: null }],
       })
+      expect(h.profileCalls.update).toEqual([{ dailyTargets: null }])
     } finally {
       await h.close()
     }
@@ -703,12 +707,11 @@ describe('get_profile / update_profile', () => {
           daily_targets: { energy_kcal: 2000 },
         },
       })
-      expect({
+      const actual = {
         isError: result.isError ?? false,
         structuredContent: result.structuredContent,
-        updateCalls: h.profileCalls.update,
-        events: h.logs.map((l) => l.event),
-      }).toEqual({
+      }
+      expect(actual).toEqual({
         isError: false,
         structuredContent: {
           likes: ['rice'],
@@ -717,11 +720,14 @@ describe('get_profile / update_profile', () => {
           constraints: [],
           daily_targets: { energy_kcal: 2000 },
         },
-        updateCalls: [
-          { dislikes: ['natto'], dailyTargets: { energy_kcal: 2000 } },
-        ],
-        events: ['meshi.tool_called', 'meshi.tool_succeeded'],
       })
+      expect(h.profileCalls.update).toEqual([
+        { dislikes: ['natto'], dailyTargets: { energy_kcal: 2000 } },
+      ])
+      expect(h.logs.map((l) => l.event)).toEqual([
+        'meshi.tool_called',
+        'meshi.tool_succeeded',
+      ])
     } finally {
       await h.close()
     }

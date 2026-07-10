@@ -78,31 +78,26 @@ describe('createTavilyWebSearchClient', () => {
 
     const result = await client.search('banana nutrition', { limit: 3 })
 
-    expect({
-      result,
-      request: captured[0],
-    }).toEqual({
-      result: {
-        snippets: [
-          {
-            title: 'Banana nutrition',
-            url: 'https://example.test/banana',
-            text: 'A banana has about 89 kcal per 100g.',
-          },
-          {
-            title: 'USDA: Banana',
-            url: 'https://example.test/usda-banana',
-            text: 'Carbohydrate 22.8g per 100g.',
-          },
-        ],
-      },
-      request: {
-        url: 'https://api.example.test/search',
-        authorization: 'Bearer test-key',
-        body: {
-          query: 'banana nutrition',
-          max_results: 3,
+    expect(result).toEqual({
+      snippets: [
+        {
+          title: 'Banana nutrition',
+          url: 'https://example.test/banana',
+          text: 'A banana has about 89 kcal per 100g.',
         },
+        {
+          title: 'USDA: Banana',
+          url: 'https://example.test/usda-banana',
+          text: 'Carbohydrate 22.8g per 100g.',
+        },
+      ],
+    })
+    expect(captured[0]).toEqual({
+      url: 'https://api.example.test/search',
+      authorization: 'Bearer test-key',
+      body: {
+        query: 'banana nutrition',
+        max_results: 3,
       },
     })
   })
@@ -113,15 +108,9 @@ describe('createTavilyWebSearchClient', () => {
     const error = await client.search('rice').catch((e: unknown) => e)
     const status = error instanceof WebSearchError ? error.status : undefined
 
-    expect({
-      isRateLimit: error instanceof WebSearchRateLimitError,
-      isWebSearchError: error instanceof WebSearchError,
-      status,
-    }).toEqual({
-      isRateLimit: true,
-      isWebSearchError: true,
-      status: 429,
-    })
+    expect(error).toBeInstanceOf(WebSearchRateLimitError)
+    expect(error).toBeInstanceOf(WebSearchError)
+    expect(status).toBe(429)
   })
 
   it('returns an empty snippet list when the API returns no results', async () => {
@@ -139,13 +128,8 @@ describe('createTavilyWebSearchClient', () => {
 
     const error = await client.search('missing-url').catch((e: unknown) => e)
 
-    expect({
-      isInvalid: error instanceof WebSearchInvalidResponseError,
-      isWebSearchError: error instanceof WebSearchError,
-    }).toEqual({
-      isInvalid: true,
-      isWebSearchError: true,
-    })
+    expect(error).toBeInstanceOf(WebSearchInvalidResponseError)
+    expect(error).toBeInstanceOf(WebSearchError)
   })
 
   it('wraps non-JSON 2xx bodies in WebSearchError', async () => {
@@ -157,14 +141,8 @@ describe('createTavilyWebSearchClient', () => {
 
     const error = await client.search('q').catch((e: unknown) => e)
 
-    expect({
-      isWebSearchError: error instanceof WebSearchError,
-      isRateLimit: error instanceof WebSearchRateLimitError,
-      status: error instanceof WebSearchError ? error.status : undefined,
-    }).toEqual({
-      isWebSearchError: true,
-      isRateLimit: false,
-      status: 200,
-    })
+    expect(error).toBeInstanceOf(WebSearchError)
+    expect(error).not.toBeInstanceOf(WebSearchRateLimitError)
+    expect(error instanceof WebSearchError ? error.status : undefined).toBe(200)
   })
 })

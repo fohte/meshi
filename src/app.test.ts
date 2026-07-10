@@ -48,12 +48,12 @@ describe('MCP server initialize', () => {
     const client = new Client({ name: 'meshi-test', version: '0.0.0' })
     await client.connect(clientTransport)
 
-    expect({
-      version: client.getServerVersion(),
-      capabilities: client.getServerCapabilities(),
-    }).toEqual({
-      version: { name: MCP_SERVER_NAME, version: MCP_SERVER_VERSION },
-      capabilities: { tools: { listChanged: true } },
+    expect(client.getServerVersion()).toEqual({
+      name: MCP_SERVER_NAME,
+      version: MCP_SERVER_VERSION,
+    })
+    expect(client.getServerCapabilities()).toEqual({
+      tools: { listChanged: true },
     })
 
     await client.close()

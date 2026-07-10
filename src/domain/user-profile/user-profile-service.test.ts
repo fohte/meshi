@@ -53,22 +53,15 @@ describe('createUserProfileService', () => {
       dailyTargets: { protein_g: 80 },
     })
 
-    expect({ updated, stored: repo.current }).toEqual({
-      updated: {
-        likes: ['natto'],
-        dislikes: [],
-        allergies: [],
-        constraints: [],
-        dailyTargets: { protein_g: 80 },
-      },
-      stored: {
-        likes: ['natto'],
-        dislikes: [],
-        allergies: [],
-        constraints: [],
-        dailyTargets: { protein_g: 80 },
-      },
-    })
+    const expected = {
+      likes: ['natto'],
+      dislikes: [],
+      allergies: [],
+      constraints: [],
+      dailyTargets: { protein_g: 80 },
+    } satisfies UserProfile
+    expect(updated).toEqual(expected)
+    expect(repo.current).toEqual(expected)
   })
 
   it('leaves omitted fields untouched on partial update', async () => {
@@ -104,10 +97,8 @@ describe('createUserProfileService', () => {
 
     const result = await service.update({})
 
-    expect({ result, saveCalls: repo.saveCalls }).toEqual({
-      result: stored,
-      saveCalls: 0,
-    })
+    expect(result).toEqual(stored)
+    expect(repo.saveCalls).toBe(0)
   })
 
   it('merges dailyTargets per-key so omitted nutrient codes are preserved', async () => {

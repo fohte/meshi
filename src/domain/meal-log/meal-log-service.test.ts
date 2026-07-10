@@ -113,34 +113,32 @@ describe('MealLogService.record', () => {
       unit: 'g',
     })
 
-    expect({ result, inserted }).toEqual({
-      result: {
+    expect(result).toEqual({
+      id: 'ml_1',
+      foodMasterId: 'fm_rice',
+      eatenAt: EATEN_AT,
+      quantity: 100,
+      unit: 'g',
+      note: null,
+      createdAt: CREATED_AT,
+      nutrition: {
+        energy_kcal: 156,
+        protein_g: 2.5,
+        fat_g: 0.3,
+        carb_g: 37.1,
+      },
+      isEstimated: false,
+    })
+    expect(inserted).toEqual([
+      {
         id: 'ml_1',
         foodMasterId: 'fm_rice',
         eatenAt: EATEN_AT,
         quantity: 100,
         unit: 'g',
         note: null,
-        createdAt: CREATED_AT,
-        nutrition: {
-          energy_kcal: 156,
-          protein_g: 2.5,
-          fat_g: 0.3,
-          carb_g: 37.1,
-        },
-        isEstimated: false,
       },
-      inserted: [
-        {
-          id: 'ml_1',
-          foodMasterId: 'fm_rice',
-          eatenAt: EATEN_AT,
-          quantity: 100,
-          unit: 'g',
-          note: null,
-        },
-      ],
-    })
+    ])
   })
 
   it('scales nutrition linearly for a 200g meal', async () => {
@@ -236,40 +234,38 @@ describe('MealLogService.record', () => {
       unit: 'g',
     })
 
-    expect([confirmed, estimated]).toEqual([
-      {
-        id: 'ml_1',
-        foodMasterId: 'fm_rice',
-        eatenAt: EATEN_AT,
-        quantity: 100,
-        unit: 'g',
-        note: null,
-        createdAt: CREATED_AT,
-        nutrition: {
-          energy_kcal: 156,
-          protein_g: 2.5,
-          fat_g: 0.3,
-          carb_g: 37.1,
-        },
-        isEstimated: false,
+    expect(confirmed).toEqual({
+      id: 'ml_1',
+      foodMasterId: 'fm_rice',
+      eatenAt: EATEN_AT,
+      quantity: 100,
+      unit: 'g',
+      note: null,
+      createdAt: CREATED_AT,
+      nutrition: {
+        energy_kcal: 156,
+        protein_g: 2.5,
+        fat_g: 0.3,
+        carb_g: 37.1,
       },
-      {
-        id: 'ml_2',
-        foodMasterId: 'fm_karaage',
-        eatenAt: EATEN_AT,
-        quantity: 100,
-        unit: 'g',
-        note: null,
-        createdAt: CREATED_AT,
-        nutrition: {
-          energy_kcal: 290,
-          protein_g: 24.2,
-          fat_g: 18.1,
-          carb_g: 7.9,
-        },
-        isEstimated: true,
+      isEstimated: false,
+    })
+    expect(estimated).toEqual({
+      id: 'ml_2',
+      foodMasterId: 'fm_karaage',
+      eatenAt: EATEN_AT,
+      quantity: 100,
+      unit: 'g',
+      note: null,
+      createdAt: CREATED_AT,
+      nutrition: {
+        energy_kcal: 290,
+        protein_g: 24.2,
+        fat_g: 18.1,
+        carb_g: 7.9,
       },
-    ])
+      isEstimated: true,
+    })
   })
 
   it('rejects an eaten_at strictly in the future with FutureEatenAtError', async () => {
@@ -285,15 +281,11 @@ describe('MealLogService.record', () => {
       })
       .catch((e: unknown) => e)
 
-    expect({
-      isFutureError: error instanceof FutureEatenAtError,
-      eatenAt: error instanceof FutureEatenAtError ? error.eatenAt : undefined,
-      inserted,
-    }).toEqual({
-      isFutureError: true,
-      eatenAt: future,
-      inserted: [],
-    })
+    expect(error).toBeInstanceOf(FutureEatenAtError)
+    expect(
+      error instanceof FutureEatenAtError ? error.eatenAt : undefined,
+    ).toEqual(future)
+    expect(inserted).toEqual([])
   })
 
   it('allows eaten_at exactly equal to now', async () => {
@@ -338,16 +330,11 @@ describe('MealLogService.record', () => {
         })
         .catch((e: unknown) => e)
 
-      expect({
-        isInvalid: error instanceof InvalidQuantityError,
-        quantity:
-          error instanceof InvalidQuantityError ? error.quantity : undefined,
-        inserted,
-      }).toEqual({
-        isInvalid: true,
-        quantity,
-        inserted: [],
-      })
+      expect(error).toBeInstanceOf(InvalidQuantityError)
+      expect(
+        error instanceof InvalidQuantityError ? error.quantity : undefined,
+      ).toEqual(quantity)
+      expect(inserted).toEqual([])
     },
   )
 
@@ -363,18 +350,11 @@ describe('MealLogService.record', () => {
       })
       .catch((e: unknown) => e)
 
-    expect({
-      isMissingError: error instanceof FoodMasterNotFoundError,
-      foodMasterId:
-        error instanceof FoodMasterNotFoundError
-          ? error.foodMasterId
-          : undefined,
-      inserted,
-    }).toEqual({
-      isMissingError: true,
-      foodMasterId: 'fm_missing',
-      inserted: [],
-    })
+    expect(error).toBeInstanceOf(FoodMasterNotFoundError)
+    expect(
+      error instanceof FoodMasterNotFoundError ? error.foodMasterId : undefined,
+    ).toBe('fm_missing')
+    expect(inserted).toEqual([])
   })
 })
 

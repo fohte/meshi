@@ -51,26 +51,24 @@ describe('record_meal_log tool', () => {
       note: 'lunch',
     })
 
-    expect({ result: normalizeResult(result), calls }).toEqual({
-      result: {
-        ok: true,
-        value: {
-          meal_log_id: 'ml_1',
-          nutrition: { energy_kcal: 252 },
-          is_estimated: false,
+    expect(normalizeResult(result)).toEqual({
+      ok: true,
+      value: {
+        meal_log_id: 'ml_1',
+        nutrition: { energy_kcal: 252 },
+        is_estimated: false,
+      },
+    })
+    expect(calls).toEqual({
+      record: [
+        {
+          foodMasterId: 'fm_rice',
+          eatenAt: new Date('2026-06-18T09:00:00+09:00'),
+          quantity: 1,
+          unit: '杯',
+          note: 'lunch',
         },
-      },
-      calls: {
-        record: [
-          {
-            foodMasterId: 'fm_rice',
-            eatenAt: new Date('2026-06-18T09:00:00+09:00'),
-            quantity: 1,
-            unit: '杯',
-            note: 'lunch',
-          },
-        ],
-      },
+      ],
     })
   })
 
@@ -83,17 +81,15 @@ describe('record_meal_log tool', () => {
       unit: '杯',
     })
 
-    expect({ result: normalizeResult(result), calls }).toEqual({
-      result: {
-        ok: false,
-        error: {
-          code: 'invalid_input',
-          message: '<dynamic>',
-          details: { issues: { count: 1 } },
-        },
+    expect(normalizeResult(result)).toEqual({
+      ok: false,
+      error: {
+        code: 'invalid_input',
+        message: '<dynamic>',
+        details: { issues: { count: 1 } },
       },
-      calls: { record: [] },
     })
+    expect(calls).toEqual({ record: [] })
   })
 
   it('returns invalid_input for non-positive quantity', async () => {
@@ -104,17 +100,15 @@ describe('record_meal_log tool', () => {
       quantity: 0,
       unit: '杯',
     })
-    expect({ result: normalizeResult(result), calls }).toEqual({
-      result: {
-        ok: false,
-        error: {
-          code: 'invalid_input',
-          message: '<dynamic>',
-          details: { issues: { count: 1 } },
-        },
+    expect(normalizeResult(result)).toEqual({
+      ok: false,
+      error: {
+        code: 'invalid_input',
+        message: '<dynamic>',
+        details: { issues: { count: 1 } },
       },
-      calls: { record: [] },
     })
+    expect(calls).toEqual({ record: [] })
   })
 
   it('maps FutureEatenAtError to its DomainError code', async () => {
@@ -130,19 +124,14 @@ describe('record_meal_log tool', () => {
       unit: '杯',
     })
 
-    expect({
-      result: normalizeResult(result),
-      recordCalled: calls.record.length,
-    }).toEqual({
-      result: {
-        ok: false,
-        error: {
-          code: 'meal_log/future_eaten_at',
-          message: '<dynamic>',
-        },
+    expect(normalizeResult(result)).toEqual({
+      ok: false,
+      error: {
+        code: 'meal_log/future_eaten_at',
+        message: '<dynamic>',
       },
-      recordCalled: 0,
     })
+    expect(calls.record).toHaveLength(0)
   })
 
   it('maps FoodMasterNotFoundError to its DomainError code', async () => {
@@ -157,15 +146,13 @@ describe('record_meal_log tool', () => {
       unit: 'g',
     })
 
-    expect({ result: normalizeResult(result), calls }).toEqual({
-      result: {
-        ok: false,
-        error: {
-          code: 'meal_log/food_master_not_found',
-          message: '<dynamic>',
-        },
+    expect(normalizeResult(result)).toEqual({
+      ok: false,
+      error: {
+        code: 'meal_log/food_master_not_found',
+        message: '<dynamic>',
       },
-      calls: { record: [] },
     })
+    expect(calls).toEqual({ record: [] })
   })
 })
