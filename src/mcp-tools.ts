@@ -51,6 +51,7 @@ const orchestratorErrorOutput = z
       'max_turns_exceeded',
       'divergence_detected',
       'interpretation_failed',
+      'item_conversation_failed',
     ]),
     message: z.string(),
   })

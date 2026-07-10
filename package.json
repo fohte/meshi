@@ -6,6 +6,7 @@
   "scripts": {
     "start": "tsx src/index.ts",
     "dev": "tsx watch src/index.ts",
+    "build": "tsup src/index.ts src/db/migrate.ts --format esm --out-dir dist --clean",
     "db:up": "docker compose up -d postgres",
     "db:down": "docker compose down",
     "db:generate": "drizzle-kit generate",
@@ -30,6 +31,7 @@
     "drizzle-kit": "0.31.10",
     "eslint": "10.6.0",
     "prettier": "3.9.4",
+    "tsup": "8.5.1",
     "tsx": "4.22.4",
     "typescript": "6.0.3",
     "vitest": "4.1.9"

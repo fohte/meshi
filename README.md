@@ -10,7 +10,7 @@
 
 - Node.js (LTS, see `.mise.toml`)
 - pnpm (via Corepack or mise)
-- Docker (for local Postgres)
+- Docker (for local Postgres, and optionally for running the app itself)
 
 ### Local Postgres
 
@@ -20,34 +20,31 @@ Start a local Postgres instance with the bundled compose file:
 pnpm db:up
 ```
 
-This boots Postgres on `127.0.0.1:5432` with database `meshi` and user `meshi` / password `meshi`. Stop it with `pnpm db:down`.
+This boots Postgres with database `meshi` and user `meshi` / password `meshi`, published to a random host port to avoid clashing with other projects' Postgres instances. Find it with:
+
+```sh
+docker compose port postgres 5432
+```
+
+Stop it with `pnpm db:down`.
 
 ### Environment variables
 
-The server fails fast on missing required env at startup. Set the following before running:
+The server fails fast on missing required env at startup. This table covers every env var this repo's own code reads directly, not just via `src/env.ts`. Observability (Sentry/OTel exporter) config is delegated wholesale to `@fohte/service-kit/observability` and follows that package's own env var contract, not `src/env.ts`'s — see its docs for those variable names.
 
-| Name                          | Description                                                      |
-| ----------------------------- | ---------------------------------------------------------------- |
-| `OPENCODE_API_KEY`            | OpenCode Go API key (text + vision LLM)                          |
-| `MESHI_LLM_MODEL`             | Default text LLM model id                                        |
-| `MESHI_LLM_VISION_MODEL`      | Vision LLM model id (must support tool use)                      |
-| `MESHI_LLM_LIGHTWEIGHT_MODEL` | Cheaper text LLM for lightweight prompts                         |
-| `MESHI_LLM_MAX_TURNS`         | Internal tool-use loop cap (optional, defaults to `12`)          |
-| `DATABASE_URL`                | Postgres connection string (verified with `SELECT 1` at startup) |
-| `WEB_SEARCH_API_KEY`          | Web search API key                                               |
-| `MCP_LISTEN_ADDR`             | MCP server listen address, e.g. `0.0.0.0:8080`                   |
-
-Example `.env` for local development:
-
-```sh
-OPENCODE_API_KEY=dev
-MESHI_LLM_MODEL=...
-MESHI_LLM_VISION_MODEL=...
-MESHI_LLM_LIGHTWEIGHT_MODEL=...
-DATABASE_URL=postgres://meshi:meshi@127.0.0.1:5432/meshi
-WEB_SEARCH_API_KEY=dev
-MCP_LISTEN_ADDR=0.0.0.0:8080
-```
+| Name                                                 | Required                   | Description                                                                                                                                                       | Example                                                             |
+| ---------------------------------------------------- | -------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------- |
+| `OPENCODE_API_KEY`                                   | Required                   | OpenCode Go API key (text + vision LLM)                                                                                                                           | `dev`                                                               |
+| `MESHI_LLM_MODEL`                                    | Required                   | Default text LLM model id                                                                                                                                         | `...`                                                               |
+| `MESHI_LLM_VISION_MODEL`                             | Required                   | Vision LLM model id (must support tool use)                                                                                                                       | `...`                                                               |
+| `MESHI_LLM_LIGHTWEIGHT_MODEL`                        | Required                   | Cheaper text LLM for lightweight prompts                                                                                                                          | `...`                                                               |
+| `MESHI_LLM_MAX_TURNS`                                | Optional (default `12`)    | Internal tool-use loop cap                                                                                                                                        | `12`                                                                |
+| `DATABASE_URL`                                       | Required                   | Postgres connection string (verified with `SELECT 1` at startup); also required to run `src/db/migrate.ts` directly                                               | `postgres://meshi:meshi@127.0.0.1:<port from docker compose>/meshi` |
+| `WEB_SEARCH_API_KEY`                                 | Required                   | Web search API key                                                                                                                                                | `dev`                                                               |
+| `MCP_LISTEN_ADDR`                                    | Required                   | MCP server listen address                                                                                                                                         | `0.0.0.0:8080`                                                      |
+| `OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT` | Optional (default `false`) | Capture LLM prompt/completion content on GenAI spans (may contain PII); case-insensitive (`true`/`TRUE`/`True` all enable it, anything else is `false`)           | `true`                                                              |
+| `NODE_ENV`                                           | Optional                   | Skips observability initialization when set to `test` (set automatically by Vitest); otherwise passed through to `@fohte/service-kit/observability`               | `production`                                                        |
+| `TEST_DATABASE_URL`                                  | Optional (test-only)       | Local Postgres URL for DB-backed tests (`pnpm test`); those suites are skipped when unset. Must point at a local host — the test setup runs `DROP SCHEMA CASCADE` | `postgres://meshi:meshi@127.0.0.1:5432/meshi`                       |
 
 ### Run
 
@@ -55,6 +52,15 @@ MCP_LISTEN_ADDR=0.0.0.0:8080
 pnpm start    # one-shot
 pnpm dev      # tsx watch
 ```
+
+Or run it in a container instead (source is bind-mounted, so it hot-reloads the same way):
+
+```sh
+OPENCODE_API_KEY=dev MESHI_LLM_MODEL=... MESHI_LLM_VISION_MODEL=... MESHI_LLM_LIGHTWEIGHT_MODEL=... WEB_SEARCH_API_KEY=dev \
+  docker compose up app
+```
+
+It's published to a random host port; find it with `docker compose port app 8080`.
 
 The MCP endpoint is served at `POST /mcp`; `GET /health` reports DB connectivity.
 

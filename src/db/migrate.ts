@@ -1,15 +1,23 @@
-import { fileURLToPath } from 'node:url'
+import { createSql } from '@/db'
+import { runMigrations } from '@/db/migrations'
+import { EnvError, requireDatabaseUrl } from '@/env'
 
-import { drizzle } from 'drizzle-orm/postgres-js'
-import { migrate } from 'drizzle-orm/postgres-js/migrator'
-
-import type { Sql } from '@/db'
-
-export const MIGRATIONS_FOLDER = fileURLToPath(
-  new URL('../../drizzle', import.meta.url),
-)
-
-export const runMigrations = async (sql: Sql): Promise<void> => {
-  const db = drizzle(sql)
-  await migrate(db, { migrationsFolder: MIGRATIONS_FOLDER })
+// infra runs this as `node dist/db/migrate.js` in an init container.
+const main = async (): Promise<void> => {
+  const sql = createSql(requireDatabaseUrl())
+  try {
+    await runMigrations(sql)
+    console.log('migrations applied')
+  } finally {
+    await sql.end({ timeout: 5 })
+  }
 }
+
+main().catch((err: unknown) => {
+  if (err instanceof EnvError) {
+    for (const issue of err.issues) console.error(issue)
+  } else {
+    console.error(err)
+  }
+  process.exit(1)
+})

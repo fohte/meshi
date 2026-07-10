@@ -9,7 +9,7 @@ import { createTavilyWebSearchClient } from '@/adapters/web-search/tavily-web-se
 import { createApp } from '@/app'
 import { observability } from '@/bootstrap'
 import { createSql, pingDb } from '@/db'
-import { runMigrations } from '@/db/migrate'
+import { runMigrations } from '@/db/migrations'
 import { seedNutrientDefinitions } from '@/db/seed'
 import { createFoodMasterRepository } from '@/domain/food-master/repository'
 import { createFoodMasterService } from '@/domain/food-master/service'
@@ -76,7 +76,11 @@ export const main = async (): Promise<void> => {
   const webSearchClient = createTavilyWebSearchClient({
     apiKey: env.WEB_SEARCH_API_KEY,
   })
-  const llmClient = new OpenCodeLlmClient({ apiKey: env.OPENCODE_API_KEY })
+  const llmClient = new OpenCodeLlmClient({
+    apiKey: env.OPENCODE_API_KEY,
+    captureMessageContent:
+      env.OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT,
+  })
   const registry = createDomainToolsRegistry({
     mealLogService,
     foodMasterService,
@@ -90,6 +94,7 @@ export const main = async (): Promise<void> => {
     registry,
     textModel: env.MESHI_LLM_MODEL,
     visionModel: env.MESHI_LLM_VISION_MODEL,
+    lightweightModel: env.MESHI_LLM_LIGHTWEIGHT_MODEL,
     maxTurns: env.MESHI_LLM_MAX_TURNS,
     formatter: createTemplateReplyFormatter(),
   })

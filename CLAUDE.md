@@ -1,5 +1,9 @@
 # CLAUDE.md
 
+## Environment variables
+
+Every env var the code reads — via `src/env.ts`'s `Env` interface or a direct `process.env` lookup anywhere under `src/` — must be added to the environment variables table in `README.md` (Name / Required / Description / Example) in the same change. Prefer reading through `src/env.ts` (the `Env` interface, or a standalone helper like `requireDatabaseUrl` for scripts that shouldn't need the full `Env`) over a bare `process.env` lookup. A direct `process.env` read is only acceptable when it's genuinely outside the app's own `Env` schema — e.g. `TEST_DATABASE_URL` in `src/test/db.ts` (configures the test harness, not the running server) or `NODE_ENV` in `src/bootstrap.ts` — and it is still in scope for the README table: the table is the single source of truth for what the deployment or test setup must configure, independent of which code path reads it. Exception: env vars whose literal names never appear in this repo's own code — e.g. the Sentry/OTel exporter vars `src/bootstrap.ts` reaches by forwarding `process.env` wholesale to `@fohte/service-kit/observability` — belong to that package's contract, not this one; document the pass-through, not names owned elsewhere.
+
 ## Test code rules
 
 ### Assert on the whole output with a single equality check

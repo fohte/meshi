@@ -10,6 +10,11 @@ export interface MealRecordSummaryInput {
   readonly candidates: ReadonlyArray<FoodCandidate>
   readonly hasEstimatedValues: boolean
   readonly finalText: string
+  // Assistant text from items that produced neither a recorded meal nor a
+  // candidate list — e.g. one item in a multi-item request that the model
+  // couldn't identify. Shown alongside recorded/candidates instead of
+  // finalText, which mixes in narration from items that already succeeded.
+  readonly unresolvedNotes?: ReadonlyArray<string>
   readonly error: OrchestratorError | null
 }
 
@@ -92,11 +97,18 @@ const formatErrorReply = (error: OrchestratorError): string => {
         '内部処理で同じ操作が繰り返されたため中断しました。',
         '入力を変えてもう一度試してください。',
       ].join('\n')
+    case 'item_conversation_failed':
+      return [
+        '一部の品目の処理中にエラーが発生しました。',
+        'しばらくしてからもう一度お試しください。',
+      ].join('\n')
   }
 }
 
 const formatMealRecordTemplate = (input: MealRecordSummaryInput): string => {
   if (input.error) return formatErrorReply(input.error)
+
+  const sections: string[] = []
 
   if (input.recorded.length > 0) {
     const lines: string[] = []
@@ -110,7 +122,7 @@ const formatMealRecordTemplate = (input: MealRecordSummaryInput): string => {
     if (input.hasEstimatedValues) {
       lines.push('※ 推測値が含まれています。値は目安としてご確認ください。')
     }
-    return lines.join('\n')
+    sections.push(lines.join('\n'))
   }
 
   if (input.candidates.length > 0) {
@@ -122,8 +134,17 @@ const formatMealRecordTemplate = (input: MealRecordSummaryInput): string => {
       const suffix = c.isEstimated ? ' (推測値)' : ''
       lines.push(`- ${c.name}${suffix}: ${c.reason}`)
     }
-    return lines.join('\n')
+    sections.push(lines.join('\n'))
   }
+
+  const unresolvedNote = (input.unresolvedNotes ?? []).join('\n').trim()
+  if (unresolvedNote !== '') sections.push(unresolvedNote)
+
+  // Any combination can be non-empty in a multi-item request (some items
+  // recorded, others still need clarification, others produced neither);
+  // show every section instead of the recorded-only section silently
+  // dropping the rest.
+  if (sections.length > 0) return sections.join('\n\n')
 
   const trimmed = input.finalText.trim()
   if (trimmed !== '') return trimmed
