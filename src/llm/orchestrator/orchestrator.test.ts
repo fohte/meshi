@@ -550,31 +550,29 @@ describe('ConversationOrchestrator', () => {
       text: 'ラーメンとポテチを食べた',
     })
 
+    expect(result).toEqual({
+      recorded: [
+        {
+          mealLogId: 'log_1',
+          foodMasterId: 'fm_1',
+          nutrition: { energy_kcal: 100 },
+          isEstimated: false,
+        },
+        {
+          mealLogId: 'log_2',
+          foodMasterId: 'fm_2',
+          nutrition: { energy_kcal: 200 },
+          isEstimated: false,
+        },
+      ],
+      candidates: [],
+      hasEstimatedValues: false,
+      summaryText: ['Recorded ramen.', 'Recorded chips.'].join('\n'),
+      error: null,
+    })
     // Pin each item conversation to the item it was actually given — the
     // scripts above only line up with the fm_1/fm_2 handling by call order.
-    expect({ result, itemConversationTexts: seenUserTexts.slice(1) }).toEqual({
-      result: {
-        recorded: [
-          {
-            mealLogId: 'log_1',
-            foodMasterId: 'fm_1',
-            nutrition: { energy_kcal: 100 },
-            isEstimated: false,
-          },
-          {
-            mealLogId: 'log_2',
-            foodMasterId: 'fm_2',
-            nutrition: { energy_kcal: 200 },
-            isEstimated: false,
-          },
-        ],
-        candidates: [],
-        hasEstimatedValues: false,
-        summaryText: ['Recorded ramen.', 'Recorded chips.'].join('\n'),
-        error: null,
-      },
-      itemConversationTexts: ['ラーメン', 'ポテチ'],
-    })
+    expect(seenUserTexts.slice(1)).toEqual(['ラーメン', 'ポテチ'])
   })
 
   it('splits items when the split reply is wrapped in a markdown code fence', async () => {
@@ -742,25 +740,23 @@ describe('ConversationOrchestrator', () => {
       text: 'known food と unknown food を食べた',
     })
 
+    expect(result).toEqual({
+      recorded: [
+        {
+          mealLogId: 'log_ok',
+          foodMasterId: 'fm_ok',
+          nutrition: { energy_kcal: 100 },
+          isEstimated: false,
+        },
+      ],
+      candidates: [],
+      hasEstimatedValues: false,
+      summaryText: 'Recorded known food.',
+      error: null,
+    })
     // Pin each item conversation to the item it was actually given — the
     // scripts above only line up with "records"/"hits max_turns" by call order.
-    expect({ result, itemConversationTexts: seenUserTexts.slice(1) }).toEqual({
-      result: {
-        recorded: [
-          {
-            mealLogId: 'log_ok',
-            foodMasterId: 'fm_ok',
-            nutrition: { energy_kcal: 100 },
-            isEstimated: false,
-          },
-        ],
-        candidates: [],
-        hasEstimatedValues: false,
-        summaryText: 'Recorded known food.',
-        error: null,
-      },
-      itemConversationTexts: ['known food', 'unknown food'],
-    })
+    expect(seenUserTexts.slice(1)).toEqual(['known food', 'unknown food'])
   })
 
   it('falls back to a single conversation for the whole text when the split reply is not valid JSON', async () => {
@@ -810,23 +806,21 @@ describe('ConversationOrchestrator', () => {
       text: 'ラーメンを食べた',
     })
 
-    expect({ result, itemConversationText: seenUserTexts[1] }).toEqual({
-      result: {
-        recorded: [
-          {
-            mealLogId: 'log_1',
-            foodMasterId: 'fm_1',
-            nutrition: { energy_kcal: 250 },
-            isEstimated: false,
-          },
-        ],
-        candidates: [],
-        hasEstimatedValues: false,
-        summaryText: 'Recorded.',
-        error: null,
-      },
-      itemConversationText: 'ラーメンを食べた',
+    expect(result).toEqual({
+      recorded: [
+        {
+          mealLogId: 'log_1',
+          foodMasterId: 'fm_1',
+          nutrition: { energy_kcal: 250 },
+          isEstimated: false,
+        },
+      ],
+      candidates: [],
+      hasEstimatedValues: false,
+      summaryText: 'Recorded.',
+      error: null,
     })
+    expect(seenUserTexts[1]).toBe('ラーメンを食べた')
   })
 
   it('falls back to a single conversation when the split call itself rejects', async () => {
@@ -880,23 +874,21 @@ describe('ConversationOrchestrator', () => {
       text: 'ラーメンを食べた',
     })
 
-    expect({ result, itemConversationText: seenUserTexts[1] }).toEqual({
-      result: {
-        recorded: [
-          {
-            mealLogId: 'log_1',
-            foodMasterId: 'fm_1',
-            nutrition: { energy_kcal: 250 },
-            isEstimated: false,
-          },
-        ],
-        candidates: [],
-        hasEstimatedValues: false,
-        summaryText: 'Recorded.',
-        error: null,
-      },
-      itemConversationText: 'ラーメンを食べた',
+    expect(result).toEqual({
+      recorded: [
+        {
+          mealLogId: 'log_1',
+          foodMasterId: 'fm_1',
+          nutrition: { energy_kcal: 250 },
+          isEstimated: false,
+        },
+      ],
+      candidates: [],
+      hasEstimatedValues: false,
+      summaryText: 'Recorded.',
+      error: null,
     })
+    expect(seenUserTexts[1]).toBe('ラーメンを食べた')
   })
 
   it('records other items even when one item conversation rejects', async () => {

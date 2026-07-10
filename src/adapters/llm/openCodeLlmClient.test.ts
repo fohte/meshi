@@ -880,9 +880,9 @@ describe('OpenCodeLlmClient tracing', () => {
     })
 
     const spans = exporter.getFinishedSpans()
-    expect({
-      finalText: result.finalText,
-      spans: spans.map((span) => ({
+    expect(result.finalText).toBe('Logged ramen.')
+    expect(
+      spans.map((span) => ({
         status: span.status,
         exceptionTypes: span.events
           .filter((e) => e.name === 'exception')
@@ -892,16 +892,13 @@ describe('OpenCodeLlmClient tracing', () => {
         hasOutputMessages:
           span.attributes[ATTR_GEN_AI_OUTPUT_MESSAGES] !== undefined,
       })),
-    }).toEqual({
-      finalText: 'Logged ramen.',
-      spans: [
-        {
-          status: { code: SpanStatusCode.UNSET },
-          exceptionTypes: ['Error'],
-          hasFinishReasons: true,
-          hasOutputMessages: false,
-        },
-      ],
-    })
+    ).toEqual([
+      {
+        status: { code: SpanStatusCode.UNSET },
+        exceptionTypes: ['Error'],
+        hasFinishReasons: true,
+        hasOutputMessages: false,
+      },
+    ])
   })
 })
