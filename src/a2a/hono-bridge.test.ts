@@ -44,6 +44,33 @@ const streamEventSchema = z.object({
 
 const NORMALIZED = 'NORMALIZED'
 
+const normalizeStatusIds = <
+  T extends { id: string; contextId: string; status: { timestamp: string } },
+>(
+  result: T,
+): T => ({
+  ...result,
+  id: NORMALIZED,
+  contextId: NORMALIZED,
+  status: { ...result.status, timestamp: NORMALIZED },
+})
+
+const normalizeTaskResult = (
+  body: z.infer<typeof jsonRpcSuccessSchema>,
+): z.infer<typeof jsonRpcSuccessSchema> => ({
+  ...body,
+  result: normalizeStatusIds(body.result),
+})
+
+// The exact message text comes from V8's JSON.parse error and isn't stable
+// across Node versions, so only its presence is normalized in.
+const normalizeParseError = (
+  body: z.infer<typeof jsonRpcErrorSchema>,
+): z.infer<typeof jsonRpcErrorSchema> => ({
+  ...body,
+  error: { ...body.error, message: NORMALIZED },
+})
+
 const parseSseEvents = (text: string): unknown[] =>
   text
     .split('\n\n')
@@ -137,16 +164,7 @@ describe('mountA2aRoutes', () => {
 
       expect(res.status).toBe(200)
       const body = jsonRpcSuccessSchema.parse(await res.json())
-      const normalized = {
-        ...body,
-        result: {
-          ...body.result,
-          id: NORMALIZED,
-          contextId: NORMALIZED,
-          status: { ...body.result.status, timestamp: NORMALIZED },
-        },
-      }
-      expect(normalized).toEqual({
+      expect(normalizeTaskResult(body)).toEqual({
         jsonrpc: '2.0',
         id: 1,
         result: {
@@ -176,13 +194,7 @@ describe('mountA2aRoutes', () => {
 
       expect(res.status).toBe(200)
       const body = jsonRpcErrorSchema.parse(await res.json())
-      // The exact message text comes from V8's JSON.parse error and isn't
-      // stable across Node versions, so only its presence is normalized in.
-      const normalized = {
-        ...body,
-        error: { ...body.error, message: NORMALIZED },
-      }
-      expect(normalized).toEqual({
+      expect(normalizeParseError(body)).toEqual({
         jsonrpc: '2.0',
         id: null,
         error: { code: -32700, message: NORMALIZED },
@@ -213,15 +225,7 @@ describe('mountA2aRoutes', () => {
       expect(res.headers.get('Content-Type')).toBe('text/event-stream')
       const events = parseSseEvents(await res.text()).map((event) => {
         const parsed = streamEventSchema.parse(event)
-        return {
-          ...parsed,
-          result: {
-            ...parsed.result,
-            id: NORMALIZED,
-            contextId: NORMALIZED,
-            status: { ...parsed.result.status, timestamp: NORMALIZED },
-          },
-        }
+        return { ...parsed, result: normalizeStatusIds(parsed.result) }
       })
       expect(events).toEqual([
         {

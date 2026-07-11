@@ -21,6 +21,26 @@ import type {
 import type { Logger } from '@/logger'
 import { createMcpServer } from '@/mcp'
 
+const VALIDATION_ERROR_TEXT = '<schema validation error>'
+
+// zod's exact error message (JSON shape, field ordering, "code" names) is an
+// implementation detail of the MCP SDK / zod version, not part of this app's
+// contract — normalize it to a fixed placeholder so these tests don't break
+// on a zod/SDK upgrade unrelated to app behavior.
+const normalizeValidationError = <
+  T extends { content?: { type: string }[]; [key: string]: unknown },
+>(
+  result: T,
+): T => {
+  if (!result.content) return result
+  return {
+    ...result,
+    content: result.content.map((c) =>
+      c.type === 'text' ? { ...c, text: VALIDATION_ERROR_TEXT } : c,
+    ),
+  }
+}
+
 interface LogEntry {
   readonly event: string
   readonly payload: Readonly<Record<string, unknown>>
@@ -312,13 +332,7 @@ describe('record_meal_from_text', () => {
           timezone: 'Asia/Tokyo',
         },
       })
-      const actual = {
-        isError: result.isError ?? false,
-        content: result.content,
-        structuredContent: result.structuredContent,
-      }
-      expect(actual).toEqual({
-        isError: false,
+      expect(result).toEqual({
         content: [{ type: 'text', text: '白米 200g を記録しました。' }],
         structuredContent: {
           recorded: [
@@ -357,11 +371,10 @@ describe('record_meal_from_text', () => {
         name: 'record_meal_from_text',
         arguments: {},
       })
-      const actual = {
-        isError: result.isError ?? false,
-        structuredContent: result.structuredContent,
-      }
-      expect(actual).toEqual({ isError: true, structuredContent: undefined })
+      expect(normalizeValidationError(result)).toEqual({
+        content: [{ type: 'text', text: VALIDATION_ERROR_TEXT }],
+        isError: true,
+      })
       expect(h.calls.recordFromText).toEqual([])
       // Schema validation fails before the handler runs, so neither
       // tool_called nor tool_failed fires.
@@ -380,18 +393,15 @@ describe('record_meal_from_text', () => {
         name: 'record_meal_from_text',
         arguments: { text: 'foo' },
       })
-      const actual = {
-        isError: result.isError,
-        structuredContent: result.structuredContent,
-      }
-      expect(actual).toEqual({
-        isError: true,
+      expect(result).toEqual({
+        content: [{ type: 'text', text: '処理が長くなったため中断しました。' }],
         structuredContent: {
           recorded: [],
           candidates: [],
           has_estimated_values: false,
           error: { kind: 'max_turns_exceeded', message: 'max turns' },
         },
+        isError: true,
       })
       expect(h.logs.map((l) => l.event)).toEqual([
         'meshi.tool_called',
@@ -411,15 +421,9 @@ describe('record_meal_from_text', () => {
         name: 'record_meal_from_text',
         arguments: { text: 'foo' },
       })
-      const actual = {
-        isError: result.isError,
-        content: result.content,
-        structuredContent: result.structuredContent,
-      }
-      expect(actual).toEqual({
-        isError: true,
+      expect(result).toEqual({
         content: [{ type: 'text', text: 'boom' }],
-        structuredContent: undefined,
+        isError: true,
       })
       expect(h.logs.map((l) => l.event)).toEqual([
         'meshi.tool_called',
@@ -439,13 +443,7 @@ describe('record_meal_from_text', () => {
         name: 'record_meal_from_text',
         arguments: { text: 'rice' },
       })
-      const actual = {
-        isError: result.isError ?? false,
-        content: result.content,
-        structuredContent: result.structuredContent,
-      }
-      expect(actual).toEqual({
-        isError: false,
+      expect(result).toEqual({
         content: [{ type: 'text', text: '食品を一意に特定できませんでした。' }],
         structuredContent: {
           recorded: [],
@@ -482,13 +480,7 @@ describe('record_meal_from_image', () => {
           hint_text: 'ラーメン',
         },
       })
-      const actual = {
-        isError: result.isError ?? false,
-        content: result.content,
-        structuredContent: result.structuredContent,
-      }
-      expect(actual).toEqual({
-        isError: false,
+      expect(result).toEqual({
         content: [{ type: 'text', text: '白米 200g を記録しました。' }],
         structuredContent: {
           recorded: [
@@ -543,11 +535,10 @@ describe('record_meal_from_image', () => {
             image: { type: 'image', mimeType, data },
           },
         })
-        const actual = {
-          isError: result.isError ?? false,
-          structuredContent: result.structuredContent,
-        }
-        expect(actual).toEqual({ isError: true, structuredContent: undefined })
+        expect(normalizeValidationError(result)).toEqual({
+          content: [{ type: 'text', text: VALIDATION_ERROR_TEXT }],
+          isError: true,
+        })
         expect(h.calls.recordFromImage).toEqual([])
         expect(h.logs.map((l) => l.event)).toEqual([])
       } finally {
@@ -569,13 +560,7 @@ describe('query_meals', () => {
           period_to_iso: '2026-06-15T00:00:00+09:00',
         },
       })
-      const actual = {
-        isError: result.isError ?? false,
-        content: result.content,
-        structuredContent: result.structuredContent,
-      }
-      expect(actual).toEqual({
-        isError: false,
+      expect(result).toEqual({
         content: [{ type: 'text', text: '集計結果...' }],
         structuredContent: {
           aggregate: {
@@ -611,13 +596,7 @@ describe('recommend_meal', () => {
         name: 'recommend_meal',
         arguments: { additional_constraints: '軽め' },
       })
-      const actual = {
-        isError: result.isError ?? false,
-        content: result.content,
-        structuredContent: result.structuredContent,
-      }
-      expect(actual).toEqual({
-        isError: false,
+      expect(result).toEqual({
         content: [{ type: 'text', text: 'サバ味噌煮定食はどうでしょう' }],
         structuredContent: { error: null },
       })
@@ -636,13 +615,7 @@ describe('get_profile / update_profile', () => {
         name: 'get_profile',
         arguments: {},
       })
-      const actual = {
-        isError: result.isError ?? false,
-        content: result.content,
-        structuredContent: result.structuredContent,
-      }
-      expect(actual).toEqual({
-        isError: false,
+      expect(result).toEqual({
         content: [{ type: 'text', text: 'プロファイルを取得しました。' }],
         structuredContent: {
           likes: ['rice'],
@@ -677,12 +650,8 @@ describe('get_profile / update_profile', () => {
         name: 'update_profile',
         arguments: { daily_targets: null },
       })
-      const actual = {
-        isError: result.isError ?? false,
-        structuredContent: result.structuredContent,
-      }
-      expect(actual).toEqual({
-        isError: false,
+      expect(result).toEqual({
+        content: [{ type: 'text', text: 'プロファイルを更新しました。' }],
         structuredContent: {
           likes: ['rice'],
           dislikes: [],
@@ -707,12 +676,8 @@ describe('get_profile / update_profile', () => {
           daily_targets: { energy_kcal: 2000 },
         },
       })
-      const actual = {
-        isError: result.isError ?? false,
-        structuredContent: result.structuredContent,
-      }
-      expect(actual).toEqual({
-        isError: false,
+      expect(result).toEqual({
+        content: [{ type: 'text', text: 'プロファイルを更新しました。' }],
         structuredContent: {
           likes: ['rice'],
           dislikes: ['natto'],
