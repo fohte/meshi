@@ -13,6 +13,13 @@ import {
 } from '@opentelemetry/semantic-conventions/incubating'
 import { z } from 'zod'
 
+import {
+  type GenAiMessage,
+  type GenAiMessagePart,
+  type GenAiOutputMessage,
+  type GenAiToolCallPart,
+  recordSpanException,
+} from '@/adapters/llm/genAiSemconv'
 import type {
   LlmClient,
   LlmContent,
@@ -279,40 +286,6 @@ const responseToAssistantMessage = (
   return { message: { role: 'assistant', content }, toolCalls }
 }
 
-// Shapes below follow the GenAI semantic conventions' message format
-// (gen_ai.input.messages / gen_ai.output.messages):
-// https://github.com/open-telemetry/semantic-conventions-genai/blob/main/docs/gen-ai/gen-ai-spans.md
-
-interface GenAiTextPart {
-  readonly type: 'text'
-  readonly content: string
-}
-
-interface GenAiToolCallPart {
-  readonly type: 'tool_call'
-  readonly id: string
-  readonly name: string
-  readonly arguments: unknown
-}
-
-interface GenAiToolCallResponsePart {
-  readonly type: 'tool_call_response'
-  readonly id: string
-  readonly response: string
-}
-
-type GenAiMessagePart =
-  GenAiTextPart | GenAiToolCallPart | GenAiToolCallResponsePart
-
-interface GenAiMessage {
-  readonly role: string
-  readonly parts: ReadonlyArray<GenAiMessagePart>
-}
-
-interface GenAiOutputMessage extends GenAiMessage {
-  readonly finish_reason?: string
-}
-
 const openAiContentToGenAiParts = (
   content: OpenAiChatMessage['content'],
 ): GenAiMessagePart[] => {
@@ -391,10 +364,6 @@ const choiceToGenAiOutputMessage = (
       ? { finish_reason: choice.finish_reason }
       : {}),
   }
-}
-
-const recordSpanException = (span: Span, error: unknown): void => {
-  span.recordException(error instanceof Error ? error : String(error))
 }
 
 const setGenAiResponseAttributes = (

@@ -1,3 +1,5 @@
+export type { GenAiCallbackHandlerOptions } from '@/adapters/llm/genAiCallbackHandler'
+export { GenAiCallbackHandler } from '@/adapters/llm/genAiCallbackHandler'
 export {
   OpenCodeLlmClient,
   OpenCodeLlmHttpError,
