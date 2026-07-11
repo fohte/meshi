@@ -209,6 +209,84 @@ export const foodCompositionNutrients = pgTable(
   ],
 )
 
+export const a2aTaskStateEnum = pgEnum('a2a_task_state', [
+  'submitted',
+  'working',
+  'input-required',
+  'completed',
+  'canceled',
+  'failed',
+  'rejected',
+  'auth-required',
+  'unknown',
+])
+
+export const a2aTasks = pgTable(
+  'a2a_tasks',
+  {
+    taskId: text('task_id').primaryKey(),
+    contextId: text('context_id').notNull(),
+    state: a2aTaskStateEnum('state').notNull(),
+    // Doubles as the watchdog/retention sweep basis: executors publish a
+    // working status-update periodically as a heartbeat, so this reflects
+    // "last known alive" rather than only the terminal transition time.
+    statusTimestamp: timestamp('status_timestamp', {
+      withTimezone: true,
+      mode: 'date',
+    }).notNull(),
+    // Independent of `task.kind`; the A2A Task type carries no protocol
+    // version field, so this is meshi's own bookkeeping for a possible
+    // future protocol migration.
+    protocolVersion: text('protocol_version').notNull().default('0.3'),
+    // Left untyped (unknown): this column is the full A2A `Task` object, and
+    // typing it here would pull the `@a2a-js/sdk` type into the schema
+    // module. The store that owns this table validates the shape at read
+    // time instead.
+    task: jsonb('task').notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true, mode: 'date' })
+      .notNull()
+      .default(sql`now()`),
+  },
+  (table) => [
+    index('a2a_tasks_context_idx').on(table.contextId),
+    // Covers both the watchdog (`state = 'working'`) and retention
+    // (`state IN (terminal states)`) sweeps, so it stays a full index
+    // rather than a partial one scoped to either query alone.
+    index('a2a_tasks_sweep_idx').on(table.state, table.statusTimestamp),
+    check('a2a_tasks_task_object', sql`jsonb_typeof(${table.task}) = 'object'`),
+  ],
+)
+
+// No foreign key to a2aTasks.taskId: the SDK's DefaultRequestHandler
+// persists a push notification config for a new task before that task's
+// own row exists (message/send saves the config, then starts the
+// executor — the a2a_tasks row is only written once the executor
+// publishes its first event). A FK here would reject that write.
+export const a2aPushConfigs = pgTable(
+  'a2a_push_configs',
+  {
+    taskId: text('task_id').notNull(),
+    configId: text('config_id').notNull(),
+    config: jsonb('config').notNull(),
+    // Not indexed on its own: rows are only ever pruned by task_id, driven
+    // off a2a_tasks retention (see deleteExpiredTerminalTasks), not by an
+    // independent age-based sweep of this table.
+    createdAt: timestamp('created_at', { withTimezone: true, mode: 'date' })
+      .notNull()
+      .default(sql`now()`),
+  },
+  (table) => [
+    primaryKey({
+      name: 'a2a_push_configs_pkey',
+      columns: [table.taskId, table.configId],
+    }),
+    check(
+      'a2a_push_configs_config_object',
+      sql`jsonb_typeof(${table.config}) = 'object'`,
+    ),
+  ],
+)
+
 export const userProfiles = pgTable(
   'user_profiles',
   {
