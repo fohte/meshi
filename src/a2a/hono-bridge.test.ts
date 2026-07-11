@@ -44,16 +44,22 @@ const streamEventSchema = z.object({
 
 const NORMALIZED = 'NORMALIZED'
 
+const normalizeStatusIds = <
+  T extends { id: string; contextId: string; status: { timestamp: string } },
+>(
+  result: T,
+): T => ({
+  ...result,
+  id: NORMALIZED,
+  contextId: NORMALIZED,
+  status: { ...result.status, timestamp: NORMALIZED },
+})
+
 const normalizeTaskResult = (
   body: z.infer<typeof jsonRpcSuccessSchema>,
 ): z.infer<typeof jsonRpcSuccessSchema> => ({
   ...body,
-  result: {
-    ...body.result,
-    id: NORMALIZED,
-    contextId: NORMALIZED,
-    status: { ...body.result.status, timestamp: NORMALIZED },
-  },
+  result: normalizeStatusIds(body.result),
 })
 
 // The exact message text comes from V8's JSON.parse error and isn't stable
@@ -219,15 +225,7 @@ describe('mountA2aRoutes', () => {
       expect(res.headers.get('Content-Type')).toBe('text/event-stream')
       const events = parseSseEvents(await res.text()).map((event) => {
         const parsed = streamEventSchema.parse(event)
-        return {
-          ...parsed,
-          result: {
-            ...parsed.result,
-            id: NORMALIZED,
-            contextId: NORMALIZED,
-            status: { ...parsed.result.status, timestamp: NORMALIZED },
-          },
-        }
+        return { ...parsed, result: normalizeStatusIds(parsed.result) }
       })
       expect(events).toEqual([
         {
