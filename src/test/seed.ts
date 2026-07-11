@@ -1,5 +1,7 @@
-import type { Sql } from '@/db'
+import type { JsonValue, Sql } from '@/db'
 import type {
+  a2aPushConfigs,
+  a2aTasks,
   foodCompositions,
   foodMasterNutrients,
   foodMasters,
@@ -101,5 +103,40 @@ export const seedFoodComposition = async (
   await sql`
     INSERT INTO food_compositions (code, name)
     VALUES (${values.code}, ${values.name})
+  `
+}
+
+export const seedA2aTask = async (
+  sql: Sql,
+  values: Omit<
+    typeof a2aTasks.$inferInsert,
+    'createdAt' | 'protocolVersion' | 'task'
+  > & {
+    protocolVersion?: string
+    task: JsonValue
+  },
+): Promise<void> => {
+  await sql`
+    INSERT INTO a2a_tasks (task_id, context_id, state, status_timestamp, protocol_version, task)
+    VALUES (
+      ${values.taskId},
+      ${values.contextId},
+      ${values.state},
+      ${values.statusTimestamp},
+      ${values.protocolVersion ?? '0.3'},
+      ${sql.json(values.task)}
+    )
+  `
+}
+
+export const seedA2aPushConfig = async (
+  sql: Sql,
+  values: Omit<typeof a2aPushConfigs.$inferInsert, 'createdAt' | 'config'> & {
+    config: JsonValue
+  },
+): Promise<void> => {
+  await sql`
+    INSERT INTO a2a_push_configs (task_id, config_id, config)
+    VALUES (${values.taskId}, ${values.configId}, ${sql.json(values.config)})
   `
 }

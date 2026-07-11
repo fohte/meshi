@@ -12,6 +12,8 @@ describeIfDb('schema migrations', () => {
       ORDER BY table_name
     `
     expect(rows.map((r) => r.table_name)).toEqual([
+      'a2a_push_configs',
+      'a2a_tasks',
       'food_composition_nutrients',
       'food_compositions',
       'food_master_aliases',
