@@ -21,6 +21,26 @@ import type {
 import type { Logger } from '@/logger'
 import { createMcpServer } from '@/mcp'
 
+const VALIDATION_ERROR_TEXT = '<schema validation error>'
+
+// zod's exact error message (JSON shape, field ordering, "code" names) is an
+// implementation detail of the MCP SDK / zod version, not part of this app's
+// contract — normalize it to a fixed placeholder so these tests don't break
+// on a zod/SDK upgrade unrelated to app behavior.
+const normalizeValidationError = <
+  T extends { content?: { type: string }[]; [key: string]: unknown },
+>(
+  result: T,
+): T => {
+  if (!result.content) return result
+  return {
+    ...result,
+    content: result.content.map((c) =>
+      c.type === 'text' ? { ...c, text: VALIDATION_ERROR_TEXT } : c,
+    ),
+  }
+}
+
 interface LogEntry {
   readonly event: string
   readonly payload: Readonly<Record<string, unknown>>
@@ -351,13 +371,8 @@ describe('record_meal_from_text', () => {
         name: 'record_meal_from_text',
         arguments: {},
       })
-      expect(result).toEqual({
-        content: [
-          {
-            type: 'text',
-            text: 'MCP error -32602: Input validation error: Invalid arguments for tool record_meal_from_text: [\n  {\n    "expected": "string",\n    "code": "invalid_type",\n    "path": [\n      "text"\n    ],\n    "message": "Invalid input: expected string, received undefined"\n  }\n]',
-          },
-        ],
+      expect(normalizeValidationError(result)).toEqual({
+        content: [{ type: 'text', text: VALIDATION_ERROR_TEXT }],
         isError: true,
       })
       expect(h.calls.recordFromText).toEqual([])
@@ -497,27 +512,21 @@ describe('record_meal_from_image', () => {
       label: 'external https URL',
       data: 'https://example.com/photo.png',
       mimeType: 'image/png' as const,
-      expectedText:
-        'MCP error -32602: Input validation error: Invalid arguments for tool record_meal_from_image: [\n  {\n    "origin": "string",\n    "code": "invalid_format",\n    "format": "regex",\n    "pattern": "/^[A-Za-z0-9+/]+={0,2}$/",\n    "path": [\n      "image",\n      "data"\n    ],\n    "message": "image.data must be raw base64 (no data: URL prefix, no http(s):// URL, no whitespace)"\n  }\n]',
     },
     {
       label: 'data: URL prefix',
       data: `data:image/png;base64,${base64}`,
       mimeType: 'image/png' as const,
-      expectedText:
-        'MCP error -32602: Input validation error: Invalid arguments for tool record_meal_from_image: [\n  {\n    "origin": "string",\n    "code": "invalid_format",\n    "format": "regex",\n    "pattern": "/^[A-Za-z0-9+/]+={0,2}$/",\n    "path": [\n      "image",\n      "data"\n    ],\n    "message": "image.data must be raw base64 (no data: URL prefix, no http(s):// URL, no whitespace)"\n  }\n]',
     },
     {
       label: 'unsupported mime type',
       data: base64,
       // eslint-disable-next-line @typescript-eslint/no-unsafe-type-assertion -- intentionally probing an unsupported value to verify the enum constraint.
       mimeType: 'image/heic' as 'image/png',
-      expectedText:
-        'MCP error -32602: Input validation error: Invalid arguments for tool record_meal_from_image: [\n  {\n    "code": "invalid_value",\n    "values": [\n      "image/jpeg",\n      "image/png",\n      "image/gif",\n      "image/webp"\n    ],\n    "path": [\n      "image",\n      "mimeType"\n    ],\n    "message": "Invalid option: expected one of \\"image/jpeg\\"|\\"image/png\\"|\\"image/gif\\"|\\"image/webp\\""\n  }\n]',
     },
   ])(
     'rejects $label without invoking the orchestrator',
-    async ({ data, mimeType, expectedText }) => {
+    async ({ data, mimeType }) => {
       const h = await start()
       try {
         const result = await h.client.callTool({
@@ -526,8 +535,8 @@ describe('record_meal_from_image', () => {
             image: { type: 'image', mimeType, data },
           },
         })
-        expect(result).toEqual({
-          content: [{ type: 'text', text: expectedText }],
+        expect(normalizeValidationError(result)).toEqual({
+          content: [{ type: 'text', text: VALIDATION_ERROR_TEXT }],
           isError: true,
         })
         expect(h.calls.recordFromImage).toEqual([])

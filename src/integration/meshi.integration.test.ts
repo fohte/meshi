@@ -356,9 +356,10 @@ const sortTrailingLines = (text: string): string => {
 
 // The trigram score (and, with it, candidate order) is non-deterministic
 // between equally-similar names — normalize the score to a fixed
-// placeholder, sort candidates by food_master_id, and sort each content
-// line's candidate list to match, so the full result can still be asserted
-// with a single toEqual().
+// placeholder and sort both candidates and each content line's candidate
+// list by `name`, the field the rendered text is keyed on, so the two
+// normalizations can't drift apart and the full result can still be
+// asserted with a single toEqual().
 const normalizeCandidateOrder = (
   result: NormalizedToolResult,
 ): NormalizedToolResult => {
@@ -368,9 +369,7 @@ const normalizeCandidateOrder = (
     structuredContent: {
       ...structured,
       candidates: [...structured.candidates]
-        .sort((a, b) =>
-          (a.food_master_id ?? '') < (b.food_master_id ?? '') ? -1 : 1,
-        )
+        .sort((a, b) => (a.name < b.name ? -1 : 1))
         .map((c) => ({ ...c, score: NORMALIZED_SCORE })),
     },
     content: result.content.map((c) =>
