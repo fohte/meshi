@@ -96,16 +96,25 @@ export const mountA2aRoutes = (
 
     const stream = result
     return streamSSE(c, async (sse) => {
+      // Without this, a client disconnect leaves `stream` suspended forever
+      // waiting on its next event, since nothing else ever advances it.
+      sse.onAbort(() => {
+        void stream.return()
+      })
       try {
         for await (const event of stream) {
           await sse.writeSSE({ data: JSON.stringify(event) })
         }
       } catch (err) {
         console.error('a2a JSON-RPC stream failed:', err)
-        await sse.writeSSE({
-          event: 'error',
-          data: JSON.stringify(internalErrorResponse(err)),
-        })
+        try {
+          await sse.writeSSE({
+            event: 'error',
+            data: JSON.stringify(internalErrorResponse(err)),
+          })
+        } catch {
+          // The connection is likely already closed; nothing more to do.
+        }
       }
     })
   })

@@ -27,16 +27,18 @@ const runSweep = async (
 ): Promise<void> => {
   const workingCutoff = new Date(Date.now() - options.workingTimeoutMs)
   const expired = await store.failStuckWorkingTasks(workingCutoff)
-  for (const task of expired) {
-    // The watchdog UPDATE already committed this task as failed; one
-    // task's push notification failing must not stop the rest of the
-    // batch (or the retention sweep below) from running.
-    try {
-      await options.onExpire(task)
-    } catch (err) {
-      console.error(`a2a onExpire failed for task ${task.id}:`, err)
-    }
-  }
+  // The watchdog UPDATE already committed these tasks as failed; run their
+  // notifications concurrently so one slow or rejecting call can't hold up
+  // the rest of the batch (or the retention sweep below).
+  await Promise.allSettled(
+    expired.map(async (task) => {
+      try {
+        await options.onExpire(task)
+      } catch (err) {
+        console.error(`a2a onExpire failed for task ${task.id}:`, err)
+      }
+    }),
+  )
 
   const retentionCutoff = new Date(
     Date.now() - options.retentionDays * MS_PER_DAY,

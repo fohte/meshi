@@ -257,6 +257,11 @@ export const a2aTasks = pgTable(
   ],
 )
 
+// No foreign key to a2aTasks.taskId: the SDK's DefaultRequestHandler
+// persists a push notification config for a new task before that task's
+// own row exists (message/send saves the config, then starts the
+// executor — the a2a_tasks row is only written once the executor
+// publishes its first event). A FK here would reject that write.
 export const a2aPushConfigs = pgTable(
   'a2a_push_configs',
   {
