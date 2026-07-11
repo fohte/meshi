@@ -86,6 +86,7 @@ export const mountA2aRoutes = (
     try {
       result = await jsonRpcTransportHandler.handle(body)
     } catch (err) {
+      console.error('a2a JSON-RPC request failed:', err)
       return c.json(internalErrorResponse(err), 500)
     }
 
@@ -100,6 +101,7 @@ export const mountA2aRoutes = (
           await sse.writeSSE({ data: JSON.stringify(event) })
         }
       } catch (err) {
+        console.error('a2a JSON-RPC stream failed:', err)
         await sse.writeSSE({
           event: 'error',
           data: JSON.stringify(internalErrorResponse(err)),

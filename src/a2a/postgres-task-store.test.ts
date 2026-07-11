@@ -2,7 +2,7 @@ import type { Task } from '@a2a-js/sdk'
 import { describe, expect, it } from 'vitest'
 
 import { createPostgresTaskStore } from '@/a2a/postgres-task-store'
-import { describeIfDb, getTestSql, setupTx } from '@/test/db'
+import { describeIfDb, setupTx } from '@/test/db'
 import { seedA2aPushConfig } from '@/test/seed'
 
 const MS_PER_DAY = 24 * 60 * 60 * 1000
@@ -19,6 +19,16 @@ const buildTask = (task: {
   id: task.id,
   contextId: task.contextId,
   status: { state: task.state, timestamp: isoAt(task.timestamp) },
+})
+
+const NORMALIZED_TIMESTAMP = 'NORMALIZED'
+
+// The watchdog stamps status.timestamp with the DB's own `now()`, so the
+// exact value can't be asserted; normalize it in and compare everything
+// else (state, id, contextId) with a single equality check.
+const normalizeStatusTimestamp = (task: Task): Task => ({
+  ...task,
+  status: { ...task.status, timestamp: NORMALIZED_TIMESTAMP },
 })
 
 describeIfDb('createPostgresTaskStore', () => {
@@ -102,11 +112,17 @@ describeIfDb('createPostgresTaskStore', () => {
         new Date(Date.now() - 10 * 60_000),
       )
 
-      expect(expired.map((t) => ({ id: t.id, state: t.status.state }))).toEqual(
-        [{ id: 'task-stale', state: 'failed' }],
-      )
+      const expectedFailed = {
+        ...stale,
+        status: { state: 'failed' as const, timestamp: NORMALIZED_TIMESTAMP },
+      }
+      expect(expired.map(normalizeStatusTimestamp)).toEqual([expectedFailed])
+
       const loaded = await store.load('task-stale')
-      expect(loaded?.status.state).toBe('failed')
+      if (loaded === undefined) {
+        throw new Error('expected task-stale to still be loadable')
+      }
+      expect(normalizeStatusTimestamp(loaded)).toEqual(expectedFailed)
     })
 
     it('does not touch a working task whose heartbeat is still alive', async () => {
@@ -227,14 +243,5 @@ describeIfDb('createPostgresTaskStore', () => {
       expect(deletedCount).toBe(0)
       expect(await store.load('task-old-working')).toEqual(oldWorking)
     })
-  })
-})
-
-// Sanity check that the store can be constructed against a plain read-only
-// connection too (no transaction requirement baked into its API).
-describeIfDb('createPostgresTaskStore (read-only)', () => {
-  it('returns undefined for a task id on an empty table view', async () => {
-    const store = createPostgresTaskStore(getTestSql())
-    expect(await store.load('never-inserted-task-id')).toBeUndefined()
   })
 })

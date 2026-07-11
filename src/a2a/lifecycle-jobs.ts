@@ -28,7 +28,14 @@ const runSweep = async (
   const workingCutoff = new Date(Date.now() - options.workingTimeoutMs)
   const expired = await store.failStuckWorkingTasks(workingCutoff)
   for (const task of expired) {
-    await options.onExpire(task)
+    // The watchdog UPDATE already committed this task as failed; one
+    // task's push notification failing must not stop the rest of the
+    // batch (or the retention sweep below) from running.
+    try {
+      await options.onExpire(task)
+    } catch (err) {
+      console.error(`a2a onExpire failed for task ${task.id}:`, err)
+    }
   }
 
   const retentionCutoff = new Date(
@@ -38,9 +45,7 @@ const runSweep = async (
 }
 
 // Periodic watchdog (fail stuck `working` tasks) + retention (delete expired
-// terminal tasks) sweep, run on the same interval and also once at startup —
-// the same interval + startup-run idiom used by this codebase's other
-// reconciler-shaped jobs.
+// terminal tasks) sweep, run on the same interval and also once at startup.
 export const startTaskLifecycleJobs = (
   store: A2aTaskStore,
   options: TaskLifecycleJobsOptions,

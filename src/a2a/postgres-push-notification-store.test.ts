@@ -1,10 +1,10 @@
 import { expect, it } from 'vitest'
 
 import { createPostgresPushNotificationStore } from '@/a2a/postgres-push-notification-store'
-import { describeIfDb, setupDrizzleTx } from '@/test/db'
+import { describeIfDb, setupTx } from '@/test/db'
 
 describeIfDb('createPostgresPushNotificationStore', () => {
-  const getTx = setupDrizzleTx()
+  const getTx = setupTx()
 
   it('round-trips a saved config, defaulting the id to the task id', async () => {
     const store = createPostgresPushNotificationStore(getTx())

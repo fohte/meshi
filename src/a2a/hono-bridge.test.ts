@@ -7,22 +7,48 @@ import { z } from 'zod'
 
 import { mountA2aRoutes } from '@/a2a/hono-bridge'
 
+// Full shapes, not `.loose()`: parsed once to confirm every field is
+// present with the right type, then the whole (normalized) value is
+// compared with a single `toEqual` below — no partial matchers.
 const jsonRpcSuccessSchema = z.object({
-  jsonrpc: z.string(),
-  id: z.union([z.string(), z.number(), z.null()]),
-  result: z
-    .object({
-      kind: z.string(),
-      status: z.object({ state: z.string() }).loose(),
-    })
-    .loose(),
+  jsonrpc: z.literal('2.0'),
+  id: z.number(),
+  // ResultManager folds the original user message into `history` for a
+  // freshly created task (see DefaultRequestHandler.sendMessage), which
+  // this stub executor's own published event never sets directly.
+  result: z.object({
+    kind: z.literal('task'),
+    id: z.string(),
+    contextId: z.string(),
+    status: z.object({ state: z.string(), timestamp: z.string() }),
+    history: z.array(z.unknown()),
+  }),
 })
 
 const jsonRpcErrorSchema = z.object({
-  jsonrpc: z.string(),
-  id: z.union([z.string(), z.number(), z.null()]),
-  error: z.object({ code: z.number() }).loose(),
+  jsonrpc: z.literal('2.0'),
+  id: z.null(),
+  error: z.object({ code: z.number(), message: z.string() }),
 })
+
+const streamEventSchema = z.object({
+  jsonrpc: z.literal('2.0'),
+  id: z.number(),
+  result: z.object({
+    kind: z.literal('task'),
+    id: z.string(),
+    contextId: z.string(),
+    status: z.object({ state: z.string(), timestamp: z.string() }),
+  }),
+})
+
+const NORMALIZED = 'NORMALIZED'
+
+const parseSseEvents = (text: string): unknown[] =>
+  text
+    .split('\n\n')
+    .filter((chunk) => chunk.trim() !== '')
+    .map((chunk) => JSON.parse(chunk.replace(/^data: /, '')) as unknown)
 
 const AGENT_CARD_URL = '/.well-known/agent-card.json'
 
@@ -111,8 +137,33 @@ describe('mountA2aRoutes', () => {
 
       expect(res.status).toBe(200)
       const body = jsonRpcSuccessSchema.parse(await res.json())
-      expect(body.result.kind).toBe('task')
-      expect(body.result.status.state).toBe('completed')
+      const normalized = {
+        ...body,
+        result: {
+          ...body.result,
+          id: NORMALIZED,
+          contextId: NORMALIZED,
+          status: { ...body.result.status, timestamp: NORMALIZED },
+        },
+      }
+      expect(normalized).toEqual({
+        jsonrpc: '2.0',
+        id: 1,
+        result: {
+          kind: 'task',
+          id: NORMALIZED,
+          contextId: NORMALIZED,
+          status: { state: 'completed', timestamp: NORMALIZED },
+          history: [
+            {
+              kind: 'message',
+              messageId: 'msg-1',
+              role: 'user',
+              parts: [{ kind: 'text', text: 'hello' }],
+            },
+          ],
+        },
+      })
     })
 
     it('returns a JSON-RPC parse error for a malformed body', async () => {
@@ -125,7 +176,17 @@ describe('mountA2aRoutes', () => {
 
       expect(res.status).toBe(200)
       const body = jsonRpcErrorSchema.parse(await res.json())
-      expect(body.error.code).toBe(-32700)
+      // The exact message text comes from V8's JSON.parse error and isn't
+      // stable across Node versions, so only its presence is normalized in.
+      const normalized = {
+        ...body,
+        error: { ...body.error, message: NORMALIZED },
+      }
+      expect(normalized).toEqual({
+        jsonrpc: '2.0',
+        id: null,
+        error: { code: -32700, message: NORMALIZED },
+      })
     })
 
     it('streams message/stream as SSE', async () => {
@@ -150,9 +211,30 @@ describe('mountA2aRoutes', () => {
 
       expect(res.status).toBe(200)
       expect(res.headers.get('Content-Type')).toBe('text/event-stream')
-      const text = await res.text()
-      expect(text).toContain('"kind":"task"')
-      expect(text).toContain('"state":"completed"')
+      const events = parseSseEvents(await res.text()).map((event) => {
+        const parsed = streamEventSchema.parse(event)
+        return {
+          ...parsed,
+          result: {
+            ...parsed.result,
+            id: NORMALIZED,
+            contextId: NORMALIZED,
+            status: { ...parsed.result.status, timestamp: NORMALIZED },
+          },
+        }
+      })
+      expect(events).toEqual([
+        {
+          jsonrpc: '2.0',
+          id: 1,
+          result: {
+            kind: 'task',
+            id: NORMALIZED,
+            contextId: NORMALIZED,
+            status: { state: 'completed', timestamp: NORMALIZED },
+          },
+        },
+      ])
     })
   })
 

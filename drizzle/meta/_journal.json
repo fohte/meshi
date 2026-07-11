@@ -15,6 +15,13 @@
       "when": 1783745043584,
       "tag": "0001_sloppy_marvel_boy",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1783747771799,
+      "tag": "0002_white_jetstream",
+      "breakpoints": true
     }
   ]
 }

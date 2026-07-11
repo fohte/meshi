@@ -58,6 +58,30 @@ describe('startTaskLifecycleJobs', () => {
     expect(onExpire).toHaveBeenCalledExactlyOnceWith(expiredTask)
   })
 
+  it('runs onExpire for every expired task even if an earlier one rejects, and still runs retention', async () => {
+    vi.spyOn(console, 'error').mockImplementation(() => {})
+    const taskA = buildTask('task-a')
+    const taskB = buildTask('task-b')
+    const store = buildStore({
+      failStuckWorkingTasks: vi.fn().mockResolvedValue([taskA, taskB]),
+    })
+    const onExpire = vi
+      .fn()
+      .mockImplementationOnce(() => Promise.reject(new Error('push failed')))
+      .mockImplementationOnce(() => Promise.resolve())
+
+    const jobs = startTaskLifecycleJobs(store, {
+      workingTimeoutMs: 60_000,
+      retentionDays: 7,
+      onExpire,
+      intervalMs: 1_000_000,
+    })
+    await jobs.stop()
+
+    expect(onExpire.mock.calls).toEqual([[taskA], [taskB]])
+    expect(store.deleteExpiredTerminalTasks).toHaveBeenCalledTimes(1)
+  })
+
   it('sweeps again on each interval tick after the startup run', async () => {
     vi.useFakeTimers()
     const store = buildStore()

@@ -216,6 +216,14 @@ describeIfDb('schema migrations', () => {
     `
     expect(rows).toEqual([
       {
+        conname: 'a2a_push_configs_config_object',
+        table_name: 'a2a_push_configs',
+      },
+      {
+        conname: 'a2a_tasks_task_object',
+        table_name: 'a2a_tasks',
+      },
+      {
         conname: 'food_composition_nutrients_value_nonneg',
         table_name: 'food_composition_nutrients',
       },

@@ -235,8 +235,8 @@ export const a2aTasks = pgTable(
       mode: 'date',
     }).notNull(),
     // Independent of `task.kind`; the A2A Task type carries no protocol
-    // version field, so this is meshi's own bookkeeping for a future v1.0
-    // migration (see a2a-sdk-and-hono.md).
+    // version field, so this is meshi's own bookkeeping for a possible
+    // future protocol migration.
     protocolVersion: text('protocol_version').notNull().default('0.3'),
     // Left untyped (unknown): this column is the full A2A `Task` object, and
     // typing it here would pull the `@a2a-js/sdk` type into the schema
@@ -249,7 +249,11 @@ export const a2aTasks = pgTable(
   },
   (table) => [
     index('a2a_tasks_context_idx').on(table.contextId),
+    // Covers both the watchdog (`state = 'working'`) and retention
+    // (`state IN (terminal states)`) sweeps, so it stays a full index
+    // rather than a partial one scoped to either query alone.
     index('a2a_tasks_sweep_idx').on(table.state, table.statusTimestamp),
+    check('a2a_tasks_task_object', sql`jsonb_typeof(${table.task}) = 'object'`),
   ],
 )
 
@@ -259,6 +263,9 @@ export const a2aPushConfigs = pgTable(
     taskId: text('task_id').notNull(),
     configId: text('config_id').notNull(),
     config: jsonb('config').notNull(),
+    // Not indexed on its own: rows are only ever pruned by task_id, driven
+    // off a2a_tasks retention (see deleteExpiredTerminalTasks), not by an
+    // independent age-based sweep of this table.
     createdAt: timestamp('created_at', { withTimezone: true, mode: 'date' })
       .notNull()
       .default(sql`now()`),
@@ -268,6 +275,10 @@ export const a2aPushConfigs = pgTable(
       name: 'a2a_push_configs_pkey',
       columns: [table.taskId, table.configId],
     }),
+    check(
+      'a2a_push_configs_config_object',
+      sql`jsonb_typeof(${table.config}) = 'object'`,
+    ),
   ],
 )
 

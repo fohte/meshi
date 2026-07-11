@@ -45,8 +45,8 @@ export class TaskRowInvalidError extends Error {
 }
 
 // Superset of the SDK's `TaskStore` interface: the watchdog and retention
-// jobs need sweep queries the interface doesn't expose (v1.0 will add a
-// required `list()`, so this store already carries list-shaped queries).
+// jobs need sweep queries (fail-stuck, delete-expired) the interface
+// doesn't expose.
 export interface A2aTaskStore extends TaskStore {
   // Fails tasks stuck in `working` whose heartbeat (status_timestamp) is
   // older than `olderThan`, returning the tasks that were transitioned so
@@ -121,15 +121,23 @@ export const createPostgresTaskStore = (sql: Sql): A2aTaskStore => {
     },
 
     async deleteExpiredTerminalTasks(olderThan: Date): Promise<number> {
+      // Both deletes happen in one statement (via data-modifying CTEs) so
+      // a2a_push_configs can never be left with rows orphaned by a
+      // half-applied cleanup — a single statement is atomic on its own,
+      // without needing an explicit transaction wrapper.
       const deleted = await sql`
-        DELETE FROM a2a_tasks
-        WHERE state IN ${sql(TERMINAL_STATES)} AND status_timestamp < ${olderThan}
-        RETURNING task_id
+        WITH deleted_tasks AS (
+          DELETE FROM a2a_tasks
+          WHERE state IN ${sql(TERMINAL_STATES)} AND status_timestamp < ${olderThan}
+          RETURNING task_id
+        ),
+        deleted_configs AS (
+          DELETE FROM a2a_push_configs
+          WHERE task_id IN (SELECT task_id FROM deleted_tasks)
+          RETURNING task_id
+        )
+        SELECT task_id FROM deleted_tasks
       `
-      if (deleted.length === 0) return 0
-
-      const taskIds = deleted.map((row) => taskIdRowSchema.parse(row).task_id)
-      await sql`DELETE FROM a2a_push_configs WHERE task_id IN ${sql(taskIds)}`
       return deleted.length
     },
   }
