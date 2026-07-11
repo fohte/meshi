@@ -341,15 +341,45 @@ describe('OpenCodeLlmClient.runConversation', () => {
       },
     })
 
-    const actual = {
-      stopReason: result.stopReason,
-      turns: result.turns,
-      finalText: result.finalText,
-    }
-    expect(actual).toEqual({
+    expect(result).toEqual({
       stopReason: 'max_turns',
       turns: 2,
       finalText: '',
+      messages: [
+        { role: 'user', content: [{ type: 'text', text: 'I ate ramen' }] },
+        {
+          role: 'assistant',
+          content: [
+            {
+              type: 'tool_use',
+              id: 'call_loop',
+              name: 'search_food_master',
+              input: { query: 'x' },
+            },
+          ],
+        },
+        {
+          role: 'user',
+          content: [
+            {
+              type: 'tool_result',
+              toolUseId: 'call_loop',
+              content: '{}',
+            },
+          ],
+        },
+        {
+          role: 'assistant',
+          content: [
+            {
+              type: 'tool_use',
+              id: 'call_loop',
+              name: 'search_food_master',
+              input: { query: 'x' },
+            },
+          ],
+        },
+      ],
     })
     expect(mock.requests.length).toBe(2)
     expect(executedCount).toBe(1)
@@ -401,25 +431,39 @@ describe('OpenCodeLlmClient.runConversation', () => {
       executeTool: () => Promise.reject(new Error('executor blew up')),
     })
 
-    const actual = {
-      stopReason: result.stopReason,
-      finalText: result.finalText,
-      lastUserMessage: result.messages[result.messages.length - 2],
-    }
-    expect(actual).toEqual({
+    expect(result).toEqual({
       stopReason: 'end',
       finalText: 'recovered',
-      lastUserMessage: {
-        role: 'user',
-        content: [
-          {
-            type: 'tool_result',
-            toolUseId: 'call_err',
-            content: 'executor blew up',
-            isError: true,
-          },
-        ],
-      },
+      turns: 2,
+      messages: [
+        { role: 'user', content: [{ type: 'text', text: 'I ate ramen' }] },
+        {
+          role: 'assistant',
+          content: [
+            {
+              type: 'tool_use',
+              id: 'call_err',
+              name: 'search_food_master',
+              input: { query: 'x' },
+            },
+          ],
+        },
+        {
+          role: 'user',
+          content: [
+            {
+              type: 'tool_result',
+              toolUseId: 'call_err',
+              content: 'executor blew up',
+              isError: true,
+            },
+          ],
+        },
+        {
+          role: 'assistant',
+          content: [{ type: 'text', text: 'recovered' }],
+        },
+      ],
     })
   })
 

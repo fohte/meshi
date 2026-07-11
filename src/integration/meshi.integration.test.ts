@@ -344,13 +344,42 @@ type NormalizedToolResult = z.infer<typeof toolResultSchema>
 const normalizeResult = (raw: unknown): NormalizedToolResult =>
   toolResultSchema.parse(raw)
 
-const textContent = (result: NormalizedToolResult): ReadonlyArray<string> =>
-  result.content
-    .filter(
-      (c): c is { readonly type: 'text'; readonly text: string } =>
-        c.type === 'text' && typeof c.text === 'string',
-    )
-    .map((c) => c.text)
+// Placeholder for the food-matcher's trigram score, which is non-
+// deterministic between runs.
+const NORMALIZED_SCORE = 0
+
+const sortTrailingLines = (text: string): string => {
+  const [header, ...rest] = text.split('\n')
+  if (header === undefined) return text
+  return [header, ...[...rest].sort()].join('\n')
+}
+
+// The trigram score (and, with it, candidate order) is non-deterministic
+// between equally-similar names — normalize the score to a fixed
+// placeholder, sort candidates by food_master_id, and sort each content
+// line's candidate list to match, so the full result can still be asserted
+// with a single toEqual().
+const normalizeCandidateOrder = (
+  result: NormalizedToolResult,
+): NormalizedToolResult => {
+  const structured = candidateResultSchema.parse(result.structuredContent)
+  return {
+    ...result,
+    structuredContent: {
+      ...structured,
+      candidates: [...structured.candidates]
+        .sort((a, b) =>
+          (a.food_master_id ?? '') < (b.food_master_id ?? '') ? -1 : 1,
+        )
+        .map((c) => ({ ...c, score: NORMALIZED_SCORE })),
+    },
+    content: result.content.map((c) =>
+      c.type === 'text' && typeof c.text === 'string'
+        ? { ...c, text: sortTrailingLines(c.text) }
+        : c,
+    ),
+  }
+}
 
 // scenarios ----------------------------------------------------------------
 
@@ -429,17 +458,15 @@ describeIfDb('meshi integration', () => {
         }),
       )
 
-      const actual = {
-        isError: result.isError ?? false,
-        content: textContent(result),
-        structuredContent: result.structuredContent,
-      }
-      expect(actual).toEqual({
-        isError: false,
+      expect(result).toEqual({
         content: [
-          ['記録しました (1 件)。', '- fm_rice: 336 kcal / P 5g / C 74g'].join(
-            '\n',
-          ),
+          {
+            type: 'text',
+            text: [
+              '記録しました (1 件)。',
+              '- fm_rice: 336 kcal / P 5g / C 74g',
+            ].join('\n'),
+          },
         ],
         structuredContent: {
           recorded: [
@@ -536,13 +563,7 @@ describeIfDb('meshi integration', () => {
         }),
       )
 
-      const actual = {
-        isError: result.isError ?? false,
-        structuredContent: result.structuredContent,
-        content: textContent(result),
-      }
-      expect(actual).toEqual({
-        isError: false,
+      expect(result).toEqual({
         structuredContent: {
           recorded: [
             {
@@ -557,9 +578,13 @@ describeIfDb('meshi integration', () => {
           error: null,
         },
         content: [
-          ['記録しました (1 件)。', '- fm_test_0001: 210 kcal / P 7g'].join(
-            '\n',
-          ),
+          {
+            type: 'text',
+            text: [
+              '記録しました (1 件)。',
+              '- fm_test_0001: 210 kcal / P 7g',
+            ].join('\n'),
+          },
         ],
       })
 
@@ -617,41 +642,7 @@ describeIfDb('meshi integration', () => {
         }),
       )
 
-      const structured = candidateResultSchema.parse(result.structuredContent)
-      // The trigram score is non-deterministic, so collapse it into rank order
-      // while keeping every other field literal.
-      const normalizedCandidates = [...structured.candidates]
-        .sort((a, b) =>
-          (a.food_master_id ?? '') < (b.food_master_id ?? '') ? -1 : 1,
-        )
-        .map((c) => ({
-          food_master_id: c.food_master_id,
-          composition_code: c.composition_code,
-          name: c.name,
-          is_estimated: c.is_estimated,
-          reason: c.reason,
-        }))
-      const candidateNames = normalizedCandidates.map((c) => c.name).sort()
-
-      const actual = {
-        isError: result.isError ?? false,
-        structuredContent: {
-          recorded: structured.recorded,
-          has_estimated_values: structured.has_estimated_values,
-          error: structured.error,
-          candidates: normalizedCandidates,
-        },
-        content: textContent(result).map((line) => {
-          // matcher orders by trigram score, which is non-deterministic
-          // between the two equally-similar names — sort the rendered list.
-          const lines = line.split('\n')
-          const [header, ...rest] = lines
-          if (header === undefined) return line
-          return [header, ...[...rest].sort()].join('\n')
-        }),
-      }
-      expect(actual).toEqual({
-        isError: false,
+      expect(normalizeCandidateOrder(result)).toEqual({
         structuredContent: {
           recorded: [],
           has_estimated_values: false,
@@ -662,6 +653,7 @@ describeIfDb('meshi integration', () => {
               composition_code: null,
               name: 'salmon sushi',
               is_estimated: false,
+              score: NORMALIZED_SCORE,
               reason: 'fuzzy_name',
             },
             {
@@ -669,15 +661,20 @@ describeIfDb('meshi integration', () => {
               composition_code: null,
               name: 'salmon teriyaki',
               is_estimated: false,
+              score: NORMALIZED_SCORE,
               reason: 'fuzzy_name',
             },
           ],
         },
         content: [
-          [
-            '食品を一意に特定できませんでした。次の候補から選んで、もう一度入力してください。',
-            ...candidateNames.map((n) => `- ${n}: fuzzy_name`),
-          ].join('\n'),
+          {
+            type: 'text',
+            text: [
+              '食品を一意に特定できませんでした。次の候補から選んで、もう一度入力してください。',
+              '- salmon sushi: fuzzy_name',
+              '- salmon teriyaki: fuzzy_name',
+            ].join('\n'),
+          },
         ],
       })
 
@@ -735,13 +732,7 @@ describeIfDb('meshi integration', () => {
         }),
       )
 
-      const actual = {
-        isError: result.isError ?? false,
-        structuredContent: result.structuredContent,
-        content: textContent(result),
-      }
-      expect(actual).toEqual({
-        isError: false,
+      expect(result).toEqual({
         structuredContent: {
           aggregate: {
             totals: { energy_kcal: 336, protein_g: 5, carbohydrate_g: 74 },
@@ -771,12 +762,15 @@ describeIfDb('meshi integration', () => {
           error: null,
         },
         content: [
-          [
-            '集計結果:',
-            '- 合計: 336 kcal / P 5g / C 74g',
-            '- 期間内の日数: 1 日',
-            '- 記録件数: 1 件',
-          ].join('\n'),
+          {
+            type: 'text',
+            text: [
+              '集計結果:',
+              '- 合計: 336 kcal / P 5g / C 74g',
+              '- 期間内の日数: 1 日',
+              '- 記録件数: 1 件',
+            ].join('\n'),
+          },
         ],
       })
     } finally {
@@ -819,15 +813,9 @@ describeIfDb('meshi integration', () => {
         }),
       )
 
-      const actual = {
-        isError: result.isError ?? false,
-        structuredContent: result.structuredContent,
-        content: textContent(result),
-      }
-      expect(actual).toEqual({
-        isError: false,
+      expect(result).toEqual({
         structuredContent: { error: null },
-        content: ['サバ味噌煮定食はいかがでしょう。'],
+        content: [{ type: 'text', text: 'サバ味噌煮定食はいかがでしょう。' }],
       })
     } finally {
       await harness.close()
@@ -883,13 +871,7 @@ describeIfDb('meshi integration', () => {
         }),
       )
 
-      const actual = {
-        isError: result.isError ?? false,
-        structuredContent: result.structuredContent,
-        content: textContent(result),
-      }
-      expect(actual).toEqual({
-        isError: false,
+      expect(result).toEqual({
         structuredContent: {
           recorded: [
             {
@@ -908,10 +890,13 @@ describeIfDb('meshi integration', () => {
           error: null,
         },
         content: [
-          [
-            '記録しました (1 件)。',
-            '- fm_rice: 252 kcal / P 3.8g / C 55.5g',
-          ].join('\n'),
+          {
+            type: 'text',
+            text: [
+              '記録しました (1 件)。',
+              '- fm_rice: 252 kcal / P 3.8g / C 55.5g',
+            ].join('\n'),
+          },
         ],
       })
 
@@ -943,14 +928,8 @@ describeIfDb('meshi integration', () => {
         }),
       )
 
-      const actualUpdated = {
-        isError: updated.isError ?? false,
-        content: textContent(updated),
-        structuredContent: updated.structuredContent,
-      }
-      expect(actualUpdated).toEqual({
-        isError: false,
-        content: ['プロファイルを更新しました。'],
+      expect(updated).toEqual({
+        content: [{ type: 'text', text: 'プロファイルを更新しました。' }],
         structuredContent: {
           likes: ['和食'],
           dislikes: [],
@@ -967,14 +946,8 @@ describeIfDb('meshi integration', () => {
         }),
       )
 
-      const actualFetched = {
-        isError: fetched.isError ?? false,
-        content: textContent(fetched),
-        structuredContent: fetched.structuredContent,
-      }
-      expect(actualFetched).toEqual({
-        isError: false,
-        content: ['プロファイルを取得しました。'],
+      expect(fetched).toEqual({
+        content: [{ type: 'text', text: 'プロファイルを取得しました。' }],
         structuredContent: {
           likes: ['和食'],
           dislikes: [],

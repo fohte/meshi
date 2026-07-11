@@ -312,13 +312,7 @@ describe('record_meal_from_text', () => {
           timezone: 'Asia/Tokyo',
         },
       })
-      const actual = {
-        isError: result.isError ?? false,
-        content: result.content,
-        structuredContent: result.structuredContent,
-      }
-      expect(actual).toEqual({
-        isError: false,
+      expect(result).toEqual({
         content: [{ type: 'text', text: '白米 200g を記録しました。' }],
         structuredContent: {
           recorded: [
@@ -357,11 +351,15 @@ describe('record_meal_from_text', () => {
         name: 'record_meal_from_text',
         arguments: {},
       })
-      const actual = {
-        isError: result.isError ?? false,
-        structuredContent: result.structuredContent,
-      }
-      expect(actual).toEqual({ isError: true, structuredContent: undefined })
+      expect(result).toEqual({
+        content: [
+          {
+            type: 'text',
+            text: 'MCP error -32602: Input validation error: Invalid arguments for tool record_meal_from_text: [\n  {\n    "expected": "string",\n    "code": "invalid_type",\n    "path": [\n      "text"\n    ],\n    "message": "Invalid input: expected string, received undefined"\n  }\n]',
+          },
+        ],
+        isError: true,
+      })
       expect(h.calls.recordFromText).toEqual([])
       // Schema validation fails before the handler runs, so neither
       // tool_called nor tool_failed fires.
@@ -380,18 +378,15 @@ describe('record_meal_from_text', () => {
         name: 'record_meal_from_text',
         arguments: { text: 'foo' },
       })
-      const actual = {
-        isError: result.isError,
-        structuredContent: result.structuredContent,
-      }
-      expect(actual).toEqual({
-        isError: true,
+      expect(result).toEqual({
+        content: [{ type: 'text', text: '処理が長くなったため中断しました。' }],
         structuredContent: {
           recorded: [],
           candidates: [],
           has_estimated_values: false,
           error: { kind: 'max_turns_exceeded', message: 'max turns' },
         },
+        isError: true,
       })
       expect(h.logs.map((l) => l.event)).toEqual([
         'meshi.tool_called',
@@ -411,15 +406,9 @@ describe('record_meal_from_text', () => {
         name: 'record_meal_from_text',
         arguments: { text: 'foo' },
       })
-      const actual = {
-        isError: result.isError,
-        content: result.content,
-        structuredContent: result.structuredContent,
-      }
-      expect(actual).toEqual({
-        isError: true,
+      expect(result).toEqual({
         content: [{ type: 'text', text: 'boom' }],
-        structuredContent: undefined,
+        isError: true,
       })
       expect(h.logs.map((l) => l.event)).toEqual([
         'meshi.tool_called',
@@ -439,13 +428,7 @@ describe('record_meal_from_text', () => {
         name: 'record_meal_from_text',
         arguments: { text: 'rice' },
       })
-      const actual = {
-        isError: result.isError ?? false,
-        content: result.content,
-        structuredContent: result.structuredContent,
-      }
-      expect(actual).toEqual({
-        isError: false,
+      expect(result).toEqual({
         content: [{ type: 'text', text: '食品を一意に特定できませんでした。' }],
         structuredContent: {
           recorded: [],
@@ -482,13 +465,7 @@ describe('record_meal_from_image', () => {
           hint_text: 'ラーメン',
         },
       })
-      const actual = {
-        isError: result.isError ?? false,
-        content: result.content,
-        structuredContent: result.structuredContent,
-      }
-      expect(actual).toEqual({
-        isError: false,
+      expect(result).toEqual({
         content: [{ type: 'text', text: '白米 200g を記録しました。' }],
         structuredContent: {
           recorded: [
@@ -520,21 +497,27 @@ describe('record_meal_from_image', () => {
       label: 'external https URL',
       data: 'https://example.com/photo.png',
       mimeType: 'image/png' as const,
+      expectedText:
+        'MCP error -32602: Input validation error: Invalid arguments for tool record_meal_from_image: [\n  {\n    "origin": "string",\n    "code": "invalid_format",\n    "format": "regex",\n    "pattern": "/^[A-Za-z0-9+/]+={0,2}$/",\n    "path": [\n      "image",\n      "data"\n    ],\n    "message": "image.data must be raw base64 (no data: URL prefix, no http(s):// URL, no whitespace)"\n  }\n]',
     },
     {
       label: 'data: URL prefix',
       data: `data:image/png;base64,${base64}`,
       mimeType: 'image/png' as const,
+      expectedText:
+        'MCP error -32602: Input validation error: Invalid arguments for tool record_meal_from_image: [\n  {\n    "origin": "string",\n    "code": "invalid_format",\n    "format": "regex",\n    "pattern": "/^[A-Za-z0-9+/]+={0,2}$/",\n    "path": [\n      "image",\n      "data"\n    ],\n    "message": "image.data must be raw base64 (no data: URL prefix, no http(s):// URL, no whitespace)"\n  }\n]',
     },
     {
       label: 'unsupported mime type',
       data: base64,
       // eslint-disable-next-line @typescript-eslint/no-unsafe-type-assertion -- intentionally probing an unsupported value to verify the enum constraint.
       mimeType: 'image/heic' as 'image/png',
+      expectedText:
+        'MCP error -32602: Input validation error: Invalid arguments for tool record_meal_from_image: [\n  {\n    "code": "invalid_value",\n    "values": [\n      "image/jpeg",\n      "image/png",\n      "image/gif",\n      "image/webp"\n    ],\n    "path": [\n      "image",\n      "mimeType"\n    ],\n    "message": "Invalid option: expected one of \\"image/jpeg\\"|\\"image/png\\"|\\"image/gif\\"|\\"image/webp\\""\n  }\n]',
     },
   ])(
     'rejects $label without invoking the orchestrator',
-    async ({ data, mimeType }) => {
+    async ({ data, mimeType, expectedText }) => {
       const h = await start()
       try {
         const result = await h.client.callTool({
@@ -543,11 +526,10 @@ describe('record_meal_from_image', () => {
             image: { type: 'image', mimeType, data },
           },
         })
-        const actual = {
-          isError: result.isError ?? false,
-          structuredContent: result.structuredContent,
-        }
-        expect(actual).toEqual({ isError: true, structuredContent: undefined })
+        expect(result).toEqual({
+          content: [{ type: 'text', text: expectedText }],
+          isError: true,
+        })
         expect(h.calls.recordFromImage).toEqual([])
         expect(h.logs.map((l) => l.event)).toEqual([])
       } finally {
@@ -569,13 +551,7 @@ describe('query_meals', () => {
           period_to_iso: '2026-06-15T00:00:00+09:00',
         },
       })
-      const actual = {
-        isError: result.isError ?? false,
-        content: result.content,
-        structuredContent: result.structuredContent,
-      }
-      expect(actual).toEqual({
-        isError: false,
+      expect(result).toEqual({
         content: [{ type: 'text', text: '集計結果...' }],
         structuredContent: {
           aggregate: {
@@ -611,13 +587,7 @@ describe('recommend_meal', () => {
         name: 'recommend_meal',
         arguments: { additional_constraints: '軽め' },
       })
-      const actual = {
-        isError: result.isError ?? false,
-        content: result.content,
-        structuredContent: result.structuredContent,
-      }
-      expect(actual).toEqual({
-        isError: false,
+      expect(result).toEqual({
         content: [{ type: 'text', text: 'サバ味噌煮定食はどうでしょう' }],
         structuredContent: { error: null },
       })
@@ -636,13 +606,7 @@ describe('get_profile / update_profile', () => {
         name: 'get_profile',
         arguments: {},
       })
-      const actual = {
-        isError: result.isError ?? false,
-        content: result.content,
-        structuredContent: result.structuredContent,
-      }
-      expect(actual).toEqual({
-        isError: false,
+      expect(result).toEqual({
         content: [{ type: 'text', text: 'プロファイルを取得しました。' }],
         structuredContent: {
           likes: ['rice'],
@@ -677,12 +641,8 @@ describe('get_profile / update_profile', () => {
         name: 'update_profile',
         arguments: { daily_targets: null },
       })
-      const actual = {
-        isError: result.isError ?? false,
-        structuredContent: result.structuredContent,
-      }
-      expect(actual).toEqual({
-        isError: false,
+      expect(result).toEqual({
+        content: [{ type: 'text', text: 'プロファイルを更新しました。' }],
         structuredContent: {
           likes: ['rice'],
           dislikes: [],
@@ -707,12 +667,8 @@ describe('get_profile / update_profile', () => {
           daily_targets: { energy_kcal: 2000 },
         },
       })
-      const actual = {
-        isError: result.isError ?? false,
-        structuredContent: result.structuredContent,
-      }
-      expect(actual).toEqual({
-        isError: false,
+      expect(result).toEqual({
+        content: [{ type: 'text', text: 'プロファイルを更新しました。' }],
         structuredContent: {
           likes: ['rice'],
           dislikes: ['natto'],
