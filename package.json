@@ -21,7 +21,7 @@
     "test:unit": "vitest run"
   },
   "devDependencies": {
-    "@commitlint/cli": "21.1.0",
+    "@commitlint/cli": "21.2.0",
     "@eslint/eslintrc": "3.3.5",
     "@fohte/eslint-config": "0.3.5",
     "@tsconfig/node-lts": "24.0.0",
