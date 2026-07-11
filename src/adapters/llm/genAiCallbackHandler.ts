@@ -25,46 +25,18 @@ import {
   GEN_AI_OPERATION_NAME_VALUE_CHAT,
 } from '@opentelemetry/semantic-conventions/incubating'
 
+import {
+  type GenAiMessage,
+  type GenAiMessagePart,
+  type GenAiOutputMessage,
+  recordSpanException,
+} from '@/adapters/llm/genAiSemconv'
+
 const tracer = trace.getTracer('meshi-genai-callback-handler')
 
 export interface GenAiCallbackHandlerOptions {
   readonly providerName: string
   readonly captureMessageContent?: boolean
-}
-
-// Shapes below follow the GenAI semantic conventions' message format
-// (gen_ai.input.messages / gen_ai.output.messages), mirroring
-// src/adapters/llm/openCodeLlmClient.ts:
-// https://github.com/open-telemetry/semantic-conventions-genai/blob/main/docs/gen-ai/gen-ai-spans.md
-
-interface GenAiTextPart {
-  readonly type: 'text'
-  readonly content: string
-}
-
-interface GenAiToolCallPart {
-  readonly type: 'tool_call'
-  readonly id: string
-  readonly name: string
-  readonly arguments: unknown
-}
-
-interface GenAiToolCallResponsePart {
-  readonly type: 'tool_call_response'
-  readonly id: string
-  readonly response: string
-}
-
-type GenAiMessagePart =
-  GenAiTextPart | GenAiToolCallPart | GenAiToolCallResponsePart
-
-interface GenAiMessage {
-  readonly role: string
-  readonly parts: ReadonlyArray<GenAiMessagePart>
-}
-
-interface GenAiOutputMessage extends GenAiMessage {
-  readonly finish_reason?: string
 }
 
 const roleForMessage = (message: BaseMessage): string => {
@@ -173,15 +145,15 @@ const chatGenerationToGenAiOutputMessage = (
   }
 }
 
-const recordSpanException = (span: Span, error: unknown): void => {
-  span.recordException(error instanceof Error ? error : String(error))
-}
-
 const setGenAiResponseAttributes = (
   span: Span,
   output: LLMResult,
   captureMessageContent: boolean,
 ): void => {
+  // output.generations is one entry per prompt in a batched call, but
+  // @langchain/core's CallbackManager always invokes handleLLMEnd once per
+  // prompt with its own runId (see handleChatModelStart below), so this
+  // handler only ever sees a single-entry outer array here.
   const chatGenerations = (output.generations[0] ?? []).filter(isChatGeneration)
 
   const firstMessage = chatGenerations[0]?.message
@@ -256,6 +228,10 @@ export class GenAiCallbackHandler extends BaseCallbackHandler {
     })
     if (this.captureMessageContent) {
       try {
+        // messages is one entry per prompt in a batched call, but
+        // CallbackManager.handleChatModelStart splits a batch into one call
+        // per prompt (each with a distinct runId) before invoking handlers,
+        // so this handler only ever sees a single-entry outer array here.
         span.setAttribute(
           ATTR_GEN_AI_INPUT_MESSAGES,
           JSON.stringify((messages[0] ?? []).map(messageToGenAiMessage)),

@@ -246,4 +246,24 @@ describe('GenAiCallbackHandler', () => {
       },
     ])
   })
+
+  it('ignores handleLLMEnd / handleLLMError for a runId with no open span', () => {
+    const handler = new GenAiCallbackHandler({ providerName: 'opencode' })
+
+    handler.handleLLMEnd(
+      {
+        generations: [
+          [
+            chatGeneration(
+              new AIMessage<StandardMessageStructure>('unexpected'),
+            ),
+          ],
+        ],
+      },
+      'unknown-run',
+    )
+    handler.handleLLMError(new Error('unexpected'), 'unknown-run')
+
+    expect(exporter.getFinishedSpans()).toEqual([])
+  })
 })
