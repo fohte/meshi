@@ -617,4 +617,59 @@ describe('createMeshiAgentExecutor heartbeat', () => {
     )
     expect(heartbeats).toHaveLength(3)
   })
+
+  it('does not let a heartbeat publish failure abort the execution', async () => {
+    vi.useFakeTimers()
+    vi.spyOn(console, 'error').mockImplementation(() => {})
+    const contextId = `ctx-${randomUUID()}`
+    const taskId = `task-${randomUUID()}`
+    const userMessage = buildUserMessage(taskId, contextId)
+    let resolveInvoke:
+      ((value: { structuredResponse: unknown }) => void) | undefined
+    const agent: MeshiDomainAgentLike = {
+      invoke: vi.fn().mockImplementation(
+        () =>
+          new Promise((resolve) => {
+            resolveInvoke = resolve
+          }),
+      ),
+    }
+    const executor = createMeshiAgentExecutor({
+      agent,
+      sql: buildFakeSql(),
+      heartbeatIntervalMs: 1_000,
+    })
+    // The initial task-seed event is publish call #1; the first heartbeat
+    // tick is #2 — make only that one throw, simulating a transient event
+    // bus failure on a single heartbeat.
+    let publishCount = 0
+    const published: AgentExecutionEvent[] = []
+    const bus: ExecutionEventBus = {
+      publish(event) {
+        publishCount += 1
+        if (publishCount === 2) {
+          throw new Error('event bus unavailable')
+        }
+        published.push(event)
+      },
+      finished: vi.fn(),
+      on: () => bus,
+      off: () => bus,
+      once: () => bus,
+      removeAllListeners: () => bus,
+    }
+
+    const executing = executor.execute(
+      new RequestContext(userMessage, taskId, contextId),
+      bus,
+    )
+
+    await vi.advanceTimersByTimeAsync(1_000)
+    resolveInvoke?.({
+      structuredResponse: { status: 'completed', message: 'ok' },
+    })
+    await expect(executing).resolves.toBeUndefined()
+
+    expect(published.map((event) => event.kind)).toEqual(['task', 'task'])
+  })
 })

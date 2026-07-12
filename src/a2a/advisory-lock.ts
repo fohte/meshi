@@ -21,7 +21,15 @@ export const withAdvisoryLock = async <T>(
     try {
       return await fn()
     } finally {
-      await reserved`SELECT pg_advisory_unlock(hashtextextended(${lockKey}, 0))`
+      // A connection lost while fn() was running already released the
+      // advisory lock on the Postgres side; failing to unlock explicitly at
+      // that point is expected, not a new problem — letting it throw here
+      // would replace fn()'s own result or error with this secondary one.
+      try {
+        await reserved`SELECT pg_advisory_unlock(hashtextextended(${lockKey}, 0))`
+      } catch (err) {
+        console.error('failed to release advisory lock:', err)
+      }
     }
   } finally {
     reserved.release()

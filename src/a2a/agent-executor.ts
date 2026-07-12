@@ -45,8 +45,7 @@ const USAGE_LIMIT_ERROR_KIND = 'usage_limit'
 const STATUS_TO_TASK_STATE: Record<MeshiAgentResponse['status'], TaskState> = {
   completed: 'completed',
   input_required: 'input-required',
-  // Deliberately not input-required, unlike the a2a-samples LangGraph
-  // Currency Agent this pattern is adapted from: silently downgrading an
+  // Deliberately not input-required: silently downgrading an
   // agent-reported error to a follow-up question would hide the failure
   // from the user instead of surfacing it.
   error: 'failed',
@@ -203,8 +202,16 @@ export const createMeshiAgentExecutor = (
           publishWorkingUpdate(eventBus, taskId, contextId)
         }
 
+        // A setInterval callback runs outside execute()'s own call stack, so
+        // a throw here can't be caught by the try/finally below it — left
+        // unguarded, it would surface as an unhandled exception instead of
+        // just costing this one heartbeat tick.
         const heartbeat = setInterval(() => {
-          publishWorkingUpdate(eventBus, taskId, contextId)
+          try {
+            publishWorkingUpdate(eventBus, taskId, contextId)
+          } catch (err) {
+            console.error('failed to publish a2a heartbeat update:', err)
+          }
         }, heartbeatIntervalMs)
         try {
           eventBus.publish(await runAgentTurn(options.agent, requestContext))
