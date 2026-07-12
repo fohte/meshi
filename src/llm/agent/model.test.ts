@@ -5,7 +5,7 @@ import { GenAiCallbackHandler, OPENCODE_GO_BASE_URL } from '@/adapters/llm'
 import { createMeshiChatModel } from '@/llm/agent/model'
 
 describe('createMeshiChatModel', () => {
-  it('defaults to the OpenCode Go base URL', () => {
+  it('builds a ChatOpenAI defaulted to the OpenCode Go base URL', () => {
     const model = createMeshiChatModel({
       apiKey: 'test-key',
       model: 'test-model',
@@ -32,9 +32,6 @@ describe('createMeshiChatModel', () => {
       model: 'test-model',
     })
 
-    expect(model.callbacks).toHaveLength(1)
-    // eslint-disable-next-line @typescript-eslint/no-unsafe-type-assertion -- callbacks is untyped `Callbacks`, but createMeshiChatModel always constructs it as an array of one GenAiCallbackHandler.
-    const [handler] = model.callbacks as readonly unknown[]
-    expect(handler).toBeInstanceOf(GenAiCallbackHandler)
+    expect(model.callbacks).toEqual([expect.any(GenAiCallbackHandler)])
   })
 })

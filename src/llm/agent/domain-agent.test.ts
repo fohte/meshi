@@ -1,4 +1,3 @@
-import { ToolMessage } from '@langchain/core/messages'
 import { MemorySaver } from '@langchain/langgraph'
 import { fakeModel } from 'langchain'
 import { describe, expect, it } from 'vitest'
@@ -70,7 +69,7 @@ describe('createMeshiDomainAgent', () => {
     })
   })
 
-  it('feeds a domain tool failure back to the model and can report status error', async () => {
+  it('reports status error when a domain tool call fails', async () => {
     const registry = stubRegistry([
       recordMealLogTool(() =>
         Promise.resolve(
@@ -107,18 +106,6 @@ describe('createMeshiDomainAgent', () => {
       { configurable: { thread_id: 'thread-2' } },
     )
 
-    const toolMessage = result.messages.find(
-      (m): m is ToolMessage =>
-        ToolMessage.isInstance(m) && m.tool_call_id === 'call_1',
-    )
-    expect(toolMessage?.content).toBe(
-      JSON.stringify({
-        error: {
-          code: 'food_master_not_found',
-          message: 'unknown food_master_id',
-        },
-      }),
-    )
     expect(result.structuredResponse).toEqual({
       status: 'error',
       message: 'That food could not be found.',

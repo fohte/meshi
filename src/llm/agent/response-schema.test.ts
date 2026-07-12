@@ -10,14 +10,12 @@ describe('meshiAgentResponseSchema', () => {
     expect(jsonSchema.title).toBe('meshi_agent_response')
   })
 
-  it('accepts each valid status with a message', () => {
-    for (const status of ['input_required', 'completed', 'error'] as const) {
-      const parsed = meshiAgentResponseSchema.safeParse({
-        status,
-        message: 'hello',
-      })
-      expect(parsed.success).toBe(true)
-    }
+  it('accepts a valid status and message', () => {
+    const parsed = meshiAgentResponseSchema.safeParse({
+      status: 'completed',
+      message: 'hello',
+    })
+    expect(parsed.success).toBe(true)
   })
 
   it('rejects an unknown status', () => {

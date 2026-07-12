@@ -18,6 +18,7 @@ describe('toLangChainTool', () => {
 
     expect(langChainTool.name).toBe('record_meal_log')
     expect(langChainTool.description).toBe('stub tool')
+    expect(langChainTool.schema).toEqual({ type: 'object' })
   })
 
   it('returns the JSON-encoded value on success', async () => {
