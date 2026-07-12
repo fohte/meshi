@@ -36,7 +36,9 @@ export const OPENCODE_GO_BASE_URL = 'https://opencode.ai/zen/go/v1'
 // Identifies this HTTP client's telemetry format flavor to consumers of the
 // span (OpenCode Go proxies to multiple underlying model providers, so this
 // is the gateway being called, not the resolved model's own provider).
-const GEN_AI_PROVIDER_NAME_VALUE_OPENCODE = 'opencode'
+// Exported so other OpenCode Go-backed clients (e.g. the LangChain
+// ChatOpenAI wiring in src/llm/agent/model.ts) report the same provider name.
+export const GEN_AI_PROVIDER_NAME_VALUE_OPENCODE = 'opencode'
 
 const tracer = trace.getTracer('meshi-opencode-llm-client')
 
