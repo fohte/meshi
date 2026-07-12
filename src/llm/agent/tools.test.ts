@@ -54,6 +54,19 @@ describe('toLangChainTool', () => {
     )
   })
 
+  it('returns the JSON-encoded {error} envelope when the domain tool throws', async () => {
+    const domainTool = stubTool(() => Promise.reject(new Error('boom')))
+    const langChainTool = toLangChainTool(domainTool)
+
+    const result: unknown = await langChainTool.invoke({})
+
+    expect(result).toBe(
+      JSON.stringify({
+        error: { code: 'internal_error', message: 'boom' },
+      }),
+    )
+  })
+
   it('propagates the input it receives to the domain tool', async () => {
     let received: unknown
     const domainTool = stubTool((input) => {

@@ -1,5 +1,6 @@
 import { tool } from 'langchain'
 
+import { toInternalToolError } from '@/llm/domain-tools/internal-error'
 import type { DomainTool, ToolError } from '@/llm/domain-tools/types'
 
 const safeStringify = (value: unknown): string | null => {
@@ -39,8 +40,12 @@ const encodeError = (error: ToolError): string =>
 export const toLangChainTool = (domainTool: DomainTool) =>
   tool(
     async (input: unknown): Promise<string> => {
-      const result = await domainTool.execute(input)
-      return result.ok ? encodeOk(result.value) : encodeError(result.error)
+      try {
+        const result = await domainTool.execute(input)
+        return result.ok ? encodeOk(result.value) : encodeError(result.error)
+      } catch (e) {
+        return encodeError(toInternalToolError(e))
+      }
     },
     {
       name: domainTool.name,
