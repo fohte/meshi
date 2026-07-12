@@ -53,15 +53,15 @@ const STATUS_TO_TASK_STATE: Record<MeshiAgentResponse['status'], TaskState> = {
 }
 
 // LangChain's AsyncCaller (async_caller.ts) classifies a 429 into 'wait'
-// (retried in place, never surfaces here), 'stop' (quota exhausted), or
-// 'capacity' (Retry-After too long to auto-retry) before giving up, tagging
-// the thrown error with `rateLimitType` in the 'stop'/'capacity' cases.
-// Both represent a usage-limit failure from this executor's point of view.
+// (retryable in place), 'stop' (quota exhausted), or 'capacity' (Retry-After
+// too long to auto-retry), tagging the error object with `rateLimitType` in
+// all three cases. A 'wait' classification alone doesn't throw — but p-retry
+// still throws that same tagged error once its own retry budget (separate
+// from AsyncCaller's classification) is exhausted, so any error reaching
+// this executor with `rateLimitType` set at all is a usage-limit failure
+// the automatic retry gave up on, regardless of which value it carries.
 const isUsageLimitError = (error: unknown): boolean =>
-  typeof error === 'object' &&
-  error !== null &&
-  'rateLimitType' in error &&
-  (error.rateLimitType === 'stop' || error.rateLimitType === 'capacity')
+  typeof error === 'object' && error !== null && 'rateLimitType' in error
 
 const errorMessage = (error: unknown): string =>
   error instanceof Error ? error.message : String(error)
@@ -95,7 +95,10 @@ const buildAgentMessage = (
 
 // Always a full Task event (never a status-update) so it can carry
 // metadata.error_kind: ResultManager only copies a status-update event's
-// `status` onto the stored task, not its `metadata`.
+// `status` onto the stored task, not its `metadata`. The tradeoff is that a
+// `task` event replaces the stored task wholesale rather than merging, so
+// unlike a status-update's `status.message`, this constructs the full
+// history itself instead of relying on ResultManager to append it.
 const buildFinalTask = (
   requestContext: RequestContext,
   state: TaskState,
@@ -103,6 +106,7 @@ const buildFinalTask = (
   errorKind?: string,
 ): Task => {
   const { taskId, contextId, userMessage, task } = requestContext
+  const agentMessage = buildAgentMessage(taskId, contextId, message)
   return {
     kind: 'task',
     id: taskId,
@@ -110,11 +114,55 @@ const buildFinalTask = (
     status: {
       state,
       timestamp: new Date().toISOString(),
-      message: buildAgentMessage(taskId, contextId, message),
+      message: agentMessage,
     },
-    history: task?.history ?? [userMessage],
+    history: [...(task?.history ?? [userMessage]), agentMessage],
     ...(task?.artifacts !== undefined ? { artifacts: task.artifacts } : {}),
     ...(errorKind !== undefined ? { metadata: { error_kind: errorKind } } : {}),
+  }
+}
+
+// Runs one agent turn and maps its outcome onto a terminal Task: the
+// structured status on success, or a failed task (tagged with error_kind
+// for a usage-limit failure) if the agent throws. Pure aside from
+// agent.invoke — no event publishing or locking — so status mapping can be
+// tested without a database.
+export const runAgentTurn = async (
+  agent: MeshiDomainAgentLike,
+  requestContext: RequestContext,
+): Promise<Task> => {
+  try {
+    const result = await agent.invoke(
+      {
+        messages: [
+          {
+            role: 'user',
+            content: toAgentContent(requestContext.userMessage),
+          },
+        ],
+      },
+      { configurable: { thread_id: requestContext.contextId } },
+    )
+    const parsed = meshiAgentResponseSchema.safeParse(result.structuredResponse)
+    return parsed.success
+      ? buildFinalTask(
+          requestContext,
+          STATUS_TO_TASK_STATE[parsed.data.status],
+          parsed.data.message,
+        )
+      : buildFinalTask(
+          requestContext,
+          'failed',
+          'The agent did not return a valid response.',
+        )
+  } catch (err) {
+    console.error('a2a agent execution failed:', err)
+    return buildFinalTask(
+      requestContext,
+      'failed',
+      errorMessage(err),
+      isUsageLimitError(err) ? USAGE_LIMIT_ERROR_KIND : undefined,
+    )
   }
 }
 
@@ -159,39 +207,7 @@ export const createMeshiAgentExecutor = (
           publishWorkingUpdate(eventBus, taskId, contextId)
         }, heartbeatIntervalMs)
         try {
-          const result = await options.agent.invoke(
-            {
-              messages: [
-                { role: 'user', content: toAgentContent(userMessage) },
-              ],
-            },
-            { configurable: { thread_id: contextId } },
-          )
-          const parsed = meshiAgentResponseSchema.safeParse(
-            result.structuredResponse,
-          )
-          eventBus.publish(
-            parsed.success
-              ? buildFinalTask(
-                  requestContext,
-                  STATUS_TO_TASK_STATE[parsed.data.status],
-                  parsed.data.message,
-                )
-              : buildFinalTask(
-                  requestContext,
-                  'failed',
-                  'The agent did not return a valid response.',
-                ),
-          )
-        } catch (err) {
-          eventBus.publish(
-            buildFinalTask(
-              requestContext,
-              'failed',
-              errorMessage(err),
-              isUsageLimitError(err) ? USAGE_LIMIT_ERROR_KIND : undefined,
-            ),
-          )
+          eventBus.publish(await runAgentTurn(options.agent, requestContext))
         } finally {
           clearInterval(heartbeat)
         }

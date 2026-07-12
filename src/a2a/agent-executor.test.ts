@@ -3,13 +3,29 @@ import { randomUUID } from 'node:crypto'
 import type { Message, Task } from '@a2a-js/sdk'
 import type { AgentExecutionEvent, ExecutionEventBus } from '@a2a-js/sdk/server'
 import { RequestContext } from '@a2a-js/sdk/server'
-import { expect, it, vi } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import type { MeshiDomainAgentLike } from '@/a2a/agent-executor'
-import { createMeshiAgentExecutor } from '@/a2a/agent-executor'
+import { createMeshiAgentExecutor, runAgentTurn } from '@/a2a/agent-executor'
+import type { Sql } from '@/db'
 import { describeIfDb, getTestSql } from '@/test/db'
 
 const NORMALIZED = 'NORMALIZED'
+
+// Minimal fake of postgres.Sql's reserve() surface: withAdvisoryLock only
+// ever calls .reserve() (and the tagged-template + release() it returns),
+// so tests that don't care about real lock/unlock behavior can use this
+// instead of a real Postgres connection — which matters for the heartbeat
+// test below, since a real connection's socket I/O doesn't mix reliably
+// with fake timers.
+const buildFakeSql = (): Sql => {
+  const reserved = Object.assign(() => Promise.resolve([]), {
+    release: () => {},
+  })
+  const fakeSql = { reserve: () => Promise.resolve(reserved) }
+  // eslint-disable-next-line @typescript-eslint/no-unsafe-type-assertion -- see comment above; only .reserve() is ever called on this value.
+  return fakeSql as unknown as Sql
+}
 
 const buildUserMessage = (
   taskId: string,
@@ -24,30 +40,68 @@ const buildUserMessage = (
   contextId,
 })
 
-const buildExistingTask = (taskId: string, contextId: string): Task => ({
+const buildExistingTask = (
+  taskId: string,
+  contextId: string,
+  overrides: Partial<Task> = {},
+): Task => ({
   kind: 'task',
   id: taskId,
   contextId,
   status: { state: 'input-required', timestamp: new Date().toISOString() },
-  history: [
-    buildUserMessage(taskId, contextId, 'first message'),
-    {
-      kind: 'message',
-      role: 'agent',
-      messageId: 'agent-question',
-      parts: [{ kind: 'text', text: 'which food did you mean?' }],
-      taskId,
-      contextId,
-    },
-    buildUserMessage(taskId, contextId, 'the apple'),
-  ],
+  history: buildExistingTaskHistory(taskId, contextId),
+  ...overrides,
+})
+
+// A fresh array with the same content as an existing task's fixture
+// history, for assertions that need it without a non-null assertion on
+// Task['history'] (which is optional in the SDK type, even though this
+// fixture always sets it).
+const buildExistingTaskHistory = (
+  taskId: string,
+  contextId: string,
+): Message[] => [
+  buildUserMessage(taskId, contextId, 'first message'),
+  {
+    kind: 'message',
+    role: 'agent',
+    messageId: 'agent-question',
+    parts: [{ kind: 'text', text: 'which food did you mean?' }],
+    taskId,
+    contextId,
+  },
+  buildUserMessage(taskId, contextId, 'the apple'),
+]
+
+// Builds the agent reply Task.status.message this executor would produce,
+// with a normalized messageId (the real one is a random UUID) — reused as
+// the expected value for both `status.message` and the trailing entry of
+// `history`, since buildFinalTask always carries the same message object to
+// both places.
+const buildExpectedAgentMessage = (
+  taskId: string,
+  contextId: string,
+  text: string,
+): Message => ({
+  kind: 'message',
+  role: 'agent',
+  messageId: NORMALIZED,
+  parts: [{ kind: 'text', text }],
+  taskId,
+  contextId,
 })
 
 // Timestamps and the agent's random messageId are the only non-deterministic
 // fields; normalizing them in lets each test assert the full published event
-// with one equality check instead of picking fields apart.
+// (or, for runAgentTurn, the returned Task directly — it's one of the same
+// AgentExecutionEvent shapes) with one equality check instead of picking
+// fields apart. The trailing history entry is the same agent-authored
+// message as status.message (see buildFinalTask), so it gets the same
+// normalization; earlier entries (from an existing task's history) are
+// left untouched since their messageIds are fixture-controlled.
 const normalizeEvent = (event: AgentExecutionEvent): AgentExecutionEvent => {
   if (event.kind === 'task') {
+    const lastHistoryEntry = event.history?.at(-1)
     return {
       ...event,
       status: {
@@ -57,6 +111,14 @@ const normalizeEvent = (event: AgentExecutionEvent): AgentExecutionEvent => {
           ? { message: { ...event.status.message, messageId: NORMALIZED } }
           : {}),
       },
+      ...(event.history !== undefined && lastHistoryEntry?.role === 'agent'
+        ? {
+            history: [
+              ...event.history.slice(0, -1),
+              { ...lastHistoryEntry, messageId: NORMALIZED },
+            ],
+          }
+        : {}),
     }
   }
   if (event.kind === 'status-update') {
@@ -64,6 +126,278 @@ const normalizeEvent = (event: AgentExecutionEvent): AgentExecutionEvent => {
   }
   return event
 }
+
+describe('runAgentTurn', () => {
+  it('maps a completed structured response to a completed task', async () => {
+    const contextId = `ctx-${randomUUID()}`
+    const taskId = `task-${randomUUID()}`
+    const userMessage = buildUserMessage(taskId, contextId)
+    const agent: MeshiDomainAgentLike = {
+      invoke: vi.fn().mockResolvedValue({
+        structuredResponse: {
+          status: 'completed',
+          message: 'Recorded your meal.',
+        },
+      }),
+    }
+
+    const task = await runAgentTurn(
+      agent,
+      new RequestContext(userMessage, taskId, contextId),
+    )
+
+    const agentMessage = buildExpectedAgentMessage(
+      taskId,
+      contextId,
+      'Recorded your meal.',
+    )
+    expect(normalizeEvent(task)).toEqual({
+      kind: 'task',
+      id: taskId,
+      contextId,
+      status: {
+        state: 'completed',
+        timestamp: NORMALIZED,
+        message: agentMessage,
+      },
+      history: [userMessage, agentMessage],
+    })
+  })
+
+  it('maps an input_required structured response to an input-required task', async () => {
+    const contextId = `ctx-${randomUUID()}`
+    const taskId = `task-${randomUUID()}`
+    const existingTask = buildExistingTask(taskId, contextId)
+    const userMessage = buildUserMessage(taskId, contextId, 'more info')
+    const agent: MeshiDomainAgentLike = {
+      invoke: vi.fn().mockResolvedValue({
+        structuredResponse: {
+          status: 'input_required',
+          message: 'Which food did you mean?',
+        },
+      }),
+    }
+
+    const task = await runAgentTurn(
+      agent,
+      new RequestContext(userMessage, taskId, contextId, existingTask),
+    )
+
+    const agentMessage = buildExpectedAgentMessage(
+      taskId,
+      contextId,
+      'Which food did you mean?',
+    )
+    expect(normalizeEvent(task)).toEqual({
+      kind: 'task',
+      id: taskId,
+      contextId,
+      status: {
+        state: 'input-required',
+        timestamp: NORMALIZED,
+        message: agentMessage,
+      },
+      history: [...buildExistingTaskHistory(taskId, contextId), agentMessage],
+    })
+  })
+
+  it('maps an error structured response to a failed task without an error_kind', async () => {
+    const contextId = `ctx-${randomUUID()}`
+    const taskId = `task-${randomUUID()}`
+    const userMessage = buildUserMessage(taskId, contextId)
+    const agent: MeshiDomainAgentLike = {
+      invoke: vi.fn().mockResolvedValue({
+        structuredResponse: {
+          status: 'error',
+          message: 'That food could not be found.',
+        },
+      }),
+    }
+
+    const task = await runAgentTurn(
+      agent,
+      new RequestContext(userMessage, taskId, contextId),
+    )
+
+    const agentMessage = buildExpectedAgentMessage(
+      taskId,
+      contextId,
+      'That food could not be found.',
+    )
+    expect(normalizeEvent(task)).toEqual({
+      kind: 'task',
+      id: taskId,
+      contextId,
+      status: { state: 'failed', timestamp: NORMALIZED, message: agentMessage },
+      history: [userMessage, agentMessage],
+    })
+  })
+
+  it('falls back to a failed task when the structured response does not match the expected schema', async () => {
+    const contextId = `ctx-${randomUUID()}`
+    const taskId = `task-${randomUUID()}`
+    const userMessage = buildUserMessage(taskId, contextId)
+    const agent: MeshiDomainAgentLike = {
+      invoke: vi
+        .fn()
+        .mockResolvedValue({ structuredResponse: { unexpected: true } }),
+    }
+
+    const task = await runAgentTurn(
+      agent,
+      new RequestContext(userMessage, taskId, contextId),
+    )
+
+    const agentMessage = buildExpectedAgentMessage(
+      taskId,
+      contextId,
+      'The agent did not return a valid response.',
+    )
+    expect(normalizeEvent(task)).toEqual({
+      kind: 'task',
+      id: taskId,
+      contextId,
+      status: { state: 'failed', timestamp: NORMALIZED, message: agentMessage },
+      history: [userMessage, agentMessage],
+    })
+  })
+
+  it('tags a usage-limit failure with error_kind on the failed task', async () => {
+    const contextId = `ctx-${randomUUID()}`
+    const taskId = `task-${randomUUID()}`
+    const userMessage = buildUserMessage(taskId, contextId)
+    const usageLimitError = Object.assign(new Error('rate limited'), {
+      rateLimitType: 'stop',
+    })
+    const agent: MeshiDomainAgentLike = {
+      invoke: vi.fn().mockRejectedValue(usageLimitError),
+    }
+
+    vi.spyOn(console, 'error').mockImplementation(() => {})
+    const task = await runAgentTurn(
+      agent,
+      new RequestContext(userMessage, taskId, contextId),
+    )
+
+    const agentMessage = buildExpectedAgentMessage(
+      taskId,
+      contextId,
+      'rate limited',
+    )
+    expect(normalizeEvent(task)).toEqual({
+      kind: 'task',
+      id: taskId,
+      contextId,
+      status: { state: 'failed', timestamp: NORMALIZED, message: agentMessage },
+      history: [userMessage, agentMessage],
+      metadata: { error_kind: 'usage_limit' },
+    })
+  })
+
+  // A short Retry-After (<=60s) classifies as 'wait' and is retried
+  // in-place by AsyncCaller — but if every retry keeps hitting the same
+  // limit, p-retry eventually exhausts its own budget and throws that same
+  // 'wait'-tagged error anyway, so this must count as usage_limit too.
+  it('tags a retry-exhausted "wait" classification with error_kind on the failed task', async () => {
+    const contextId = `ctx-${randomUUID()}`
+    const taskId = `task-${randomUUID()}`
+    const userMessage = buildUserMessage(taskId, contextId)
+    const waitClassifiedError = Object.assign(new Error('rate limited'), {
+      rateLimitType: 'wait',
+    })
+    const agent: MeshiDomainAgentLike = {
+      invoke: vi.fn().mockRejectedValue(waitClassifiedError),
+    }
+
+    vi.spyOn(console, 'error').mockImplementation(() => {})
+    const task = await runAgentTurn(
+      agent,
+      new RequestContext(userMessage, taskId, contextId),
+    )
+
+    expect(task.metadata).toEqual({ error_kind: 'usage_limit' })
+  })
+
+  it('does not tag a plain failure with error_kind', async () => {
+    const contextId = `ctx-${randomUUID()}`
+    const taskId = `task-${randomUUID()}`
+    const userMessage = buildUserMessage(taskId, contextId)
+    const agent: MeshiDomainAgentLike = {
+      invoke: vi.fn().mockRejectedValue(new Error('boom')),
+    }
+
+    vi.spyOn(console, 'error').mockImplementation(() => {})
+    const task = await runAgentTurn(
+      agent,
+      new RequestContext(userMessage, taskId, contextId),
+    )
+
+    const agentMessage = buildExpectedAgentMessage(taskId, contextId, 'boom')
+    expect(normalizeEvent(task)).toEqual({
+      kind: 'task',
+      id: taskId,
+      contextId,
+      status: { state: 'failed', timestamp: NORMALIZED, message: agentMessage },
+      history: [userMessage, agentMessage],
+    })
+  })
+
+  it('passes the converted user message content and thread_id to the domain agent', async () => {
+    const contextId = `ctx-${randomUUID()}`
+    const taskId = `task-${randomUUID()}`
+    const userMessage = buildUserMessage(taskId, contextId)
+    const invoke = vi.fn().mockResolvedValue({
+      structuredResponse: { status: 'completed', message: 'ok' },
+    })
+    const agent: MeshiDomainAgentLike = { invoke }
+
+    await runAgentTurn(
+      agent,
+      new RequestContext(userMessage, taskId, contextId),
+    )
+
+    expect(invoke).toHaveBeenCalledWith(
+      {
+        messages: [
+          { role: 'user', content: [{ type: 'text', text: 'hello' }] },
+        ],
+      },
+      { configurable: { thread_id: contextId } },
+    )
+  })
+
+  it('carries forward the existing task history and artifacts on the final task', async () => {
+    const contextId = `ctx-${randomUUID()}`
+    const taskId = `task-${randomUUID()}`
+    const existingTask = buildExistingTask(taskId, contextId, {
+      artifacts: [
+        { artifactId: 'artifact-1', parts: [{ kind: 'text', text: 'x' }] },
+      ],
+    })
+    const userMessage = buildUserMessage(taskId, contextId, 'more info')
+    const agent: MeshiDomainAgentLike = {
+      invoke: vi.fn().mockResolvedValue({
+        structuredResponse: { status: 'completed', message: 'ok' },
+      }),
+    }
+
+    const task = await runAgentTurn(
+      agent,
+      new RequestContext(userMessage, taskId, contextId, existingTask),
+    )
+
+    // task.status.message is the exact same agent-authored message object
+    // buildFinalTask appends to history, so reusing it here (rather than
+    // hand-constructing its random messageId) keeps this a precise
+    // equality check without depending on the message content itself,
+    // which is what "carries forward" is testing.
+    expect(task.history).toEqual([
+      ...buildExistingTaskHistory(taskId, contextId),
+      task.status.message,
+    ])
+    expect(task.artifacts).toEqual(existingTask.artifacts)
+  })
+})
 
 const buildEventBus = (): {
   bus: ExecutionEventBus
@@ -85,28 +419,23 @@ const buildEventBus = (): {
   return { bus, published, finished }
 }
 
-const lastEvent = (
-  published: readonly AgentExecutionEvent[],
-): AgentExecutionEvent => {
-  const event = published.at(-1)
-  if (event === undefined) {
-    throw new Error('expected at least one published event')
-  }
-  return event
-}
-
 describeIfDb('createMeshiAgentExecutor', () => {
-  it('maps a completed structured response to a completed task, seeding the store with an initial working task for a new task', async () => {
+  afterEach(() => {
+    vi.useRealTimers()
+  })
+
+  it('seeds the store with an initial working task, then publishes the final task, for a new task', async () => {
     const contextId = `ctx-${randomUUID()}`
     const taskId = `task-${randomUUID()}`
     const userMessage = buildUserMessage(taskId, contextId)
-    const invoke = vi.fn().mockResolvedValue({
-      structuredResponse: {
-        status: 'completed',
-        message: 'Recorded your meal.',
-      },
-    })
-    const agent: MeshiDomainAgentLike = { invoke }
+    const agent: MeshiDomainAgentLike = {
+      invoke: vi.fn().mockResolvedValue({
+        structuredResponse: {
+          status: 'completed',
+          message: 'Recorded your meal.',
+        },
+      }),
+    }
     const executor = createMeshiAgentExecutor({
       agent,
       sql: getTestSql(),
@@ -119,6 +448,11 @@ describeIfDb('createMeshiAgentExecutor', () => {
       bus,
     )
 
+    const agentMessage = buildExpectedAgentMessage(
+      taskId,
+      contextId,
+      'Recorded your meal.',
+    )
     expect(published.map(normalizeEvent)).toEqual([
       {
         kind: 'task',
@@ -134,30 +468,15 @@ describeIfDb('createMeshiAgentExecutor', () => {
         status: {
           state: 'completed',
           timestamp: NORMALIZED,
-          message: {
-            kind: 'message',
-            role: 'agent',
-            messageId: NORMALIZED,
-            parts: [{ kind: 'text', text: 'Recorded your meal.' }],
-            taskId,
-            contextId,
-          },
+          message: agentMessage,
         },
-        history: [userMessage],
+        history: [userMessage, agentMessage],
       },
     ])
     expect(finished).toHaveBeenCalledOnce()
-    expect(invoke).toHaveBeenCalledWith(
-      {
-        messages: [
-          { role: 'user', content: [{ type: 'text', text: 'hello' }] },
-        ],
-      },
-      { configurable: { thread_id: contextId } },
-    )
   })
 
-  it('maps an input_required structured response to input-required, publishing a working status-update for a resumed task', async () => {
+  it('publishes a working status-update before resuming an existing task', async () => {
     const contextId = `ctx-${randomUUID()}`
     const taskId = `task-${randomUUID()}`
     const existingTask = buildExistingTask(taskId, contextId)
@@ -182,6 +501,11 @@ describeIfDb('createMeshiAgentExecutor', () => {
       bus,
     )
 
+    const agentMessage = buildExpectedAgentMessage(
+      taskId,
+      contextId,
+      'Which food did you mean?',
+    )
     expect(published.map(normalizeEvent)).toEqual([
       {
         kind: 'status-update',
@@ -197,228 +521,11 @@ describeIfDb('createMeshiAgentExecutor', () => {
         status: {
           state: 'input-required',
           timestamp: NORMALIZED,
-          message: {
-            kind: 'message',
-            role: 'agent',
-            messageId: NORMALIZED,
-            parts: [{ kind: 'text', text: 'Which food did you mean?' }],
-            taskId,
-            contextId,
-          },
+          message: agentMessage,
         },
-        history: existingTask.history,
+        history: [...buildExistingTaskHistory(taskId, contextId), agentMessage],
       },
     ])
-  })
-
-  it('maps an error structured response to a failed task without an error_kind', async () => {
-    const contextId = `ctx-${randomUUID()}`
-    const taskId = `task-${randomUUID()}`
-    const userMessage = buildUserMessage(taskId, contextId)
-    const agent: MeshiDomainAgentLike = {
-      invoke: vi.fn().mockResolvedValue({
-        structuredResponse: {
-          status: 'error',
-          message: 'That food could not be found.',
-        },
-      }),
-    }
-    const executor = createMeshiAgentExecutor({
-      agent,
-      sql: getTestSql(),
-      heartbeatIntervalMs: 1_000_000,
-    })
-    const { bus, published } = buildEventBus()
-
-    await executor.execute(
-      new RequestContext(userMessage, taskId, contextId),
-      bus,
-    )
-
-    const finalEvent = normalizeEvent(lastEvent(published))
-    expect(finalEvent).toEqual({
-      kind: 'task',
-      id: taskId,
-      contextId,
-      status: {
-        state: 'failed',
-        timestamp: NORMALIZED,
-        message: {
-          kind: 'message',
-          role: 'agent',
-          messageId: NORMALIZED,
-          parts: [{ kind: 'text', text: 'That food could not be found.' }],
-          taskId,
-          contextId,
-        },
-      },
-      history: [userMessage],
-    })
-  })
-
-  it('falls back to a failed task when the structured response does not match the expected schema', async () => {
-    const contextId = `ctx-${randomUUID()}`
-    const taskId = `task-${randomUUID()}`
-    const userMessage = buildUserMessage(taskId, contextId)
-    const agent: MeshiDomainAgentLike = {
-      invoke: vi
-        .fn()
-        .mockResolvedValue({ structuredResponse: { unexpected: true } }),
-    }
-    const executor = createMeshiAgentExecutor({
-      agent,
-      sql: getTestSql(),
-      heartbeatIntervalMs: 1_000_000,
-    })
-    const { bus, published } = buildEventBus()
-
-    await executor.execute(
-      new RequestContext(userMessage, taskId, contextId),
-      bus,
-    )
-
-    const finalEvent = normalizeEvent(lastEvent(published))
-    expect(finalEvent).toEqual({
-      kind: 'task',
-      id: taskId,
-      contextId,
-      status: {
-        state: 'failed',
-        timestamp: NORMALIZED,
-        message: {
-          kind: 'message',
-          role: 'agent',
-          messageId: NORMALIZED,
-          parts: [
-            {
-              kind: 'text',
-              text: 'The agent did not return a valid response.',
-            },
-          ],
-          taskId,
-          contextId,
-        },
-      },
-      history: [userMessage],
-    })
-  })
-
-  it('tags a usage-limit failure with error_kind on the failed task', async () => {
-    const contextId = `ctx-${randomUUID()}`
-    const taskId = `task-${randomUUID()}`
-    const userMessage = buildUserMessage(taskId, contextId)
-    const usageLimitError = Object.assign(new Error('rate limited'), {
-      rateLimitType: 'stop',
-    })
-    const agent: MeshiDomainAgentLike = {
-      invoke: vi.fn().mockRejectedValue(usageLimitError),
-    }
-    const executor = createMeshiAgentExecutor({
-      agent,
-      sql: getTestSql(),
-      heartbeatIntervalMs: 1_000_000,
-    })
-    const { bus, published } = buildEventBus()
-
-    await executor.execute(
-      new RequestContext(userMessage, taskId, contextId),
-      bus,
-    )
-
-    const finalEvent = normalizeEvent(lastEvent(published))
-    expect(finalEvent).toEqual({
-      kind: 'task',
-      id: taskId,
-      contextId,
-      status: {
-        state: 'failed',
-        timestamp: NORMALIZED,
-        message: {
-          kind: 'message',
-          role: 'agent',
-          messageId: NORMALIZED,
-          parts: [{ kind: 'text', text: 'rate limited' }],
-          taskId,
-          contextId,
-        },
-      },
-      history: [userMessage],
-      metadata: { error_kind: 'usage_limit' },
-    })
-  })
-
-  it('does not tag a plain failure with error_kind', async () => {
-    const contextId = `ctx-${randomUUID()}`
-    const taskId = `task-${randomUUID()}`
-    const userMessage = buildUserMessage(taskId, contextId)
-    const agent: MeshiDomainAgentLike = {
-      invoke: vi.fn().mockRejectedValue(new Error('boom')),
-    }
-    const executor = createMeshiAgentExecutor({
-      agent,
-      sql: getTestSql(),
-      heartbeatIntervalMs: 1_000_000,
-    })
-    const { bus, published } = buildEventBus()
-
-    await executor.execute(
-      new RequestContext(userMessage, taskId, contextId),
-      bus,
-    )
-
-    const finalEvent = normalizeEvent(lastEvent(published))
-    expect(finalEvent).toEqual({
-      kind: 'task',
-      id: taskId,
-      contextId,
-      status: {
-        state: 'failed',
-        timestamp: NORMALIZED,
-        message: {
-          kind: 'message',
-          role: 'agent',
-          messageId: NORMALIZED,
-          parts: [{ kind: 'text', text: 'boom' }],
-          taskId,
-          contextId,
-        },
-      },
-      history: [userMessage],
-    })
-  })
-
-  it('publishes periodic working heartbeats while the agent is running', async () => {
-    const contextId = `ctx-${randomUUID()}`
-    const taskId = `task-${randomUUID()}`
-    const userMessage = buildUserMessage(taskId, contextId)
-    const agent: MeshiDomainAgentLike = {
-      invoke: vi.fn().mockImplementation(
-        () =>
-          new Promise((resolve) => {
-            setTimeout(() => {
-              resolve({
-                structuredResponse: { status: 'completed', message: 'ok' },
-              })
-            }, 120)
-          }),
-      ),
-    }
-    const executor = createMeshiAgentExecutor({
-      agent,
-      sql: getTestSql(),
-      heartbeatIntervalMs: 20,
-    })
-    const { bus, published } = buildEventBus()
-
-    await executor.execute(
-      new RequestContext(userMessage, taskId, contextId),
-      bus,
-    )
-
-    const heartbeats = published.filter(
-      (event) => event.kind === 'status-update',
-    )
-    expect(heartbeats.length).toBeGreaterThanOrEqual(2)
   })
 
   it('serializes concurrent executions for the same contextId behind the advisory lock', async () => {
@@ -462,5 +569,52 @@ describeIfDb('createMeshiAgentExecutor', () => {
     ])
 
     expect(maxConcurrent).toBe(1)
+  })
+})
+
+describe('createMeshiAgentExecutor heartbeat', () => {
+  afterEach(() => {
+    vi.useRealTimers()
+  })
+
+  it('publishes periodic working heartbeats while the agent is running', async () => {
+    vi.useFakeTimers()
+    const contextId = `ctx-${randomUUID()}`
+    const taskId = `task-${randomUUID()}`
+    const userMessage = buildUserMessage(taskId, contextId)
+    let resolveInvoke:
+      ((value: { structuredResponse: unknown }) => void) | undefined
+    const agent: MeshiDomainAgentLike = {
+      invoke: vi.fn().mockImplementation(
+        () =>
+          new Promise((resolve) => {
+            resolveInvoke = resolve
+          }),
+      ),
+    }
+    const executor = createMeshiAgentExecutor({
+      agent,
+      sql: buildFakeSql(),
+      heartbeatIntervalMs: 1_000,
+    })
+    const { bus, published } = buildEventBus()
+
+    const executing = executor.execute(
+      new RequestContext(userMessage, taskId, contextId),
+      bus,
+    )
+
+    await vi.advanceTimersByTimeAsync(1_000)
+    await vi.advanceTimersByTimeAsync(1_000)
+    await vi.advanceTimersByTimeAsync(1_000)
+    resolveInvoke?.({
+      structuredResponse: { status: 'completed', message: 'ok' },
+    })
+    await executing
+
+    const heartbeats = published.filter(
+      (event) => event.kind === 'status-update',
+    )
+    expect(heartbeats).toHaveLength(3)
   })
 })

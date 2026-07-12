@@ -13,11 +13,15 @@ export const withAdvisoryLock = async <T>(
 ): Promise<T> => {
   const reserved = await sql.reserve()
   try {
-    await reserved`SELECT pg_advisory_lock(hashtext(${lockKey}))`
+    // hashtextextended(text, seed) over hashtext(text): pg_advisory_lock
+    // takes a bigint, and hashtext alone only fills the low 32 bits of it,
+    // making unrelated lock keys collide (and serialize against each
+    // other) far more often than the 64-bit hash needs to.
+    await reserved`SELECT pg_advisory_lock(hashtextextended(${lockKey}, 0))`
     try {
       return await fn()
     } finally {
-      await reserved`SELECT pg_advisory_unlock(hashtext(${lockKey}))`
+      await reserved`SELECT pg_advisory_unlock(hashtextextended(${lockKey}, 0))`
     }
   } finally {
     reserved.release()

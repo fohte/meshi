@@ -4,10 +4,8 @@ export type AgentContentBlock =
   | { type: 'text'; text: string }
   | { type: 'image'; mimeType: string; data: string }
 
-// Slack-bot's delegation tool sends images as base64 FileParts, never by
-// URI (components.md's RemoteAgentRegistry contract), and mimeType is
-// optional on FileWithBytes per the A2A spec — this is the fallback for
-// the rare case a caller omits it.
+// mimeType is optional on FileWithBytes per the A2A spec; default to the
+// common case so a caller that omits it still gets a usable content block.
 const DEFAULT_IMAGE_MIME_TYPE = 'image/jpeg'
 
 const isFileWithBytes = (

@@ -45,6 +45,12 @@ describe('toAgentContent', () => {
     expect(toAgentContent(message)).toEqual([])
   })
 
+  it('drops a data part', () => {
+    const message = buildMessage([{ kind: 'data', data: { foo: 'bar' } }])
+
+    expect(toAgentContent(message)).toEqual([])
+  })
+
   it('preserves the order of mixed text and image parts', () => {
     const message = buildMessage([
       { kind: 'text', text: 'what is this?' },

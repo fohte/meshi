@@ -11,11 +11,11 @@ const probeAdvisoryLock = async (lockKey: string): Promise<boolean> => {
   const reserved = await getTestSql().reserve()
   try {
     const rows = await reserved<{ locked: boolean }[]>`
-      SELECT pg_try_advisory_lock(hashtext(${lockKey})) AS locked
+      SELECT pg_try_advisory_lock(hashtextextended(${lockKey}, 0)) AS locked
     `
     const locked = rows[0]?.locked ?? false
     if (locked) {
-      await reserved`SELECT pg_advisory_unlock(hashtext(${lockKey}))`
+      await reserved`SELECT pg_advisory_unlock(hashtextextended(${lockKey}, 0))`
     }
     return locked
   } finally {
@@ -34,7 +34,7 @@ describeIfDb('withAdvisoryLock', () => {
     expect(result).toBe('done')
   })
 
-  it('holds the lock while the callback runs and releases it afterward', async () => {
+  it('holds the lock while the callback runs', async () => {
     const lockKey = 'advisory-lock-test-hold'
     let heldDuringCallback: boolean | undefined
 
@@ -43,6 +43,13 @@ describeIfDb('withAdvisoryLock', () => {
     })
 
     expect(heldDuringCallback).toBe(false)
+  })
+
+  it('releases the lock after the callback completes', async () => {
+    const lockKey = 'advisory-lock-test-release'
+
+    await withAdvisoryLock(getTestSql(), lockKey, () => Promise.resolve())
+
     expect(await probeAdvisoryLock(lockKey)).toBe(true)
   })
 
