@@ -1,8 +1,8 @@
 import type { Span } from '@opentelemetry/api'
 
 // Shapes below follow the GenAI semantic conventions' message format
-// (gen_ai.input.messages / gen_ai.output.messages), shared by every LLM
-// adapter in this directory (openCodeLlmClient.ts, genAiCallbackHandler.ts):
+// (gen_ai.input.messages / gen_ai.output.messages), used by
+// genAiCallbackHandler.ts:
 // https://github.com/open-telemetry/semantic-conventions-genai/blob/main/docs/gen-ai/gen-ai-spans.md
 
 export interface GenAiTextPart {

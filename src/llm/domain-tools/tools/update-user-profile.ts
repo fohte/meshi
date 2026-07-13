@@ -29,7 +29,7 @@ export const createUpdateUserProfileTool = (
   name: 'update_user_profile',
   description:
     'Patch fields on the single-user profile. Omitted fields are left unchanged; arrays are replaced wholesale; daily_targets is merged shallowly.',
-  inputSchema: z.toJSONSchema(inputSchema),
+  inputSchema: z.toJSONSchema(inputSchema, { io: 'input' }),
   async execute(
     input: unknown,
   ): Promise<Result<UserProfilePayload, ToolError>> {

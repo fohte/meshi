@@ -1,7 +1,7 @@
 export {
-  type ConversationOrchestratorOptions,
-  createConversationOrchestrator,
-} from '@/llm/orchestrator/orchestrator'
+  createDomainAgentOrchestrator,
+  type DomainAgentOrchestratorOptions,
+} from '@/llm/orchestrator/domain-agent-orchestrator'
 export {
   createPassthroughReplyFormatter,
   createTemplateReplyFormatter,

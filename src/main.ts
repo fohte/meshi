@@ -1,10 +1,18 @@
 import { randomUUID } from 'node:crypto'
 import { createServer } from 'node:http'
 
+import {
+  DefaultPushNotificationSender,
+  DefaultRequestHandler,
+} from '@a2a-js/sdk/server'
 import { getRequestListener } from '@hono/node-server'
 
+import { createMeshiAgentCard } from '@/a2a/agent-card'
+import { createMeshiAgentExecutor } from '@/a2a/agent-executor'
+import { startTaskLifecycleJobs } from '@/a2a/lifecycle-jobs'
+import { createPostgresPushNotificationStore } from '@/a2a/postgres-push-notification-store'
+import { createPostgresTaskStore } from '@/a2a/postgres-task-store'
 import { createDrizzleUserProfileRepository } from '@/adapters/db/drizzle-user-profile-repository'
-import { OpenCodeLlmClient } from '@/adapters/llm'
 import { createTavilyWebSearchClient } from '@/adapters/web-search/tavily-web-search-client'
 import { createApp } from '@/app'
 import { observability } from '@/bootstrap'
@@ -19,9 +27,14 @@ import { createDrizzleMealLogRepository } from '@/domain/meal-log/drizzle-meal-l
 import { createMealLogService } from '@/domain/meal-log/meal-log-service'
 import { createUserProfileService } from '@/domain/user-profile/user-profile-service'
 import { EnvError, loadEnv } from '@/env'
+import {
+  createMeshiChatModel,
+  createMeshiCheckpointer,
+  createMeshiDomainAgent,
+} from '@/llm/agent'
 import { createDomainToolsRegistry } from '@/llm/domain-tools'
 import {
-  createConversationOrchestrator,
+  createDomainAgentOrchestrator,
   createTemplateReplyFormatter,
 } from '@/llm/orchestrator'
 import { createJsonStdoutLogger } from '@/logger'
@@ -50,15 +63,20 @@ const parseListenAddr = (addr: string): { hostname: string; port: number } => {
 const isMcpRequest = (url: string | undefined): boolean =>
   url === '/mcp' || url?.startsWith('/mcp?') === true
 
+// Watchdog: a `working` a2a_task whose heartbeat has been silent for longer
+// than this is failed. This is a heartbeat timeout, not a max execution
+// time — a slow-but-alive executor keeps publishing status-updates and
+// never crosses it.
+const A2A_WORKING_TIMEOUT_MS = 10 * 60 * 1000
+// Retention: a terminal-state a2a_task older than this many days is deleted.
+const A2A_TASK_RETENTION_DAYS = 30
+
 export const main = async (): Promise<void> => {
   const env = loadEnv()
   const sql = createSql(env.DATABASE_URL)
   await pingDb(sql)
   await runMigrations(sql)
   await seedNutrientDefinitions(sql)
-
-  const app = createApp({ sql })
-  const honoListener = getRequestListener(app.fetch)
 
   const mealLogService = createMealLogService({
     repository: createDrizzleMealLogRepository(sql),
@@ -76,11 +94,6 @@ export const main = async (): Promise<void> => {
   const webSearchClient = createTavilyWebSearchClient({
     apiKey: env.WEB_SEARCH_API_KEY,
   })
-  const llmClient = new OpenCodeLlmClient({
-    apiKey: env.OPENCODE_API_KEY,
-    captureMessageContent:
-      env.OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT,
-  })
   const registry = createDomainToolsRegistry({
     mealLogService,
     foodMasterService,
@@ -89,13 +102,19 @@ export const main = async (): Promise<void> => {
     userProfileService,
     webSearchClient,
   })
-  const orchestrator = createConversationOrchestrator({
-    llmClient,
+
+  const model = createMeshiChatModel({
+    apiKey: env.OPENCODE_API_KEY,
+    model: env.MESHI_LLM_MODEL,
+    captureMessageContent:
+      env.OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT,
+  })
+  const checkpointer = createMeshiCheckpointer(env.DATABASE_URL)
+  const domainAgent = createMeshiDomainAgent({ model, registry, checkpointer })
+
+  const orchestrator = createDomainAgentOrchestrator({
+    model,
     registry,
-    textModel: env.MESHI_LLM_MODEL,
-    visionModel: env.MESHI_LLM_VISION_MODEL,
-    lightweightModel: env.MESHI_LLM_LIGHTWEIGHT_MODEL,
-    maxTurns: env.MESHI_LLM_MAX_TURNS,
     formatter: createTemplateReplyFormatter(),
   })
   const toolDeps: MeshiToolDeps = {
@@ -103,6 +122,38 @@ export const main = async (): Promise<void> => {
     profileService: userProfileService,
     logger: createJsonStdoutLogger(),
   }
+
+  const agentCard = createMeshiAgentCard({ url: env.A2A_AGENT_URL })
+  const taskStore = createPostgresTaskStore(sql)
+  const pushNotificationStore = createPostgresPushNotificationStore(sql)
+  const pushNotificationSender = new DefaultPushNotificationSender(
+    pushNotificationStore,
+  )
+  const agentExecutor = createMeshiAgentExecutor({ agent: domainAgent, sql })
+  const requestHandler = new DefaultRequestHandler(
+    agentCard,
+    taskStore,
+    agentExecutor,
+    undefined,
+    pushNotificationStore,
+    pushNotificationSender,
+  )
+
+  const app = createApp({
+    sql,
+    agentCard,
+    requestHandler,
+    ...(env.A2A_BEARER_TOKEN === undefined
+      ? {}
+      : { bearerToken: env.A2A_BEARER_TOKEN }),
+  })
+  const honoListener = getRequestListener(app.fetch)
+
+  const lifecycleJobs = startTaskLifecycleJobs(taskStore, {
+    workingTimeoutMs: A2A_WORKING_TIMEOUT_MS,
+    retentionDays: A2A_TASK_RETENTION_DAYS,
+    onExpire: (task) => pushNotificationSender.send(task),
+  })
 
   const server = createServer((req, res) => {
     if (isMcpRequest(req.url)) {
@@ -128,6 +179,8 @@ export const main = async (): Promise<void> => {
       // that race, but it stops this handler's own process.exit() from
       // cutting the flush short in the common case where it finishes first.
       void Promise.allSettled([
+        lifecycleJobs.stop(),
+        checkpointer.end(),
         sql.end({ timeout: 5 }),
         observability?.shutdown(),
       ])

@@ -3,6 +3,7 @@ export {
   MESHI_CHECKPOINT_SCHEMA,
   setupMeshiCheckpointSchema,
 } from '@/llm/agent/checkpointer'
+export type { AgentContentBlock } from '@/llm/agent/content-block'
 export {
   createMeshiDomainAgent,
   type CreateMeshiDomainAgentOptions,

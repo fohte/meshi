@@ -32,7 +32,10 @@ export const createWebSearchTool = (client: WebSearchClient): DomainTool => ({
   name: 'web_search',
   description:
     'Search the web for short snippets useful to a nutrition lookup. Returns title/url/text snippets only; the caller must follow-up to obtain authoritative nutrition values.',
-  inputSchema: z.toJSONSchema(inputSchema),
+  // io: 'input' — see the comment in search-food-master.ts; `limit`'s
+  // `.default(5)` would otherwise be marked `required` in the generated
+  // schema, rejecting a caller that omits it.
+  inputSchema: z.toJSONSchema(inputSchema, { io: 'input' }),
   async execute(input: unknown): Promise<Result<WebSearchOutput, ToolError>> {
     const parsed = parseToolInput(inputSchema, input)
     if (!parsed.ok) return parsed

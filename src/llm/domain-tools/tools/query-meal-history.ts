@@ -42,7 +42,7 @@ export const createQueryMealHistoryTool = (
   name: 'query_meal_history',
   description:
     'Aggregate meal_logs over a half-open [period_from_iso, period_to_iso) window. Returns per-nutrient totals, per-day breakdown, raw entries, and whether any aggregated values come from estimated food_master rows.',
-  inputSchema: z.toJSONSchema(inputSchema),
+  inputSchema: z.toJSONSchema(inputSchema, { io: 'input' }),
   async execute(
     input: unknown,
   ): Promise<Result<QueryMealHistoryOutput, ToolError>> {
