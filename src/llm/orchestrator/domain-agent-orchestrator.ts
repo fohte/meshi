@@ -116,15 +116,9 @@ const collectRecorded = (
 const findLastInvocationValue = (
   invocations: ReadonlyArray<RecordedInvocation>,
   name: string,
-): unknown => {
-  for (let i = invocations.length - 1; i >= 0; i--) {
-    const inv = invocations[i]
-    if (inv !== undefined && inv.name === name && inv.value !== null) {
-      return inv.value
-    }
-  }
-  return null
-}
+): unknown =>
+  invocations.findLast((inv) => inv.name === name && inv.value !== null)
+    ?.value ?? null
 
 const collectLastSearchCandidates = (
   invocations: ReadonlyArray<RecordedInvocation>,
