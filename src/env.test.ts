@@ -5,24 +5,22 @@ import { EnvError, loadEnv, requireDatabaseUrl } from '@/env'
 const fullSource = {
   OPENCODE_API_KEY: 'k',
   MESHI_LLM_MODEL: 'm',
-  MESHI_LLM_VISION_MODEL: 'vm',
-  MESHI_LLM_LIGHTWEIGHT_MODEL: 'lm',
-  MESHI_LLM_MAX_TURNS: '8',
   DATABASE_URL: 'postgres://localhost/meshi',
   WEB_SEARCH_API_KEY: 'wk',
   MCP_LISTEN_ADDR: '0.0.0.0:8080',
+  A2A_AGENT_URL: 'http://meshi:8080/a2a',
+  A2A_BEARER_TOKEN: 'secret-token',
   OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT: 'true',
 } as const
 
 const fullEnv = {
   OPENCODE_API_KEY: 'k',
   MESHI_LLM_MODEL: 'm',
-  MESHI_LLM_VISION_MODEL: 'vm',
-  MESHI_LLM_LIGHTWEIGHT_MODEL: 'lm',
-  MESHI_LLM_MAX_TURNS: 8,
   DATABASE_URL: 'postgres://localhost/meshi',
   WEB_SEARCH_API_KEY: 'wk',
   MCP_LISTEN_ADDR: '0.0.0.0:8080',
+  A2A_AGENT_URL: 'http://meshi:8080/a2a',
+  A2A_BEARER_TOKEN: 'secret-token',
   OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT: true,
 } as const
 
@@ -41,10 +39,17 @@ describe('loadEnv', () => {
     expect(loadEnv(fullSource)).toEqual(fullEnv)
   })
 
-  it('defaults MESHI_LLM_MAX_TURNS to 12 when omitted', () => {
-    const { MESHI_LLM_MAX_TURNS: _max, ...rest } = fullSource
-    void _max
-    expect(loadEnv(rest)).toEqual({ ...fullEnv, MESHI_LLM_MAX_TURNS: 12 })
+  it('defaults A2A_BEARER_TOKEN to undefined when omitted', () => {
+    const { A2A_BEARER_TOKEN: _token, ...rest } = fullSource
+    void _token
+    expect(loadEnv(rest)).toEqual({ ...fullEnv, A2A_BEARER_TOKEN: undefined })
+  })
+
+  it('treats an empty-string A2A_BEARER_TOKEN as undefined', () => {
+    expect(loadEnv({ ...fullSource, A2A_BEARER_TOKEN: '' })).toEqual({
+      ...fullEnv,
+      A2A_BEARER_TOKEN: undefined,
+    })
   })
 
   it('defaults OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT to false when omitted', () => {
@@ -87,24 +92,11 @@ describe('loadEnv', () => {
     expect(captureIssues(() => loadEnv({}))).toEqual([
       'missing required env: OPENCODE_API_KEY',
       'missing required env: MESHI_LLM_MODEL',
-      'missing required env: MESHI_LLM_VISION_MODEL',
-      'missing required env: MESHI_LLM_LIGHTWEIGHT_MODEL',
       'missing required env: DATABASE_URL',
       'missing required env: WEB_SEARCH_API_KEY',
       'missing required env: MCP_LISTEN_ADDR',
+      'missing required env: A2A_AGENT_URL',
     ])
-  })
-
-  it('rejects empty-string MESHI_LLM_MAX_TURNS', () => {
-    expect(
-      captureIssues(() => loadEnv({ ...fullSource, MESHI_LLM_MAX_TURNS: '' })),
-    ).toEqual(['MESHI_LLM_MAX_TURNS must be a positive integer (got: )'])
-  })
-
-  it('rejects non-positive-integer MESHI_LLM_MAX_TURNS', () => {
-    expect(
-      captureIssues(() => loadEnv({ ...fullSource, MESHI_LLM_MAX_TURNS: '0' })),
-    ).toEqual(['MESHI_LLM_MAX_TURNS must be a positive integer (got: 0)'])
   })
 })
 

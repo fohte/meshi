@@ -23,7 +23,7 @@ import {
 export interface MeshiDomainAgentLike {
   invoke(
     input: {
-      messages: Array<{ role: 'user'; content: readonly AgentContentBlock[] }>
+      messages: Array<{ role: 'user'; content: AgentContentBlock[] }>
     },
     config: { configurable: { thread_id: string } },
   ): Promise<{ structuredResponse?: unknown }>

@@ -1,8 +1,8 @@
 import type { FilePart, Message, Part } from '@a2a-js/sdk'
 
-export type AgentContentBlock =
-  | { type: 'text'; text: string }
-  | { type: 'image'; mimeType: string; data: string }
+import type { AgentContentBlock } from '@/llm/agent/content-block'
+
+export type { AgentContentBlock } from '@/llm/agent/content-block'
 
 // mimeType is optional on FileWithBytes per the A2A spec; default to the
 // common case so a caller that omits it still gets a usable content block.

@@ -4,7 +4,6 @@ import { beforeEach, expect, it } from 'vitest'
 import { z } from 'zod'
 
 import { createDrizzleUserProfileRepository } from '@/adapters/db/drizzle-user-profile-repository'
-import type { LlmClient, LlmRunInput, LlmRunOutput } from '@/adapters/llm/types'
 import type {
   WebSearchClient,
   WebSearchResult,
@@ -22,63 +21,17 @@ import { createMealLogService } from '@/domain/meal-log/meal-log-service'
 import { createUserProfileService } from '@/domain/user-profile/user-profile-service'
 import { createDomainToolsRegistry } from '@/llm/domain-tools'
 import {
-  createConversationOrchestrator,
+  createDomainAgentOrchestrator,
   createTemplateReplyFormatter,
 } from '@/llm/orchestrator'
 import { createNullLogger } from '@/logger'
 import { createMcpServer } from '@/mcp'
 import { describeIfDb, getTestSql, setupTx } from '@/test/db'
-
-// scripted LLM ------------------------------------------------------------
-
-interface ScriptedToolCall {
-  readonly name: string
-  readonly input: unknown
-}
-
-interface ScriptedRun {
-  readonly toolCalls?: ReadonlyArray<ScriptedToolCall>
-  readonly finalText?: string
-}
-
-// recordFromText's first runConversation call splits the input into items;
-// use this for that call's script in record_meal_from_text scenarios.
-const splitRun = (items: ReadonlyArray<string>): ScriptedRun => ({
-  finalText: JSON.stringify(items),
-})
-
-const scriptedLlmClient = (
-  scripts: ReadonlyArray<ScriptedRun>,
-): { client: LlmClient; remaining: () => number } => {
-  let index = 0
-  const client: LlmClient = {
-    async runConversation(input: LlmRunInput): Promise<LlmRunOutput> {
-      const script = scripts[index]
-      if (script === undefined) {
-        throw new Error(
-          `scripted LLM ran out of scripts on call #${String(index + 1)}`,
-        )
-      }
-      index += 1
-      let turns = 0
-      for (const call of script.toolCalls ?? []) {
-        turns += 1
-        await input.executeTool({
-          id: `tu_${String(index)}_${String(turns)}`,
-          name: call.name,
-          input: call.input,
-        })
-      }
-      return {
-        finalText: script.finalText ?? '',
-        messages: [...input.messages],
-        stopReason: 'end',
-        turns,
-      }
-    },
-  }
-  return { client, remaining: () => scripts.length - index }
-}
+import type {
+  ScriptedFinalResponse,
+  ScriptedToolCall,
+} from '@/test/scripted-domain-agent-model'
+import { scriptedDomainAgentModel } from '@/test/scripted-domain-agent-model'
 
 const stubWebSearchClient = (result: WebSearchResult): WebSearchClient => ({
   search: () => Promise.resolve(result),
@@ -88,13 +41,13 @@ const stubWebSearchClient = (result: WebSearchResult): WebSearchClient => ({
 
 interface Harness {
   readonly client: Client
-  readonly scriptsRemaining: () => number
   readonly close: () => Promise<void>
 }
 
 interface HarnessOptions {
   readonly tx: Sql
-  readonly scripts: ReadonlyArray<ScriptedRun>
+  readonly toolCalls?: ReadonlyArray<ScriptedToolCall>
+  readonly final?: ScriptedFinalResponse
   readonly webSearch?: WebSearchResult
   readonly mealLogIds?: ReadonlyArray<string>
 }
@@ -207,8 +160,6 @@ const startHarness = async (opts: HarnessOptions): Promise<Harness> => {
     opts.webSearch ?? DEFAULT_WEB_SEARCH,
   )
 
-  const { client: llmClient, remaining } = scriptedLlmClient(opts.scripts)
-
   const registry = createDomainToolsRegistry({
     mealLogService,
     foodMasterService,
@@ -217,13 +168,9 @@ const startHarness = async (opts: HarnessOptions): Promise<Harness> => {
     userProfileService,
     webSearchClient,
   })
-  const orchestrator = createConversationOrchestrator({
-    llmClient,
+  const orchestrator = createDomainAgentOrchestrator({
+    model: scriptedDomainAgentModel(opts.toolCalls ?? [], opts.final),
     registry,
-    textModel: 'test-text-model',
-    visionModel: 'test-vision-model',
-    lightweightModel: 'test-lightweight-model',
-    maxTurns: 10,
     formatter: createTemplateReplyFormatter(),
   })
 
@@ -243,18 +190,9 @@ const startHarness = async (opts: HarnessOptions): Promise<Harness> => {
 
   return {
     client,
-    scriptsRemaining: remaining,
     async close() {
       await client.close()
       await server.close()
-      // Surface unused scripts so silent under-use of the scripted LLM
-      // (e.g. the orchestrator stopped earlier than the test expected)
-      // shows up as a test failure rather than dead test data.
-      if (remaining() !== 0) {
-        throw new Error(
-          `scripted LLM left ${String(remaining())} run(s) unused`,
-        )
-      }
     },
   }
 }
@@ -429,24 +367,19 @@ describeIfDb('meshi integration', () => {
     const harness = await startHarness({
       tx,
       mealLogIds: ['ml_scenario1'],
-      scripts: [
-        splitRun(['昼に白米 200g を食べました']),
+      toolCalls: [
+        { name: 'search_food_master', args: { query: '白米' } },
         {
-          toolCalls: [
-            { name: 'search_food_master', input: { query: '白米' } },
-            {
-              name: 'record_meal_log',
-              input: {
-                food_master_id: 'fm_rice',
-                eaten_at_iso: '2026-06-12T12:30:00+09:00',
-                quantity: 200,
-                unit: 'g',
-              },
-            },
-          ],
-          finalText: '白米 200g を記録しました。',
+          name: 'record_meal_log',
+          args: {
+            food_master_id: 'fm_rice',
+            eaten_at_iso: '2026-06-12T12:30:00+09:00',
+            quantity: 200,
+            unit: 'g',
+          },
         },
       ],
+      final: { status: 'completed', message: '白米 200g を記録しました。' },
     })
 
     try {
@@ -515,41 +448,36 @@ describeIfDb('meshi integration', () => {
           },
         ],
       },
-      scripts: [
-        splitRun(['スターバックスの抹茶ラテ Tall (350g) を飲みました']),
+      toolCalls: [
         {
-          toolCalls: [
-            {
-              name: 'search_food_master',
-              input: { query: 'スターバックス抹茶ラテ' },
-            },
-            {
-              name: 'web_search',
-              input: { query: 'スターバックス 抹茶ラテ 栄養成分' },
-            },
-            {
-              name: 'register_food_master',
-              input: {
-                name: 'スターバックス抹茶ラテ',
-                nutrition_per_100g: { energy_kcal: 60, protein_g: 2 },
-                source: 'web_search',
-                is_estimated: false,
-                source_url: 'https://example.com/matcha',
-              },
-            },
-            {
-              name: 'record_meal_log',
-              input: {
-                food_master_id: 'fm_test_0001',
-                eaten_at_iso: '2026-06-12T15:00:00+09:00',
-                quantity: 350,
-                unit: 'g',
-              },
-            },
-          ],
-          finalText: '抹茶ラテを記録しました。',
+          name: 'search_food_master',
+          args: { query: 'スターバックス抹茶ラテ' },
+        },
+        {
+          name: 'web_search',
+          args: { query: 'スターバックス 抹茶ラテ 栄養成分' },
+        },
+        {
+          name: 'register_food_master',
+          args: {
+            name: 'スターバックス抹茶ラテ',
+            nutrition_per_100g: { energy_kcal: 60, protein_g: 2 },
+            source: 'web_search',
+            is_estimated: false,
+            source_url: 'https://example.com/matcha',
+          },
+        },
+        {
+          name: 'record_meal_log',
+          args: {
+            food_master_id: 'fm_test_0001',
+            eaten_at_iso: '2026-06-12T15:00:00+09:00',
+            quantity: 350,
+            unit: 'g',
+          },
         },
       ],
+      final: { status: 'completed', message: '抹茶ラテを記録しました。' },
     })
 
     try {
@@ -622,15 +550,11 @@ describeIfDb('meshi integration', () => {
 
     const harness = await startHarness({
       tx,
-      scripts: [
-        splitRun(['salmon を食べた']),
-        {
-          toolCalls: [
-            { name: 'search_food_master', input: { query: 'salmon' } },
-          ],
-          finalText: 'どの salmon メニューか特定できませんでした。',
-        },
-      ],
+      toolCalls: [{ name: 'search_food_master', args: { query: 'salmon' } }],
+      final: {
+        status: 'input_required',
+        message: 'どの salmon メニューか特定できませんでした。',
+      },
     })
 
     try {
@@ -703,20 +627,19 @@ describeIfDb('meshi integration', () => {
 
     const harness = await startHarness({
       tx,
-      scripts: [
+      toolCalls: [
         {
-          toolCalls: [
-            {
-              name: 'query_meal_history',
-              input: {
-                period_from_iso: '2026-06-12T00:00:00+00:00',
-                period_to_iso: '2026-06-13T00:00:00+00:00',
-              },
-            },
-          ],
-          finalText: '2026-06-12 の合計を返しました。',
+          name: 'query_meal_history',
+          args: {
+            period_from_iso: '2026-06-12T00:00:00+00:00',
+            period_to_iso: '2026-06-13T00:00:00+00:00',
+          },
         },
       ],
+      final: {
+        status: 'completed',
+        message: '2026-06-12 の合計を返しました。',
+      },
     })
 
     try {
@@ -787,21 +710,20 @@ describeIfDb('meshi integration', () => {
 
     const harness = await startHarness({
       tx,
-      scripts: [
+      toolCalls: [
+        { name: 'get_user_profile', args: {} },
         {
-          toolCalls: [
-            { name: 'get_user_profile', input: {} },
-            {
-              name: 'query_meal_history',
-              input: {
-                period_from_iso: '2026-06-11T00:00:00+00:00',
-                period_to_iso: '2026-06-13T00:00:00+00:00',
-              },
-            },
-          ],
-          finalText: 'サバ味噌煮定食はいかがでしょう。',
+          name: 'query_meal_history',
+          args: {
+            period_from_iso: '2026-06-11T00:00:00+00:00',
+            period_to_iso: '2026-06-13T00:00:00+00:00',
+          },
         },
       ],
+      final: {
+        status: 'completed',
+        message: 'サバ味噌煮定食はいかがでしょう。',
+      },
     })
 
     try {
@@ -836,23 +758,22 @@ describeIfDb('meshi integration', () => {
     const harness = await startHarness({
       tx,
       mealLogIds: ['ml_image_1'],
-      scripts: [
+      toolCalls: [
+        { name: 'search_food_master', args: { query: '白米' } },
         {
-          toolCalls: [
-            { name: 'search_food_master', input: { query: '白米' } },
-            {
-              name: 'record_meal_log',
-              input: {
-                food_master_id: 'fm_rice',
-                eaten_at_iso: '2026-06-12T19:30:00+09:00',
-                quantity: 150,
-                unit: 'g',
-              },
-            },
-          ],
-          finalText: '写真から白米 150g を記録しました。',
+          name: 'record_meal_log',
+          args: {
+            food_master_id: 'fm_rice',
+            eaten_at_iso: '2026-06-12T19:30:00+09:00',
+            quantity: 150,
+            unit: 'g',
+          },
         },
       ],
+      final: {
+        status: 'completed',
+        message: '写真から白米 150g を記録しました。',
+      },
     })
 
     try {
@@ -910,10 +831,7 @@ describeIfDb('meshi integration', () => {
 
   it('profile CRUD — update_profile then get_profile reflects the patch', async () => {
     const tx = getTx()
-    const harness = await startHarness({
-      tx,
-      scripts: [],
-    })
+    const harness = await startHarness({ tx })
 
     try {
       const updated = normalizeResult(

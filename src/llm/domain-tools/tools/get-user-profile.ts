@@ -22,7 +22,7 @@ export const createGetUserProfileTool = (
   name: 'get_user_profile',
   description:
     'Return the current single-user profile (likes, dislikes, allergies, constraints, optional daily nutrition targets).',
-  inputSchema: z.toJSONSchema(inputSchema),
+  inputSchema: z.toJSONSchema(inputSchema, { io: 'input' }),
   async execute(
     input: unknown,
   ): Promise<Result<UserProfilePayload, ToolError>> {

@@ -32,7 +32,7 @@ export const createRecordMealLogTool = (
   name: 'record_meal_log',
   description:
     'Persist a meal log entry for a known food_master. Returns the assigned meal_log_id and the scaled nutrition for the recorded quantity.',
-  inputSchema: z.toJSONSchema(inputSchema),
+  inputSchema: z.toJSONSchema(inputSchema, { io: 'input' }),
   async execute(
     input: unknown,
   ): Promise<Result<RecordMealLogOutput, ToolError>> {

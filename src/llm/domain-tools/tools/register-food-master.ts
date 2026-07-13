@@ -31,7 +31,7 @@ export const createRegisterFoodMasterTool = (
   name: 'register_food_master',
   description:
     'Register a new food_master row with per-100g nutrition values. Use source=web_search with a source_url for confirmed values, composition_table_estimate (is_estimated=true) for fallbacks.',
-  inputSchema: z.toJSONSchema(inputSchema),
+  inputSchema: z.toJSONSchema(inputSchema, { io: 'input' }),
   async execute(
     input: unknown,
   ): Promise<Result<RegisterFoodMasterOutput, ToolError>> {

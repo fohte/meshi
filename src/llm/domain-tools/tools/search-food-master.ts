@@ -34,7 +34,11 @@ export const createSearchFoodMasterTool = (
   name: 'search_food_master',
   description:
     'Search the food_master table by free-text query. Returns ranked candidates including history-derived hits, fuzzy name matches, and composition-table fallbacks.',
-  inputSchema: z.toJSONSchema(inputSchema),
+  // io: 'input' — this describes the pre-parse wire shape a caller (LLM tool
+  // call) must supply, not zod's parsed output shape; without it, `limit`'s
+  // `.default(5)` makes toJSONSchema mark it `required` (it's always present
+  // post-parse), which rejects a real caller that omits it.
+  inputSchema: z.toJSONSchema(inputSchema, { io: 'input' }),
   async execute(
     input: unknown,
   ): Promise<Result<SearchFoodMasterOutput, ToolError>> {

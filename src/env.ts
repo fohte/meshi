@@ -1,20 +1,21 @@
 export interface Env {
   OPENCODE_API_KEY: string
   MESHI_LLM_MODEL: string
-  MESHI_LLM_VISION_MODEL: string
-  MESHI_LLM_LIGHTWEIGHT_MODEL: string
-  MESHI_LLM_MAX_TURNS: number
   DATABASE_URL: string
   WEB_SEARCH_API_KEY: string
   MCP_LISTEN_ADDR: string
+  // The A2A JSON-RPC endpoint's externally-reachable URL, embedded verbatim
+  // as the Agent Card's `url` field (see src/a2a/agent-card.ts).
+  A2A_AGENT_URL: string
+  // In-cluster bearer auth for the A2A endpoint (src/a2a/hono-bridge.ts);
+  // unset disables it.
+  A2A_BEARER_TOKEN: string | undefined
   // Mirrors the env var used by other OpenTelemetry GenAI instrumentations
   // (e.g. opentelemetry-instrumentation-openai-v2, Elastic's EDOT Node.js SDK)
   // to gate capture of message content, which is opt-in per the GenAI semantic
   // conventions because it may contain PII.
   OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT: boolean
 }
-
-const DEFAULT_MAX_TURNS = 12
 
 export class EnvError extends Error {
   constructor(
@@ -55,28 +56,17 @@ export const loadEnv = (
     return raw
   }
 
-  const parseMaxTurns = (): number => {
-    const raw = source['MESHI_LLM_MAX_TURNS']
-    if (raw === undefined) return DEFAULT_MAX_TURNS
-    const parsed = Number(raw)
-    if (raw === '' || !Number.isInteger(parsed) || parsed <= 0) {
-      issues.push(
-        `MESHI_LLM_MAX_TURNS must be a positive integer (got: ${raw})`,
-      )
-      return DEFAULT_MAX_TURNS
-    }
-    return parsed
-  }
-
   const env: Env = {
     OPENCODE_API_KEY: requireString('OPENCODE_API_KEY'),
     MESHI_LLM_MODEL: requireString('MESHI_LLM_MODEL'),
-    MESHI_LLM_VISION_MODEL: requireString('MESHI_LLM_VISION_MODEL'),
-    MESHI_LLM_LIGHTWEIGHT_MODEL: requireString('MESHI_LLM_LIGHTWEIGHT_MODEL'),
-    MESHI_LLM_MAX_TURNS: parseMaxTurns(),
     DATABASE_URL: requireString('DATABASE_URL'),
     WEB_SEARCH_API_KEY: requireString('WEB_SEARCH_API_KEY'),
     MCP_LISTEN_ADDR: requireString('MCP_LISTEN_ADDR'),
+    A2A_AGENT_URL: requireString('A2A_AGENT_URL'),
+    A2A_BEARER_TOKEN:
+      source['A2A_BEARER_TOKEN'] === ''
+        ? undefined
+        : source['A2A_BEARER_TOKEN'],
     OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT:
       source[
         'OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT'
