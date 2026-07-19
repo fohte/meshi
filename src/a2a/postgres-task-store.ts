@@ -77,9 +77,16 @@ export const createPostgresTaskStore = (sql: Sql): A2aTaskStore => {
 
       // eslint-disable-next-line @typescript-eslint/no-unsafe-type-assertion -- `task` is always a JSON-serializable SDK value; postgres-js's JSONValue type has no way to express an arbitrary interface satisfies it.
       const taskJson = sql.json(task as never)
+      // Passed as an ISO string with an explicit cast, not as a raw `Date`:
+      // postgres.js picks the timestamptz wire type for a `Date` parameter
+      // via a runtime `instanceof Date` check (src/types.js `inferType`),
+      // and when that check misfires the value falls through to the
+      // string serializer, which throws on a `Date` (`ERR_INVALID_ARG_TYPE`
+      // in `Buffer.byteLength`). A string parameter is unambiguous input to
+      // that same code path regardless of how the check resolves.
       await sql`
         INSERT INTO a2a_tasks (task_id, context_id, state, status_timestamp, task)
-        VALUES (${task.id}, ${task.contextId}, ${task.status.state}, ${statusTimestamp}, ${taskJson})
+        VALUES (${task.id}, ${task.contextId}, ${task.status.state}, ${statusTimestamp.toISOString()}::timestamptz, ${taskJson})
         ON CONFLICT (task_id) DO UPDATE SET
           context_id = EXCLUDED.context_id,
           state = EXCLUDED.state,
@@ -110,7 +117,7 @@ export const createPostgresTaskStore = (sql: Sql): A2aTaskStore => {
             '{status,timestamp}',
             to_jsonb(${nowIso}::text)
           )
-        WHERE state = 'working' AND status_timestamp < ${olderThan}
+        WHERE state = 'working' AND status_timestamp < ${olderThan.toISOString()}::timestamptz
         RETURNING task_id, task
       `
 
@@ -128,7 +135,7 @@ export const createPostgresTaskStore = (sql: Sql): A2aTaskStore => {
       const deleted = await sql`
         WITH deleted_tasks AS (
           DELETE FROM a2a_tasks
-          WHERE state IN ${sql(TERMINAL_STATES)} AND status_timestamp < ${olderThan}
+          WHERE state IN ${sql(TERMINAL_STATES)} AND status_timestamp < ${olderThan.toISOString()}::timestamptz
           RETURNING task_id
         ),
         deleted_configs AS (
