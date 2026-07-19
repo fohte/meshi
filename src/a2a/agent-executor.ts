@@ -14,6 +14,7 @@ import {
   type MeshiAgentResponse,
   meshiAgentResponseSchema,
 } from '@/llm/agent/response-schema'
+import { reportError } from '@/observability/report-error'
 
 // The minimal surface createMeshiDomainAgent's return value (a langchain
 // ReactAgent instance) needs to satisfy. Kept narrow — rather than
@@ -155,7 +156,7 @@ export const runAgentTurn = async (
           'The agent did not return a valid response.',
         )
   } catch (err) {
-    console.error('a2a agent execution failed:', err)
+    reportError('a2a agent execution failed:', err)
     return buildFinalTask(
       requestContext,
       'failed',
@@ -210,7 +211,7 @@ export const createMeshiAgentExecutor = (
           try {
             publishWorkingUpdate(eventBus, taskId, contextId)
           } catch (err) {
-            console.error('failed to publish a2a heartbeat update:', err)
+            reportError('failed to publish a2a heartbeat update:', err)
           }
         }, heartbeatIntervalMs)
         try {

@@ -1,6 +1,7 @@
 import type { Task } from '@a2a-js/sdk'
 
 import type { A2aTaskStore } from '@/a2a/postgres-task-store'
+import { reportError } from '@/observability/report-error'
 
 export interface TaskLifecycleJobsOptions {
   // Watchdog threshold: a `working` task whose heartbeat (status_timestamp)
@@ -35,7 +36,7 @@ const runSweep = async (
       try {
         await options.onExpire(task)
       } catch (err) {
-        console.error(`a2a onExpire failed for task ${task.id}:`, err)
+        reportError(`a2a onExpire failed for task ${task.id}:`, err)
       }
     }),
   )
@@ -58,7 +59,7 @@ export const startTaskLifecycleJobs = (
     previous
       .then(() => runSweep(store, options))
       .catch((err: unknown) => {
-        console.error('a2a task lifecycle sweep failed:', err)
+        reportError('a2a task lifecycle sweep failed:', err)
       })
 
   let inFlight = tick(Promise.resolve())

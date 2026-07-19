@@ -1,11 +1,22 @@
 import type { AgentCard, Task } from '@a2a-js/sdk'
-import type { AgentExecutor, ExecutionEventBus } from '@a2a-js/sdk/server'
+import type {
+  AgentExecutor,
+  ExecutionEventBus,
+  TaskStore,
+} from '@a2a-js/sdk/server'
 import { DefaultRequestHandler, InMemoryTaskStore } from '@a2a-js/sdk/server'
+import * as Sentry from '@sentry/node'
 import { Hono } from 'hono'
-import { describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import { z } from 'zod'
 
 import { mountA2aRoutes } from '@/a2a/hono-bridge'
+
+vi.mock('@sentry/node', () => ({ captureException: vi.fn() }))
+
+afterEach(() => {
+  vi.mocked(Sentry.captureException).mockClear()
+})
 
 // Full shapes, not `.loose()`: parsed once to confirm every field is
 // present with the right type, then the whole (normalized) value is
@@ -127,10 +138,12 @@ const buildMessageSendBody = (id: string) =>
     },
   })
 
-const buildApp = (options: { bearerToken?: string } = {}): Hono => {
+const buildApp = (
+  options: { bearerToken?: string; taskStore?: TaskStore } = {},
+): Hono => {
   const requestHandler = new DefaultRequestHandler(
     buildAgentCard(),
-    new InMemoryTaskStore(),
+    options.taskStore ?? new InMemoryTaskStore(),
     completingExecutor,
   )
   const app = new Hono()
@@ -143,6 +156,14 @@ const buildApp = (options: { bearerToken?: string } = {}): Hono => {
   })
   return app
 }
+
+// DefaultRequestHandler.sendMessageStream saves the task via the store as
+// each event is processed, with no catch around that call — a rejection
+// there is what actually reaches mountA2aRoutes' stream-failure branch.
+const buildFailingSaveTaskStore = (error: Error): TaskStore => ({
+  save: () => Promise.reject(error),
+  load: () => Promise.resolve(undefined),
+})
 
 describe('mountA2aRoutes', () => {
   describe('without a bearer token configured', () => {
@@ -239,6 +260,36 @@ describe('mountA2aRoutes', () => {
           },
         },
       ])
+    })
+
+    it('reports a JSON-RPC stream failure to Sentry', async () => {
+      const storeError = new Error('store unavailable')
+      const app = buildApp({
+        taskStore: buildFailingSaveTaskStore(storeError),
+      })
+
+      const res = await app.request('/a2a', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          jsonrpc: '2.0',
+          id: 1,
+          method: 'message/stream',
+          params: {
+            message: {
+              kind: 'message',
+              messageId: 'msg-stream-fail',
+              role: 'user',
+              parts: [{ kind: 'text', text: 'hello' }],
+            },
+          },
+        }),
+      })
+      await res.text()
+
+      expect(Sentry.captureException).toHaveBeenCalledExactlyOnceWith(
+        storeError,
+      )
     })
   })
 

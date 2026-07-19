@@ -1,8 +1,15 @@
-import { describe, expect, it, vi } from 'vitest'
+import * as Sentry from '@sentry/node'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import { withAdvisoryLock } from '@/a2a/advisory-lock'
 import type { Sql } from '@/db'
 import { describeIfDb, getTestSql } from '@/test/db'
+
+vi.mock('@sentry/node', () => ({ captureException: vi.fn() }))
+
+afterEach(() => {
+  vi.mocked(Sentry.captureException).mockClear()
+})
 
 // Reserves its own connection to probe the lock so the probe itself can
 // never be mistaken for the lock held by withAdvisoryLock's connection —
@@ -71,13 +78,15 @@ describe('withAdvisoryLock (dead connection on unlock)', () => {
   // Fakes a connection whose second tagged-template call (the unlock) fails,
   // simulating a connection lost while fn() was running — the first call
   // (the lock) still succeeds.
-  const buildSqlThatFailsToUnlock = (): Sql => {
+  const buildSqlThatFailsToUnlock = (
+    unlockError: Error = new Error('connection lost'),
+  ): Sql => {
     let callCount = 0
     const reserved = Object.assign(
       () => {
         callCount += 1
         return callCount === 2
-          ? Promise.reject(new Error('connection lost'))
+          ? Promise.reject(unlockError)
           : Promise.resolve([])
       },
       { release: vi.fn() },
@@ -107,5 +116,16 @@ describe('withAdvisoryLock (dead connection on unlock)', () => {
     )
 
     expect(result).toBe('done')
+  })
+
+  it('reports the unlock failure to Sentry', async () => {
+    vi.spyOn(console, 'error').mockImplementation(() => {})
+    const unlockError = new Error('connection lost')
+
+    await withAdvisoryLock(buildSqlThatFailsToUnlock(unlockError), 'key', () =>
+      Promise.resolve('done'),
+    )
+
+    expect(Sentry.captureException).toHaveBeenCalledExactlyOnceWith(unlockError)
   })
 })

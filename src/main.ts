@@ -40,6 +40,7 @@ import {
 import { createJsonStdoutLogger } from '@/logger'
 import { handleMcpRequest } from '@/mcp-http'
 import type { MeshiToolDeps } from '@/mcp-tools'
+import { reportError } from '@/observability/report-error'
 
 const LISTEN_ADDR_RE = /^\[([^\]]+)\]:(\d+)$|^([^:]+):(\d+)$/
 
@@ -182,14 +183,17 @@ export const main = async (): Promise<void> => {
         lifecycleJobs.stop(),
         checkpointer.end(),
         sql.end({ timeout: 5 }),
-        observability?.shutdown(),
       ])
-        .then((results) => {
+        .then(async (results) => {
           for (const result of results) {
             if (result.status === 'rejected') {
-              console.error('shutdown error:', result.reason)
+              reportError('shutdown error:', result.reason)
             }
           }
+          // Runs after the captures above, not concurrently with them:
+          // observability.shutdown() closes the Sentry client, and a
+          // captureException call made after close() is silently dropped.
+          await observability?.shutdown()
         })
         .finally(() => {
           process.exit(closeErr ? 1 : 0)

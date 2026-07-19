@@ -1,10 +1,17 @@
-import { describe, expect, it, vi } from 'vitest'
+import * as Sentry from '@sentry/node'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import type { DomainToolsRegistry } from '@/llm/domain-tools/registry'
 import type { DomainTool, DomainToolName } from '@/llm/domain-tools/types'
 import { err, ok } from '@/llm/domain-tools/types'
 import { createDomainAgentOrchestrator } from '@/llm/orchestrator/domain-agent-orchestrator'
 import { scriptedDomainAgentModel } from '@/test/scripted-domain-agent-model'
+
+vi.mock('@sentry/node', () => ({ captureException: vi.fn() }))
+
+afterEach(() => {
+  vi.mocked(Sentry.captureException).mockClear()
+})
 
 const stubRegistry = (
   tools: ReadonlyArray<DomainTool>,
@@ -223,7 +230,11 @@ describe('createDomainAgentOrchestrator', () => {
       })
     })
 
-    it('keeps invocations already recorded before agent.invoke() rejects', async () => {
+    // scriptedDomainAgentModel with no final response scripted after the
+    // last tool call makes the underlying LangGraph agent.invoke() reject
+    // once it runs out of scripted turns, which is what both tests below
+    // exercise.
+    const buildInvokeRejectingOrchestrator = () => {
       const registry = stubRegistry([
         stubTool('record_meal_log', () =>
           Promise.resolve(
@@ -238,7 +249,11 @@ describe('createDomainAgentOrchestrator', () => {
       const model = scriptedDomainAgentModel([
         { name: 'record_meal_log', args: { food_master_id: 'fm_rice' } },
       ])
-      const orchestrator = createDomainAgentOrchestrator({ model, registry })
+      return createDomainAgentOrchestrator({ model, registry })
+    }
+
+    it('keeps invocations already recorded before agent.invoke() rejects', async () => {
+      const orchestrator = buildInvokeRejectingOrchestrator()
 
       const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
       const result = await orchestrator.recordFromText({ text: '白米 200g' })
@@ -261,6 +276,18 @@ describe('createDomainAgentOrchestrator', () => {
           message: 'The agent did not return a valid response.',
         },
       })
+    })
+
+    it('reports the error to Sentry when agent.invoke() rejects', async () => {
+      const orchestrator = buildInvokeRejectingOrchestrator()
+
+      const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
+      await orchestrator.recordFromText({ text: '白米 200g' })
+      errorSpy.mockRestore()
+
+      expect(Sentry.captureException).toHaveBeenCalledExactlyOnceWith(
+        expect.any(Error),
+      )
     })
   })
 

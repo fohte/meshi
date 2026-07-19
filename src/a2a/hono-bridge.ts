@@ -7,6 +7,8 @@ import { JsonRpcTransportHandler } from '@a2a-js/sdk/server'
 import type { Hono, MiddlewareHandler } from 'hono'
 import { streamSSE } from 'hono/streaming'
 
+import { reportError } from '@/observability/report-error'
+
 export interface A2aHonoBridgeOptions {
   agentCard: AgentCard
   requestHandler: DefaultRequestHandler
@@ -86,7 +88,7 @@ export const mountA2aRoutes = (
     try {
       result = await jsonRpcTransportHandler.handle(body)
     } catch (err) {
-      console.error('a2a JSON-RPC request failed:', err)
+      reportError('a2a JSON-RPC request failed:', err)
       return c.json(internalErrorResponse(err), 500)
     }
 
@@ -106,7 +108,7 @@ export const mountA2aRoutes = (
           await sse.writeSSE({ data: JSON.stringify(event) })
         }
       } catch (err) {
-        console.error('a2a JSON-RPC stream failed:', err)
+        reportError('a2a JSON-RPC stream failed:', err)
         try {
           await sse.writeSSE({
             event: 'error',

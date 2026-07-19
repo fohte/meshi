@@ -32,6 +32,7 @@ import type {
   RecordFromImageInput,
   RecordFromTextInput,
 } from '@/llm/orchestrator/types'
+import { reportError } from '@/observability/report-error'
 
 export interface DomainAgentOrchestratorOptions {
   readonly model: BaseChatModel
@@ -248,7 +249,7 @@ export const createDomainAgentOrchestrator = (
         { configurable: { thread_id: randomUUID() } },
       )
       .catch((err: unknown) => {
-        console.error('meshi: domain agent turn failed', err)
+        reportError('meshi: domain agent turn failed', err)
         return null
       })
     const parsed =

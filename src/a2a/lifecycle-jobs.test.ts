@@ -1,8 +1,11 @@
 import type { Task } from '@a2a-js/sdk'
+import * as Sentry from '@sentry/node'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import { startTaskLifecycleJobs } from '@/a2a/lifecycle-jobs'
 import type { A2aTaskStore } from '@/a2a/postgres-task-store'
+
+vi.mock('@sentry/node', () => ({ captureException: vi.fn() }))
 
 const buildTask = (id: string): Task => ({
   kind: 'task',
@@ -23,6 +26,7 @@ describe('startTaskLifecycleJobs', () => {
   afterEach(() => {
     vi.useRealTimers()
     vi.restoreAllMocks()
+    vi.mocked(Sentry.captureException).mockClear()
   })
 
   it('runs the watchdog and retention sweeps once at startup', async () => {
@@ -82,6 +86,25 @@ describe('startTaskLifecycleJobs', () => {
     expect(store.deleteExpiredTerminalTasks).toHaveBeenCalledTimes(1)
   })
 
+  it('reports a failing onExpire call to Sentry', async () => {
+    vi.spyOn(console, 'error').mockImplementation(() => {})
+    const expiredTask = buildTask('task-1')
+    const store = buildStore({
+      failStuckWorkingTasks: vi.fn().mockResolvedValue([expiredTask]),
+    })
+    const error = new Error('onExpire push failed')
+
+    const jobs = startTaskLifecycleJobs(store, {
+      workingTimeoutMs: 60_000,
+      retentionDays: 7,
+      onExpire: vi.fn().mockRejectedValue(error),
+      intervalMs: 1_000_000,
+    })
+    await jobs.stop()
+
+    expect(Sentry.captureException).toHaveBeenCalledExactlyOnceWith(error)
+  })
+
   it('sweeps again on each interval tick after the startup run', async () => {
     vi.useFakeTimers()
     const store = buildStore()
@@ -124,6 +147,24 @@ describe('startTaskLifecycleJobs', () => {
     await jobs.stop()
 
     expect(store.failStuckWorkingTasks).toHaveBeenCalledTimes(2)
+  })
+
+  it('reports a failing sweep to Sentry', async () => {
+    vi.spyOn(console, 'error').mockImplementation(() => {})
+    const error = new Error('sweep boom')
+    const store = buildStore({
+      failStuckWorkingTasks: vi.fn().mockRejectedValue(error),
+    })
+
+    const jobs = startTaskLifecycleJobs(store, {
+      workingTimeoutMs: 60_000,
+      retentionDays: 7,
+      onExpire: vi.fn(),
+      intervalMs: 1_000_000,
+    })
+    await jobs.stop()
+
+    expect(Sentry.captureException).toHaveBeenCalledExactlyOnceWith(error)
   })
 
   it('derives the watchdog and retention cutoffs from the configured options', async () => {

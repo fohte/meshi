@@ -1,4 +1,5 @@
 import type { Sql } from '@/db'
+import { reportError } from '@/observability/report-error'
 
 // pg_advisory_lock/unlock are scoped to the session (physical connection)
 // that took the lock, not to a transaction, so this reserves a dedicated
@@ -28,7 +29,7 @@ export const withAdvisoryLock = async <T>(
       try {
         await reserved`SELECT pg_advisory_unlock(hashtextextended(${lockKey}, 0))`
       } catch (err) {
-        console.error('failed to release advisory lock:', err)
+        reportError('failed to release advisory lock:', err)
       }
     }
   } finally {
