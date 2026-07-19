@@ -6,6 +6,7 @@ import {
   DefaultRequestHandler,
 } from '@a2a-js/sdk/server'
 import { getRequestListener } from '@hono/node-server'
+import * as Sentry from '@sentry/node'
 
 import { createMeshiAgentCard } from '@/a2a/agent-card'
 import { createMeshiAgentExecutor } from '@/a2a/agent-executor'
@@ -182,14 +183,18 @@ export const main = async (): Promise<void> => {
         lifecycleJobs.stop(),
         checkpointer.end(),
         sql.end({ timeout: 5 }),
-        observability?.shutdown(),
       ])
-        .then((results) => {
+        .then(async (results) => {
           for (const result of results) {
             if (result.status === 'rejected') {
               console.error('shutdown error:', result.reason)
+              Sentry.captureException(result.reason)
             }
           }
+          // Runs after the captures above, not concurrently with them:
+          // observability.shutdown() closes the Sentry client, and a
+          // captureException call made after close() is silently dropped.
+          await observability?.shutdown()
         })
         .finally(() => {
           process.exit(closeErr ? 1 : 0)
