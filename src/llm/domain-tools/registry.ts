@@ -19,6 +19,9 @@ import { createWebSearchTool } from '@/llm/domain-tools/tools/web-search'
 import type { DomainTool, ToolError } from '@/llm/domain-tools/types'
 
 const safeStringify = (value: unknown): string | null => {
+  // JSON.stringify throwing (circular refs, BigInt) is the only signal for
+  // this failure mode; there's no Result-returning equivalent to chain into.
+  // eslint-disable-next-line no-restricted-syntax -- see comment above.
   try {
     return JSON.stringify(value)
   } catch {
@@ -97,10 +100,7 @@ export const createDomainToolsRegistry = (
         })
       }
       const result = await tool.execute(call.input)
-      if (result.ok) {
-        return encodeValue(result.value)
-      }
-      return encodeError(result.error)
+      return result.match(encodeValue, encodeError)
     },
   }
 }

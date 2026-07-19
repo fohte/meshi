@@ -438,13 +438,19 @@ export const registerMeshiTools = (
     async () => {
       logger.log(TOOL_CALLED, { tool: 'get_profile' })
       try {
-        const profile = await profileService.get()
-        const payload = buildProfilePayload(profile)
-        logger.log(TOOL_SUCCEEDED, { tool: 'get_profile' })
-        return {
-          content: [{ type: 'text', text: 'プロファイルを取得しました。' }],
-          structuredContent: payload,
-        }
+        return await profileService.get().match(
+          (profile) => {
+            const payload = buildProfilePayload(profile)
+            logger.log(TOOL_SUCCEEDED, { tool: 'get_profile' })
+            return {
+              content: [
+                { type: 'text' as const, text: 'プロファイルを取得しました。' },
+              ],
+              structuredContent: payload,
+            }
+          },
+          (err) => errorResult(logger, 'get_profile', err),
+        )
       } catch (err) {
         return errorResult(logger, 'get_profile', err)
       }
@@ -461,25 +467,36 @@ export const registerMeshiTools = (
     async (args) => {
       logger.log(TOOL_CALLED, { tool: 'update_profile' })
       try {
-        const profile = await profileService.update({
-          ...(args.likes === undefined ? {} : { likes: args.likes }),
-          ...(args.dislikes === undefined ? {} : { dislikes: args.dislikes }),
-          ...(args.allergies === undefined
-            ? {}
-            : { allergies: args.allergies }),
-          ...(args.constraints === undefined
-            ? {}
-            : { constraints: args.constraints }),
-          ...(args.daily_targets === undefined
-            ? {}
-            : { dailyTargets: args.daily_targets }),
-        })
-        const payload = buildProfilePayload(profile)
-        logger.log(TOOL_SUCCEEDED, { tool: 'update_profile' })
-        return {
-          content: [{ type: 'text', text: 'プロファイルを更新しました。' }],
-          structuredContent: payload,
-        }
+        return await profileService
+          .update({
+            ...(args.likes === undefined ? {} : { likes: args.likes }),
+            ...(args.dislikes === undefined ? {} : { dislikes: args.dislikes }),
+            ...(args.allergies === undefined
+              ? {}
+              : { allergies: args.allergies }),
+            ...(args.constraints === undefined
+              ? {}
+              : { constraints: args.constraints }),
+            ...(args.daily_targets === undefined
+              ? {}
+              : { dailyTargets: args.daily_targets }),
+          })
+          .match(
+            (profile) => {
+              const payload = buildProfilePayload(profile)
+              logger.log(TOOL_SUCCEEDED, { tool: 'update_profile' })
+              return {
+                content: [
+                  {
+                    type: 'text' as const,
+                    text: 'プロファイルを更新しました。',
+                  },
+                ],
+                structuredContent: payload,
+              }
+            },
+            (err) => errorResult(logger, 'update_profile', err),
+          )
       } catch (err) {
         return errorResult(logger, 'update_profile', err)
       }

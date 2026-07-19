@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from 'vitest'
+import { describe, expect, it } from 'vitest'
 
 import type { DomainToolsRegistry } from '@/llm/domain-tools/registry'
 import type { DomainTool, DomainToolName } from '@/llm/domain-tools/types'
@@ -240,10 +240,10 @@ describe('createDomainAgentOrchestrator', () => {
       ])
       const orchestrator = createDomainAgentOrchestrator({ model, registry })
 
-      const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
       const result = await orchestrator.recordFromText({ text: '白米 200g' })
-      errorSpy.mockRestore()
 
+      const expectedMessage =
+        'meshi: domain agent turn failed: FakeModel: no response queued for invocation 1 (1 total queued).'
       expect(result).toEqual({
         recorded: [
           {
@@ -255,10 +255,10 @@ describe('createDomainAgentOrchestrator', () => {
         ],
         candidates: [],
         hasEstimatedValues: false,
-        summaryText: 'The agent did not return a valid response.',
+        summaryText: expectedMessage,
         error: {
           kind: 'item_conversation_failed',
-          message: 'The agent did not return a valid response.',
+          message: expectedMessage,
         },
       })
     })

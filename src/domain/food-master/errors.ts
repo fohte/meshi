@@ -7,6 +7,7 @@ export type FoodMasterErrorCode =
   | 'negative_nutrient_value'
   | 'duplicate_name'
   | 'duplicate_alias'
+  | 'persistence_failed'
 
 export class FoodMasterDomainError extends Error {
   readonly code: FoodMasterErrorCode
@@ -16,8 +17,9 @@ export class FoodMasterDomainError extends Error {
     code: FoodMasterErrorCode,
     message: string,
     details: Readonly<Record<string, unknown>> = {},
+    cause?: unknown,
   ) {
-    super(message)
+    super(message, cause === undefined ? undefined : { cause })
     this.name = 'FoodMasterDomainError'
     this.code = code
     this.details = details

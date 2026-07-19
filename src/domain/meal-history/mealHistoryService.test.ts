@@ -71,10 +71,12 @@ describeIfDb('MealHistoryService.query', () => {
     })
 
     const service = createMealHistoryService(tx)
-    const result = await service.query({
-      periodFrom: new Date('2026-06-01T00:00:00Z'),
-      periodTo: new Date('2026-06-02T00:00:00Z'),
-    })
+    const result = (
+      await service.query({
+        periodFrom: new Date('2026-06-01T00:00:00Z'),
+        periodTo: new Date('2026-06-02T00:00:00Z'),
+      })
+    )._unsafeUnwrap()
 
     expect(result).toEqual({
       totals: {
@@ -141,11 +143,13 @@ describeIfDb('MealHistoryService.query', () => {
     })
 
     const service = createMealHistoryService(tx)
-    const result = await service.query({
-      periodFrom: new Date('2026-06-01T00:00:00Z'),
-      periodTo: new Date('2026-06-02T00:00:00Z'),
-      foodFilter: ['egg'],
-    })
+    const result = (
+      await service.query({
+        periodFrom: new Date('2026-06-01T00:00:00Z'),
+        periodTo: new Date('2026-06-02T00:00:00Z'),
+        foodFilter: ['egg'],
+      })
+    )._unsafeUnwrap()
 
     expect(result).toEqual({
       totals: { energy_kcal: 71, protein_g: 6 },
@@ -186,11 +190,13 @@ describeIfDb('MealHistoryService.query', () => {
     })
 
     const service = createMealHistoryService(tx)
-    const result = await service.query({
-      periodFrom: new Date('2026-06-01T00:00:00Z'),
-      periodTo: new Date('2026-06-02T00:00:00Z'),
-      nutrientCodes: ['iron_mg'],
-    })
+    const result = (
+      await service.query({
+        periodFrom: new Date('2026-06-01T00:00:00Z'),
+        periodTo: new Date('2026-06-02T00:00:00Z'),
+        nutrientCodes: ['iron_mg'],
+      })
+    )._unsafeUnwrap()
 
     expect(result).toEqual({
       totals: { iron_mg: 2 },
@@ -231,11 +237,13 @@ describeIfDb('MealHistoryService.query', () => {
     })
 
     const service = createMealHistoryService(tx)
-    const result = await service.query({
-      periodFrom: new Date('2026-06-01T00:00:00Z'),
-      periodTo: new Date('2026-06-02T00:00:00Z'),
-      nutrientCodes: [],
-    })
+    const result = (
+      await service.query({
+        periodFrom: new Date('2026-06-01T00:00:00Z'),
+        periodTo: new Date('2026-06-02T00:00:00Z'),
+        nutrientCodes: [],
+      })
+    )._unsafeUnwrap()
 
     expect(result).toEqual({
       totals: {},
@@ -284,10 +292,12 @@ describeIfDb('MealHistoryService.query', () => {
     })
 
     const service = createMealHistoryService(tx)
-    const result = await service.query({
-      periodFrom: new Date('2026-06-01T00:00:00Z'),
-      periodTo: new Date('2026-06-02T00:00:00Z'),
-    })
+    const result = (
+      await service.query({
+        periodFrom: new Date('2026-06-01T00:00:00Z'),
+        periodTo: new Date('2026-06-02T00:00:00Z'),
+      })
+    )._unsafeUnwrap()
 
     expect(result).toEqual({
       totals: {

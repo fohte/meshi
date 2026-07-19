@@ -1,4 +1,7 @@
+import { errAsync, type ResultAsync } from 'neverthrow'
+
 import {
+  type DomainError,
   FutureEatenAtError,
   InvalidQuantityError,
 } from '@/domain/meal-log/errors'
@@ -12,8 +15,8 @@ import type {
 } from '@/domain/meal-log/types'
 
 export interface MealLogService {
-  record(input: RecordMealLogInput): Promise<MealLogResult>
-  getById(id: string): Promise<MealLogResult | null>
+  record(input: RecordMealLogInput): ResultAsync<MealLogResult, DomainError>
+  getById(id: string): ResultAsync<MealLogResult | null, DomainError>
 }
 
 export interface MealLogServiceDeps {
@@ -25,28 +28,32 @@ export interface MealLogServiceDeps {
 export const createMealLogService = (
   deps: MealLogServiceDeps,
 ): MealLogService => ({
-  async record(input) {
+  record(input) {
     if (input.eatenAt.getTime() > deps.now().getTime()) {
-      throw new FutureEatenAtError(input.eatenAt)
+      return errAsync(new FutureEatenAtError(input.eatenAt))
     }
     if (!Number.isFinite(input.quantity) || input.quantity <= 0) {
-      throw new InvalidQuantityError(input.quantity)
+      return errAsync(new InvalidQuantityError(input.quantity))
     }
-    const food = await deps.repository.findFoodMaster(input.foodMasterId)
-    const log = await deps.repository.insertMealLog({
-      id: deps.idGenerator(),
-      foodMasterId: input.foodMasterId,
-      eatenAt: input.eatenAt,
-      quantity: input.quantity,
-      unit: input.unit,
-      note: input.note ?? null,
-    })
-    return buildResult(log, food)
+    return deps.repository.findFoodMaster(input.foodMasterId).andThen((food) =>
+      deps.repository
+        .insertMealLog({
+          id: deps.idGenerator(),
+          foodMasterId: input.foodMasterId,
+          eatenAt: input.eatenAt,
+          quantity: input.quantity,
+          unit: input.unit,
+          note: input.note ?? null,
+        })
+        .map((log) => buildResult(log, food)),
+    )
   },
-  async getById(id) {
-    const found = await deps.repository.findMealLogById(id)
-    if (found === null) return null
-    return buildResult(found.log, found.food)
+  getById(id) {
+    return deps.repository
+      .findMealLogById(id)
+      .map((found) =>
+        found === null ? null : buildResult(found.log, found.food),
+      )
   },
 })
 

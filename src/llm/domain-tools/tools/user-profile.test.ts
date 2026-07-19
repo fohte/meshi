@@ -1,3 +1,4 @@
+import { okAsync } from 'neverthrow'
 import { describe, expect, it } from 'vitest'
 
 import type {
@@ -32,7 +33,7 @@ const setup = (
   const service: UserProfileService = {
     get: () => {
       calls.get += 1
-      return Promise.resolve(PROFILE)
+      return okAsync(PROFILE)
     },
     update: (patch) => {
       calls.update.push(patch)
@@ -41,12 +42,12 @@ const setup = (
       if (dailyTargets === null) {
         // eslint-disable-next-line @typescript-eslint/no-unused-vars -- destructure to drop the field from the rest spread.
         const { dailyTargets: _drop, ...cleared } = base
-        return Promise.resolve(cleared)
+        return okAsync(cleared)
       }
       if (dailyTargets !== undefined) {
-        return Promise.resolve({ ...base, dailyTargets })
+        return okAsync({ ...base, dailyTargets })
       }
-      return Promise.resolve(base)
+      return okAsync(base)
     },
     ...override,
   }
@@ -94,7 +95,7 @@ describe('update_user_profile tool', () => {
     const { service, calls } = setup({
       update: (patch) => {
         calls.update.push(patch)
-        return Promise.resolve({
+        return okAsync({
           ...PROFILE,
           likes: patch.likes ?? PROFILE.likes,
         })
@@ -121,7 +122,7 @@ describe('update_user_profile tool', () => {
     const { service, calls } = setup({
       update: (patch) => {
         calls.update.push(patch)
-        return Promise.resolve(PROFILE)
+        return okAsync(PROFILE)
       },
     })
     const tool = createUpdateUserProfileTool(service)
@@ -145,7 +146,7 @@ describe('update_user_profile tool', () => {
     const { service, calls } = setup({
       update: (patch) => {
         calls.update.push(patch)
-        return Promise.resolve({
+        return okAsync({
           ...PROFILE,
           dailyTargets: { ...PROFILE.dailyTargets, ...patch.dailyTargets },
         })

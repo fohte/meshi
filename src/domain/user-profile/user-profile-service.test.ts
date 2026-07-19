@@ -1,3 +1,4 @@
+import { okAsync } from 'neverthrow'
 import { describe, expect, it } from 'vitest'
 
 import {
@@ -22,12 +23,12 @@ const createInMemoryRepository = (
       return state.saveCalls
     },
     load() {
-      return Promise.resolve(state.current)
+      return okAsync(state.current)
     },
     save(profile) {
       state.current = profile
       state.saveCalls += 1
-      return Promise.resolve(profile)
+      return okAsync(profile)
     },
   }
 }
@@ -36,7 +37,7 @@ describe('createUserProfileService', () => {
   it('returns schema defaults when no row exists yet', async () => {
     const service = createUserProfileService(createInMemoryRepository())
 
-    expect(await service.get()).toEqual({
+    expect((await service.get())._unsafeUnwrap()).toEqual({
       likes: [],
       dislikes: [],
       allergies: [],
@@ -60,7 +61,7 @@ describe('createUserProfileService', () => {
       constraints: [],
       dailyTargets: { protein_g: 80 },
     } satisfies UserProfile
-    expect(updated).toEqual(expected)
+    expect(updated._unsafeUnwrap()).toEqual(expected)
     expect(repo.current).toEqual(expected)
   })
 
@@ -76,7 +77,7 @@ describe('createUserProfileService', () => {
 
     const updated = await service.update({ dislikes: ['liver'] })
 
-    expect(updated).toEqual({
+    expect(updated._unsafeUnwrap()).toEqual({
       likes: ['natto'],
       dislikes: ['liver'],
       allergies: ['peanuts'],
@@ -97,7 +98,7 @@ describe('createUserProfileService', () => {
 
     const result = await service.update({})
 
-    expect(result).toEqual(stored)
+    expect(result._unsafeUnwrap()).toEqual(stored)
     expect(repo.saveCalls).toBe(0)
   })
 
@@ -113,7 +114,7 @@ describe('createUserProfileService', () => {
 
     const updated = await service.update({ dailyTargets: { protein_g: 90 } })
 
-    expect(updated).toEqual({
+    expect(updated._unsafeUnwrap()).toEqual({
       likes: [],
       dislikes: [],
       allergies: [],
@@ -134,7 +135,7 @@ describe('createUserProfileService', () => {
 
     const updated = await service.update({ dailyTargets: null })
 
-    expect(updated).toEqual({
+    expect(updated._unsafeUnwrap()).toEqual({
       likes: [],
       dislikes: [],
       allergies: [],
@@ -148,7 +149,7 @@ describe('createUserProfileService', () => {
 
     const updated = await service.update({ allergies: ['shrimp'] })
 
-    expect(updated).toEqual({
+    expect(updated._unsafeUnwrap()).toEqual({
       likes: [],
       dislikes: [],
       allergies: ['shrimp'],

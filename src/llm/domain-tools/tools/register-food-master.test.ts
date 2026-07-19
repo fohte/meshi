@@ -1,3 +1,4 @@
+import { errAsync, okAsync } from 'neverthrow'
 import { describe, expect, it } from 'vitest'
 
 import { FoodMasterDomainError } from '@/domain/food-master/errors'
@@ -33,9 +34,9 @@ const setup = (
   const service: FoodMasterService = {
     register: (input) => {
       calls.push(input)
-      return Promise.resolve(sampleMaster('fm_new', input))
+      return okAsync(sampleMaster('fm_new', input))
     },
-    getById: () => Promise.resolve(null),
+    getById: () => okAsync(null),
     ...override,
   }
   return { tool: createRegisterFoodMasterTool(service), calls }
@@ -114,7 +115,7 @@ describe('register_food_master tool', () => {
   it('maps FoodMasterDomainError to a namespaced tool error code with details', async () => {
     const { tool } = setup({
       register: () =>
-        Promise.reject(
+        errAsync(
           new FoodMasterDomainError('duplicate_name', 'duplicate name', {
             name: 'バナナ',
           }),

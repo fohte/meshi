@@ -1,3 +1,5 @@
+import type { ResultAsync } from 'neverthrow'
+
 export type NutrientCode = string
 
 export type NutritionMap = Readonly<Record<NutrientCode, number>>
@@ -30,6 +32,15 @@ export interface MealHistoryAggregate {
   readonly hasEstimatedValues: boolean
 }
 
+export class MealHistoryQueryError extends Error {
+  constructor(message: string, cause?: unknown) {
+    super(message, cause === undefined ? undefined : { cause })
+    this.name = 'MealHistoryQueryError'
+  }
+}
+
 export interface MealHistoryService {
-  query(input: QueryMealHistoryInput): Promise<MealHistoryAggregate>
+  query(
+    input: QueryMealHistoryInput,
+  ): ResultAsync<MealHistoryAggregate, MealHistoryQueryError>
 }

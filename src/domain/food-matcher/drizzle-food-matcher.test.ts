@@ -58,7 +58,9 @@ describeIfDb('createDrizzleFoodMatcher', () => {
       })
 
       const matcher = createDrizzleFoodMatcher(tx)
-      const result = await matcher.search({ query: 'rice', limit: 5 })
+      const result = (
+        await matcher.search({ query: 'rice', limit: 5 })
+      )._unsafeUnwrap()
 
       const expectedA = Number((2 + SIM_RICE_RICE_X * 0.5).toFixed(3))
       const expectedB = Number((2 + SIM_RICE_RICE_X * (1 / (1 + 5))).toFixed(3))
@@ -110,7 +112,9 @@ describeIfDb('createDrizzleFoodMatcher', () => {
       })
 
       const matcher = createDrizzleFoodMatcher(tx)
-      const result = await matcher.search({ query: 'soup', limit: 5 })
+      const result = (
+        await matcher.search({ query: 'soup', limit: 5 })
+      )._unsafeUnwrap()
 
       const expectedC = Number(
         (1 + SIM_SOUP_SOUP_X * (1 - Math.exp(-5 / 3))).toFixed(3),
@@ -146,7 +150,9 @@ describeIfDb('createDrizzleFoodMatcher', () => {
       })
 
       const matcher = createDrizzleFoodMatcher(tx)
-      const result = await matcher.search({ query: 'bread', limit: 5 })
+      const result = (
+        await matcher.search({ query: 'bread', limit: 5 })
+      )._unsafeUnwrap()
 
       expect(normalize(result)).toEqual([
         {
@@ -165,7 +171,9 @@ describeIfDb('createDrizzleFoodMatcher', () => {
       await seedFoodComposition(tx, { code: 'comp_noodle', name: 'noodle' })
 
       const matcher = createDrizzleFoodMatcher(tx)
-      const result = await matcher.search({ query: 'noodle', limit: 5 })
+      const result = (
+        await matcher.search({ query: 'noodle', limit: 5 })
+      )._unsafeUnwrap()
 
       expect(normalize(result)).toEqual([
         {
@@ -189,7 +197,9 @@ describeIfDb('createDrizzleFoodMatcher', () => {
       await seedFoodComposition(tx, { code: 'comp_curry', name: 'curry' })
 
       const matcher = createDrizzleFoodMatcher(tx)
-      const result = await matcher.search({ query: 'curry', limit: 5 })
+      const result = (
+        await matcher.search({ query: 'curry', limit: 5 })
+      )._unsafeUnwrap()
 
       expect(normalize(result)).toEqual([
         {
@@ -212,7 +222,9 @@ describeIfDb('createDrizzleFoodMatcher', () => {
       })
 
       const matcher = createDrizzleFoodMatcher(tx)
-      const result = await matcher.search({ query: 'tofu', limit: 5 })
+      const result = (
+        await matcher.search({ query: 'tofu', limit: 5 })
+      )._unsafeUnwrap()
 
       expect(result).toEqual([])
     })

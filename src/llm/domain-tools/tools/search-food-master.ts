@@ -1,11 +1,11 @@
 import { z } from 'zod'
 
 import type { FoodMatcher } from '@/domain/food-matcher/food-matcher'
-import { internalErr } from '@/llm/domain-tools/internal-error'
+import { toInternalToolError } from '@/llm/domain-tools/internal-error'
 import { parseToolInput } from '@/llm/domain-tools/parse'
 import {
   type DomainTool,
-  ok,
+  err,
   type Result,
   type ToolError,
 } from '@/llm/domain-tools/types'
@@ -43,13 +43,10 @@ export const createSearchFoodMasterTool = (
     input: unknown,
   ): Promise<Result<SearchFoodMasterOutput, ToolError>> {
     const parsed = parseToolInput(inputSchema, input)
-    if (!parsed.ok) return parsed
-    try {
-      const candidates = await matcher.search({
-        query: parsed.value.query,
-        limit: parsed.value.limit,
-      })
-      return ok({
+    if (parsed.isErr()) return err(parsed.error)
+    return await matcher
+      .search({ query: parsed.value.query, limit: parsed.value.limit })
+      .map((candidates) => ({
         candidates: candidates.map((c) => ({
           food_master_id: c.foodMasterId,
           composition_code: c.compositionCode,
@@ -58,9 +55,7 @@ export const createSearchFoodMasterTool = (
           score: c.score,
           reason: c.reason,
         })),
-      })
-    } catch (e) {
-      return internalErr(e)
-    }
+      }))
+      .mapErr(toInternalToolError)
   },
 })

@@ -1,3 +1,6 @@
+import type { ResultAsync } from 'neverthrow'
+
+import type { DomainError } from '@/domain/meal-log/errors'
 import type { FoodMasterRef, MealLogRow } from '@/domain/meal-log/types'
 
 export interface InsertMealLogInput {
@@ -15,10 +18,7 @@ export interface FoundMealLog {
 }
 
 export interface MealLogRepository {
-  /**
-   * Throws FoodMasterNotFoundError when foodMasterId does not exist.
-   */
-  findFoodMaster(foodMasterId: string): Promise<FoodMasterRef>
-  insertMealLog(input: InsertMealLogInput): Promise<MealLogRow>
-  findMealLogById(id: string): Promise<FoundMealLog | null>
+  findFoodMaster(foodMasterId: string): ResultAsync<FoodMasterRef, DomainError>
+  insertMealLog(input: InsertMealLogInput): ResultAsync<MealLogRow, DomainError>
+  findMealLogById(id: string): ResultAsync<FoundMealLog | null, DomainError>
 }

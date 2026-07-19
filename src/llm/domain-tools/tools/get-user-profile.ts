@@ -1,7 +1,7 @@
 import { z } from 'zod'
 
 import type { UserProfileService } from '@/domain/user-profile/user-profile-service'
-import { internalErr } from '@/llm/domain-tools/internal-error'
+import { toInternalToolError } from '@/llm/domain-tools/internal-error'
 import { parseToolInput } from '@/llm/domain-tools/parse'
 import {
   toUserProfilePayload,
@@ -9,7 +9,7 @@ import {
 } from '@/llm/domain-tools/tools/user-profile-payload'
 import {
   type DomainTool,
-  ok,
+  err,
   type Result,
   type ToolError,
 } from '@/llm/domain-tools/types'
@@ -27,11 +27,10 @@ export const createGetUserProfileTool = (
     input: unknown,
   ): Promise<Result<UserProfilePayload, ToolError>> {
     const parsed = parseToolInput(inputSchema, input)
-    if (!parsed.ok) return parsed
-    try {
-      return ok(toUserProfilePayload(await service.get()))
-    } catch (e) {
-      return internalErr(e)
-    }
+    if (parsed.isErr()) return err(parsed.error)
+    return await service
+      .get()
+      .map(toUserProfilePayload)
+      .mapErr(toInternalToolError)
   },
 })
