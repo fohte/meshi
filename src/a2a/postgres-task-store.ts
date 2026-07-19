@@ -2,7 +2,7 @@ import type { Task } from '@a2a-js/sdk'
 import type { TaskStore } from '@a2a-js/sdk/server'
 import { z } from 'zod'
 
-import type { Sql } from '@/db'
+import { createAsText, type Sql } from '@/db'
 
 // Rows in a terminal state must never be overwritten by a later save() — the
 // watchdog may have already failed a task that a still-running executor
@@ -68,11 +68,10 @@ const parseTaskRow = (taskId: string, rawTask: unknown): Task => {
 }
 
 // Every timestamp and the `task` payload below are bound as an explicit
-// text parameter (OID 25, `asText`) with an inline SQL cast, rather than
-// interpolated as a raw `Date`/object or left for postgres.js to infer a
-// type for. Two independent reasons found by tracing the production crash
-// this store used to throw make that necessary rather than just
-// defensive:
+// text parameter (`asText`, from createAsText in @/db) with an inline SQL
+// cast, rather than interpolated as a raw `Date`/object or left for
+// postgres.js to infer a type for. Two independent Postgres/driver
+// behaviors make this necessary, not just defensive:
 //
 // 1. In production wiring (main.ts), this store's `sql` is the same
 //    connection pool that createDrizzleMealLogRepository and
@@ -93,10 +92,9 @@ const parseTaskRow = (taskId: string, rawTask: unknown): Task => {
 //    `'object'`, and fails this table's `jsonb_typeof(task) = 'object'`
 //    check constraint). Declaring the parameter's OID as text explicitly
 //    routes around Postgres's `unknown`-cast resolution entirely.
-const TEXT_OID = 25
 
 export const createPostgresTaskStore = (sql: Sql): A2aTaskStore => {
-  const asText = (value: string) => sql.typed(value, TEXT_OID)
+  const asText = createAsText(sql)
 
   return {
     async save(task: Task): Promise<void> {

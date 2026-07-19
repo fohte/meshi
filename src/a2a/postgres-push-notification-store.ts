@@ -2,15 +2,15 @@ import type { PushNotificationConfig } from '@a2a-js/sdk'
 import type { PushNotificationStore } from '@a2a-js/sdk/server'
 import { z } from 'zod'
 
-import type { Sql } from '@/db'
+import { createAsText, type Sql } from '@/db'
 
 // Raw SQL, not the drizzle query builder: this table shares a connection
 // pool with PostgresTaskStore in production wiring (main.ts), and
 // constructing a drizzle() instance on that pool corrupts serialization of
 // any raw `Date`/object interpolated into a `sql` template afterward (see
 // the comment in postgres-task-store.ts). `config` below is bound as an
-// explicit text parameter for the same two reasons `task` is there.
-const TEXT_OID = 25
+// explicit text parameter (`asText`) for the same two reasons `task` is
+// there.
 
 // This store writes and reads the `config` column exclusively; the SDK
 // caller only ever passes it a `PushNotificationConfig` it constructed
@@ -39,7 +39,7 @@ export class PushConfigRowInvalidError extends Error {
 export const createPostgresPushNotificationStore = (
   sql: Sql,
 ): PushNotificationStore => {
-  const asText = (value: string) => sql.typed(value, TEXT_OID)
+  const asText = createAsText(sql)
 
   return {
     async save(

@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, test } from 'vitest'
 
 import { createPostgresPushNotificationStore } from '@/a2a/postgres-push-notification-store'
 import { captureSqlParams, describeIfDb, setupTx } from '@/test/db'
@@ -108,7 +108,7 @@ describeIfDb('createPostgresPushNotificationStore', () => {
 // createPostgresPushNotificationStore hands to its `sql` dependency (a
 // pre-serialized string, not the raw config object).
 describe('parameters passed to sql', () => {
-  it('save() passes config as a JSON string', async () => {
+  test('save() passes config as a pre-serialized string', async () => {
     const { sql, params } = captureSqlParams()
     const store = createPostgresPushNotificationStore(sql)
 
@@ -116,20 +116,14 @@ describe('parameters passed to sql', () => {
       id: 'config-param-check',
       url: 'https://example.com/push',
     })
-    const expectedConfigJson = JSON.stringify({
-      id: 'config-param-check',
-      url: 'https://example.com/push',
-    })
 
-    // A plain config object that made it through unconverted would show up
-    // here instead of the expected JSON string.
-    const configCandidates = params.filter(
-      (param) =>
-        (typeof param === 'object' &&
-          param !== null &&
-          !Array.isArray(param)) ||
-        param === expectedConfigJson,
-    )
-    expect(configCandidates).toEqual([expectedConfigJson])
+    expect(params).toEqual([
+      'task-param-check',
+      'config-param-check',
+      JSON.stringify({
+        id: 'config-param-check',
+        url: 'https://example.com/push',
+      }),
+    ])
   })
 })
