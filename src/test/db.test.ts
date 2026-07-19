@@ -1,7 +1,12 @@
 import { drizzle } from 'drizzle-orm/postgres-js'
-import { expect, it } from 'vitest'
+import { describe, expect, it } from 'vitest'
 
-import { describeIfDb, getTestSql, setupDrizzleTx } from '@/test/db'
+import {
+  captureSqlParams,
+  describeIfDb,
+  getTestSql,
+  setupDrizzleTx,
+} from '@/test/db'
 
 describeIfDb('setupDrizzleTx', () => {
   const getTx = setupDrizzleTx()
@@ -15,5 +20,16 @@ describeIfDb('setupDrizzleTx', () => {
     const sql = getTestSql()
     const [row] = await sql<{ now: Date }[]>`SELECT now() AS now`
     expect(row?.now).toBeInstanceOf(Date)
+  })
+})
+
+describe('captureSqlParams', () => {
+  it('captures tagged-template interpolations, passes through a non-tagged call, and unwraps .typed()', () => {
+    const { sql, params } = captureSqlParams()
+    const list = ['a', 'b']
+
+    void sql`SELECT ${'x'}, ${sql.typed('y', 25)}, ${sql(list)}`
+
+    expect(params).toEqual(['x', 'y', list])
   })
 })

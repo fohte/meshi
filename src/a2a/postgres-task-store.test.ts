@@ -1,8 +1,8 @@
 import type { Task } from '@a2a-js/sdk'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, test } from 'vitest'
 
 import { createPostgresTaskStore } from '@/a2a/postgres-task-store'
-import { describeIfDb, setupTx } from '@/test/db'
+import { captureSqlParams, describeIfDb, setupTx } from '@/test/db'
 import { seedA2aPushConfig } from '@/test/seed'
 
 const MS_PER_DAY = 24 * 60 * 60 * 1000
@@ -243,5 +243,70 @@ describeIfDb('createPostgresTaskStore', () => {
       expect(deletedCount).toBe(0)
       expect(await store.load('task-old-working')).toEqual(oldWorking)
     })
+  })
+})
+
+// Production wiring shares this store's connection pool with drizzle()-
+// backed repositories (see the comment in postgres-task-store.ts), which
+// corrupts postgres.js's serialization of any raw `Date`/plain-object
+// parameter interpolated into a `sql` template afterward. These tests
+// don't need a real database — they assert on what createPostgresTaskStore
+// hands to its `sql` dependency (a pre-serialized string, not a `Date` or
+// object), independent of postgres.js's own parameter-serialization
+// behavior.
+describe('parameters passed to sql', () => {
+  const FIXED_ISO = '2026-01-01T00:00:00.000Z'
+
+  // failStuckWorkingTasks() stamps its own to_jsonb(...) parameter with
+  // `new Date().toISOString()`, always the first param bound — normalize
+  // it so the rest of the params array can still be compared as a single
+  // literal.
+  const normalizeGeneratedTimestamp = (params: unknown[]): unknown[] =>
+    params.map((param, index) => (index === 0 ? NORMALIZED_TIMESTAMP : param))
+
+  test('save() passes status_timestamp and task as pre-serialized strings', async () => {
+    const { sql, params } = captureSqlParams()
+    const store = createPostgresTaskStore(sql)
+    const task = buildTask({
+      id: 'task-param-check',
+      contextId: 'ctx-param-check',
+      state: 'submitted',
+      timestamp: new Date(FIXED_ISO),
+    })
+
+    await store.save(task)
+
+    expect(params).toEqual([
+      'task-param-check',
+      'ctx-param-check',
+      'submitted',
+      FIXED_ISO,
+      JSON.stringify(task),
+      ['completed', 'failed', 'canceled', 'rejected'],
+    ])
+  })
+
+  test('failStuckWorkingTasks() passes olderThan as a string', async () => {
+    const { sql, params } = captureSqlParams()
+    const store = createPostgresTaskStore(sql)
+
+    await store.failStuckWorkingTasks(new Date(FIXED_ISO))
+
+    expect(normalizeGeneratedTimestamp(params)).toEqual([
+      NORMALIZED_TIMESTAMP,
+      FIXED_ISO,
+    ])
+  })
+
+  test('deleteExpiredTerminalTasks() passes olderThan as a string', async () => {
+    const { sql, params } = captureSqlParams()
+    const store = createPostgresTaskStore(sql)
+
+    await store.deleteExpiredTerminalTasks(new Date(FIXED_ISO))
+
+    expect(params).toEqual([
+      ['completed', 'failed', 'canceled', 'rejected'],
+      FIXED_ISO,
+    ])
   })
 })

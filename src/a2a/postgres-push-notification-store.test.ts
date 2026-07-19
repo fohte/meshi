@@ -1,7 +1,7 @@
-import { expect, it } from 'vitest'
+import { describe, expect, it, test } from 'vitest'
 
 import { createPostgresPushNotificationStore } from '@/a2a/postgres-push-notification-store'
-import { describeIfDb, setupTx } from '@/test/db'
+import { captureSqlParams, describeIfDb, setupTx } from '@/test/db'
 
 describeIfDb('createPostgresPushNotificationStore', () => {
   const getTx = setupTx()
@@ -96,6 +96,34 @@ describeIfDb('createPostgresPushNotificationStore', () => {
 
     expect(await store.load('task-1')).toEqual([
       { id: 'config-b', url: 'https://example.com/b' },
+    ])
+  })
+})
+
+// Production wiring shares this store's connection pool with drizzle()-
+// backed repositories (see the comment in postgres-task-store.ts and the
+// file header here), which corrupts postgres.js's serialization of any raw
+// plain-object parameter interpolated into a `sql` template afterward.
+// This test doesn't need a real database — it asserts on what
+// createPostgresPushNotificationStore hands to its `sql` dependency (a
+// pre-serialized string, not the raw config object).
+describe('parameters passed to sql', () => {
+  test('save() passes config as a pre-serialized string', async () => {
+    const { sql, params } = captureSqlParams()
+    const store = createPostgresPushNotificationStore(sql)
+
+    await store.save('task-param-check', {
+      id: 'config-param-check',
+      url: 'https://example.com/push',
+    })
+
+    expect(params).toEqual([
+      'task-param-check',
+      'config-param-check',
+      JSON.stringify({
+        id: 'config-param-check',
+        url: 'https://example.com/push',
+      }),
     ])
   })
 })

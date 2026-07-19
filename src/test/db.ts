@@ -1,6 +1,8 @@
 import postgres from 'postgres'
 import { afterAll, afterEach, beforeEach, describe } from 'vitest'
 
+import type { Sql } from '@/db'
+
 const LOCAL_HOSTS = new Set(['127.0.0.1', 'localhost', '::1'])
 
 export const TEST_DATABASE_URL = process.env['TEST_DATABASE_URL']
@@ -110,5 +112,35 @@ export const setupDrizzleTx = (): (() => postgres.Sql) => {
       },
     })
     return tx
+  }
+}
+
+// A no-DB fake of `Sql`'s tagged-template call (plus `.typed()`), for
+// tests that assert on what a raw-SQL store hands to `sql` as parameters
+// rather than on the round-tripped result — e.g. pinning that a value
+// reaches `sql` as a pre-serialized string rather than a `Date`/plain
+// object (see the production hazard documented in postgres-task-store.ts).
+// A non-tagged call (e.g. `sql(SOME_ARRAY)` for an `IN (...)` list) is
+// passed through unchanged rather than captured. `.typed(value, oid)`
+// returns `value` unwrapped rather than a real `Parameter` — this fake
+// only needs to capture what value a store bound, not replicate
+// postgres.js's own wire-level OID handling.
+export const captureSqlParams = (): { sql: Sql; params: unknown[] } => {
+  const params: unknown[] = []
+  const tag = (
+    first: TemplateStringsArray | readonly string[],
+    ...rest: unknown[]
+  ): unknown => {
+    if (!('raw' in first)) return first
+    params.push(...rest)
+    return Promise.resolve([])
+  }
+  const fakeSql = Object.assign(tag, {
+    typed: (value: unknown) => value,
+  })
+  return {
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-type-assertion -- minimal fake of postgres.Sql's tagged-template call plus .typed(); only the surface exercised by the stores under test.
+    sql: fakeSql as unknown as Sql,
+    params,
   }
 }

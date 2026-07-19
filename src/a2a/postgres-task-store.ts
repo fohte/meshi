@@ -2,7 +2,7 @@ import type { Task } from '@a2a-js/sdk'
 import type { TaskStore } from '@a2a-js/sdk/server'
 import { z } from 'zod'
 
-import type { Sql } from '@/db'
+import { createAsText, type Sql } from '@/db'
 
 // Rows in a terminal state must never be overwritten by a later save() — the
 // watchdog may have already failed a task that a still-running executor
@@ -67,7 +67,35 @@ const parseTaskRow = (taskId: string, rawTask: unknown): Task => {
   return parsed.data as Task
 }
 
+// Every timestamp and the `task` payload below are bound as an explicit
+// text parameter (`asText`, from createAsText in @/db) with an inline SQL
+// cast, rather than interpolated as a raw `Date`/object or left for
+// postgres.js to infer a type for. Two independent Postgres/driver
+// behaviors make this necessary, not just defensive:
+//
+// 1. In production wiring (main.ts), this store's `sql` is the same
+//    connection pool that createDrizzleMealLogRepository and
+//    createDrizzleUserProfileRepository each build a `drizzle()` instance
+//    on. drizzle-orm's postgres-js driver mutates that shared pool's
+//    `options.serializers` for timestamp/date OIDs and for jsonb
+//    (114/3802) to an identity pass-through as a side effect of
+//    construction (drizzle-orm/postgres-js/driver.js `construct()`), for
+//    the lifetime of the pool. A `Date`/object routed through one of
+//    those OIDs then reaches postgres.js's string wire encoder
+//    unconverted and throws `TypeError [ERR_INVALID_ARG_TYPE]`.
+// 2. Independent of that corruption, a jsonb-typed parameter whose OID
+//    postgres.js leaves unspecified (the default for a plain JS string)
+//    is bound to Postgres's `unknown` pseudo-type; casting an `unknown`
+//    parameter to `jsonb` re-encodes the text as a JSON *string* instead
+//    of parsing it as JSON (confirmed locally: an unknown-OID text
+//    parameter cast with `::jsonb` reports `jsonb_typeof = 'string'`, not
+//    `'object'`, and fails this table's `jsonb_typeof(task) = 'object'`
+//    check constraint). Declaring the parameter's OID as text explicitly
+//    routes around Postgres's `unknown`-cast resolution entirely.
+
 export const createPostgresTaskStore = (sql: Sql): A2aTaskStore => {
+  const asText = createAsText(sql)
+
   return {
     async save(task: Task): Promise<void> {
       const statusTimestamp =
@@ -75,11 +103,10 @@ export const createPostgresTaskStore = (sql: Sql): A2aTaskStore => {
           ? new Date(task.status.timestamp)
           : new Date()
 
-      // eslint-disable-next-line @typescript-eslint/no-unsafe-type-assertion -- `task` is always a JSON-serializable SDK value; postgres-js's JSONValue type has no way to express an arbitrary interface satisfies it.
-      const taskJson = sql.json(task as never)
+      const taskJson = JSON.stringify(task)
       await sql`
         INSERT INTO a2a_tasks (task_id, context_id, state, status_timestamp, task)
-        VALUES (${task.id}, ${task.contextId}, ${task.status.state}, ${statusTimestamp}, ${taskJson})
+        VALUES (${task.id}, ${task.contextId}, ${task.status.state}, ${asText(statusTimestamp.toISOString())}::timestamptz, ${asText(taskJson)}::jsonb)
         ON CONFLICT (task_id) DO UPDATE SET
           context_id = EXCLUDED.context_id,
           state = EXCLUDED.state,
@@ -110,7 +137,7 @@ export const createPostgresTaskStore = (sql: Sql): A2aTaskStore => {
             '{status,timestamp}',
             to_jsonb(${nowIso}::text)
           )
-        WHERE state = 'working' AND status_timestamp < ${olderThan}
+        WHERE state = 'working' AND status_timestamp < ${asText(olderThan.toISOString())}::timestamptz
         RETURNING task_id, task
       `
 
@@ -128,7 +155,7 @@ export const createPostgresTaskStore = (sql: Sql): A2aTaskStore => {
       const deleted = await sql`
         WITH deleted_tasks AS (
           DELETE FROM a2a_tasks
-          WHERE state IN ${sql(TERMINAL_STATES)} AND status_timestamp < ${olderThan}
+          WHERE state IN ${sql(TERMINAL_STATES)} AND status_timestamp < ${asText(olderThan.toISOString())}::timestamptz
           RETURNING task_id
         ),
         deleted_configs AS (
