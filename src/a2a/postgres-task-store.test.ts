@@ -2,8 +2,7 @@ import type { Task } from '@a2a-js/sdk'
 import { describe, expect, it } from 'vitest'
 
 import { createPostgresTaskStore } from '@/a2a/postgres-task-store'
-import type { Sql } from '@/db'
-import { describeIfDb, setupTx } from '@/test/db'
+import { captureSqlParams, describeIfDb, setupTx } from '@/test/db'
 import { seedA2aPushConfig } from '@/test/seed'
 
 const MS_PER_DAY = 24 * 60 * 60 * 1000
@@ -247,33 +246,16 @@ describeIfDb('createPostgresTaskStore', () => {
   })
 })
 
-// postgres.js infers a parameter's wire type via a runtime `instanceof
-// Date` check (postgres/src/types.js `inferType`); when that check
-// doesn't match, a raw `Date` value reaches the string serializer instead
-// and throws (`TypeError [ERR_INVALID_ARG_TYPE]` in `Buffer.byteLength`).
-// These tests don't need a real database — they assert on what
-// createPostgresTaskStore hands to its `sql` dependency, independent of
-// postgres.js's own parameter-serialization behavior.
-describe('timestamp parameters passed to sql', () => {
+// Production wiring shares this store's connection pool with drizzle()-
+// backed repositories (see the comment in postgres-task-store.ts), which
+// corrupts postgres.js's serialization of any raw `Date`/plain-object
+// parameter interpolated into a `sql` template afterward. These tests
+// don't need a real database — they assert on what createPostgresTaskStore
+// hands to its `sql` dependency (a pre-serialized string, not a `Date` or
+// object), independent of postgres.js's own parameter-serialization
+// behavior.
+describe('parameters passed to sql', () => {
   const OLDER_THAN_ISO = '2026-01-01T00:00:00.000Z'
-
-  const captureSqlParams = (): { sql: Sql; params: unknown[] } => {
-    const params: unknown[] = []
-    const tag = (
-      first: TemplateStringsArray | readonly string[],
-      ...rest: unknown[]
-    ): unknown => {
-      if (!('raw' in first)) return first
-      params.push(...rest)
-      return Promise.resolve([])
-    }
-    const fakeSql = Object.assign(tag, { json: (value: unknown) => value })
-    return {
-      // eslint-disable-next-line @typescript-eslint/no-unsafe-type-assertion -- minimal fake of postgres.Sql's tagged-template call plus .json(); only the surface createPostgresTaskStore exercises.
-      sql: fakeSql as unknown as Sql,
-      params,
-    }
-  }
 
   // A `Date` that made it through unconverted would show up here as a
   // `Date` instance instead of the expected ISO string.
@@ -311,5 +293,29 @@ describe('timestamp parameters passed to sql', () => {
     await store.deleteExpiredTerminalTasks(new Date(OLDER_THAN_ISO))
 
     expect(timestampCandidates(params)).toEqual([OLDER_THAN_ISO])
+  })
+
+  it('save() passes task as a JSON string', async () => {
+    const { sql, params } = captureSqlParams()
+    const store = createPostgresTaskStore(sql)
+    const task = buildTask({
+      id: 'task-param-check',
+      contextId: 'ctx-param-check',
+      state: 'submitted',
+      timestamp: new Date(OLDER_THAN_ISO),
+    })
+
+    await store.save(task)
+
+    // A plain `task` object that made it through unconverted would show up
+    // here instead of the expected JSON string.
+    const taskCandidates = params.filter(
+      (param) =>
+        (typeof param === 'object' &&
+          param !== null &&
+          !Array.isArray(param)) ||
+        param === JSON.stringify(task),
+    )
+    expect(taskCandidates).toEqual([JSON.stringify(task)])
   })
 })

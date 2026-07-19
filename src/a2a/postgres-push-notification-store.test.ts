@@ -1,7 +1,7 @@
-import { expect, it } from 'vitest'
+import { describe, expect, it } from 'vitest'
 
 import { createPostgresPushNotificationStore } from '@/a2a/postgres-push-notification-store'
-import { describeIfDb, setupTx } from '@/test/db'
+import { captureSqlParams, describeIfDb, setupTx } from '@/test/db'
 
 describeIfDb('createPostgresPushNotificationStore', () => {
   const getTx = setupTx()
@@ -97,5 +97,39 @@ describeIfDb('createPostgresPushNotificationStore', () => {
     expect(await store.load('task-1')).toEqual([
       { id: 'config-b', url: 'https://example.com/b' },
     ])
+  })
+})
+
+// Production wiring shares this store's connection pool with drizzle()-
+// backed repositories (see the comment in postgres-task-store.ts and the
+// file header here), which corrupts postgres.js's serialization of any raw
+// plain-object parameter interpolated into a `sql` template afterward.
+// This test doesn't need a real database — it asserts on what
+// createPostgresPushNotificationStore hands to its `sql` dependency (a
+// pre-serialized string, not the raw config object).
+describe('parameters passed to sql', () => {
+  it('save() passes config as a JSON string', async () => {
+    const { sql, params } = captureSqlParams()
+    const store = createPostgresPushNotificationStore(sql)
+
+    await store.save('task-param-check', {
+      id: 'config-param-check',
+      url: 'https://example.com/push',
+    })
+    const expectedConfigJson = JSON.stringify({
+      id: 'config-param-check',
+      url: 'https://example.com/push',
+    })
+
+    // A plain config object that made it through unconverted would show up
+    // here instead of the expected JSON string.
+    const configCandidates = params.filter(
+      (param) =>
+        (typeof param === 'object' &&
+          param !== null &&
+          !Array.isArray(param)) ||
+        param === expectedConfigJson,
+    )
+    expect(configCandidates).toEqual([expectedConfigJson])
   })
 })

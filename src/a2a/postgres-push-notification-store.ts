@@ -5,10 +5,12 @@ import { z } from 'zod'
 import type { Sql } from '@/db'
 
 // Raw SQL, not the drizzle query builder: this table shares a connection
-// with PostgresTaskStore in production wiring, and constructing a
-// drizzle() instance flips jsonb (de)serialization for every query on that
-// connection, corrupting the other store's raw reads of `a2a_tasks.task`
-// (see the comment in postgres-task-store.ts).
+// pool with PostgresTaskStore in production wiring (main.ts), and
+// constructing a drizzle() instance on that pool corrupts serialization of
+// any raw `Date`/object interpolated into a `sql` template afterward (see
+// the comment in postgres-task-store.ts). `config` below is bound as an
+// explicit text parameter for the same two reasons `task` is there.
+const TEXT_OID = 25
 
 // This store writes and reads the `config` column exclusively; the SDK
 // caller only ever passes it a `PushNotificationConfig` it constructed
@@ -37,6 +39,8 @@ export class PushConfigRowInvalidError extends Error {
 export const createPostgresPushNotificationStore = (
   sql: Sql,
 ): PushNotificationStore => {
+  const asText = (value: string) => sql.typed(value, TEXT_OID)
+
   return {
     async save(
       taskId: string,
@@ -47,11 +51,10 @@ export const createPostgresPushNotificationStore = (
       const configId = pushNotificationConfig.id ?? taskId
       const config = { ...pushNotificationConfig, id: configId }
 
-      // eslint-disable-next-line @typescript-eslint/no-unsafe-type-assertion -- `config` is always a JSON-serializable SDK value; postgres-js's JSONValue type has no way to express an arbitrary interface satisfies it.
-      const configJson = sql.json(config as never)
+      const configJson = JSON.stringify(config)
       await sql`
         INSERT INTO a2a_push_configs (task_id, config_id, config)
-        VALUES (${taskId}, ${configId}, ${configJson})
+        VALUES (${taskId}, ${configId}, ${asText(configJson)}::jsonb)
         ON CONFLICT (task_id, config_id) DO UPDATE SET
           config = EXCLUDED.config
       `
