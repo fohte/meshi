@@ -3,12 +3,21 @@ import { randomUUID } from 'node:crypto'
 import type { Message, Task } from '@a2a-js/sdk'
 import type { AgentExecutionEvent, ExecutionEventBus } from '@a2a-js/sdk/server'
 import { RequestContext } from '@a2a-js/sdk/server'
+import { captureWithFingerprint } from '@fohte/service-kit/observability'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import type { MeshiDomainAgentLike } from '@/a2a/agent-executor'
 import { createMeshiAgentExecutor, runAgentTurn } from '@/a2a/agent-executor'
 import type { Sql } from '@/db'
 import { describeIfDb, getTestSql } from '@/test/db'
+
+vi.mock('@fohte/service-kit/observability', () => ({
+  captureWithFingerprint: vi.fn(),
+}))
+
+afterEach(() => {
+  vi.mocked(captureWithFingerprint).mockClear()
+})
 
 const NORMALIZED = 'NORMALIZED'
 
@@ -342,6 +351,28 @@ describe('runAgentTurn', () => {
     })
   })
 
+  it('reports an agent invocation failure to Sentry', async () => {
+    const contextId = `ctx-${randomUUID()}`
+    const taskId = `task-${randomUUID()}`
+    const userMessage = buildUserMessage(taskId, contextId)
+    const error = new Error('boom')
+    const agent: MeshiDomainAgentLike = {
+      invoke: vi.fn().mockRejectedValue(error),
+    }
+
+    vi.spyOn(console, 'error').mockImplementation(() => {})
+    await runAgentTurn(
+      agent,
+      new RequestContext(userMessage, taskId, contextId),
+    )
+
+    expect(captureWithFingerprint).toHaveBeenCalledExactlyOnceWith(
+      error,
+      'a2a.agent-executor.turn-failed',
+      { extras: { taskId, contextId } },
+    )
+  })
+
   it('passes the converted user message content and thread_id to the domain agent', async () => {
     const contextId = `ctx-${randomUUID()}`
     const taskId = `task-${randomUUID()}`
@@ -572,6 +603,49 @@ describeIfDb('createMeshiAgentExecutor', () => {
   })
 })
 
+// The agent's invoke() Promise executor only runs once execute() actually
+// calls invoke() (not when this factory runs), so resolveInvoke defers to
+// whichever `resolve` that later call captures rather than being returned
+// directly.
+const buildPendingAgent = (): {
+  agent: MeshiDomainAgentLike
+  resolveInvoke: (value: { structuredResponse: unknown }) => void
+} => {
+  let resolve: ((value: { structuredResponse: unknown }) => void) | undefined
+  const agent: MeshiDomainAgentLike = {
+    invoke: vi.fn().mockImplementation(
+      () =>
+        new Promise((res) => {
+          resolve = res
+        }),
+    ),
+  }
+  return { agent, resolveInvoke: (value) => resolve?.(value) }
+}
+
+// The initial task-seed event is publish call #1; the first heartbeat tick
+// is #2 — make only that one throw, simulating a transient event bus
+// failure on a single heartbeat.
+const buildFailingHeartbeatBus = (
+  error: Error,
+): { bus: ExecutionEventBus; published: AgentExecutionEvent[] } => {
+  const published: AgentExecutionEvent[] = []
+  let publishCount = 0
+  const bus: ExecutionEventBus = {
+    publish(event) {
+      publishCount += 1
+      if (publishCount === 2) throw error
+      published.push(event)
+    },
+    finished: vi.fn(),
+    on: () => bus,
+    off: () => bus,
+    once: () => bus,
+    removeAllListeners: () => bus,
+  }
+  return { bus, published }
+}
+
 describe('createMeshiAgentExecutor heartbeat', () => {
   afterEach(() => {
     vi.useRealTimers()
@@ -582,16 +656,7 @@ describe('createMeshiAgentExecutor heartbeat', () => {
     const contextId = `ctx-${randomUUID()}`
     const taskId = `task-${randomUUID()}`
     const userMessage = buildUserMessage(taskId, contextId)
-    let resolveInvoke:
-      ((value: { structuredResponse: unknown }) => void) | undefined
-    const agent: MeshiDomainAgentLike = {
-      invoke: vi.fn().mockImplementation(
-        () =>
-          new Promise((resolve) => {
-            resolveInvoke = resolve
-          }),
-      ),
-    }
+    const { agent, resolveInvoke } = buildPendingAgent()
     const executor = createMeshiAgentExecutor({
       agent,
       sql: buildFakeSql(),
@@ -607,7 +672,7 @@ describe('createMeshiAgentExecutor heartbeat', () => {
     await vi.advanceTimersByTimeAsync(1_000)
     await vi.advanceTimersByTimeAsync(1_000)
     await vi.advanceTimersByTimeAsync(1_000)
-    resolveInvoke?.({
+    resolveInvoke({
       structuredResponse: { status: 'completed', message: 'ok' },
     })
     await executing
@@ -624,40 +689,15 @@ describe('createMeshiAgentExecutor heartbeat', () => {
     const contextId = `ctx-${randomUUID()}`
     const taskId = `task-${randomUUID()}`
     const userMessage = buildUserMessage(taskId, contextId)
-    let resolveInvoke:
-      ((value: { structuredResponse: unknown }) => void) | undefined
-    const agent: MeshiDomainAgentLike = {
-      invoke: vi.fn().mockImplementation(
-        () =>
-          new Promise((resolve) => {
-            resolveInvoke = resolve
-          }),
-      ),
-    }
+    const { agent, resolveInvoke } = buildPendingAgent()
     const executor = createMeshiAgentExecutor({
       agent,
       sql: buildFakeSql(),
       heartbeatIntervalMs: 1_000,
     })
-    // The initial task-seed event is publish call #1; the first heartbeat
-    // tick is #2 — make only that one throw, simulating a transient event
-    // bus failure on a single heartbeat.
-    let publishCount = 0
-    const published: AgentExecutionEvent[] = []
-    const bus: ExecutionEventBus = {
-      publish(event) {
-        publishCount += 1
-        if (publishCount === 2) {
-          throw new Error('event bus unavailable')
-        }
-        published.push(event)
-      },
-      finished: vi.fn(),
-      on: () => bus,
-      off: () => bus,
-      once: () => bus,
-      removeAllListeners: () => bus,
-    }
+    const { bus, published } = buildFailingHeartbeatBus(
+      new Error('event bus unavailable'),
+    )
 
     const executing = executor.execute(
       new RequestContext(userMessage, taskId, contextId),
@@ -665,11 +705,44 @@ describe('createMeshiAgentExecutor heartbeat', () => {
     )
 
     await vi.advanceTimersByTimeAsync(1_000)
-    resolveInvoke?.({
+    resolveInvoke({
       structuredResponse: { status: 'completed', message: 'ok' },
     })
     await expect(executing).resolves.toBeUndefined()
 
     expect(published.map((event) => event.kind)).toEqual(['task', 'task'])
+  })
+
+  it('reports a heartbeat publish failure to Sentry', async () => {
+    vi.useFakeTimers()
+    vi.spyOn(console, 'error').mockImplementation(() => {})
+    const contextId = `ctx-${randomUUID()}`
+    const taskId = `task-${randomUUID()}`
+    const userMessage = buildUserMessage(taskId, contextId)
+    const { agent, resolveInvoke } = buildPendingAgent()
+    const executor = createMeshiAgentExecutor({
+      agent,
+      sql: buildFakeSql(),
+      heartbeatIntervalMs: 1_000,
+    })
+    const error = new Error('event bus unavailable')
+    const { bus } = buildFailingHeartbeatBus(error)
+
+    const executing = executor.execute(
+      new RequestContext(userMessage, taskId, contextId),
+      bus,
+    )
+
+    await vi.advanceTimersByTimeAsync(1_000)
+    resolveInvoke({
+      structuredResponse: { status: 'completed', message: 'ok' },
+    })
+    await executing
+
+    expect(captureWithFingerprint).toHaveBeenCalledExactlyOnceWith(
+      error,
+      'a2a.agent-executor.heartbeat-failed',
+      { extras: { taskId, contextId } },
+    )
   })
 })

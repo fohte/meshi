@@ -1,11 +1,26 @@
 import type { AgentCard, Task } from '@a2a-js/sdk'
-import type { AgentExecutor, ExecutionEventBus } from '@a2a-js/sdk/server'
+import type {
+  AgentExecutor,
+  ExecutionEventBus,
+  TaskStore,
+} from '@a2a-js/sdk/server'
 import { DefaultRequestHandler, InMemoryTaskStore } from '@a2a-js/sdk/server'
+import { captureWithFingerprint } from '@fohte/service-kit/observability'
 import { Hono } from 'hono'
-import { describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import { z } from 'zod'
 
 import { mountA2aRoutes } from '@/a2a/hono-bridge'
+
+vi.mock('@fohte/service-kit/observability', () => ({
+  captureWithFingerprint: vi.fn(),
+}))
+
+afterEach(() => {
+  vi.mocked(captureWithFingerprint).mockClear()
+})
+
+const HONO_FINGERPRINT = 'a2a.hono.request-failed'
 
 // Full shapes, not `.loose()`: parsed once to confirm every field is
 // present with the right type, then the whole (normalized) value is
@@ -272,6 +287,85 @@ describe('mountA2aRoutes', () => {
       })
 
       expect(res.status).toBe(200)
+    })
+  })
+
+  describe('error reporting', () => {
+    // Neither jsonRpcTransportHandler.handle (the SDK catches its own
+    // internal errors) nor the routes below throw in practice, so this
+    // exercises app.onError the same way any other route sharing the app
+    // (e.g. GET /health in src/app.ts) would.
+    it('reports to Sentry and returns a JSON-RPC error response when a route throws', async () => {
+      const app = buildApp()
+      const thrown = new Error('boom')
+      app.get('/boom', () => {
+        throw thrown
+      })
+
+      const res = await app.request('/boom')
+
+      expect(res.status).toBe(500)
+      expect(await res.json()).toEqual({
+        jsonrpc: '2.0',
+        id: null,
+        error: { code: -32603, message: 'boom' },
+      })
+      expect(captureWithFingerprint).toHaveBeenCalledExactlyOnceWith(
+        thrown,
+        HONO_FINGERPRINT,
+      )
+    })
+
+    it('reports to Sentry and emits an SSE error event when the stream fails', async () => {
+      const thrown = new Error('task store unavailable')
+      const failingTaskStore: TaskStore = {
+        save: () => Promise.reject(thrown),
+        load: () => Promise.resolve(undefined),
+      }
+      const requestHandler = new DefaultRequestHandler(
+        buildAgentCard(),
+        failingTaskStore,
+        completingExecutor,
+      )
+      const app = new Hono()
+      mountA2aRoutes(app, { agentCard: buildAgentCard(), requestHandler })
+
+      const res = await app.request('/a2a', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          jsonrpc: '2.0',
+          id: 1,
+          method: 'message/stream',
+          params: {
+            message: {
+              kind: 'message',
+              messageId: 'msg-stream-fail',
+              role: 'user',
+              parts: [{ kind: 'text', text: 'hello' }],
+            },
+          },
+        }),
+      })
+
+      expect(res.status).toBe(200)
+      expect(res.headers.get('Content-Type')).toBe('text/event-stream')
+      const dataLine = (await res.text())
+        .split('\n')
+        .find((line) => line.startsWith('data: '))
+      expect(
+        dataLine === undefined
+          ? undefined
+          : JSON.parse(dataLine.slice('data: '.length)),
+      ).toEqual({
+        jsonrpc: '2.0',
+        id: null,
+        error: { code: -32603, message: 'task store unavailable' },
+      })
+      expect(captureWithFingerprint).toHaveBeenCalledExactlyOnceWith(
+        thrown,
+        HONO_FINGERPRINT,
+      )
     })
   })
 })

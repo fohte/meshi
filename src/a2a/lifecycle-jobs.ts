@@ -1,6 +1,10 @@
 import type { Task } from '@a2a-js/sdk'
+import { captureWithFingerprint } from '@fohte/service-kit/observability'
 
 import type { A2aTaskStore } from '@/a2a/postgres-task-store'
+
+const SWEEP_FINGERPRINT = 'a2a.lifecycle.sweep-failed'
+const ON_EXPIRE_FINGERPRINT = 'a2a.lifecycle.on-expire-failed'
 
 export interface TaskLifecycleJobsOptions {
   // Watchdog threshold: a `working` task whose heartbeat (status_timestamp)
@@ -36,6 +40,9 @@ const runSweep = async (
         await options.onExpire(task)
       } catch (err) {
         console.error(`a2a onExpire failed for task ${task.id}:`, err)
+        captureWithFingerprint(err, ON_EXPIRE_FINGERPRINT, {
+          extras: { taskId: task.id },
+        })
       }
     }),
   )
@@ -59,6 +66,7 @@ export const startTaskLifecycleJobs = (
       .then(() => runSweep(store, options))
       .catch((err: unknown) => {
         console.error('a2a task lifecycle sweep failed:', err)
+        captureWithFingerprint(err, SWEEP_FINGERPRINT)
       })
 
   let inFlight = tick(Promise.resolve())
