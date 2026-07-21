@@ -162,10 +162,12 @@ describe('error reporting', () => {
       )
     }
 
-    expect(thrown.message).toBe(
-      'failed to save push_config for task task-save-fail',
+    expect(thrown).toEqual(
+      new PushNotificationStorePersistenceError(
+        'failed to save push_config for task task-save-fail',
+        dbError,
+      ),
     )
-    expect(thrown.cause).toBe(dbError)
   })
 
   it('reports a save failure to Sentry', async () => {
@@ -203,10 +205,12 @@ describe('error reporting', () => {
       )
     }
 
-    expect(thrown.message).toBe(
-      'failed to load push_configs for task task-load-fail',
+    expect(thrown).toEqual(
+      new PushNotificationStorePersistenceError(
+        'failed to load push_configs for task task-load-fail',
+        dbError,
+      ),
     )
-    expect(thrown.cause).toBe(dbError)
   })
 
   it('reports a load failure to Sentry', async () => {
@@ -237,6 +241,11 @@ describe('error reporting', () => {
       )
     }
 
+    // cause is a PushConfigRowInvalidError wrapping a ZodError — asserted
+    // by type rather than reconstructed as a literal, since the eslint rule
+    // fohte/no-inline-object-in-expect bars building a comparison object
+    // from thrown's own fields, and the full ZodError shape isn't a
+    // meaningful literal to pin here anyway.
     expect(thrown.message).toBe(
       'failed to load push_configs for task task-bad-row',
     )
@@ -271,10 +280,12 @@ describe('error reporting', () => {
       )
     }
 
-    expect(thrown.message).toBe(
-      'failed to delete push_config for task task-delete-fail',
+    expect(thrown).toEqual(
+      new PushNotificationStorePersistenceError(
+        'failed to delete push_config for task task-delete-fail',
+        dbError,
+      ),
     )
-    expect(thrown.cause).toBe(dbError)
   })
 
   it('reports a delete failure to Sentry', async () => {
