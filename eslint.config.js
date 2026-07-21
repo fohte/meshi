@@ -1,6 +1,25 @@
 import { config } from '@fohte/eslint-config'
 import neverthrow from '@ninoseki/eslint-plugin-neverthrow'
 
+// Files that bridge to an external SDK's throw/reject-based contract (A2A
+// SDK callbacks, Hono handlers, the MCP SDK, LangChain's tool()/callback
+// APIs) or to process bootstrap that must fail fast (env loading, DB
+// migrations/seeding, the composition root) — the only place throw/
+// try-catch is allowed and the only place a neverthrow Result isn't
+// expected. Referenced by both overrides below so the two rules can't
+// silently fall out of sync.
+const INTEROP_BOUNDARY_FILES = [
+  'src/a2a/**/*.ts',
+  'src/mcp-http.ts',
+  'src/mcp-tools.ts',
+  'src/app.ts',
+  'src/llm/agent/tools.ts',
+  'src/adapters/llm/genAiCallbackHandler.ts',
+  'src/env.ts',
+  'src/main.ts',
+  'src/db/**/*.ts',
+]
+
 export default config(
   { typescript: { typeChecked: true } },
   { ignores: ['dist'] },
@@ -40,30 +59,9 @@ export default config(
   },
   {
     // allowThrowIn ledger: meshi-local prototype of an option planned for
-    // @fohte/eslint-config. Every file here sits at a boundary this
-    // migration can't put a Result across:
-    //   - SDK interop, where an external library's own contract is
-    //     throw/reject- or synchronous-void-based (the A2A SDK's
-    //     TaskStore/AgentExecutor/event-bus callbacks, Hono route handlers,
-    //     the MCP SDK's CallToolResult shape, LangChain's tool() wrapper and
-    //     BaseCallbackHandler methods)
-    //   - process bootstrap, where throwing to fail fast (env/config
-    //     loading, DB migrations, one-off seed scripts, the composition
-    //     root that wires everything together) is the correct behavior,
-    //     not error-swallowing — main()'s own top-level catch already
-    //     reports these to Sentry before exiting
-    // Everywhere else, failure must be a neverthrow Result/ResultAsync value.
-    files: [
-      'src/a2a/**/*.ts',
-      'src/mcp-http.ts',
-      'src/mcp-tools.ts',
-      'src/app.ts',
-      'src/llm/agent/tools.ts',
-      'src/adapters/llm/genAiCallbackHandler.ts',
-      'src/env.ts',
-      'src/main.ts',
-      'src/db/**/*.ts',
-    ],
+    // @fohte/eslint-config. See INTEROP_BOUNDARY_FILES above for what
+    // qualifies as this boundary.
+    files: INTEROP_BOUNDARY_FILES,
     rules: {
       'no-restricted-syntax': 'off',
     },
@@ -78,19 +76,7 @@ export default config(
     // Same scope as the no-restricted-syntax rule above: Result/ResultAsync
     // is only expected to appear outside the interop layer and test files.
     files: ['src/**/*.ts'],
-    ignores: [
-      '**/*.test.ts',
-      'src/test/**/*.ts',
-      'src/a2a/**/*.ts',
-      'src/mcp-http.ts',
-      'src/mcp-tools.ts',
-      'src/app.ts',
-      'src/llm/agent/tools.ts',
-      'src/adapters/llm/genAiCallbackHandler.ts',
-      'src/env.ts',
-      'src/main.ts',
-      'src/db/**/*.ts',
-    ],
+    ignores: ['**/*.test.ts', 'src/test/**/*.ts', ...INTEROP_BOUNDARY_FILES],
     plugins: { neverthrow },
     rules: {
       'neverthrow/must-use-result': 'error',
