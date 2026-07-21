@@ -1,7 +1,17 @@
-import { describe, expect, it, test } from 'vitest'
+import { captureWithFingerprint } from '@fohte/service-kit/observability'
+import { describe, expect, it, test, vi } from 'vitest'
 
-import { createPostgresPushNotificationStore } from '@/a2a/postgres-push-notification-store'
+import {
+  createPostgresPushNotificationStore,
+  PushConfigRowInvalidError,
+  PushNotificationStorePersistenceError,
+} from '@/a2a/postgres-push-notification-store'
+import type { Sql } from '@/db'
 import { captureSqlParams, describeIfDb, setupTx } from '@/test/db'
+
+vi.mock('@fohte/service-kit/observability', () => ({
+  captureWithFingerprint: vi.fn(),
+}))
 
 describeIfDb('createPostgresPushNotificationStore', () => {
   const getTx = setupTx()
@@ -96,6 +106,193 @@ describeIfDb('createPostgresPushNotificationStore', () => {
 
     expect(await store.load('task-1')).toEqual([
       { id: 'config-b', url: 'https://example.com/b' },
+    ])
+  })
+})
+
+// Like DefaultRequestHandler's handling of TaskStore, the SDK doesn't
+// propagate a PushNotificationStore failure to the caller in a way that
+// surfaces it anywhere visible: a message/send-path save() failure is
+// swallowed inside the SDK into a generic JSON-RPC error, and a
+// send()-path load() failure (DefaultPushNotificationSender.send() is
+// fire-and-forget) becomes an unhandled rejection. These tests don't need a
+// real database: they pin that a failure reaching `sql` (or an invalid
+// config row) is wrapped, reported to Sentry, and rethrown before it can
+// disappear into either of those.
+describe('error reporting', () => {
+  // Minimal fake of postgres.Sql's tagged-template call, mirroring
+  // captureSqlParams in src/test/db.ts.
+  const buildFakeSql = (
+    outcome: { reject: Error } | { resolve: unknown[] },
+  ): Sql => {
+    const tag = (first: TemplateStringsArray | readonly string[]): unknown => {
+      if (!('raw' in first)) return first
+      return 'reject' in outcome
+        ? Promise.reject(outcome.reject)
+        : Promise.resolve(outcome.resolve)
+    }
+    const fakeSql = Object.assign(tag, { typed: (value: unknown) => value })
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-type-assertion -- minimal fake of postgres.Sql's tagged-template call; only the surface exercised by the store under test.
+    return fakeSql as unknown as Sql
+  }
+
+  const rejectedError = async (promise: Promise<unknown>): Promise<unknown> =>
+    promise.then(
+      () => {
+        throw new Error('expected the promise to reject')
+      },
+      (err: unknown) => err,
+    )
+
+  const runSaveFailure = async (dbError: Error): Promise<unknown> => {
+    const store = createPostgresPushNotificationStore(
+      buildFakeSql({ reject: dbError }),
+    )
+    return rejectedError(
+      store.save('task-save-fail', { url: 'https://example.com/push' }),
+    )
+  }
+
+  it('wraps and rethrows a save failure as PushNotificationStorePersistenceError', async () => {
+    const dbError = new Error('connection terminated')
+    const thrown = await runSaveFailure(dbError)
+    if (!(thrown instanceof PushNotificationStorePersistenceError)) {
+      throw new Error(
+        'expected save() to throw a PushNotificationStorePersistenceError',
+      )
+    }
+
+    expect(thrown.message).toBe(
+      'failed to save push_config for task task-save-fail',
+    )
+    expect(thrown.cause).toBe(dbError)
+  })
+
+  it('reports a save failure to Sentry', async () => {
+    const dbError = new Error('connection terminated')
+    const thrown = await runSaveFailure(dbError)
+
+    expect(vi.mocked(captureWithFingerprint).mock.calls).toEqual([
+      [
+        thrown,
+        'a2a.push-notification-store.persistence-error',
+        {
+          extras: {
+            taskId: 'task-save-fail',
+            configId: 'task-save-fail',
+            method: 'save',
+          },
+        },
+      ],
+    ])
+  })
+
+  const runLoadFailure = async (dbError: Error): Promise<unknown> => {
+    const store = createPostgresPushNotificationStore(
+      buildFakeSql({ reject: dbError }),
+    )
+    return rejectedError(store.load('task-load-fail'))
+  }
+
+  it('wraps and rethrows a load failure as PushNotificationStorePersistenceError', async () => {
+    const dbError = new Error('connection terminated')
+    const thrown = await runLoadFailure(dbError)
+    if (!(thrown instanceof PushNotificationStorePersistenceError)) {
+      throw new Error(
+        'expected load() to throw a PushNotificationStorePersistenceError',
+      )
+    }
+
+    expect(thrown.message).toBe(
+      'failed to load push_configs for task task-load-fail',
+    )
+    expect(thrown.cause).toBe(dbError)
+  })
+
+  it('reports a load failure to Sentry', async () => {
+    const dbError = new Error('connection terminated')
+    const thrown = await runLoadFailure(dbError)
+
+    expect(vi.mocked(captureWithFingerprint).mock.calls).toEqual([
+      [
+        thrown,
+        'a2a.push-notification-store.persistence-error',
+        { extras: { taskId: 'task-load-fail', method: 'load' } },
+      ],
+    ])
+  })
+
+  const runInvalidRowLoadFailure = async (): Promise<unknown> => {
+    const store = createPostgresPushNotificationStore(
+      buildFakeSql({ resolve: [{ config: { id: 'cfg', url: 42 } }] }),
+    )
+    return rejectedError(store.load('task-bad-row'))
+  }
+
+  it('wraps and rethrows an invalid config row as PushNotificationStorePersistenceError', async () => {
+    const thrown = await runInvalidRowLoadFailure()
+    if (!(thrown instanceof PushNotificationStorePersistenceError)) {
+      throw new Error(
+        'expected load() to throw a PushNotificationStorePersistenceError',
+      )
+    }
+
+    expect(thrown.message).toBe(
+      'failed to load push_configs for task task-bad-row',
+    )
+    expect(thrown.cause).toBeInstanceOf(PushConfigRowInvalidError)
+  })
+
+  it('reports an invalid config row load failure to Sentry', async () => {
+    const thrown = await runInvalidRowLoadFailure()
+
+    expect(vi.mocked(captureWithFingerprint).mock.calls).toEqual([
+      [
+        thrown,
+        'a2a.push-notification-store.persistence-error',
+        { extras: { taskId: 'task-bad-row', method: 'load' } },
+      ],
+    ])
+  })
+
+  const runDeleteFailure = async (dbError: Error): Promise<unknown> => {
+    const store = createPostgresPushNotificationStore(
+      buildFakeSql({ reject: dbError }),
+    )
+    return rejectedError(store.delete('task-delete-fail', 'config-a'))
+  }
+
+  it('wraps and rethrows a delete failure as PushNotificationStorePersistenceError', async () => {
+    const dbError = new Error('connection terminated')
+    const thrown = await runDeleteFailure(dbError)
+    if (!(thrown instanceof PushNotificationStorePersistenceError)) {
+      throw new Error(
+        'expected delete() to throw a PushNotificationStorePersistenceError',
+      )
+    }
+
+    expect(thrown.message).toBe(
+      'failed to delete push_config for task task-delete-fail',
+    )
+    expect(thrown.cause).toBe(dbError)
+  })
+
+  it('reports a delete failure to Sentry', async () => {
+    const dbError = new Error('connection terminated')
+    const thrown = await runDeleteFailure(dbError)
+
+    expect(vi.mocked(captureWithFingerprint).mock.calls).toEqual([
+      [
+        thrown,
+        'a2a.push-notification-store.persistence-error',
+        {
+          extras: {
+            taskId: 'task-delete-fail',
+            configId: 'config-a',
+            method: 'delete',
+          },
+        },
+      ],
     ])
   })
 })
