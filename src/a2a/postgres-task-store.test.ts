@@ -1,6 +1,6 @@
 import type { Task } from '@a2a-js/sdk'
 import { captureWithFingerprint } from '@fohte/service-kit/observability'
-import { afterEach, describe, expect, it, test, vi } from 'vitest'
+import { describe, expect, it, test, vi } from 'vitest'
 
 import {
   createPostgresTaskStore,
@@ -263,10 +263,6 @@ describeIfDb('createPostgresTaskStore', () => {
 // check) is wrapped, reported to Sentry, and rethrown before it can
 // disappear into that silent catch.
 describe('error reporting', () => {
-  afterEach(() => {
-    vi.mocked(captureWithFingerprint).mockClear()
-  })
-
   // Minimal fake of postgres.Sql's tagged-template call plus .typed(),
   // mirroring captureSqlParams in src/test/db.ts — a non-tagged call (e.g.
   // sql(TERMINAL_STATES) for an `IN (...)` list) is passed through
@@ -293,8 +289,7 @@ describe('error reporting', () => {
       (err: unknown) => err,
     )
 
-  it('wraps, reports, and rethrows a DB failure from save()', async () => {
-    const dbError = new Error('connection terminated')
+  const runSaveFailure = async (dbError: Error): Promise<unknown> => {
     const store = createPostgresTaskStore(buildFakeSql({ reject: dbError }))
     const task = buildTask({
       id: 'task-save-fail',
@@ -302,14 +297,24 @@ describe('error reporting', () => {
       state: 'submitted',
       timestamp: new Date('2026-01-01T00:00:00.000Z'),
     })
+    return rejectedError(store.save(task))
+  }
 
-    const thrown = await rejectedError(store.save(task))
+  it('wraps and rethrows a save failure as TaskStorePersistenceError', async () => {
+    const dbError = new Error('connection terminated')
+    const thrown = await runSaveFailure(dbError)
     if (!(thrown instanceof TaskStorePersistenceError)) {
       throw new Error('expected save() to throw a TaskStorePersistenceError')
     }
 
     expect(thrown.message).toBe('failed to save a2a_task task-save-fail')
     expect(thrown.cause).toBe(dbError)
+  })
+
+  it('reports a save failure to Sentry', async () => {
+    const dbError = new Error('connection terminated')
+    const thrown = await runSaveFailure(dbError)
+
     expect(vi.mocked(captureWithFingerprint).mock.calls).toEqual([
       [
         thrown,
@@ -319,17 +324,26 @@ describe('error reporting', () => {
     ])
   })
 
-  it('wraps, reports, and rethrows a DB failure from load()', async () => {
-    const dbError = new Error('connection terminated')
+  const runLoadFailure = async (dbError: Error): Promise<unknown> => {
     const store = createPostgresTaskStore(buildFakeSql({ reject: dbError }))
+    return rejectedError(store.load('task-load-fail'))
+  }
 
-    const thrown = await rejectedError(store.load('task-load-fail'))
+  it('wraps and rethrows a load failure as TaskStorePersistenceError', async () => {
+    const dbError = new Error('connection terminated')
+    const thrown = await runLoadFailure(dbError)
     if (!(thrown instanceof TaskStorePersistenceError)) {
       throw new Error('expected load() to throw a TaskStorePersistenceError')
     }
 
     expect(thrown.message).toBe('failed to load a2a_task task-load-fail')
     expect(thrown.cause).toBe(dbError)
+  })
+
+  it('reports a load failure to Sentry', async () => {
+    const dbError = new Error('connection terminated')
+    const thrown = await runLoadFailure(dbError)
+
     expect(vi.mocked(captureWithFingerprint).mock.calls).toEqual([
       [
         thrown,
@@ -339,18 +353,26 @@ describe('error reporting', () => {
     ])
   })
 
-  it('wraps, reports, and rethrows a TaskRowInvalidError from load()', async () => {
+  const runInvalidRowLoadFailure = async (): Promise<unknown> => {
     const store = createPostgresTaskStore(
       buildFakeSql({ resolve: [{ task: { kind: 'not-a-task' } }] }),
     )
+    return rejectedError(store.load('task-bad-row'))
+  }
 
-    const thrown = await rejectedError(store.load('task-bad-row'))
+  it('wraps and rethrows an invalid task row as TaskStorePersistenceError', async () => {
+    const thrown = await runInvalidRowLoadFailure()
     if (!(thrown instanceof TaskStorePersistenceError)) {
       throw new Error('expected load() to throw a TaskStorePersistenceError')
     }
 
     expect(thrown.message).toBe('failed to load a2a_task task-bad-row')
     expect(thrown.cause).toBeInstanceOf(TaskRowInvalidError)
+  })
+
+  it('reports an invalid task row load failure to Sentry', async () => {
+    const thrown = await runInvalidRowLoadFailure()
+
     expect(vi.mocked(captureWithFingerprint).mock.calls).toEqual([
       [
         thrown,

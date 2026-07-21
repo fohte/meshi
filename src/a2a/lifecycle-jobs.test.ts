@@ -28,7 +28,6 @@ describe('startTaskLifecycleJobs', () => {
   afterEach(() => {
     vi.useRealTimers()
     vi.restoreAllMocks()
-    vi.mocked(captureWithFingerprint).mockClear()
   })
 
   it('runs the watchdog and retention sweeps once at startup', async () => {
@@ -64,8 +63,13 @@ describe('startTaskLifecycleJobs', () => {
     expect(onExpire).toHaveBeenCalledExactlyOnceWith(expiredTask)
   })
 
-  it('runs onExpire for every expired task even if an earlier one rejects, and still runs retention', async () => {
-    vi.spyOn(console, 'error').mockImplementation(() => {})
+  const runOnExpireRejectionScenario = async (): Promise<{
+    taskA: Task
+    taskB: Task
+    store: A2aTaskStore
+    onExpire: ReturnType<typeof vi.fn>
+    error: Error
+  }> => {
     const taskA = buildTask('task-a')
     const taskB = buildTask('task-b')
     const store = buildStore({
@@ -85,8 +89,22 @@ describe('startTaskLifecycleJobs', () => {
     })
     await jobs.stop()
 
+    return { taskA, taskB, store, onExpire, error }
+  }
+
+  it('runs onExpire for every expired task even if an earlier one rejects, and still runs retention', async () => {
+    vi.spyOn(console, 'error').mockImplementation(() => {})
+    const { taskA, taskB, store, onExpire } =
+      await runOnExpireRejectionScenario()
+
     expect(onExpire.mock.calls).toEqual([[taskA], [taskB]])
     expect(store.deleteExpiredTerminalTasks).toHaveBeenCalledTimes(1)
+  })
+
+  it('reports a failing onExpire callback to Sentry', async () => {
+    vi.spyOn(console, 'error').mockImplementation(() => {})
+    const { taskA, error } = await runOnExpireRejectionScenario()
+
     expect(captureWithFingerprint).toHaveBeenCalledExactlyOnceWith(
       error,
       'a2a.lifecycle.on-expire-failed',

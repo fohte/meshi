@@ -15,10 +15,6 @@ vi.mock('@fohte/service-kit/observability', () => ({
   captureWithFingerprint: vi.fn(),
 }))
 
-afterEach(() => {
-  vi.mocked(captureWithFingerprint).mockClear()
-})
-
 const NORMALIZED = 'NORMALIZED'
 
 // Minimal fake of postgres.Sql's reserve() surface: withAdvisoryLock only

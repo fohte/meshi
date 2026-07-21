@@ -7,7 +7,7 @@ import type {
 import { DefaultRequestHandler, InMemoryTaskStore } from '@a2a-js/sdk/server'
 import { captureWithFingerprint } from '@fohte/service-kit/observability'
 import { Hono } from 'hono'
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { z } from 'zod'
 
 import { mountA2aRoutes } from '@/a2a/hono-bridge'
@@ -15,10 +15,6 @@ import { mountA2aRoutes } from '@/a2a/hono-bridge'
 vi.mock('@fohte/service-kit/observability', () => ({
   captureWithFingerprint: vi.fn(),
 }))
-
-afterEach(() => {
-  vi.mocked(captureWithFingerprint).mockClear()
-})
 
 const HONO_FINGERPRINT = 'a2a.hono.request-failed'
 
@@ -295,14 +291,20 @@ describe('mountA2aRoutes', () => {
     // internal errors) nor the routes below throw in practice, so this
     // exercises app.onError the same way any other route sharing the app
     // (e.g. GET /health in src/app.ts) would.
-    it('reports to Sentry and returns a JSON-RPC error response when a route throws', async () => {
+    const buildThrowingRouteResponse = async (): Promise<{
+      res: Response
+      thrown: Error
+    }> => {
       const app = buildApp()
       const thrown = new Error('boom')
       app.get('/boom', () => {
         throw thrown
       })
+      return { res: await app.request('/boom'), thrown }
+    }
 
-      const res = await app.request('/boom')
+    it('returns a JSON-RPC error response when a route throws', async () => {
+      const { res } = await buildThrowingRouteResponse()
 
       expect(res.status).toBe(500)
       expect(await res.json()).toEqual({
@@ -310,13 +312,26 @@ describe('mountA2aRoutes', () => {
         id: null,
         error: { code: -32603, message: 'boom' },
       })
+    })
+
+    it('reports a route-thrown error to Sentry', async () => {
+      const { thrown } = await buildThrowingRouteResponse()
+
       expect(captureWithFingerprint).toHaveBeenCalledExactlyOnceWith(
         thrown,
         HONO_FINGERPRINT,
       )
     })
 
-    it('reports to Sentry and emits an SSE error event when the stream fails', async () => {
+    // Reads the response body to completion here (not left to each `it()`):
+    // the stream only reaches its error handling — and calls
+    // captureWithFingerprint — while its body is being consumed, so both
+    // tests below need that drained before they can assert on its effects.
+    const buildFailingStreamResponse = async (): Promise<{
+      res: Response
+      dataLine: string | undefined
+      thrown: Error
+    }> => {
       const thrown = new Error('task store unavailable')
       const failingTaskStore: TaskStore = {
         save: () => Promise.reject(thrown),
@@ -347,12 +362,17 @@ describe('mountA2aRoutes', () => {
           },
         }),
       })
-
-      expect(res.status).toBe(200)
-      expect(res.headers.get('Content-Type')).toBe('text/event-stream')
       const dataLine = (await res.text())
         .split('\n')
         .find((line) => line.startsWith('data: '))
+      return { res, dataLine, thrown }
+    }
+
+    it('emits an SSE error event when the stream fails', async () => {
+      const { res, dataLine } = await buildFailingStreamResponse()
+
+      expect(res.status).toBe(200)
+      expect(res.headers.get('Content-Type')).toBe('text/event-stream')
       expect(
         dataLine === undefined
           ? undefined
@@ -362,6 +382,11 @@ describe('mountA2aRoutes', () => {
         id: null,
         error: { code: -32603, message: 'task store unavailable' },
       })
+    })
+
+    it('reports a stream failure to Sentry', async () => {
+      const { thrown } = await buildFailingStreamResponse()
+
       expect(captureWithFingerprint).toHaveBeenCalledExactlyOnceWith(
         thrown,
         HONO_FINGERPRINT,
