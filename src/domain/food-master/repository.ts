@@ -196,17 +196,16 @@ const runInSavepoint = (
 ): Promise<Result<FoodMaster, FoodMasterDomainError>> => {
   const savepoint = `fm_register_${generateId('sp').replace(/[^A-Za-z0-9_]/g, '_')}`
   return sql.unsafe(`SAVEPOINT ${savepoint}`).then(() =>
-    fn(sql).then(
-      async (result) => {
-        await sql.unsafe(`RELEASE SAVEPOINT ${savepoint}`)
-        return result
-      },
-      (caughtErr: unknown) =>
+    fn(sql)
+      .then((result) =>
+        sql.unsafe(`RELEASE SAVEPOINT ${savepoint}`).then(() => result),
+      )
+      .catch((caughtErr: unknown) =>
         sql.unsafe(`ROLLBACK TO SAVEPOINT ${savepoint}`).then(() =>
           // eslint-disable-next-line @typescript-eslint/prefer-promise-reject-errors -- re-propagating the original rejection reason (a real Error from postgres.js) without a throw statement; this file may not use throw/try.
           Promise.reject(caughtErr),
         ),
-    ),
+      ),
   )
 }
 
