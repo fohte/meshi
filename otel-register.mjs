@@ -5,6 +5,9 @@
 // it, `http.Server` is never patched and no server-side spans are created.
 // https://github.com/open-telemetry/opentelemetry-js/blob/main/doc/esm-support.md
 import { register } from 'node:module'
-import { pathToFileURL } from 'node:url'
 
-register('@opentelemetry/instrumentation/hook.mjs', pathToFileURL('./'))
+// `import.meta.url`, not a cwd-derived URL: `register()` resolves the bare
+// specifier against this parentURL synchronously and throws if it can't, so
+// the resolution must stay anchored to this file regardless of the process's
+// working directory at startup.
+register('@opentelemetry/instrumentation/hook.mjs', import.meta.url)
