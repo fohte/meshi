@@ -1,11 +1,10 @@
+import { err, ok, ResultAsync } from 'neverthrow'
 import { z } from 'zod'
 
 import {
   type WebSearchClient,
   WebSearchError,
-  type WebSearchOptions,
   WebSearchRateLimitError,
-  type WebSearchResult,
 } from '@/adapters/web-search/web-search-client'
 
 const DEFAULT_ENDPOINT = 'https://api.tavily.com/search'
@@ -38,6 +37,9 @@ export class WebSearchInvalidResponseError extends WebSearchError {
   }
 }
 
+const errorMessage = (e: unknown): string =>
+  e instanceof Error ? e.message : String(e)
+
 export const createTavilyWebSearchClient = (
   config: TavilyWebSearchClientConfig,
 ): WebSearchClient => {
@@ -45,52 +47,58 @@ export const createTavilyWebSearchClient = (
   const fetchImpl = config.fetch ?? fetch
 
   return {
-    async search(
-      query: string,
-      options: WebSearchOptions = {},
-    ): Promise<WebSearchResult> {
+    search(query, options = {}) {
       const limit = options.limit ?? DEFAULT_LIMIT
 
-      const res = await fetchImpl(endpoint, {
-        method: 'POST',
-        headers: {
-          'content-type': 'application/json',
-          authorization: `Bearer ${config.apiKey}`,
-        },
-        body: JSON.stringify({
-          query,
-          max_results: limit,
+      return ResultAsync.fromPromise(
+        fetchImpl(endpoint, {
+          method: 'POST',
+          headers: {
+            'content-type': 'application/json',
+            authorization: `Bearer ${config.apiKey}`,
+          },
+          body: JSON.stringify({
+            query,
+            max_results: limit,
+          }),
         }),
-      })
-
-      if (res.status === 429) throw new WebSearchRateLimitError()
-      if (!res.ok) {
-        throw new WebSearchError(
-          `web search failed with status ${String(res.status)}`,
-          res.status,
-        )
-      }
-
-      let raw: unknown
-      try {
-        raw = await res.json()
-      } catch (cause) {
-        throw new WebSearchError(
-          `failed to parse web search response: ${cause instanceof Error ? cause.message : String(cause)}`,
-          res.status,
-        )
-      }
-      const parsed = tavilyResponseSchema.safeParse(raw)
-      if (!parsed.success) {
-        throw new WebSearchInvalidResponseError(parsed.error, raw)
-      }
-      return {
-        snippets: parsed.data.results.map((r) => ({
-          title: r.title,
-          url: r.url,
-          text: r.content,
-        })),
-      }
+        (caughtErr) =>
+          new WebSearchError(
+            `web search request failed: ${errorMessage(caughtErr)}`,
+          ),
+      )
+        .andThen((res) => {
+          if (res.status === 429) return err(new WebSearchRateLimitError())
+          if (!res.ok) {
+            return err(
+              new WebSearchError(
+                `web search failed with status ${String(res.status)}`,
+                res.status,
+              ),
+            )
+          }
+          return ResultAsync.fromPromise(
+            res.json(),
+            (cause) =>
+              new WebSearchError(
+                `failed to parse web search response: ${errorMessage(cause)}`,
+                res.status,
+              ),
+          )
+        })
+        .andThen((raw) => {
+          const parsed = tavilyResponseSchema.safeParse(raw)
+          if (!parsed.success) {
+            return err(new WebSearchInvalidResponseError(parsed.error, raw))
+          }
+          return ok({
+            snippets: parsed.data.results.map((r) => ({
+              title: r.title,
+              url: r.url,
+              text: r.content,
+            })),
+          })
+        })
     },
   }
 }

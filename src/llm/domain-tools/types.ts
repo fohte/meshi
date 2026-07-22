@@ -1,9 +1,6 @@
-export type Result<T, E> =
-  | { readonly ok: true; readonly value: T }
-  | { readonly ok: false; readonly error: E }
+import type { Result } from 'neverthrow'
 
-export const ok = <T>(value: T): Result<T, never> => ({ ok: true, value })
-export const err = <E>(error: E): Result<never, E> => ({ ok: false, error })
+export { err, ok, type Result } from 'neverthrow'
 
 export interface ToolError {
   readonly code: string

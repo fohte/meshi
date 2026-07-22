@@ -1,3 +1,6 @@
+import { errAsync } from 'neverthrow'
+
+import { UserProfileRepositoryError } from '@/domain/user-profile/errors'
 import type { UserProfileService } from '@/domain/user-profile/user-profile-service'
 import type { ConversationOrchestrator } from '@/llm/orchestrator'
 import { createNullLogger } from '@/logger'
@@ -11,8 +14,8 @@ const rejectingOrchestrator: ConversationOrchestrator = {
 }
 
 const rejectingProfileService: UserProfileService = {
-  get: () => Promise.reject(new Error('stub')),
-  update: () => Promise.reject(new Error('stub')),
+  get: () => errAsync(new UserProfileRepositoryError('stub')),
+  update: () => errAsync(new UserProfileRepositoryError('stub')),
 }
 
 export const createStubMcpDeps = (): MeshiToolDeps => ({

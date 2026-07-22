@@ -1,3 +1,6 @@
+import type { ResultAsync } from 'neverthrow'
+
+import type { FoodMasterDomainError } from '@/domain/food-master/errors'
 import type { FoodMasterRepository } from '@/domain/food-master/repository'
 import type {
   FoodMaster,
@@ -6,8 +9,12 @@ import type {
 } from '@/domain/food-master/types'
 
 export interface FoodMasterService {
-  register(input: RegisterFoodMasterInput): Promise<FoodMaster>
-  getById(id: FoodMasterId): Promise<FoodMaster | null>
+  register(
+    input: RegisterFoodMasterInput,
+  ): ResultAsync<FoodMaster, FoodMasterDomainError>
+  getById(
+    id: FoodMasterId,
+  ): ResultAsync<FoodMaster | null, FoodMasterDomainError>
 }
 
 export const createFoodMasterService = (

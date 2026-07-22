@@ -76,7 +76,9 @@ describe('createTavilyWebSearchClient', () => {
       }),
     )
 
-    const result = await client.search('banana nutrition', { limit: 3 })
+    const result = (
+      await client.search('banana nutrition', { limit: 3 })
+    )._unsafeUnwrap()
 
     expect(result).toEqual({
       snippets: [
@@ -105,7 +107,7 @@ describe('createTavilyWebSearchClient', () => {
   it('throws WebSearchRateLimitError on HTTP 429', async () => {
     const { client } = setup(jsonResponse(429, { error: 'rate limited' }))
 
-    const error = await client.search('rice').catch((e: unknown) => e)
+    const error = (await client.search('rice'))._unsafeUnwrapErr()
     const status = error instanceof WebSearchError ? error.status : undefined
 
     expect(error).toBeInstanceOf(WebSearchRateLimitError)
@@ -116,7 +118,9 @@ describe('createTavilyWebSearchClient', () => {
   it('returns an empty snippet list when the API returns no results', async () => {
     const { client } = setup(jsonResponse(200, { results: [] }))
 
-    expect(await client.search('not-a-real-food')).toEqual({ snippets: [] })
+    expect((await client.search('not-a-real-food'))._unsafeUnwrap()).toEqual({
+      snippets: [],
+    })
   })
 
   it('throws WebSearchInvalidResponseError when a result entry violates the schema', async () => {
@@ -126,7 +130,7 @@ describe('createTavilyWebSearchClient', () => {
       }),
     )
 
-    const error = await client.search('missing-url').catch((e: unknown) => e)
+    const error = (await client.search('missing-url'))._unsafeUnwrapErr()
 
     expect(error).toBeInstanceOf(WebSearchInvalidResponseError)
     expect(error).toBeInstanceOf(WebSearchError)
@@ -139,7 +143,7 @@ describe('createTavilyWebSearchClient', () => {
     })
     const { client } = setup(response)
 
-    const error = await client.search('q').catch((e: unknown) => e)
+    const error = (await client.search('q'))._unsafeUnwrapErr()
 
     expect(error).toBeInstanceOf(WebSearchError)
     expect(error).not.toBeInstanceOf(WebSearchRateLimitError)

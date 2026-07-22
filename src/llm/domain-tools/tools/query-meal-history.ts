@@ -5,6 +5,7 @@ import { internalErr } from '@/llm/domain-tools/internal-error'
 import { parseToolInput } from '@/llm/domain-tools/parse'
 import {
   type DomainTool,
+  err,
   ok,
   type Result,
   type ToolError,
@@ -47,36 +48,36 @@ export const createQueryMealHistoryTool = (
     input: unknown,
   ): Promise<Result<QueryMealHistoryOutput, ToolError>> {
     const parsed = parseToolInput(inputSchema, input)
-    if (!parsed.ok) return parsed
-    try {
-      const aggregate = await service.query({
-        periodFrom: new Date(parsed.value.period_from_iso),
-        periodTo: new Date(parsed.value.period_to_iso),
-        ...(parsed.value.food_master_ids === undefined
-          ? {}
-          : { foodFilter: parsed.value.food_master_ids }),
-        ...(parsed.value.nutrient_codes === undefined
-          ? {}
-          : { nutrientCodes: parsed.value.nutrient_codes }),
-      })
-      return ok({
-        totals: aggregate.totals,
-        per_day: aggregate.perDay.map((d) => ({
-          date: d.date,
-          totals: d.totals,
-        })),
-        entries: aggregate.entries.map((entry) => ({
-          meal_log_id: entry.id,
-          food_master_id: entry.foodMasterId,
-          eaten_at_iso: entry.eatenAt.toISOString(),
-          quantity: entry.quantity,
-          unit: entry.unit,
-          note: entry.note,
-        })),
-        has_estimated_values: aggregate.hasEstimatedValues,
-      })
-    } catch (e) {
-      return internalErr(e)
-    }
+    if (parsed.isErr()) return err(parsed.error)
+
+    const queryResult = await service.query({
+      periodFrom: new Date(parsed.value.period_from_iso),
+      periodTo: new Date(parsed.value.period_to_iso),
+      ...(parsed.value.food_master_ids === undefined
+        ? {}
+        : { foodFilter: parsed.value.food_master_ids }),
+      ...(parsed.value.nutrient_codes === undefined
+        ? {}
+        : { nutrientCodes: parsed.value.nutrient_codes }),
+    })
+    if (queryResult.isErr()) return internalErr(queryResult.error)
+
+    const aggregate = queryResult.value
+    return ok({
+      totals: aggregate.totals,
+      per_day: aggregate.perDay.map((d) => ({
+        date: d.date,
+        totals: d.totals,
+      })),
+      entries: aggregate.entries.map((entry) => ({
+        meal_log_id: entry.id,
+        food_master_id: entry.foodMasterId,
+        eaten_at_iso: entry.eatenAt.toISOString(),
+        quantity: entry.quantity,
+        unit: entry.unit,
+        note: entry.note,
+      })),
+      has_estimated_values: aggregate.hasEstimatedValues,
+    })
   },
 })

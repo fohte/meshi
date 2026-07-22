@@ -1,8 +1,7 @@
 import { z } from 'zod'
 
-import { DomainError } from '@/domain/meal-log/errors'
+import type { DomainError } from '@/domain/meal-log/errors'
 import type { MealLogService } from '@/domain/meal-log/meal-log-service'
-import { toInternalToolError } from '@/llm/domain-tools/internal-error'
 import { parseToolInput } from '@/llm/domain-tools/parse'
 import {
   type DomainTool,
@@ -37,27 +36,26 @@ export const createRecordMealLogTool = (
     input: unknown,
   ): Promise<Result<RecordMealLogOutput, ToolError>> {
     const parsed = parseToolInput(inputSchema, input)
-    if (!parsed.ok) return parsed
-    try {
-      const result = await service.record({
-        foodMasterId: parsed.value.food_master_id,
-        eatenAt: new Date(parsed.value.eaten_at_iso),
-        quantity: parsed.value.quantity,
-        unit: parsed.value.unit,
-        ...(parsed.value.note === undefined ? {} : { note: parsed.value.note }),
-      })
-      return ok({
-        meal_log_id: result.id,
-        nutrition: result.nutrition,
-        is_estimated: result.isEstimated,
-      })
-    } catch (e) {
-      return err(toToolError(e))
+    if (parsed.isErr()) return err(parsed.error)
+    const result = await service.record({
+      foodMasterId: parsed.value.food_master_id,
+      eatenAt: new Date(parsed.value.eaten_at_iso),
+      quantity: parsed.value.quantity,
+      unit: parsed.value.unit,
+      ...(parsed.value.note === undefined ? {} : { note: parsed.value.note }),
+    })
+    if (result.isErr()) {
+      return err(toToolError(result.error))
     }
+    return ok({
+      meal_log_id: result.value.id,
+      nutrition: result.value.nutrition,
+      is_estimated: result.value.isEstimated,
+    })
   },
 })
 
-const toToolError = (e: unknown): ToolError =>
-  e instanceof DomainError
-    ? { code: e.code, message: e.message }
-    : toInternalToolError(e)
+const toToolError = (e: DomainError): ToolError => ({
+  code: e.code,
+  message: e.message,
+})

@@ -1,8 +1,13 @@
 import type { Task } from '@a2a-js/sdk'
+import { captureWithFingerprint } from '@fohte/service-kit/observability'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import { startTaskLifecycleJobs } from '@/a2a/lifecycle-jobs'
 import type { A2aTaskStore } from '@/a2a/postgres-task-store'
+
+vi.mock('@fohte/service-kit/observability', () => ({
+  captureWithFingerprint: vi.fn(),
+}))
 
 const buildTask = (id: string): Task => ({
   kind: 'task',
@@ -58,16 +63,22 @@ describe('startTaskLifecycleJobs', () => {
     expect(onExpire).toHaveBeenCalledExactlyOnceWith(expiredTask)
   })
 
-  it('runs onExpire for every expired task even if an earlier one rejects, and still runs retention', async () => {
-    vi.spyOn(console, 'error').mockImplementation(() => {})
+  const runOnExpireRejectionScenario = async (): Promise<{
+    taskA: Task
+    taskB: Task
+    store: A2aTaskStore
+    onExpire: ReturnType<typeof vi.fn>
+    error: Error
+  }> => {
     const taskA = buildTask('task-a')
     const taskB = buildTask('task-b')
     const store = buildStore({
       failStuckWorkingTasks: vi.fn().mockResolvedValue([taskA, taskB]),
     })
+    const error = new Error('push failed')
     const onExpire = vi
       .fn()
-      .mockImplementationOnce(() => Promise.reject(new Error('push failed')))
+      .mockImplementationOnce(() => Promise.reject(error))
       .mockImplementationOnce(() => Promise.resolve())
 
     const jobs = startTaskLifecycleJobs(store, {
@@ -78,8 +89,27 @@ describe('startTaskLifecycleJobs', () => {
     })
     await jobs.stop()
 
+    return { taskA, taskB, store, onExpire, error }
+  }
+
+  it('runs onExpire for every expired task even if an earlier one rejects, and still runs retention', async () => {
+    vi.spyOn(console, 'error').mockImplementation(() => {})
+    const { taskA, taskB, store, onExpire } =
+      await runOnExpireRejectionScenario()
+
     expect(onExpire.mock.calls).toEqual([[taskA], [taskB]])
     expect(store.deleteExpiredTerminalTasks).toHaveBeenCalledTimes(1)
+  })
+
+  it('reports a failing onExpire callback to Sentry', async () => {
+    vi.spyOn(console, 'error').mockImplementation(() => {})
+    const { taskA, error } = await runOnExpireRejectionScenario()
+
+    expect(captureWithFingerprint).toHaveBeenCalledExactlyOnceWith(
+      error,
+      'a2a.lifecycle.on-expire-failed',
+      { extras: { taskId: taskA.id } },
+    )
   })
 
   it('sweeps again on each interval tick after the startup run', async () => {
@@ -124,6 +154,27 @@ describe('startTaskLifecycleJobs', () => {
     await jobs.stop()
 
     expect(store.failStuckWorkingTasks).toHaveBeenCalledTimes(2)
+  })
+
+  it('reports a failing sweep to Sentry', async () => {
+    vi.spyOn(console, 'error').mockImplementation(() => {})
+    const error = new Error('boom')
+    const store = buildStore({
+      failStuckWorkingTasks: vi.fn().mockRejectedValue(error),
+    })
+
+    const jobs = startTaskLifecycleJobs(store, {
+      workingTimeoutMs: 60_000,
+      retentionDays: 7,
+      onExpire: vi.fn(),
+      intervalMs: 1_000_000,
+    })
+    await jobs.stop()
+
+    expect(captureWithFingerprint).toHaveBeenCalledExactlyOnceWith(
+      error,
+      'a2a.lifecycle.sweep-failed',
+    )
   })
 
   it('derives the watchdog and retention cutoffs from the configured options', async () => {

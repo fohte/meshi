@@ -29,7 +29,7 @@ const normalizeDetails = (
 export const normalizeResult = <T>(
   result: Result<T, ToolError>,
 ): NormalizedResult<T> => {
-  if (result.ok) return { ok: true, value: result.value }
+  if (result.isOk()) return { ok: true, value: result.value }
   const { details, code } = result.error
   return {
     ok: false,

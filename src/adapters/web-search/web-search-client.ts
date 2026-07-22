@@ -1,3 +1,5 @@
+import type { ResultAsync } from 'neverthrow'
+
 export interface WebSearchSnippet {
   readonly title: string
   readonly url: string
@@ -13,7 +15,10 @@ export interface WebSearchOptions {
 }
 
 export interface WebSearchClient {
-  search(query: string, options?: WebSearchOptions): Promise<WebSearchResult>
+  search(
+    query: string,
+    options?: WebSearchOptions,
+  ): ResultAsync<WebSearchResult, WebSearchError>
 }
 
 export class WebSearchError extends Error {

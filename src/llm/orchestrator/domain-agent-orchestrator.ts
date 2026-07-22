@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto'
 
 import type { BaseChatModel } from '@langchain/core/language_models/chat_models'
 import { MemorySaver } from '@langchain/langgraph'
+import { ResultAsync } from 'neverthrow'
 
 import type { AgentContentBlock } from '@/llm/agent/content-block'
 import { createMeshiDomainAgent } from '@/llm/agent/domain-agent'
@@ -56,7 +57,7 @@ const wrapTool = (
     invocations.push({
       name: tool.name,
       input,
-      value: result.ok ? result.value : null,
+      value: result.isOk() ? result.value : null,
     })
     return result
   },
@@ -80,11 +81,12 @@ const wrapRegistryForRecording = (
     list: () => wrapped,
     get: (name) => byName.get(name),
     toLlmSchemas: () => registry.toLlmSchemas(),
-    executeToolUse: () => {
-      throw new Error(
-        'executeToolUse is not observed by wrapRegistryForRecording; createMeshiDomainAgent must not call it',
-      )
-    },
+    executeToolUse: () =>
+      Promise.reject(
+        new Error(
+          'executeToolUse is not observed by wrapRegistryForRecording; createMeshiDomainAgent must not call it',
+        ),
+      ),
   }
 }
 
@@ -183,6 +185,11 @@ const recordedAfterLastSearch = (
 const AGENT_ERROR_KIND = 'item_conversation_failed'
 const INVALID_RESPONSE_MESSAGE = 'The agent did not return a valid response.'
 
+const AGENT_INVOKE_FAILED_PREFIX = 'meshi: domain agent turn failed:'
+
+const errorMessage = (e: unknown): string =>
+  e instanceof Error ? e.message : String(e)
+
 const buildAgentError = (
   response: MeshiAgentResponse | null,
 ): OrchestratorError | null => {
@@ -242,23 +249,25 @@ export const createDomainAgentOrchestrator = (
     // invocations already recorded before the crash — a food recorded
     // earlier in the same multi-item turn is a real DB write and belongs in
     // the result even if a later item's tool call blew up.
-    const result = await agent
-      .invoke(
+    const response = await ResultAsync.fromPromise(
+      agent.invoke(
         { messages: [{ role: 'user', content: [...content] }] },
         { configurable: { thread_id: randomUUID() } },
-      )
-      .catch((err: unknown) => {
-        console.error('meshi: domain agent turn failed', err)
-        return null
-      })
-    const parsed =
-      result === null
-        ? null
-        : meshiAgentResponseSchema.safeParse(result.structuredResponse)
-    return {
-      invocations,
-      response: parsed?.success === true ? parsed.data : null,
-    }
+      ),
+      (cause): MeshiAgentResponse => ({
+        status: 'error',
+        message: `${AGENT_INVOKE_FAILED_PREFIX} ${errorMessage(cause)}`,
+      }),
+    ).match(
+      (result) => {
+        const parsed = meshiAgentResponseSchema.safeParse(
+          result.structuredResponse,
+        )
+        return parsed.success ? parsed.data : null
+      },
+      (errorResponse) => errorResponse,
+    )
+    return { invocations, response }
   }
 
   const runRecordTurn = async (

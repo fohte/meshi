@@ -1,3 +1,4 @@
+import { errAsync, okAsync } from 'neverthrow'
 import { describe, expect, it } from 'vitest'
 
 import {
@@ -31,9 +32,9 @@ const setup = (
         nutrition: { energy_kcal: 252 },
         isEstimated: false,
       }
-      return Promise.resolve(result)
+      return okAsync(result)
     },
-    getById: () => Promise.resolve(null),
+    getById: () => okAsync(null),
     ...override,
   }
   return { tool: createRecordMealLogTool(service), calls }
@@ -114,7 +115,7 @@ describe('record_meal_log tool', () => {
   it('maps FutureEatenAtError to its DomainError code', async () => {
     const eatenAt = new Date('2099-01-01T00:00:00.000Z')
     const { tool, calls } = setup({
-      record: () => Promise.reject(new FutureEatenAtError(eatenAt)),
+      record: () => errAsync(new FutureEatenAtError(eatenAt)),
     })
 
     const result = await tool.execute({
@@ -136,7 +137,7 @@ describe('record_meal_log tool', () => {
 
   it('maps FoodMasterNotFoundError to its DomainError code', async () => {
     const { tool, calls } = setup({
-      record: () => Promise.reject(new FoodMasterNotFoundError('fm_missing')),
+      record: () => errAsync(new FoodMasterNotFoundError('fm_missing')),
     })
 
     const result = await tool.execute({

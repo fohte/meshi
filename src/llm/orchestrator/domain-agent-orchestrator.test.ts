@@ -1,9 +1,10 @@
-import { describe, expect, it, vi } from 'vitest'
+import { describe, expect, it } from 'vitest'
 
 import type { DomainToolsRegistry } from '@/llm/domain-tools/registry'
 import type { DomainTool, DomainToolName } from '@/llm/domain-tools/types'
 import { err, ok } from '@/llm/domain-tools/types'
 import { createDomainAgentOrchestrator } from '@/llm/orchestrator/domain-agent-orchestrator'
+import type { MealRecordResult } from '@/llm/orchestrator/types'
 import { scriptedDomainAgentModel } from '@/test/scripted-domain-agent-model'
 
 const stubRegistry = (
@@ -30,6 +31,29 @@ const stubTool = (
   description: `stub ${name}`,
   inputSchema: { type: 'object' },
   execute,
+})
+
+// Mirrors the prefix domain-agent-orchestrator.ts's runTurn adds in front of
+// agent.invoke()'s rejection reason; the tail after it is langchain's
+// fakeModel test double's own wording, not this repo's, so it gets replaced
+// with a placeholder before comparison.
+const ORCHESTRATOR_INVOKE_ERROR_PREFIX = 'meshi: domain agent turn failed:'
+
+const normalizeInvokeErrorMessage = (message: string): string =>
+  message.startsWith(ORCHESTRATOR_INVOKE_ERROR_PREFIX)
+    ? `${ORCHESTRATOR_INVOKE_ERROR_PREFIX} <error>`
+    : message
+
+const normalizeInvokeError = (result: MealRecordResult): MealRecordResult => ({
+  ...result,
+  summaryText: normalizeInvokeErrorMessage(result.summaryText),
+  error:
+    result.error === null
+      ? null
+      : {
+          ...result.error,
+          message: normalizeInvokeErrorMessage(result.error.message),
+        },
 })
 
 describe('createDomainAgentOrchestrator', () => {
@@ -240,11 +264,9 @@ describe('createDomainAgentOrchestrator', () => {
       ])
       const orchestrator = createDomainAgentOrchestrator({ model, registry })
 
-      const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
       const result = await orchestrator.recordFromText({ text: '白米 200g' })
-      errorSpy.mockRestore()
 
-      expect(result).toEqual({
+      expect(normalizeInvokeError(result)).toEqual({
         recorded: [
           {
             mealLogId: 'ml_1',
@@ -255,10 +277,10 @@ describe('createDomainAgentOrchestrator', () => {
         ],
         candidates: [],
         hasEstimatedValues: false,
-        summaryText: 'The agent did not return a valid response.',
+        summaryText: `${ORCHESTRATOR_INVOKE_ERROR_PREFIX} <error>`,
         error: {
           kind: 'item_conversation_failed',
-          message: 'The agent did not return a valid response.',
+          message: `${ORCHESTRATOR_INVOKE_ERROR_PREFIX} <error>`,
         },
       })
     })

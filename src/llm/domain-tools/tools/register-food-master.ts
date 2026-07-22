@@ -1,13 +1,10 @@
 import { z } from 'zod'
 
-import { FoodMasterDomainError } from '@/domain/food-master/errors'
 import type { FoodMasterService } from '@/domain/food-master/service'
-import { internalErr } from '@/llm/domain-tools/internal-error'
 import { parseToolInput } from '@/llm/domain-tools/parse'
 import {
   type DomainTool,
   err,
-  ok,
   type Result,
   type ToolError,
 } from '@/llm/domain-tools/types'
@@ -36,9 +33,9 @@ export const createRegisterFoodMasterTool = (
     input: unknown,
   ): Promise<Result<RegisterFoodMasterOutput, ToolError>> {
     const parsed = parseToolInput(inputSchema, input)
-    if (!parsed.ok) return parsed
-    try {
-      const master = await service.register({
+    if (parsed.isErr()) return err(parsed.error)
+    return await service
+      .register({
         name: parsed.value.name,
         nutrition: parsed.value.nutrition_per_100g,
         source: parsed.value.source,
@@ -50,16 +47,11 @@ export const createRegisterFoodMasterTool = (
           ? {}
           : { sourceUrl: parsed.value.source_url }),
       })
-      return ok({ food_master_id: master.id })
-    } catch (e) {
-      if (e instanceof FoodMasterDomainError) {
-        return err({
-          code: `food_master/${e.code}`,
-          message: e.message,
-          details: e.details,
-        })
-      }
-      return internalErr(e)
-    }
+      .map((master) => ({ food_master_id: master.id }))
+      .mapErr((e): ToolError => ({
+        code: `food_master/${e.code}`,
+        message: e.message,
+        details: e.details,
+      }))
   },
 })

@@ -1,8 +1,18 @@
 import type { Task } from '@a2a-js/sdk'
 import type { TaskStore } from '@a2a-js/sdk/server'
+import { captureWithFingerprint } from '@fohte/service-kit/observability'
 import { z } from 'zod'
 
 import { createAsText, type Sql } from '@/db'
+
+export class TaskStorePersistenceError extends Error {
+  constructor(message: string, cause: unknown) {
+    super(message, { cause })
+    this.name = 'TaskStorePersistenceError'
+  }
+}
+
+const TASK_STORE_FINGERPRINT = 'a2a.task-store.persistence-error'
 
 // Rows in a terminal state must never be overwritten by a later save() — the
 // watchdog may have already failed a task that a still-running executor
@@ -98,31 +108,53 @@ export const createPostgresTaskStore = (sql: Sql): A2aTaskStore => {
 
   return {
     async save(task: Task): Promise<void> {
-      const statusTimestamp =
-        task.status.timestamp !== undefined
-          ? new Date(task.status.timestamp)
-          : new Date()
+      try {
+        const statusTimestamp =
+          task.status.timestamp !== undefined
+            ? new Date(task.status.timestamp)
+            : new Date()
 
-      const taskJson = JSON.stringify(task)
-      await sql`
-        INSERT INTO a2a_tasks (task_id, context_id, state, status_timestamp, task)
-        VALUES (${task.id}, ${task.contextId}, ${task.status.state}, ${asText(statusTimestamp.toISOString())}::timestamptz, ${asText(taskJson)}::jsonb)
-        ON CONFLICT (task_id) DO UPDATE SET
-          context_id = EXCLUDED.context_id,
-          state = EXCLUDED.state,
-          status_timestamp = EXCLUDED.status_timestamp,
-          task = EXCLUDED.task
-        WHERE a2a_tasks.state NOT IN ${sql(TERMINAL_STATES)}
-      `
+        const taskJson = JSON.stringify(task)
+        await sql`
+          INSERT INTO a2a_tasks (task_id, context_id, state, status_timestamp, task)
+          VALUES (${task.id}, ${task.contextId}, ${task.status.state}, ${asText(statusTimestamp.toISOString())}::timestamptz, ${asText(taskJson)}::jsonb)
+          ON CONFLICT (task_id) DO UPDATE SET
+            context_id = EXCLUDED.context_id,
+            state = EXCLUDED.state,
+            status_timestamp = EXCLUDED.status_timestamp,
+            task = EXCLUDED.task
+          WHERE a2a_tasks.state NOT IN ${sql(TERMINAL_STATES)}
+        `
+      } catch (caughtErr) {
+        const wrapped = new TaskStorePersistenceError(
+          `failed to save a2a_task ${task.id}`,
+          caughtErr,
+        )
+        captureWithFingerprint(wrapped, TASK_STORE_FINGERPRINT, {
+          extras: { taskId: task.id, method: 'save' },
+        })
+        throw wrapped
+      }
     },
 
     async load(taskId: string): Promise<Task | undefined> {
-      const rows = await sql`
-        SELECT task FROM a2a_tasks WHERE task_id = ${taskId}
-      `
-      const row = rows[0]
-      if (row === undefined) return undefined
-      return parseTaskRow(taskId, row['task'])
+      try {
+        const rows = await sql`
+          SELECT task FROM a2a_tasks WHERE task_id = ${taskId}
+        `
+        const row = rows[0]
+        if (row === undefined) return undefined
+        return parseTaskRow(taskId, row['task'])
+      } catch (caughtErr) {
+        const wrapped = new TaskStorePersistenceError(
+          `failed to load a2a_task ${taskId}`,
+          caughtErr,
+        )
+        captureWithFingerprint(wrapped, TASK_STORE_FINGERPRINT, {
+          extras: { taskId, method: 'load' },
+        })
+        throw wrapped
+      }
     },
 
     async failStuckWorkingTasks(olderThan: Date): Promise<readonly Task[]> {

@@ -6,6 +6,7 @@ import type {
   ExecutionEventBus,
   RequestContext,
 } from '@a2a-js/sdk/server'
+import { captureWithFingerprint } from '@fohte/service-kit/observability'
 
 import { withAdvisoryLock } from '@/a2a/advisory-lock'
 import { type AgentContentBlock, toAgentContent } from '@/a2a/message-content'
@@ -156,6 +157,12 @@ export const runAgentTurn = async (
         )
   } catch (err) {
     console.error('a2a agent execution failed:', err)
+    captureWithFingerprint(err, 'a2a.agent-executor.turn-failed', {
+      extras: {
+        taskId: requestContext.taskId,
+        contextId: requestContext.contextId,
+      },
+    })
     return buildFinalTask(
       requestContext,
       'failed',
@@ -211,6 +218,9 @@ export const createMeshiAgentExecutor = (
             publishWorkingUpdate(eventBus, taskId, contextId)
           } catch (err) {
             console.error('failed to publish a2a heartbeat update:', err)
+            captureWithFingerprint(err, 'a2a.agent-executor.heartbeat-failed', {
+              extras: { taskId, contextId },
+            })
           }
         }, heartbeatIntervalMs)
         try {

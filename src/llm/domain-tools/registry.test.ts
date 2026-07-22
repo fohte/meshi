@@ -1,9 +1,12 @@
+import { errAsync, okAsync } from 'neverthrow'
 import { describe, expect, it } from 'vitest'
 
 import type { WebSearchClient } from '@/adapters/web-search/web-search-client'
+import { FoodMasterDomainError } from '@/domain/food-master/errors'
 import type { FoodMasterService } from '@/domain/food-master/service'
 import type { FoodMatcher } from '@/domain/food-matcher/food-matcher'
 import type { MealHistoryService } from '@/domain/meal-history/types'
+import { DomainError } from '@/domain/meal-log/errors'
 import type { MealLogService } from '@/domain/meal-log/meal-log-service'
 import type { UserProfileService } from '@/domain/user-profile/user-profile-service'
 import {
@@ -40,20 +43,30 @@ const normalizeEnvelope = (raw: unknown): unknown => {
 const stubDeps = (override: Partial<DomainToolsDeps> = {}): DomainToolsDeps => {
   const mealLogService: MealLogService = {
     record: () =>
-      Promise.reject(new Error('mealLogService.record not stubbed')),
-    getById: () => Promise.resolve(null),
+      errAsync(
+        new DomainError(
+          'mealLogService.record not stubbed',
+          'test/not_stubbed',
+        ),
+      ),
+    getById: () => okAsync(null),
   }
   const foodMasterService: FoodMasterService = {
     register: () =>
-      Promise.reject(new Error('foodMasterService.register not stubbed')),
-    getById: () => Promise.resolve(null),
+      errAsync(
+        new FoodMasterDomainError(
+          'persistence_failed',
+          'foodMasterService.register not stubbed',
+        ),
+      ),
+    getById: () => okAsync(null),
   }
   const foodMatcher: FoodMatcher = {
-    search: () => Promise.resolve([]),
+    search: () => okAsync([]),
   }
   const mealHistoryService: MealHistoryService = {
     query: () =>
-      Promise.resolve({
+      okAsync({
         totals: {},
         perDay: [],
         entries: [],
@@ -62,14 +75,14 @@ const stubDeps = (override: Partial<DomainToolsDeps> = {}): DomainToolsDeps => {
   }
   const userProfileService: UserProfileService = {
     get: () =>
-      Promise.resolve({
+      okAsync({
         likes: [],
         dislikes: [],
         allergies: [],
         constraints: [],
       }),
     update: () =>
-      Promise.resolve({
+      okAsync({
         likes: [],
         dislikes: [],
         allergies: [],
@@ -77,7 +90,7 @@ const stubDeps = (override: Partial<DomainToolsDeps> = {}): DomainToolsDeps => {
       }),
   }
   const webSearchClient: WebSearchClient = {
-    search: () => Promise.resolve({ snippets: [] }),
+    search: () => okAsync({ snippets: [] }),
   }
   return {
     mealLogService,
@@ -113,7 +126,7 @@ describe('createDomainToolsRegistry', () => {
       stubDeps({
         foodMatcher: {
           search: () =>
-            Promise.resolve([
+            okAsync([
               {
                 reason: 'history_recent',
                 score: 0.9,

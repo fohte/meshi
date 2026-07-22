@@ -42,7 +42,7 @@ export const toLangChainTool = (domainTool: DomainTool) =>
     async (input: unknown): Promise<string> => {
       try {
         const result = await domainTool.execute(input)
-        return result.ok ? encodeOk(result.value) : encodeError(result.error)
+        return result.match(encodeOk, encodeError)
       } catch (e) {
         return encodeError(toInternalToolError(e))
       }

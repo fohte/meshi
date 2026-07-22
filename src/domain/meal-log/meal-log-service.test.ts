@@ -1,6 +1,8 @@
+import { errAsync, okAsync } from 'neverthrow'
 import { describe, expect, it } from 'vitest'
 
 import {
+  DomainError,
   FoodMasterNotFoundError,
   FutureEatenAtError,
   InvalidQuantityError,
@@ -32,9 +34,9 @@ const createFakeRepository = (
     findFoodMaster: (id) => {
       const food = foodMasterById.get(id)
       if (food === undefined) {
-        return Promise.reject(new FoodMasterNotFoundError(id))
+        return errAsync(new FoodMasterNotFoundError(id))
       }
-      return Promise.resolve(food)
+      return okAsync(food)
     },
     insertMealLog: (input) => {
       inserted.push(input)
@@ -47,9 +49,9 @@ const createFakeRepository = (
         note: input.note,
         createdAt: CREATED_AT,
       }
-      return Promise.resolve(row)
+      return okAsync(row)
     },
-    findMealLogById: () => Promise.resolve(null),
+    findMealLogById: () => okAsync(null),
   }
   return { repository, inserted }
 }
@@ -106,12 +108,14 @@ describe('MealLogService.record', () => {
   it('records a 100g meal and returns nutrition scaled by quantity/100', async () => {
     const { service, inserted } = buildService([RICE])
 
-    const result = await service.record({
-      foodMasterId: 'fm_rice',
-      eatenAt: EATEN_AT,
-      quantity: 100,
-      unit: 'g',
-    })
+    const result = (
+      await service.record({
+        foodMasterId: 'fm_rice',
+        eatenAt: EATEN_AT,
+        quantity: 100,
+        unit: 'g',
+      })
+    )._unsafeUnwrap()
 
     expect(result).toEqual({
       id: 'ml_1',
@@ -144,12 +148,14 @@ describe('MealLogService.record', () => {
   it('scales nutrition linearly for a 200g meal', async () => {
     const { service } = buildService([RICE])
 
-    const result = await service.record({
-      foodMasterId: 'fm_rice',
-      eatenAt: EATEN_AT,
-      quantity: 200,
-      unit: 'g',
-    })
+    const result = (
+      await service.record({
+        foodMasterId: 'fm_rice',
+        eatenAt: EATEN_AT,
+        quantity: 200,
+        unit: 'g',
+      })
+    )._unsafeUnwrap()
 
     expect(result).toEqual({
       id: 'ml_1',
@@ -174,12 +180,14 @@ describe('MealLogService.record', () => {
     async (unit) => {
       const { service } = buildService([RICE])
 
-      const result = await service.record({
-        foodMasterId: 'fm_rice',
-        eatenAt: EATEN_AT,
-        quantity: 100,
-        unit,
-      })
+      const result = (
+        await service.record({
+          foodMasterId: 'fm_rice',
+          eatenAt: EATEN_AT,
+          quantity: 100,
+          unit,
+        })
+      )._unsafeUnwrap()
 
       expect(result.nutrition).toEqual({
         energy_kcal: 156,
@@ -193,12 +201,14 @@ describe('MealLogService.record', () => {
   it('treats non-gram units as per-serving so 0.5 杯 multiplies by 0.5', async () => {
     const { service } = buildService([CAFE_LATTE])
 
-    const result = await service.record({
-      foodMasterId: 'fm_latte',
-      eatenAt: EATEN_AT,
-      quantity: 0.5,
-      unit: '杯',
-    })
+    const result = (
+      await service.record({
+        foodMasterId: 'fm_latte',
+        eatenAt: EATEN_AT,
+        quantity: 0.5,
+        unit: '杯',
+      })
+    )._unsafeUnwrap()
 
     expect(result).toEqual({
       id: 'ml_1',
@@ -221,18 +231,22 @@ describe('MealLogService.record', () => {
   it('propagates is_estimated=true when the underlying food master is estimated', async () => {
     const { service } = buildService([RICE, KARAAGE_GUESS])
 
-    const confirmed = await service.record({
-      foodMasterId: 'fm_rice',
-      eatenAt: EATEN_AT,
-      quantity: 100,
-      unit: 'g',
-    })
-    const estimated = await service.record({
-      foodMasterId: 'fm_karaage',
-      eatenAt: EATEN_AT,
-      quantity: 100,
-      unit: 'g',
-    })
+    const confirmed = (
+      await service.record({
+        foodMasterId: 'fm_rice',
+        eatenAt: EATEN_AT,
+        quantity: 100,
+        unit: 'g',
+      })
+    )._unsafeUnwrap()
+    const estimated = (
+      await service.record({
+        foodMasterId: 'fm_karaage',
+        eatenAt: EATEN_AT,
+        quantity: 100,
+        unit: 'g',
+      })
+    )._unsafeUnwrap()
 
     expect(confirmed).toEqual({
       id: 'ml_1',
@@ -272,14 +286,14 @@ describe('MealLogService.record', () => {
     const { service, inserted } = buildService([RICE])
     const future = new Date(NOW.getTime() + 1)
 
-    const error = await service
-      .record({
+    const error = (
+      await service.record({
         foodMasterId: 'fm_rice',
         eatenAt: future,
         quantity: 100,
         unit: 'g',
       })
-      .catch((e: unknown) => e)
+    )._unsafeUnwrapErr()
 
     expect(error).toBeInstanceOf(FutureEatenAtError)
     expect(
@@ -291,12 +305,14 @@ describe('MealLogService.record', () => {
   it('allows eaten_at exactly equal to now', async () => {
     const { service } = buildService([RICE])
 
-    const result = await service.record({
-      foodMasterId: 'fm_rice',
-      eatenAt: NOW,
-      quantity: 100,
-      unit: 'g',
-    })
+    const result = (
+      await service.record({
+        foodMasterId: 'fm_rice',
+        eatenAt: NOW,
+        quantity: 100,
+        unit: 'g',
+      })
+    )._unsafeUnwrap()
 
     expect(result).toEqual({
       id: 'ml_1',
@@ -321,14 +337,14 @@ describe('MealLogService.record', () => {
     async (quantity) => {
       const { service, inserted } = buildService([RICE])
 
-      const error = await service
-        .record({
+      const error = (
+        await service.record({
           foodMasterId: 'fm_rice',
           eatenAt: EATEN_AT,
           quantity,
           unit: 'g',
         })
-        .catch((e: unknown) => e)
+      )._unsafeUnwrapErr()
 
       expect(error).toBeInstanceOf(InvalidQuantityError)
       expect(
@@ -341,14 +357,14 @@ describe('MealLogService.record', () => {
   it('surfaces FoodMasterNotFoundError from the repository when the id is missing', async () => {
     const { service, inserted } = buildService([RICE])
 
-    const error = await service
-      .record({
+    const error = (
+      await service.record({
         foodMasterId: 'fm_missing',
         eatenAt: EATEN_AT,
         quantity: 100,
         unit: 'g',
       })
-      .catch((e: unknown) => e)
+    )._unsafeUnwrapErr()
 
     expect(error).toBeInstanceOf(FoodMasterNotFoundError)
     expect(
@@ -361,15 +377,15 @@ describe('MealLogService.record', () => {
 describe('MealLogService.getById', () => {
   it('returns null when the log does not exist', async () => {
     const { service } = buildService([RICE])
-    expect(await service.getById('ml_missing')).toBeNull()
+    expect((await service.getById('ml_missing'))._unsafeUnwrap()).toBeNull()
   })
 
   it('returns a result with nutrition scaled for the stored quantity/unit', async () => {
     const repository: MealLogRepository = {
-      findFoodMaster: () => Promise.reject(new Error('unused')),
-      insertMealLog: () => Promise.reject(new Error('unused')),
+      findFoodMaster: () => errAsync(new DomainError('unused', 'unused')),
+      insertMealLog: () => errAsync(new DomainError('unused', 'unused')),
       findMealLogById: (id) =>
-        Promise.resolve({
+        okAsync({
           log: {
             id,
             foodMasterId: KARAAGE_GUESS.id,
@@ -388,7 +404,7 @@ describe('MealLogService.getById', () => {
       now: () => NOW,
     })
 
-    expect(await service.getById('ml_1')).toEqual({
+    expect((await service.getById('ml_1'))._unsafeUnwrap()).toEqual({
       id: 'ml_1',
       foodMasterId: KARAAGE_GUESS.id,
       eatenAt: new Date('2026-06-15T12:00:00.000Z'),

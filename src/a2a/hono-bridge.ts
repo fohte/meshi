@@ -4,6 +4,7 @@ import type { AgentCard, JSONRPCResponse } from '@a2a-js/sdk'
 import { AGENT_CARD_PATH } from '@a2a-js/sdk'
 import type { DefaultRequestHandler } from '@a2a-js/sdk/server'
 import { JsonRpcTransportHandler } from '@a2a-js/sdk/server'
+import { captureWithFingerprint } from '@fohte/service-kit/observability'
 import type { Hono, MiddlewareHandler } from 'hono'
 import { streamSSE } from 'hono/streaming'
 
@@ -17,6 +18,7 @@ export interface A2aHonoBridgeOptions {
 
 const JSON_RPC_PATH = '/a2a'
 const BEARER_PREFIX = 'Bearer '
+const HONO_FINGERPRINT = 'a2a.hono.request-failed'
 
 const digest = (value: string): Buffer =>
   createHash('sha256').update(value).digest()
@@ -73,6 +75,12 @@ export const mountA2aRoutes = (
   const jsonRpcTransportHandler = new JsonRpcTransportHandler(requestHandler)
   const auth = bearerAuthMiddleware(bearerToken)
 
+  app.onError((err, c) => {
+    console.error('a2a JSON-RPC request failed:', err)
+    captureWithFingerprint(err, HONO_FINGERPRINT)
+    return c.json(internalErrorResponse(err), 500)
+  })
+
   app.get(`/${AGENT_CARD_PATH}`, auth, (c) => c.json(agentCard))
 
   app.post(JSON_RPC_PATH, auth, async (c) => {
@@ -81,14 +89,9 @@ export const mountA2aRoutes = (
     // proper JSON-RPC parse-error response instead of this route throwing.
     const body = await c.req.text()
 
-    let result:
-      JSONRPCResponse | AsyncGenerator<JSONRPCResponse, void, undefined>
-    try {
-      result = await jsonRpcTransportHandler.handle(body)
-    } catch (err) {
-      console.error('a2a JSON-RPC request failed:', err)
-      return c.json(internalErrorResponse(err), 500)
-    }
+    const result:
+      JSONRPCResponse | AsyncGenerator<JSONRPCResponse, void, undefined> =
+      await jsonRpcTransportHandler.handle(body)
 
     if (!isAsyncGenerator(result)) {
       return c.json(result)
@@ -107,6 +110,7 @@ export const mountA2aRoutes = (
         }
       } catch (err) {
         console.error('a2a JSON-RPC stream failed:', err)
+        captureWithFingerprint(err, HONO_FINGERPRINT)
         try {
           await sse.writeSSE({
             event: 'error',

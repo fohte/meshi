@@ -2,15 +2,12 @@ import { z } from 'zod'
 
 import {
   type WebSearchClient,
-  WebSearchError,
   WebSearchRateLimitError,
 } from '@/adapters/web-search/web-search-client'
-import { internalErr } from '@/llm/domain-tools/internal-error'
 import { parseToolInput } from '@/llm/domain-tools/parse'
 import {
   type DomainTool,
   err,
-  ok,
   type Result,
   type ToolError,
 } from '@/llm/domain-tools/types'
@@ -38,24 +35,20 @@ export const createWebSearchTool = (client: WebSearchClient): DomainTool => ({
   inputSchema: z.toJSONSchema(inputSchema, { io: 'input' }),
   async execute(input: unknown): Promise<Result<WebSearchOutput, ToolError>> {
     const parsed = parseToolInput(inputSchema, input)
-    if (!parsed.ok) return parsed
-    try {
-      const result = await client.search(parsed.value.query, {
-        limit: parsed.value.limit,
-      })
-      return ok({ snippets: result.snippets })
-    } catch (e) {
-      if (e instanceof WebSearchRateLimitError) {
-        return err({ code: 'web_search/rate_limited', message: e.message })
-      }
-      if (e instanceof WebSearchError) {
-        return err({
-          code: 'web_search/failed',
-          message: e.message,
-          ...(e.status === undefined ? {} : { details: { status: e.status } }),
-        })
-      }
-      return internalErr(e)
-    }
+    if (parsed.isErr()) return err(parsed.error)
+    return await client
+      .search(parsed.value.query, { limit: parsed.value.limit })
+      .map((result) => ({ snippets: result.snippets }))
+      .mapErr((e): ToolError =>
+        e instanceof WebSearchRateLimitError
+          ? { code: 'web_search/rate_limited', message: e.message }
+          : {
+              code: 'web_search/failed',
+              message: e.message,
+              ...(e.status === undefined
+                ? {}
+                : { details: { status: e.status } }),
+            },
+      )
   },
 })

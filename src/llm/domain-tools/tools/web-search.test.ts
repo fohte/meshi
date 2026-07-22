@@ -1,3 +1,4 @@
+import { errAsync } from 'neverthrow'
 import { describe, expect, it, vi } from 'vitest'
 
 import { createTavilyWebSearchClient } from '@/adapters/web-search/tavily-web-search-client'
@@ -104,7 +105,7 @@ describe('web_search tool', () => {
 
   it('maps WebSearchRateLimitError to web_search/rate_limited', async () => {
     const client: WebSearchClient = {
-      search: () => Promise.reject(new WebSearchRateLimitError()),
+      search: () => errAsync(new WebSearchRateLimitError()),
     }
     const tool = createWebSearchTool(client)
     const result = await tool.execute({ query: 'rice' })
@@ -116,7 +117,7 @@ describe('web_search tool', () => {
 
   it('maps generic WebSearchError to web_search/failed with status detail', async () => {
     const client: WebSearchClient = {
-      search: () => Promise.reject(new WebSearchError('upstream 500', 500)),
+      search: () => errAsync(new WebSearchError('upstream 500', 500)),
     }
     const tool = createWebSearchTool(client)
     const result = await tool.execute({ query: 'rice' })

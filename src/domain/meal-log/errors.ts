@@ -37,3 +37,11 @@ export class FoodMasterNotFoundError extends DomainError {
     this.name = 'FoodMasterNotFoundError'
   }
 }
+
+export class MealLogPersistenceError extends DomainError {
+  constructor(message: string, cause?: unknown) {
+    super(message, 'meal_log/persistence_failed')
+    this.name = 'MealLogPersistenceError'
+    if (cause !== undefined) this.cause = cause
+  }
+}

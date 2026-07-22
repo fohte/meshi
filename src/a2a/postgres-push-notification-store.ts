@@ -1,5 +1,6 @@
 import type { PushNotificationConfig } from '@a2a-js/sdk'
 import type { PushNotificationStore } from '@a2a-js/sdk/server'
+import { captureWithFingerprint } from '@fohte/service-kit/observability'
 import { z } from 'zod'
 
 import { createAsText, type Sql } from '@/db'
@@ -36,6 +37,16 @@ export class PushConfigRowInvalidError extends Error {
   }
 }
 
+export class PushNotificationStorePersistenceError extends Error {
+  constructor(message: string, cause: unknown) {
+    super(message, { cause })
+    this.name = 'PushNotificationStorePersistenceError'
+  }
+}
+
+const PUSH_NOTIFICATION_STORE_FINGERPRINT =
+  'a2a.push-notification-store.persistence-error'
+
 export const createPostgresPushNotificationStore = (
   sql: Sql,
 ): PushNotificationStore => {
@@ -51,37 +62,71 @@ export const createPostgresPushNotificationStore = (
       const configId = pushNotificationConfig.id ?? taskId
       const config = { ...pushNotificationConfig, id: configId }
 
-      const configJson = JSON.stringify(config)
-      await sql`
-        INSERT INTO a2a_push_configs (task_id, config_id, config)
-        VALUES (${taskId}, ${configId}, ${asText(configJson)}::jsonb)
-        ON CONFLICT (task_id, config_id) DO UPDATE SET
-          config = EXCLUDED.config
-      `
+      try {
+        const configJson = JSON.stringify(config)
+        await sql`
+          INSERT INTO a2a_push_configs (task_id, config_id, config)
+          VALUES (${taskId}, ${configId}, ${asText(configJson)}::jsonb)
+          ON CONFLICT (task_id, config_id) DO UPDATE SET
+            config = EXCLUDED.config
+        `
+      } catch (caughtErr) {
+        const wrapped = new PushNotificationStorePersistenceError(
+          `failed to save push_config for task ${taskId}`,
+          caughtErr,
+        )
+        captureWithFingerprint(wrapped, PUSH_NOTIFICATION_STORE_FINGERPRINT, {
+          extras: { taskId, configId, method: 'save' },
+        })
+        throw wrapped
+      }
     },
 
     async load(taskId: string): Promise<PushNotificationConfig[]> {
-      const rows = await sql`
-        SELECT config FROM a2a_push_configs WHERE task_id = ${taskId}
-      `
+      try {
+        const rows = await sql`
+          SELECT config FROM a2a_push_configs WHERE task_id = ${taskId}
+        `
 
-      return rows.map((row) => {
-        const parsed = pushNotificationConfigSchema.safeParse(row['config'])
-        if (!parsed.success) {
-          throw new PushConfigRowInvalidError(taskId, parsed.error)
-        }
-        return parsed.data
-      })
+        return rows.map((row) => {
+          const parsed = pushNotificationConfigSchema.safeParse(row['config'])
+          if (!parsed.success) {
+            throw new PushConfigRowInvalidError(taskId, parsed.error)
+          }
+          return parsed.data
+        })
+      } catch (caughtErr) {
+        const wrapped = new PushNotificationStorePersistenceError(
+          `failed to load push_configs for task ${taskId}`,
+          caughtErr,
+        )
+        captureWithFingerprint(wrapped, PUSH_NOTIFICATION_STORE_FINGERPRINT, {
+          extras: { taskId, method: 'load' },
+        })
+        throw wrapped
+      }
     },
 
     async delete(taskId: string, configId?: string): Promise<void> {
       // Matches InMemoryPushNotificationStore: an omitted configId falls
       // back to taskId (the default id assigned in save() above), not to
       // "delete every config for this task".
-      await sql`
-        DELETE FROM a2a_push_configs
-        WHERE task_id = ${taskId} AND config_id = ${configId ?? taskId}
-      `
+      const resolvedConfigId = configId ?? taskId
+      try {
+        await sql`
+          DELETE FROM a2a_push_configs
+          WHERE task_id = ${taskId} AND config_id = ${resolvedConfigId}
+        `
+      } catch (caughtErr) {
+        const wrapped = new PushNotificationStorePersistenceError(
+          `failed to delete push_config for task ${taskId}`,
+          caughtErr,
+        )
+        captureWithFingerprint(wrapped, PUSH_NOTIFICATION_STORE_FINGERPRINT, {
+          extras: { taskId, configId: resolvedConfigId, method: 'delete' },
+        })
+        throw wrapped
+      }
     },
   }
 }
