@@ -230,7 +230,14 @@ export class GenAiCallbackHandler extends BaseCallbackHandler {
   private readonly activeContext = new AsyncLocalStorage<Context>()
 
   constructor(options: GenAiCallbackHandlerOptions) {
-    super()
+    // Without _awaitHandler, @langchain/core's CallbackManager delivers this
+    // handler's callbacks through a process-wide, concurrency-1 background
+    // queue (see consumeCallback in @langchain/core/dist/singletons/callbacks.js)
+    // instead of the caller's own call chain. Since activeContext threads its
+    // context through that chain via AsyncLocalStorage, running on the shared
+    // queue would let unrelated concurrent requests stomp on each other's
+    // active span.
+    super({ _awaitHandler: true })
     this.providerName = options.providerName
     this.captureMessageContent = options.captureMessageContent ?? false
   }
@@ -245,6 +252,24 @@ export class GenAiCallbackHandler extends BaseCallbackHandler {
         ? fetchImpl(input, init)
         : context.with(ctx, () => fetchImpl(input, init))
     }
+  }
+
+  private takeOpenSpan(runId: string): OpenSpan | undefined {
+    const openSpan = this.openSpans.get(runId)
+    if (openSpan === undefined) return undefined
+    this.openSpans.delete(runId)
+    return openSpan
+  }
+
+  // Assumes at most one span is open per call chain at a time — true for
+  // createMeshiChatModel's usage, since LangGraph's createAgent invokes the
+  // model sequentially. Two spans opened concurrently on the same chain
+  // would both enterWith() onto this single activeContext slot, and closing
+  // either one first would wrongly restore the other's still-open span to
+  // the outer context.
+  private finishSpan(openSpan: OpenSpan): void {
+    openSpan.span.end()
+    this.activeContext.enterWith(openSpan.previousContext)
   }
 
   override handleChatModelStart(
@@ -284,30 +309,28 @@ export class GenAiCallbackHandler extends BaseCallbackHandler {
   }
 
   override handleLLMEnd(output: LLMResult, runId: string): void {
-    const openSpan = this.openSpans.get(runId)
+    const openSpan = this.takeOpenSpan(runId)
     if (openSpan === undefined) return
-    this.openSpans.delete(runId)
-    const { span, previousContext } = openSpan
     try {
-      setGenAiResponseAttributes(span, output, this.captureMessageContent)
+      setGenAiResponseAttributes(
+        openSpan.span,
+        output,
+        this.captureMessageContent,
+      )
     } catch (error) {
-      recordSpanException(span, error)
+      recordSpanException(openSpan.span, error)
     }
-    span.end()
-    this.activeContext.enterWith(previousContext)
+    this.finishSpan(openSpan)
   }
 
   override handleLLMError(err: unknown, runId: string): void {
-    const openSpan = this.openSpans.get(runId)
+    const openSpan = this.takeOpenSpan(runId)
     if (openSpan === undefined) return
-    this.openSpans.delete(runId)
-    const { span, previousContext } = openSpan
-    recordSpanException(span, err)
-    span.setStatus({
+    recordSpanException(openSpan.span, err)
+    openSpan.span.setStatus({
       code: SpanStatusCode.ERROR,
       message: err instanceof Error ? err.message : String(err),
     })
-    span.end()
-    this.activeContext.enterWith(previousContext)
+    this.finishSpan(openSpan)
   }
 }

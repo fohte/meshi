@@ -35,18 +35,19 @@ describe('createMeshiChatModel', () => {
     expect(model.callbacks).toEqual([expect.any(GenAiCallbackHandler)])
   })
 
-  it('routes the client fetch through the GenAiCallbackHandler', async () => {
-    const fetchSpy = vi
-      .spyOn(globalThis, 'fetch')
-      .mockResolvedValue(new Response(null))
+  it('routes the client fetch through the GenAiCallbackHandler', () => {
+    const wrapFetchSpy = vi.spyOn(GenAiCallbackHandler.prototype, 'wrapFetch')
 
-    const model = createMeshiChatModel({
-      apiKey: 'test-key',
-      model: 'test-model',
-    })
-    await model.clientConfig.fetch?.('https://example.com')
+    try {
+      const model = createMeshiChatModel({
+        apiKey: 'test-key',
+        model: 'test-model',
+      })
 
-    expect(fetchSpy).toHaveBeenCalledWith('https://example.com', undefined)
-    fetchSpy.mockRestore()
+      expect(wrapFetchSpy).toHaveBeenCalledWith(fetch)
+      expect(model.clientConfig.fetch).toBe(wrapFetchSpy.mock.results[0]?.value)
+    } finally {
+      wrapFetchSpy.mockRestore()
+    }
   })
 })

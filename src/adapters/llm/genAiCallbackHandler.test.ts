@@ -1,3 +1,4 @@
+import { CallbackManager } from '@langchain/core/callbacks/manager'
 import type { Serialized } from '@langchain/core/load/serializable'
 import {
   AIMessage,
@@ -332,6 +333,63 @@ describe('GenAiCallbackHandler', () => {
     await handler.wrapFetch(fakeFetch)('https://example.com')
 
     expect(capturedSpan).toBeUndefined()
+  })
+
+  it("keeps concurrent inference calls delivered through the real CallbackManager from observing each other's span", async () => {
+    // @langchain/core's CallbackManager delivers callbacks through a
+    // process-wide, concurrency-1 background queue unless the handler opts
+    // out via `_awaitHandler` (see the GenAiCallbackHandler constructor).
+    // Driving this through the real CallbackManager, rather than calling
+    // handleChatModelStart/handleLLMEnd directly, is what actually exercises
+    // that delivery path.
+    const handler = new GenAiCallbackHandler({ providerName: 'opencode' })
+    const manager = new CallbackManager(undefined, { handlers: [handler] })
+
+    const simulateOneInferenceCall = async (runId: string, model: string) => {
+      const [runManager] = await manager.handleChatModelStart(
+        serializedLlm,
+        [[new HumanMessage('hi')]],
+        runId,
+        undefined,
+        { invocation_params: { model } },
+      )
+      if (runManager === undefined) {
+        throw new Error('expected handleChatModelStart to return a run manager')
+      }
+
+      let capturedSpanContext: SpanContext | undefined
+      const fakeFetch: typeof fetch = () => {
+        capturedSpanContext = trace.getSpan(context.active())?.spanContext()
+        return Promise.resolve(new Response(null))
+      }
+      await handler.wrapFetch(fakeFetch)('https://example.com')
+
+      await runManager.handleLLMEnd({
+        generations: [
+          [
+            chatGeneration(
+              new AIMessage<StandardMessageStructure>({
+                content: 'ok',
+                response_metadata: {},
+              }),
+            ),
+          ],
+        ],
+      })
+
+      return capturedSpanContext
+    }
+
+    const captured = await Promise.all([
+      simulateOneInferenceCall('run-a', 'model-a'),
+      simulateOneInferenceCall('run-b', 'model-b'),
+    ])
+
+    const spans = exporter.getFinishedSpans()
+    const spanA = spans.find((span) => span.name === 'chat model-a')
+    const spanB = spans.find((span) => span.name === 'chat model-b')
+
+    expect(captured).toEqual([spanA?.spanContext(), spanB?.spanContext()])
   })
 
   it('ignores handleLLMEnd / handleLLMError for a runId with no open span', () => {
