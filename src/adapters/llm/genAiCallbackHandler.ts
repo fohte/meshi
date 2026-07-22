@@ -1,3 +1,5 @@
+import { AsyncLocalStorage } from 'node:async_hooks'
+
 import { BaseCallbackHandler } from '@langchain/core/callbacks/base'
 import type { Serialized } from '@langchain/core/load/serializable'
 import {
@@ -11,7 +13,14 @@ import type {
   Generation,
   LLMResult,
 } from '@langchain/core/outputs'
-import { type Span, SpanKind, SpanStatusCode, trace } from '@opentelemetry/api'
+import {
+  type Context,
+  context,
+  type Span,
+  SpanKind,
+  SpanStatusCode,
+  trace,
+} from '@opentelemetry/api'
 import {
   ATTR_GEN_AI_INPUT_MESSAGES,
   ATTR_GEN_AI_OPERATION_NAME,
@@ -192,6 +201,14 @@ const setGenAiResponseAttributes = (
   }
 }
 
+interface OpenSpan {
+  readonly span: Span
+  // Context active immediately before this span was opened, restored via
+  // activeContext.enterWith() once the span ends so a later, unrelated fetch
+  // on the same call chain doesn't keep tracing through this closed span.
+  readonly previousContext: Context
+}
+
 // Spans are opened in handleChatModelStart and closed in handleLLMEnd /
 // handleLLMError, which are disjoint callback invocations for the same
 // LangChain run — runId is the only thing correlating them, so the open
@@ -201,12 +218,33 @@ export class GenAiCallbackHandler extends BaseCallbackHandler {
 
   private readonly providerName: string
   private readonly captureMessageContent: boolean
-  private readonly openSpans = new Map<string, Span>()
+  private readonly openSpans = new Map<string, OpenSpan>()
+  // handleChatModelStart/handleLLMEnd/handleLLMError never share a
+  // synchronous call frame with the actual model request, so a
+  // context.with() around either callback reverts before that request's
+  // fetch runs — Node only extends AsyncLocalStorage's active store to
+  // async work started underneath a context.with() callback, not to a
+  // sibling callback invoked later by the CallbackManager. enterWith()
+  // instead mutates the store in place, which does persist across that
+  // gap, letting wrapFetch's context.with() below pick it up.
+  private readonly activeContext = new AsyncLocalStorage<Context>()
 
   constructor(options: GenAiCallbackHandlerOptions) {
     super()
     this.providerName = options.providerName
     this.captureMessageContent = options.captureMessageContent ?? false
+  }
+
+  // Wraps a fetch implementation so a request issued while a `chat <model>`
+  // span is open runs with that span active, letting
+  // @opentelemetry/instrumentation-undici parent its own request span to it.
+  wrapFetch(fetchImpl: typeof fetch): typeof fetch {
+    return (input, init) => {
+      const ctx = this.activeContext.getStore()
+      return ctx === undefined
+        ? fetchImpl(input, init)
+        : context.with(ctx, () => fetchImpl(input, init))
+    }
   }
 
   override handleChatModelStart(
@@ -217,6 +255,7 @@ export class GenAiCallbackHandler extends BaseCallbackHandler {
     extraParams?: Record<string, unknown>,
   ): void {
     const model = resolveRequestModel(extraParams)
+    const previousContext = context.active()
     const span = tracer.startSpan(
       `${GEN_AI_OPERATION_NAME_VALUE_CHAT} ${model}`,
       { kind: SpanKind.CLIENT },
@@ -240,30 +279,35 @@ export class GenAiCallbackHandler extends BaseCallbackHandler {
         recordSpanException(span, error)
       }
     }
-    this.openSpans.set(runId, span)
+    this.openSpans.set(runId, { span, previousContext })
+    this.activeContext.enterWith(trace.setSpan(previousContext, span))
   }
 
   override handleLLMEnd(output: LLMResult, runId: string): void {
-    const span = this.openSpans.get(runId)
-    if (span === undefined) return
+    const openSpan = this.openSpans.get(runId)
+    if (openSpan === undefined) return
     this.openSpans.delete(runId)
+    const { span, previousContext } = openSpan
     try {
       setGenAiResponseAttributes(span, output, this.captureMessageContent)
     } catch (error) {
       recordSpanException(span, error)
     }
     span.end()
+    this.activeContext.enterWith(previousContext)
   }
 
   override handleLLMError(err: unknown, runId: string): void {
-    const span = this.openSpans.get(runId)
-    if (span === undefined) return
+    const openSpan = this.openSpans.get(runId)
+    if (openSpan === undefined) return
     this.openSpans.delete(runId)
+    const { span, previousContext } = openSpan
     recordSpanException(span, err)
     span.setStatus({
       code: SpanStatusCode.ERROR,
       message: err instanceof Error ? err.message : String(err),
     })
     span.end()
+    this.activeContext.enterWith(previousContext)
   }
 }

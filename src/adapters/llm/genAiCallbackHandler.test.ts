@@ -7,7 +7,15 @@ import {
   ToolMessage,
 } from '@langchain/core/messages'
 import type { ChatGeneration, LLMResult } from '@langchain/core/outputs'
-import { SpanKind, SpanStatusCode, trace } from '@opentelemetry/api'
+import {
+  context,
+  type Span,
+  type SpanContext,
+  SpanKind,
+  SpanStatusCode,
+  trace,
+} from '@opentelemetry/api'
+import { AsyncLocalStorageContextManager } from '@opentelemetry/context-async-hooks'
 import {
   BasicTracerProvider,
   InMemorySpanExporter,
@@ -50,9 +58,14 @@ describe('GenAiCallbackHandler', () => {
 
   beforeAll(() => {
     trace.setGlobalTracerProvider(provider)
+    // wrapFetch relies on a real context manager to make context.with()'s
+    // span active during the wrapped fetch call, matching the
+    // AsyncLocalStorage-backed manager NodeSDK registers in production.
+    context.setGlobalContextManager(new AsyncLocalStorageContextManager())
   })
 
   afterAll(async () => {
+    context.disable()
     trace.disable()
     await provider.shutdown()
   })
@@ -245,6 +258,80 @@ describe('GenAiCallbackHandler', () => {
         exceptionTypes: ['Error'],
       },
     ])
+  })
+
+  it('keeps the inference span active for a fetch issued while the span is open', async () => {
+    const handler = new GenAiCallbackHandler({ providerName: 'opencode' })
+
+    handler.handleChatModelStart(
+      serializedLlm,
+      [[new HumanMessage('I ate ramen')]],
+      'run-4',
+      undefined,
+      { invocation_params: { model: 'test-model' } },
+    )
+
+    let capturedSpanContext: SpanContext | undefined
+    const fakeFetch: typeof fetch = () => {
+      capturedSpanContext = trace.getSpan(context.active())?.spanContext()
+      return Promise.resolve(new Response(null))
+    }
+    await handler.wrapFetch(fakeFetch)('https://example.com')
+
+    handler.handleLLMEnd(
+      {
+        generations: [
+          [
+            chatGeneration(
+              new AIMessage<StandardMessageStructure>({
+                content: 'Logged ramen.',
+                response_metadata: {},
+              }),
+            ),
+          ],
+        ],
+      },
+      'run-4',
+    )
+
+    const [span] = exporter.getFinishedSpans()
+    expect(capturedSpanContext).toEqual(span?.spanContext())
+  })
+
+  it('stops treating a span as active once it has ended', async () => {
+    const handler = new GenAiCallbackHandler({ providerName: 'opencode' })
+
+    handler.handleChatModelStart(
+      serializedLlm,
+      [[new HumanMessage('I ate ramen')]],
+      'run-5',
+      undefined,
+      { invocation_params: { model: 'test-model' } },
+    )
+    handler.handleLLMEnd(
+      {
+        generations: [
+          [
+            chatGeneration(
+              new AIMessage<StandardMessageStructure>({
+                content: 'Logged ramen.',
+                response_metadata: {},
+              }),
+            ),
+          ],
+        ],
+      },
+      'run-5',
+    )
+
+    let capturedSpan: Span | undefined
+    const fakeFetch: typeof fetch = () => {
+      capturedSpan = trace.getSpan(context.active())
+      return Promise.resolve(new Response(null))
+    }
+    await handler.wrapFetch(fakeFetch)('https://example.com')
+
+    expect(capturedSpan).toBeUndefined()
   })
 
   it('ignores handleLLMEnd / handleLLMError for a runId with no open span', () => {
