@@ -23,12 +23,12 @@ RUN pnpm run build
 # so the two stay in sync.
 FROM base AS runtime
 ENV NODE_ENV=production
-COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml otel-register.mjs ./
 RUN pnpm install --frozen-lockfile --prod
 COPY --from=builder /app/dist ./dist
 COPY drizzle ./drizzle
 EXPOSE 8080
 USER node
-CMD ["node", "dist/index.js"]
+CMD ["node", "--import", "./otel-register.mjs", "dist/index.js"]
 
 LABEL org.opencontainers.image.source=https://github.com/fohte/meshi
