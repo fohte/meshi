@@ -351,7 +351,7 @@ describeIfDb('MealHistoryService.query', () => {
 // top-level `sql` for the mutation to take effect, which this test does on
 // its own throwaway pool instead of the shared test pool.
 describeIfDb(
-  'MealHistoryService.query against a drizzle()-corrupted pool',
+  'meal history query survives a drizzle()-corrupted connection pool',
   () => {
     it('still binds periodFrom/periodTo and reads back eaten_at correctly', async () => {
       if (TEST_DATABASE_URL === undefined) {
@@ -390,8 +390,8 @@ describeIfDb(
             nutrients: { probe_energy_kcal: 156 },
           })
           // Not seedMealLog() from @/test/seed: it binds eaten_at as a raw
-          // Date too, so it would fail against this corrupted pool the same
-          // way the pre-fix mealHistoryService.ts did.
+          // `Date`, which fails against this corrupted pool the same way a
+          // raw `Date` bind anywhere in this file would.
           await tx`
             INSERT INTO meal_logs (id, food_master_id, eaten_at, quantity, unit)
             VALUES ('probe_log_1', 'probe_rice', '2026-06-01T03:00:00Z'::timestamptz, 200, 'g')
