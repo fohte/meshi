@@ -1,7 +1,7 @@
 import { err, ok, ResultAsync } from 'neverthrow'
 import { z } from 'zod'
 
-import type { Sql } from '@/db'
+import { createAsText, type Sql } from '@/db'
 import type {
   MealHistoryDayTotals,
   MealHistoryService,
@@ -25,6 +25,19 @@ const numericString = z.union([
   }),
 ])
 
+// Postgres's own `timestamptz` text output (e.g. `2026-06-01 03:00:00+00`)
+// isn't reliably parseable by JS's `Date` constructor across engines, so
+// `to_char` is given an explicit ISO 8601 template instead of casting to
+// `::text`.
+const isoTimestamp = z.string().transform((s, ctx) => {
+  const d = new Date(s)
+  if (Number.isNaN(d.getTime())) {
+    ctx.addIssue({ code: 'custom', message: `not a valid timestamp: ${s}` })
+    return z.NEVER
+  }
+  return d
+})
+
 const aggregateRowSchema = z.object({
   day: z.string(),
   nutrient_code: z.string(),
@@ -34,119 +47,130 @@ const aggregateRowSchema = z.object({
 const entryRowSchema = z.object({
   id: z.string(),
   food_master_id: z.string(),
-  eaten_at: z.date(),
+  eaten_at: isoTimestamp,
   quantity: numericString,
   unit: z.string(),
   note: z.string().nullable(),
   is_estimated: z.boolean(),
 })
 
-export const createMealHistoryService = (sql: Sql): MealHistoryService => ({
-  query(input) {
-    const foodFilter =
-      input.foodFilter !== undefined && input.foodFilter.length > 0
-        ? input.foodFilter
-        : null
-    const nutrientCodes = input.nutrientCodes
-    const useMajorOnly = nutrientCodes === undefined
-    const emptyNutrientFilter =
-      nutrientCodes !== undefined && nutrientCodes.length === 0
+export const createMealHistoryService = (sql: Sql): MealHistoryService => {
+  const asText = createAsText(sql)
 
-    return ResultAsync.fromPromise(
-      (async () => {
-        const aggregateRaw = emptyNutrientFilter
-          ? []
-          : await sql`
-              SELECT
-                to_char(date_trunc('day', ml.eaten_at AT TIME ZONE 'UTC'), 'YYYY-MM-DD')
-                  AS day,
-                fmn.nutrient_code AS nutrient_code,
-                SUM(fmn.value * ml.quantity / ${PER_100G_BASE}) AS value
-              FROM meal_logs ml
-              INNER JOIN food_master_nutrients fmn
-                ON fmn.food_master_id = ml.food_master_id
-              WHERE ml.eaten_at >= ${input.periodFrom}
-                AND ml.eaten_at < ${input.periodTo}
-                AND (
-                  ${foodFilter === null}::boolean
-                  OR ml.food_master_id = ANY(${foodFilter ?? []}::text[])
-                )
-                AND (
-                  CASE
-                    WHEN ${useMajorOnly}::boolean THEN fmn.nutrient_code IN (
-                      SELECT code FROM nutrient_definitions WHERE is_major = true
-                    )
-                    ELSE fmn.nutrient_code = ANY(${nutrientCodes ?? []}::text[])
-                  END
-                )
-              GROUP BY day, fmn.nutrient_code
-              ORDER BY day, fmn.nutrient_code
-            `
+  return {
+    query(input) {
+      const foodFilter =
+        input.foodFilter !== undefined && input.foodFilter.length > 0
+          ? input.foodFilter
+          : null
+      const nutrientCodes = input.nutrientCodes
+      const useMajorOnly = nutrientCodes === undefined
+      const emptyNutrientFilter =
+        nutrientCodes !== undefined && nutrientCodes.length === 0
+      // Bound as explicit text + inline cast, not a raw `Date`, so the
+      // query survives a pool whose timestamp serializer was flipped to
+      // identity pass-through by a `drizzle()` instance built on the same
+      // connection (see the comment in src/a2a/postgres-task-store.ts).
+      const periodFrom = asText(input.periodFrom.toISOString())
+      const periodTo = asText(input.periodTo.toISOString())
 
-        const entryRaw = await sql`
-          SELECT
-            ml.id AS id,
-            ml.food_master_id AS food_master_id,
-            ml.eaten_at AS eaten_at,
-            ml.quantity AS quantity,
-            ml.unit AS unit,
-            ml.note AS note,
-            fm.is_estimated AS is_estimated
-          FROM meal_logs ml
-          INNER JOIN food_masters fm ON fm.id = ml.food_master_id
-          WHERE ml.eaten_at >= ${input.periodFrom}
-            AND ml.eaten_at < ${input.periodTo}
-            AND (
-              ${foodFilter === null}::boolean
-              OR ml.food_master_id = ANY(${foodFilter ?? []}::text[])
-            )
-          ORDER BY ml.eaten_at ASC, ml.id ASC
-        `
+      return ResultAsync.fromPromise(
+        (async () => {
+          const aggregateRaw = emptyNutrientFilter
+            ? []
+            : await sql`
+                SELECT
+                  to_char(date_trunc('day', ml.eaten_at AT TIME ZONE 'UTC'), 'YYYY-MM-DD')
+                    AS day,
+                  fmn.nutrient_code AS nutrient_code,
+                  SUM(fmn.value * ml.quantity / ${PER_100G_BASE}) AS value
+                FROM meal_logs ml
+                INNER JOIN food_master_nutrients fmn
+                  ON fmn.food_master_id = ml.food_master_id
+                WHERE ml.eaten_at >= ${periodFrom}::timestamptz
+                  AND ml.eaten_at < ${periodTo}::timestamptz
+                  AND (
+                    ${foodFilter === null}::boolean
+                    OR ml.food_master_id = ANY(${foodFilter ?? []}::text[])
+                  )
+                  AND (
+                    CASE
+                      WHEN ${useMajorOnly}::boolean THEN fmn.nutrient_code IN (
+                        SELECT code FROM nutrient_definitions WHERE is_major = true
+                      )
+                      ELSE fmn.nutrient_code = ANY(${nutrientCodes ?? []}::text[])
+                    END
+                  )
+                GROUP BY day, fmn.nutrient_code
+                ORDER BY day, fmn.nutrient_code
+              `
 
-        return { aggregateRaw, entryRaw }
-      })(),
-      (caughtErr) =>
-        new MealHistoryQueryError('meal history query failed', caughtErr),
-    ).andThen(({ aggregateRaw, entryRaw }) => {
-      const aggregateParsed = z
-        .array(aggregateRowSchema)
-        .safeParse(aggregateRaw)
-      if (!aggregateParsed.success) {
-        return err(
-          new MealHistoryQueryError(
-            'meal history aggregate rows are invalid',
-            aggregateParsed.error,
-          ),
+          const entryRaw = await sql`
+            SELECT
+              ml.id AS id,
+              ml.food_master_id AS food_master_id,
+              to_char(ml.eaten_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"')
+                AS eaten_at,
+              ml.quantity AS quantity,
+              ml.unit AS unit,
+              ml.note AS note,
+              fm.is_estimated AS is_estimated
+            FROM meal_logs ml
+            INNER JOIN food_masters fm ON fm.id = ml.food_master_id
+            WHERE ml.eaten_at >= ${periodFrom}::timestamptz
+              AND ml.eaten_at < ${periodTo}::timestamptz
+              AND (
+                ${foodFilter === null}::boolean
+                OR ml.food_master_id = ANY(${foodFilter ?? []}::text[])
+              )
+            ORDER BY ml.eaten_at ASC, ml.id ASC
+          `
+
+          return { aggregateRaw, entryRaw }
+        })(),
+        (caughtErr) =>
+          new MealHistoryQueryError('meal history query failed', caughtErr),
+      ).andThen(({ aggregateRaw, entryRaw }) => {
+        const aggregateParsed = z
+          .array(aggregateRowSchema)
+          .safeParse(aggregateRaw)
+        if (!aggregateParsed.success) {
+          return err(
+            new MealHistoryQueryError(
+              'meal history aggregate rows are invalid',
+              aggregateParsed.error,
+            ),
+          )
+        }
+        const entryParsed = z.array(entryRowSchema).safeParse(entryRaw)
+        if (!entryParsed.success) {
+          return err(
+            new MealHistoryQueryError(
+              'meal history entry rows are invalid',
+              entryParsed.error,
+            ),
+          )
+        }
+
+        const perDay = buildPerDay(aggregateParsed.data)
+        const totals = sumPerDay(perDay)
+        const entries: MealLogEntry[] = entryParsed.data.map((row) => ({
+          id: row.id,
+          foodMasterId: row.food_master_id,
+          eatenAt: row.eaten_at,
+          quantity: row.quantity,
+          unit: row.unit,
+          note: row.note,
+        }))
+        const hasEstimatedValues = entryParsed.data.some(
+          (row) => row.is_estimated,
         )
-      }
-      const entryParsed = z.array(entryRowSchema).safeParse(entryRaw)
-      if (!entryParsed.success) {
-        return err(
-          new MealHistoryQueryError(
-            'meal history entry rows are invalid',
-            entryParsed.error,
-          ),
-        )
-      }
 
-      const perDay = buildPerDay(aggregateParsed.data)
-      const totals = sumPerDay(perDay)
-      const entries: MealLogEntry[] = entryParsed.data.map((row) => ({
-        id: row.id,
-        foodMasterId: row.food_master_id,
-        eatenAt: row.eaten_at,
-        quantity: row.quantity,
-        unit: row.unit,
-        note: row.note,
-      }))
-      const hasEstimatedValues = entryParsed.data.some(
-        (row) => row.is_estimated,
-      )
-
-      return ok({ totals, perDay, entries, hasEstimatedValues })
-    })
-  },
-})
+        return ok({ totals, perDay, entries, hasEstimatedValues })
+      })
+    },
+  }
+}
 
 const buildPerDay = (
   rows: ReadonlyArray<{
