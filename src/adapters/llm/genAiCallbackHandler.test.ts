@@ -1,3 +1,4 @@
+import { CallbackManager } from '@langchain/core/callbacks/manager'
 import type { Serialized } from '@langchain/core/load/serializable'
 import {
   AIMessage,
@@ -7,7 +8,15 @@ import {
   ToolMessage,
 } from '@langchain/core/messages'
 import type { ChatGeneration, LLMResult } from '@langchain/core/outputs'
-import { SpanKind, SpanStatusCode, trace } from '@opentelemetry/api'
+import {
+  context,
+  type Span,
+  type SpanContext,
+  SpanKind,
+  SpanStatusCode,
+  trace,
+} from '@opentelemetry/api'
+import { AsyncLocalStorageContextManager } from '@opentelemetry/context-async-hooks'
 import {
   BasicTracerProvider,
   InMemorySpanExporter,
@@ -50,9 +59,14 @@ describe('GenAiCallbackHandler', () => {
 
   beforeAll(() => {
     trace.setGlobalTracerProvider(provider)
+    // wrapFetch relies on a real context manager to make context.with()'s
+    // span active during the wrapped fetch call, matching the
+    // AsyncLocalStorage-backed manager NodeSDK registers in production.
+    context.setGlobalContextManager(new AsyncLocalStorageContextManager())
   })
 
   afterAll(async () => {
+    context.disable()
     trace.disable()
     await provider.shutdown()
   })
@@ -245,6 +259,137 @@ describe('GenAiCallbackHandler', () => {
         exceptionTypes: ['Error'],
       },
     ])
+  })
+
+  it('keeps the inference span active for a fetch issued while the span is open', async () => {
+    const handler = new GenAiCallbackHandler({ providerName: 'opencode' })
+
+    handler.handleChatModelStart(
+      serializedLlm,
+      [[new HumanMessage('I ate ramen')]],
+      'run-4',
+      undefined,
+      { invocation_params: { model: 'test-model' } },
+    )
+
+    let capturedSpanContext: SpanContext | undefined
+    const fakeFetch: typeof fetch = () => {
+      capturedSpanContext = trace.getSpan(context.active())?.spanContext()
+      return Promise.resolve(new Response(null))
+    }
+    await handler.wrapFetch(fakeFetch)('https://example.com')
+
+    handler.handleLLMEnd(
+      {
+        generations: [
+          [
+            chatGeneration(
+              new AIMessage<StandardMessageStructure>({
+                content: 'Logged ramen.',
+                response_metadata: {},
+              }),
+            ),
+          ],
+        ],
+      },
+      'run-4',
+    )
+
+    const [span] = exporter.getFinishedSpans()
+    expect(capturedSpanContext).toEqual(span?.spanContext())
+  })
+
+  it('stops treating a span as active once it has ended', async () => {
+    const handler = new GenAiCallbackHandler({ providerName: 'opencode' })
+
+    handler.handleChatModelStart(
+      serializedLlm,
+      [[new HumanMessage('I ate ramen')]],
+      'run-5',
+      undefined,
+      { invocation_params: { model: 'test-model' } },
+    )
+    handler.handleLLMEnd(
+      {
+        generations: [
+          [
+            chatGeneration(
+              new AIMessage<StandardMessageStructure>({
+                content: 'Logged ramen.',
+                response_metadata: {},
+              }),
+            ),
+          ],
+        ],
+      },
+      'run-5',
+    )
+
+    let capturedSpan: Span | undefined
+    const fakeFetch: typeof fetch = () => {
+      capturedSpan = trace.getSpan(context.active())
+      return Promise.resolve(new Response(null))
+    }
+    await handler.wrapFetch(fakeFetch)('https://example.com')
+
+    expect(capturedSpan).toBeUndefined()
+  })
+
+  it("keeps concurrent inference calls delivered through the real CallbackManager from observing each other's span", async () => {
+    // @langchain/core's CallbackManager delivers callbacks through a
+    // process-wide, concurrency-1 background queue unless the handler opts
+    // out via `_awaitHandler` (see the GenAiCallbackHandler constructor).
+    // Driving this through the real CallbackManager, rather than calling
+    // handleChatModelStart/handleLLMEnd directly, is what actually exercises
+    // that delivery path.
+    const handler = new GenAiCallbackHandler({ providerName: 'opencode' })
+    const manager = new CallbackManager(undefined, { handlers: [handler] })
+
+    const simulateOneInferenceCall = async (runId: string, model: string) => {
+      const [runManager] = await manager.handleChatModelStart(
+        serializedLlm,
+        [[new HumanMessage('hi')]],
+        runId,
+        undefined,
+        { invocation_params: { model } },
+      )
+      if (runManager === undefined) {
+        throw new Error('expected handleChatModelStart to return a run manager')
+      }
+
+      let capturedSpanContext: SpanContext | undefined
+      const fakeFetch: typeof fetch = () => {
+        capturedSpanContext = trace.getSpan(context.active())?.spanContext()
+        return Promise.resolve(new Response(null))
+      }
+      await handler.wrapFetch(fakeFetch)('https://example.com')
+
+      await runManager.handleLLMEnd({
+        generations: [
+          [
+            chatGeneration(
+              new AIMessage<StandardMessageStructure>({
+                content: 'ok',
+                response_metadata: {},
+              }),
+            ),
+          ],
+        ],
+      })
+
+      return capturedSpanContext
+    }
+
+    const captured = await Promise.all([
+      simulateOneInferenceCall('run-a', 'model-a'),
+      simulateOneInferenceCall('run-b', 'model-b'),
+    ])
+
+    const spans = exporter.getFinishedSpans()
+    const spanA = spans.find((span) => span.name === 'chat model-a')
+    const spanB = spans.find((span) => span.name === 'chat model-b')
+
+    expect(captured).toEqual([spanA?.spanContext(), spanB?.spanContext()])
   })
 
   it('ignores handleLLMEnd / handleLLMError for a runId with no open span', () => {

@@ -25,6 +25,7 @@
     "@eslint/eslintrc": "3.3.5",
     "@fohte/eslint-config": "0.3.6",
     "@ninoseki/eslint-plugin-neverthrow": "0.2.0",
+    "@opentelemetry/context-async-hooks": "2.8.0",
     "@tsconfig/node-lts": "24.0.0",
     "@tsconfig/strictest": "2.0.8",
     "@types/node": "24.13.2",

@@ -20,17 +20,24 @@ export interface CreateMeshiChatModelOptions {
 // gets a gen_ai.* span regardless of how the agent is later invoked.
 export const createMeshiChatModel = (
   options: CreateMeshiChatModelOptions,
-): ChatOpenAI =>
-  new ChatOpenAI({
+): ChatOpenAI => {
+  const genAiCallbackHandler = new GenAiCallbackHandler({
+    providerName: GEN_AI_PROVIDER_NAME_VALUE_OPENCODE,
+    ...(options.captureMessageContent === undefined
+      ? {}
+      : { captureMessageContent: options.captureMessageContent }),
+  })
+  return new ChatOpenAI({
     model: options.model,
     apiKey: options.apiKey,
-    configuration: { baseURL: options.baseUrl ?? OPENCODE_GO_BASE_URL },
-    callbacks: [
-      new GenAiCallbackHandler({
-        providerName: GEN_AI_PROVIDER_NAME_VALUE_OPENCODE,
-        ...(options.captureMessageContent === undefined
-          ? {}
-          : { captureMessageContent: options.captureMessageContent }),
-      }),
-    ],
+    configuration: {
+      baseURL: options.baseUrl ?? OPENCODE_GO_BASE_URL,
+      // Routes the client's HTTP request through GenAiCallbackHandler's
+      // active span so instrumentation-undici's request span becomes its
+      // child instead of an unrelated root (see wrapFetch for why the
+      // callback handler's own context.with() can't do this by itself).
+      fetch: genAiCallbackHandler.wrapFetch(fetch),
+    },
+    callbacks: [genAiCallbackHandler],
   })
+}

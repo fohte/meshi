@@ -90,6 +90,9 @@ importers:
       '@ninoseki/eslint-plugin-neverthrow':
         specifier: 0.2.0
         version: 0.2.0(eslint@10.6.0(jiti@2.6.1))(typescript@6.0.3)
+      '@opentelemetry/context-async-hooks':
+        specifier: 2.8.0
+        version: 2.8.0(@opentelemetry/api@1.9.1)
       '@tsconfig/node-lts':
         specifier: 24.0.0
         version: 24.0.0

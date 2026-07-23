@@ -1,5 +1,5 @@
 import { ChatOpenAI } from '@langchain/openai'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 
 import { GenAiCallbackHandler, OPENCODE_GO_BASE_URL } from '@/adapters/llm'
 import { createMeshiChatModel } from '@/llm/agent/model'
@@ -33,5 +33,21 @@ describe('createMeshiChatModel', () => {
     })
 
     expect(model.callbacks).toEqual([expect.any(GenAiCallbackHandler)])
+  })
+
+  it('routes the client fetch through the GenAiCallbackHandler', () => {
+    const wrapFetchSpy = vi.spyOn(GenAiCallbackHandler.prototype, 'wrapFetch')
+
+    try {
+      const model = createMeshiChatModel({
+        apiKey: 'test-key',
+        model: 'test-model',
+      })
+
+      expect(wrapFetchSpy).toHaveBeenCalledWith(fetch)
+      expect(model.clientConfig.fetch).toBe(wrapFetchSpy.mock.results[0]?.value)
+    } finally {
+      wrapFetchSpy.mockRestore()
+    }
   })
 })
