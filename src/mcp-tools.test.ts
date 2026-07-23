@@ -1,7 +1,9 @@
 import { Client } from '@modelcontextprotocol/sdk/client/index.js'
 import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js'
+import { errAsync, okAsync } from 'neverthrow'
 import { describe, expect, it } from 'vitest'
 
+import type { UserProfileRepositoryError } from '@/domain/user-profile/errors'
 import type {
   UserProfile,
   UserProfilePatch,
@@ -181,19 +183,22 @@ interface ProfileCalls {
 
 const makeProfileService = (
   initial: UserProfile = defaultProfile,
-  overrides: { get?: Error; update?: Error } = {},
+  overrides: {
+    get?: UserProfileRepositoryError
+    update?: UserProfileRepositoryError
+  } = {},
 ): { service: UserProfileService; calls: ProfileCalls } => {
   let current = initial
   const calls: ProfileCalls = { get: 0, update: [] }
   const service: UserProfileService = {
     get() {
       calls.get++
-      if (overrides.get) return Promise.reject(overrides.get)
-      return Promise.resolve(current)
+      if (overrides.get) return errAsync(overrides.get)
+      return okAsync(current)
     },
     update(patch) {
       calls.update.push(patch)
-      if (overrides.update) return Promise.reject(overrides.update)
+      if (overrides.update) return errAsync(overrides.update)
       const { dailyTargets, ...rest } = patch
       // exhaustively cover the three cases — clear / set / keep — so the
       // resulting object never carries a stray null in dailyTargets.
@@ -207,7 +212,7 @@ const makeProfileService = (
       } else {
         current = base
       }
-      return Promise.resolve(current)
+      return okAsync(current)
     },
   }
   return { service, calls }
@@ -223,7 +228,10 @@ interface Harness {
 
 interface HarnessConfig {
   orchestratorOverrides?: OrchestratorOverrides
-  profileOverrides?: { get?: Error; update?: Error }
+  profileOverrides?: {
+    get?: UserProfileRepositoryError
+    update?: UserProfileRepositoryError
+  }
   profile?: UserProfile
 }
 

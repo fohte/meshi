@@ -1,3 +1,4 @@
+import { okAsync } from 'neverthrow'
 import { describe, expect, it } from 'vitest'
 
 import type {
@@ -32,7 +33,7 @@ const setup = (): {
   const service: MealHistoryService = {
     query: (input) => {
       calls.push(input)
-      return Promise.resolve(AGGREGATE)
+      return okAsync(AGGREGATE)
     },
   }
   return { tool: createQueryMealHistoryTool(service), calls }

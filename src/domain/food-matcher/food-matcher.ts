@@ -1,3 +1,10 @@
+import type { ResultAsync } from 'neverthrow'
+
+import type {
+  FoodMatcherInvalidRowError,
+  FoodMatcherQueryError,
+} from '@/domain/food-matcher/drizzle-food-matcher'
+
 export type FoodMatchReason =
   'history_recent' | 'history_frequent' | 'fuzzy_name' | 'composition_table'
 
@@ -19,6 +26,11 @@ export interface SearchFoodInput {
   readonly limit: number
 }
 
+export type FoodMatcherError =
+  FoodMatcherInvalidRowError | FoodMatcherQueryError
+
 export interface FoodMatcher {
-  search(input: SearchFoodInput): Promise<ReadonlyArray<FoodMatchCandidate>>
+  search(
+    input: SearchFoodInput,
+  ): ResultAsync<ReadonlyArray<FoodMatchCandidate>, FoodMatcherError>
 }

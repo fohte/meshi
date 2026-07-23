@@ -1,3 +1,4 @@
+import { err, ok, okAsync, ResultAsync } from 'neverthrow'
 import { z } from 'zod'
 
 import type { Sql } from '@/db'
@@ -73,6 +74,13 @@ export class FoodMatcherInvalidRowError extends Error {
   }
 }
 
+export class FoodMatcherQueryError extends Error {
+  constructor(message: string, cause?: unknown) {
+    super(message, cause === undefined ? undefined : { cause })
+    this.name = 'FoodMatcherQueryError'
+  }
+}
+
 export const createDrizzleFoodMatcher = (
   sql: Sql,
   config: DrizzleFoodMatcherConfig = {},
@@ -81,13 +89,17 @@ export const createDrizzleFoodMatcher = (
   const frequentMinCount = config.frequentMinCount ?? DEFAULT_FREQUENT_MIN_COUNT
 
   return {
-    async search(
+    search(
       input: SearchFoodInput,
-    ): Promise<ReadonlyArray<FoodMatchCandidate>> {
+    ): ResultAsync<
+      ReadonlyArray<FoodMatchCandidate>,
+      FoodMatcherInvalidRowError | FoodMatcherQueryError
+    > {
       const { query, limit } = input
-      if (query.trim() === '' || limit <= 0) return []
+      if (query.trim() === '' || limit <= 0) return okAsync([])
 
-      const raw = await sql`
+      return ResultAsync.fromPromise(
+        sql`
         WITH
         -- Two index-friendly seeks (name trgm + alias trgm) UNION-ed and
         -- aggregated. A single LATERAL with an OR predicate across name and
@@ -163,21 +175,25 @@ export const createDrizzleFoodMatcher = (
         FROM composition_candidates
         ORDER BY score DESC, name ASC
         LIMIT ${limit}
-      `
-
-      const parsed = rowsSchema.safeParse(raw)
-      if (!parsed.success) {
-        throw new FoodMatcherInvalidRowError(parsed.error, raw)
-      }
-
-      return parsed.data.map<FoodMatchCandidate>((r) => ({
-        reason: r.reason satisfies FoodMatchReason,
-        score: r.score,
-        foodMasterId: r.food_master_id,
-        compositionCode: r.composition_code,
-        name: r.name,
-        isEstimated: r.is_estimated,
-      }))
+      `,
+        (caughtErr) =>
+          new FoodMatcherQueryError('food matcher query failed', caughtErr),
+      ).andThen((raw) => {
+        const parsed = rowsSchema.safeParse(raw)
+        if (!parsed.success) {
+          return err(new FoodMatcherInvalidRowError(parsed.error, raw))
+        }
+        return ok(
+          parsed.data.map<FoodMatchCandidate>((r) => ({
+            reason: r.reason satisfies FoodMatchReason,
+            score: r.score,
+            foodMasterId: r.food_master_id,
+            compositionCode: r.composition_code,
+            name: r.name,
+            isEstimated: r.is_estimated,
+          })),
+        )
+      })
     },
   }
 }

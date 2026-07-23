@@ -1,9 +1,10 @@
+import type { ResultAsync } from 'neverthrow'
 import { beforeEach, expect, it } from 'vitest'
 
 import {
   createFoodMasterRepository,
   createFoodMasterService,
-  FoodMasterDomainError,
+  type FoodMasterDomainError,
   type FoodMasterService,
   type RegisterFoodMasterInput,
 } from '@/domain/food-master'
@@ -20,17 +21,13 @@ const createCountingIdGenerator = (
 }
 
 const captureDomainError = async (
-  promise: Promise<unknown>,
+  resultAsync: ResultAsync<unknown, FoodMasterDomainError>,
 ): Promise<{ code: string; details: Readonly<Record<string, unknown>> }> => {
-  try {
-    await promise
-  } catch (err) {
-    if (err instanceof FoodMasterDomainError) {
-      return { code: err.code, details: err.details }
-    }
-    throw err
+  const result = await resultAsync
+  if (result.isOk()) {
+    throw new Error('expected FoodMasterDomainError but got Ok')
   }
-  throw new Error('expected FoodMasterDomainError but promise resolved')
+  return { code: result.error.code, details: result.error.details }
 }
 
 const baseInput: RegisterFoodMasterInput = {
@@ -77,14 +74,16 @@ describeIfDb('FoodMasterService + Repository', () => {
   })
 
   it('registers a confirmed food master and round-trips it through getById', async () => {
-    const registered = await service.register({
-      name: 'rice',
-      aliases: ['ご飯', 'cooked rice'],
-      nutrition: { energy_kcal: 168, protein_g: 2.5, iron_mg: 0.1 },
-      source: 'web_search',
-      isEstimated: false,
-      sourceUrl: 'https://example.com/rice',
-    })
+    const registered = (
+      await service.register({
+        name: 'rice',
+        aliases: ['ご飯', 'cooked rice'],
+        nutrition: { energy_kcal: 168, protein_g: 2.5, iron_mg: 0.1 },
+        source: 'web_search',
+        isEstimated: false,
+        sourceUrl: 'https://example.com/rice',
+      })
+    )._unsafeUnwrap()
 
     expect(normalize(registered)).toEqual({
       id: 'fm_test_0001',
@@ -97,19 +96,21 @@ describeIfDb('FoodMasterService + Repository', () => {
       createdAt: '<date>',
     })
 
-    const fetched = await service.getById('fm_test_0001')
+    const fetched = (await service.getById('fm_test_0001'))._unsafeUnwrap()
     expect(fetched === null ? null : normalize(fetched)).toEqual(
       normalize(registered),
     )
   })
 
   it('accepts an estimated food master backed by the composition table', async () => {
-    const registered = await service.register({
-      name: 'homemade curry',
-      nutrition: { energy_kcal: 250 },
-      source: 'composition_table_estimate',
-      isEstimated: true,
-    })
+    const registered = (
+      await service.register({
+        name: 'homemade curry',
+        nutrition: { energy_kcal: 250 },
+        source: 'composition_table_estimate',
+        isEstimated: true,
+      })
+    )._unsafeUnwrap()
 
     expect(normalize(registered)).toEqual({
       id: 'fm_test_0001',
@@ -146,12 +147,14 @@ describeIfDb('FoodMasterService + Repository', () => {
   })
 
   it("allows source='web_search' without source_url (recommendation only)", async () => {
-    const registered = await service.register({
-      name: 'milk',
-      nutrition: { energy_kcal: 67 },
-      source: 'web_search',
-      isEstimated: false,
-    })
+    const registered = (
+      await service.register({
+        name: 'milk',
+        nutrition: { energy_kcal: 67 },
+        source: 'web_search',
+        isEstimated: false,
+      })
+    )._unsafeUnwrap()
 
     expect(normalize(registered)).toEqual({
       id: 'fm_test_0001',
@@ -188,7 +191,7 @@ describeIfDb('FoodMasterService + Repository', () => {
 
   it('rejects duplicate name registration', async () => {
     const tx = getTx()
-    await service.register(baseInput)
+    ;(await service.register(baseInput))._unsafeUnwrap()
     const captured = await captureDomainError(
       service.register({ ...baseInput, nutrition: { energy_kcal: 200 } }),
     )
@@ -270,13 +273,15 @@ describeIfDb('FoodMasterService + Repository', () => {
   })
 
   it('distinguishes alias-UNIQUE collision from name collision', async () => {
-    await service.register({
-      name: 'apple',
-      nutrition: { energy_kcal: 50 },
-      source: 'user_input',
-      isEstimated: false,
-      aliases: ['りんご'],
-    })
+    ;(
+      await service.register({
+        name: 'apple',
+        nutrition: { energy_kcal: 50 },
+        source: 'user_input',
+        isEstimated: false,
+        aliases: ['りんご'],
+      })
+    )._unsafeUnwrap()
 
     const captured = await captureDomainError(
       service.register({
@@ -295,6 +300,8 @@ describeIfDb('FoodMasterService + Repository', () => {
   })
 
   it('returns null for unknown id', async () => {
-    expect(await service.getById('fm_does_not_exist')).toEqual(null)
+    expect(
+      (await service.getById('fm_does_not_exist'))._unsafeUnwrap(),
+    ).toEqual(null)
   })
 })

@@ -1,5 +1,6 @@
 import { Client } from '@modelcontextprotocol/sdk/client/index.js'
 import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js'
+import { okAsync } from 'neverthrow'
 import { beforeEach, expect, it } from 'vitest'
 import { z } from 'zod'
 
@@ -34,7 +35,7 @@ import type {
 import { scriptedDomainAgentModel } from '@/test/scripted-domain-agent-model'
 
 const stubWebSearchClient = (result: WebSearchResult): WebSearchClient => ({
-  search: () => Promise.resolve(result),
+  search: () => okAsync(result),
 })
 
 // harness -----------------------------------------------------------------

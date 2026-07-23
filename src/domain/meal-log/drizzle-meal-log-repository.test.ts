@@ -16,12 +16,12 @@ const normalizeRow = (row: MealLogRow): MealLogRow => ({
 describeIfDb('createDrizzleMealLogRepository', () => {
   const getTx = setupDrizzleTx()
 
-  it('throws FoodMasterNotFoundError when the food_master_id does not exist', async () => {
+  it('returns a FoodMasterNotFoundError when the food_master_id does not exist', async () => {
     const tx = getTx()
     const repo = createDrizzleMealLogRepository(tx)
-    const error = await repo
-      .findFoodMaster('fm_does_not_exist')
-      .catch((e: unknown) => e)
+    const error = (
+      await repo.findFoodMaster('fm_does_not_exist')
+    )._unsafeUnwrapErr()
     expect(error).toBeInstanceOf(FoodMasterNotFoundError)
     expect(
       error instanceof FoodMasterNotFoundError ? error.foodMasterId : undefined,
@@ -39,15 +39,17 @@ describeIfDb('createDrizzleMealLogRepository', () => {
     })
     const repo = createDrizzleMealLogRepository(tx)
 
-    const inserted = await repo.insertMealLog({
-      id: 'ml_round',
-      foodMasterId: 'fm_rice',
-      eatenAt: new Date('2026-06-15T03:30:00.000Z'),
-      quantity: 150,
-      unit: 'g',
-      note: 'breakfast',
-    })
-    const fetched = await repo.findMealLogById('ml_round')
+    const inserted = (
+      await repo.insertMealLog({
+        id: 'ml_round',
+        foodMasterId: 'fm_rice',
+        eatenAt: new Date('2026-06-15T03:30:00.000Z'),
+        quantity: 150,
+        unit: 'g',
+        note: 'breakfast',
+      })
+    )._unsafeUnwrap()
+    const fetched = (await repo.findMealLogById('ml_round'))._unsafeUnwrap()
 
     const expectedRow: MealLogRow = {
       id: 'ml_round',
@@ -81,6 +83,8 @@ describeIfDb('createDrizzleMealLogRepository', () => {
   it('returns null from findMealLogById when the id is unknown', async () => {
     const tx = getTx()
     const repo = createDrizzleMealLogRepository(tx)
-    expect(await repo.findMealLogById('ml_missing')).toBeNull()
+    expect(
+      (await repo.findMealLogById('ml_missing'))._unsafeUnwrap(),
+    ).toBeNull()
   })
 })

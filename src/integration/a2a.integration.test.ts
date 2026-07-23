@@ -6,6 +6,7 @@ import { ClientFactory, JsonRpcTransportFactory } from '@a2a-js/sdk/client'
 import { DefaultRequestHandler } from '@a2a-js/sdk/server'
 import type { PostgresSaver } from '@langchain/langgraph-checkpoint-postgres'
 import { fakeModel } from 'langchain'
+import { okAsync } from 'neverthrow'
 import { expect, it } from 'vitest'
 
 import { createMeshiAgentCard } from '@/a2a/agent-card'
@@ -43,7 +44,7 @@ const AGENT_CARD_URL = 'http://localhost/a2a'
 const NORMALIZED = 'NORMALIZED'
 
 const stubWebSearchClient = (): WebSearchClient => ({
-  search: () => Promise.resolve({ snippets: [] }),
+  search: () => okAsync({ snippets: [] }),
 })
 
 // Wires the real domain tools (record_meal_log, search_food_master, ...)

@@ -1,8 +1,11 @@
+import { errAsync, okAsync, type ResultAsync } from 'neverthrow'
 import { describe, expect, it } from 'vitest'
 
+import { FoodMatcherQueryError } from '@/domain/food-matcher/drizzle-food-matcher'
 import type {
   FoodMatchCandidate,
   FoodMatcher,
+  FoodMatcherError,
   SearchFoodInput,
 } from '@/domain/food-matcher/food-matcher'
 import { normalizeResult } from '@/llm/domain-tools/test-helpers'
@@ -11,7 +14,7 @@ import { createSearchFoodMasterTool } from '@/llm/domain-tools/tools/search-food
 const setup = (override?: {
   search?: (
     input: SearchFoodInput,
-  ) => Promise<ReadonlyArray<FoodMatchCandidate>>
+  ) => ResultAsync<ReadonlyArray<FoodMatchCandidate>, FoodMatcherError>
 }): {
   tool: ReturnType<typeof createSearchFoodMasterTool>
   calls: SearchFoodInput[]
@@ -22,7 +25,7 @@ const setup = (override?: {
       calls.push(input)
       return (
         override?.search?.(input) ??
-        Promise.resolve<ReadonlyArray<FoodMatchCandidate>>([
+        okAsync<ReadonlyArray<FoodMatchCandidate>, FoodMatcherError>([
           {
             reason: 'history_recent',
             score: 0.9,
@@ -96,5 +99,19 @@ describe('search_food_master tool', () => {
       },
     })
     expect(calls).toEqual([])
+  })
+
+  it('maps a FoodMatcherError to internal_error', async () => {
+    const { tool } = setup({
+      search: () =>
+        errAsync(new FoodMatcherQueryError('food matcher query failed')),
+    })
+
+    const result = await tool.execute({ query: '白米' })
+
+    expect(normalizeResult(result)).toEqual({
+      ok: false,
+      error: { code: 'internal_error', message: '<dynamic>' },
+    })
   })
 })

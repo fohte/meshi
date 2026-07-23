@@ -17,13 +17,9 @@ export const createMeshiCheckpointer = (databaseUrl: string): PostgresSaver =>
 // runs both in the same init-container invocation); a failed init container
 // self-heals on the platform's retry, since setup() is a no-op once the
 // migration row already exists.
-export const setupMeshiCheckpointSchema = async (
+export const setupMeshiCheckpointSchema = (
   databaseUrl: string,
 ): Promise<void> => {
   const checkpointer = createMeshiCheckpointer(databaseUrl)
-  try {
-    await checkpointer.setup()
-  } finally {
-    await checkpointer.end()
-  }
+  return checkpointer.setup().finally(() => checkpointer.end())
 }

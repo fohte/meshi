@@ -2,7 +2,7 @@ import { z } from 'zod'
 
 import type { UserProfilePatch } from '@/domain/user-profile/user-profile'
 import type { UserProfileService } from '@/domain/user-profile/user-profile-service'
-import { internalErr } from '@/llm/domain-tools/internal-error'
+import { toInternalToolError } from '@/llm/domain-tools/internal-error'
 import { parseToolInput } from '@/llm/domain-tools/parse'
 import {
   toUserProfilePayload,
@@ -10,7 +10,7 @@ import {
 } from '@/llm/domain-tools/tools/user-profile-payload'
 import {
   type DomainTool,
-  ok,
+  err,
   type Result,
   type ToolError,
 } from '@/llm/domain-tools/types'
@@ -34,29 +34,29 @@ export const createUpdateUserProfileTool = (
     input: unknown,
   ): Promise<Result<UserProfilePayload, ToolError>> {
     const parsed = parseToolInput(inputSchema, input)
-    if (!parsed.ok) return parsed
-    try {
-      const patch: UserProfilePatch = {
-        ...(parsed.value.likes === undefined
-          ? {}
-          : { likes: parsed.value.likes }),
-        ...(parsed.value.dislikes === undefined
-          ? {}
-          : { dislikes: parsed.value.dislikes }),
-        ...(parsed.value.allergies === undefined
-          ? {}
-          : { allergies: parsed.value.allergies }),
-        ...(parsed.value.constraints === undefined
-          ? {}
-          : { constraints: parsed.value.constraints }),
-        ...(parsed.value.daily_targets === undefined
-          ? {}
-          : { dailyTargets: parsed.value.daily_targets }),
-      }
+    if (parsed.isErr()) return err(parsed.error)
 
-      return ok(toUserProfilePayload(await service.update(patch)))
-    } catch (e) {
-      return internalErr(e)
+    const patch: UserProfilePatch = {
+      ...(parsed.value.likes === undefined
+        ? {}
+        : { likes: parsed.value.likes }),
+      ...(parsed.value.dislikes === undefined
+        ? {}
+        : { dislikes: parsed.value.dislikes }),
+      ...(parsed.value.allergies === undefined
+        ? {}
+        : { allergies: parsed.value.allergies }),
+      ...(parsed.value.constraints === undefined
+        ? {}
+        : { constraints: parsed.value.constraints }),
+      ...(parsed.value.daily_targets === undefined
+        ? {}
+        : { dailyTargets: parsed.value.daily_targets }),
     }
+
+    return await service
+      .update(patch)
+      .map(toUserProfilePayload)
+      .mapErr(toInternalToolError)
   },
 })
