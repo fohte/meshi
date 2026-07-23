@@ -1,8 +1,9 @@
-import type postgres from 'postgres'
+import { drizzle } from 'drizzle-orm/postgres-js'
+import postgres from 'postgres'
 import { expect, it } from 'vitest'
 
 import { createMealHistoryService } from '@/domain/meal-history/mealHistoryService'
-import { describeIfDb, setupTx } from '@/test/db'
+import { describeIfDb, setupTx, TEST_DATABASE_URL } from '@/test/db'
 import {
   seedFoodMaster,
   seedMealLog,
@@ -335,3 +336,103 @@ describeIfDb('MealHistoryService.query', () => {
     })
   })
 })
+
+// Reproduces main.ts's production wiring, where createMealHistoryService
+// shares a connection pool with repositories that construct drizzle() on
+// it. drizzle-orm's postgres-js driver mutates that pool's own
+// options.serializers/parsers for timestamp OIDs to identity pass-through
+// as a side effect of construction (see the comment in
+// mealHistoryService.ts). A setupTx()/setupDrizzleTx() reserved connection
+// can't reproduce this: postgres.js's wire encoding always reads the
+// pool's original options object regardless of what a reserved
+// connection's own `.options` property holds, and setupDrizzleTx()
+// deliberately clones rather than shares that object so other tests
+// aren't corrupted — so drizzle() must be constructed on a pool's actual
+// top-level `sql` for the mutation to take effect, which this test does on
+// its own throwaway pool instead of the shared test pool.
+describeIfDb(
+  'MealHistoryService.query against a drizzle()-corrupted pool',
+  () => {
+    it('still binds periodFrom/periodTo and reads back eaten_at correctly', async () => {
+      if (TEST_DATABASE_URL === undefined) {
+        throw new Error('TEST_DATABASE_URL is not set')
+      }
+      const pool = postgres(TEST_DATABASE_URL, { max: 1 })
+      drizzle(pool)
+
+      class RollbackTestChanges extends Error {}
+
+      try {
+        await pool.begin(async (transactionSql) => {
+          // seedFoodMaster/seedNutrientDefinition/createMealHistoryService
+          // only use the tagged-template + .typed() surface, which
+          // TransactionSql has too; the pool-management members TypeScript
+          // wants (end, options, ...) are never touched on a tx.
+          // eslint-disable-next-line @typescript-eslint/no-unsafe-type-assertion -- see comment above.
+          const tx = transactionSql as unknown as postgres.Sql
+          // A test-only nutrient code, not the 'energy_kcal'/'protein_g'
+          // codes other test files also seed concurrently: this test's
+          // transaction holds row locks on nutrient_definitions until
+          // rollback, and a shared code risks a deadlock against a
+          // concurrently-running file inserting the same code in a
+          // different order.
+          await seedNutrientDefinition(tx, {
+            code: 'probe_energy_kcal',
+            displayName: 'energy',
+            unit: 'kcal',
+            isMajor: true,
+            sortOrder: 1,
+          })
+          await seedFoodMaster(tx, {
+            id: 'probe_rice',
+            name: 'rice',
+            source: 'user_input',
+            nutrients: { probe_energy_kcal: 156 },
+          })
+          // Not seedMealLog() from @/test/seed: it binds eaten_at as a raw
+          // Date too, so it would fail against this corrupted pool the same
+          // way the pre-fix mealHistoryService.ts did.
+          await tx`
+            INSERT INTO meal_logs (id, food_master_id, eaten_at, quantity, unit)
+            VALUES ('probe_log_1', 'probe_rice', '2026-06-01T03:00:00Z'::timestamptz, 200, 'g')
+          `
+
+          const service = createMealHistoryService(tx)
+          const result = (
+            await service.query({
+              periodFrom: new Date('2026-06-01T00:00:00Z'),
+              periodTo: new Date('2026-06-02T00:00:00Z'),
+            })
+          )._unsafeUnwrap()
+
+          expect(result).toEqual({
+            totals: { probe_energy_kcal: 312 },
+            perDay: [
+              {
+                date: '2026-06-01',
+                totals: { probe_energy_kcal: 312 },
+              },
+            ],
+            entries: [
+              {
+                id: 'probe_log_1',
+                foodMasterId: 'probe_rice',
+                eatenAt: new Date('2026-06-01T03:00:00Z'),
+                quantity: 200,
+                unit: 'g',
+                note: null,
+              },
+            ],
+            hasEstimatedValues: false,
+          })
+
+          throw new RollbackTestChanges('roll back test-only writes')
+        })
+      } catch (caughtErr) {
+        if (!(caughtErr instanceof RollbackTestChanges)) throw caughtErr
+      } finally {
+        await pool.end({ timeout: 1 })
+      }
+    })
+  },
+)
