@@ -1,5 +1,8 @@
+import { okAsync, ResultAsync } from 'neverthrow'
+
 import type { Sql } from '@/db'
 import {
+  type FoodCompositionLoadError,
   loadFoodComposition,
   loadFoodCompositionDatasetFromFile,
   type LoadFoodCompositionOptions,
@@ -19,19 +22,23 @@ export interface RunSeedResult {
   readonly foodComposition: LoadFoodCompositionResult | null
 }
 
-export const runSeed = async (
+export const runSeed = (
   sql: Sql,
   options: RunSeedOptions = {},
-): Promise<RunSeedResult> => {
-  await seedNutrientDefinitions(sql)
+): ResultAsync<RunSeedResult, FoodCompositionLoadError> =>
+  // seedNutrientDefinitions never fails validation the way loadFoodComposition
+  // does — fromSafePromise leaves an unexpected rejection (e.g. a dropped
+  // connection) propagating as-is rather than wrapping it in a domain error.
+  ResultAsync.fromSafePromise(seedNutrientDefinitions(sql)).andThen(() => {
+    if (options.foodCompositionJsonPath === undefined) {
+      return okAsync({ foodComposition: null })
+    }
 
-  if (options.foodCompositionJsonPath === undefined) {
-    return { foodComposition: null }
-  }
-
-  const rows = await loadFoodCompositionDatasetFromFile(
-    options.foodCompositionJsonPath,
-  )
-  const result = await loadFoodComposition(sql, rows, options.loadOptions)
-  return { foodComposition: result }
-}
+    return loadFoodCompositionDatasetFromFile(
+      options.foodCompositionJsonPath,
+    ).andThen((rows) =>
+      loadFoodComposition(sql, rows, options.loadOptions).map(
+        (foodComposition) => ({ foodComposition }),
+      ),
+    )
+  })

@@ -55,8 +55,10 @@ describeIfDb('loadFoodComposition', () => {
   it('upserts food_compositions and food_composition_nutrients with expected counts per nutrient', async () => {
     const tx = getTx()
     await seedNutrientDefinitions(tx)
-    const rows = await loadFoodCompositionDatasetFromFile(SAMPLE_DATASET_PATH)
-    const result = await loadFoodComposition(tx, rows)
+    const rows = (
+      await loadFoodCompositionDatasetFromFile(SAMPLE_DATASET_PATH)
+    )._unsafeUnwrap()
+    const result = (await loadFoodComposition(tx, rows))._unsafeUnwrap()
 
     const foodCount = await tx<{ count: number }[]>`
       SELECT count(*)::int AS count FROM food_compositions
@@ -97,9 +99,11 @@ describeIfDb('loadFoodComposition', () => {
   it('re-loading the same dataset replaces nutrient rows (no stale duplicates)', async () => {
     const tx = getTx()
     await seedNutrientDefinitions(tx)
-    const rows = await loadFoodCompositionDatasetFromFile(SAMPLE_DATASET_PATH)
-    await loadFoodComposition(tx, rows)
-    await loadFoodComposition(tx, rows)
+    const rows = (
+      await loadFoodCompositionDatasetFromFile(SAMPLE_DATASET_PATH)
+    )._unsafeUnwrap()
+    ;(await loadFoodComposition(tx, rows))._unsafeUnwrap()
+    ;(await loadFoodComposition(tx, rows))._unsafeUnwrap()
     const countRows = await tx<{ count: number }[]>`
       SELECT count(*)::int AS count FROM food_composition_nutrients
     `
@@ -119,7 +123,9 @@ describeIfDb('loadFoodComposition', () => {
       nutrients: { energy_kcal: i + 1, protein_g: (i + 1) * 0.5 },
     }))
 
-    const result = await loadFoodComposition(tx, dataset, { batchSize: 2 })
+    const result = (
+      await loadFoodComposition(tx, dataset, { batchSize: 2 })
+    )._unsafeUnwrap()
 
     const foodRows = await tx<{ count: number }[]>`
       SELECT count(*)::int AS count FROM food_compositions WHERE code LIKE 'B%'
@@ -133,46 +139,45 @@ describeIfDb('loadFoodComposition', () => {
     expect(nutrientRows[0]?.count).toBe(10)
   })
 
-  it('rejects a non-positive batchSize', async () => {
+  it('returns a FoodCompositionLoadError for a non-positive batchSize', async () => {
     const tx = getTx()
     await seedNutrientDefinitions(tx)
-    const outcome = await loadFoodComposition(
-      tx,
-      [{ code: 'X1', name: 'x', nutrients: { protein_g: 1 } }],
-      { batchSize: 0 },
-    )
-      .then(() => ({ status: 'ok' as const }))
-      .catch((err: unknown) => ({
-        status: 'error' as const,
-        isLoadError: err instanceof FoodCompositionLoadError,
-      }))
-    expect(outcome).toEqual({ status: 'error', isLoadError: true })
+    const error = (
+      await loadFoodComposition(
+        tx,
+        [{ code: 'X1', name: 'x', nutrients: { protein_g: 1 } }],
+        { batchSize: 0 },
+      )
+    )._unsafeUnwrapErr()
+    expect(error).toBeInstanceOf(FoodCompositionLoadError)
   })
 
   it('registers extra nutrient_definitions before inserting unknown nutrient codes', async () => {
     const tx = getTx()
     await seedNutrientDefinitions(tx)
-    const result = await loadFoodComposition(
-      tx,
-      [
-        {
-          code: '99999',
-          name: 'テスト食品',
-          nutrients: { protein_g: 10, custom_nutrient_g: 1.5 },
-        },
-      ],
-      {
-        extraNutrientDefinitions: [
+    const result = (
+      await loadFoodComposition(
+        tx,
+        [
           {
-            code: 'custom_nutrient_g',
-            displayName: 'カスタム栄養素',
-            unit: 'g',
-            isMajor: false,
-            sortOrder: 99,
+            code: '99999',
+            name: 'テスト食品',
+            nutrients: { protein_g: 10, custom_nutrient_g: 1.5 },
           },
         ],
-      },
-    )
+        {
+          extraNutrientDefinitions: [
+            {
+              code: 'custom_nutrient_g',
+              displayName: 'カスタム栄養素',
+              unit: 'g',
+              isMajor: false,
+              sortOrder: 99,
+            },
+          ],
+        },
+      )
+    )._unsafeUnwrap()
     const rows = await tx<{ nutrient_code: string; value: string }[]>`
       SELECT nutrient_code, value::text AS value
       FROM food_composition_nutrients
@@ -186,54 +191,30 @@ describeIfDb('loadFoodComposition', () => {
     ])
   })
 
-  it('throws FoodCompositionLoadError listing missing nutrient codes', async () => {
+  it('returns a FoodCompositionLoadError listing missing nutrient codes', async () => {
     const tx = getTx()
     await seedNutrientDefinitions(tx)
-    const outcome = await loadFoodComposition(tx, [
-      {
-        code: '88888',
-        name: 'unknown nutrient food',
-        nutrients: { unknown_nutrient_g: 1 },
-      },
-    ])
-      .then(() => ({ status: 'ok' as const }))
-      .catch((err: unknown) => ({
-        status: 'error' as const,
-        isLoadError: err instanceof FoodCompositionLoadError,
-        missingNutrientCodes:
-          err instanceof FoodCompositionLoadError
-            ? err.missingNutrientCodes
-            : undefined,
-      }))
-    expect(outcome).toEqual({
-      status: 'error',
-      isLoadError: true,
-      missingNutrientCodes: ['unknown_nutrient_g'],
-    })
+    const error = (
+      await loadFoodComposition(tx, [
+        {
+          code: '88888',
+          name: 'unknown nutrient food',
+          nutrients: { unknown_nutrient_g: 1 },
+        },
+      ])
+    )._unsafeUnwrapErr()
+    expect(error.missingNutrientCodes).toEqual(['unknown_nutrient_g'])
   })
 })
 
 describe('parseFoodCompositionDataset', () => {
-  it('throws FoodCompositionLoadError when the dataset contains duplicate codes', () => {
-    const outcome = (():
-      { status: 'ok' } | { status: 'error'; message: string } => {
-      try {
-        parseFoodCompositionDataset([
-          { code: '01001', name: 'a', nutrients: { protein_g: 1 } },
-          { code: '01001', name: 'b', nutrients: { protein_g: 2 } },
-        ])
-        return { status: 'ok' as const }
-      } catch (err) {
-        return {
-          status: 'error' as const,
-          message:
-            err instanceof FoodCompositionLoadError ? err.message : String(err),
-        }
-      }
-    })()
-    expect(outcome).toEqual({
-      status: 'error',
-      message: 'duplicate food composition codes in dataset: 01001',
-    })
+  it('returns a FoodCompositionLoadError when the dataset contains duplicate codes', () => {
+    const error = parseFoodCompositionDataset([
+      { code: '01001', name: 'a', nutrients: { protein_g: 1 } },
+      { code: '01001', name: 'b', nutrients: { protein_g: 2 } },
+    ])._unsafeUnwrapErr()
+    expect(error.message).toBe(
+      'duplicate food composition codes in dataset: 01001',
+    )
   })
 })
