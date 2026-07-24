@@ -1,5 +1,6 @@
 import { readFile } from 'node:fs/promises'
 
+import { err, ok, okAsync, type Result, ResultAsync } from 'neverthrow'
 import { z } from 'zod'
 
 import type { SqlOrTx } from '@/db'
@@ -38,19 +39,25 @@ export class FoodCompositionLoadError extends Error {
   constructor(
     message: string,
     public readonly missingNutrientCodes?: ReadonlyArray<string>,
+    cause?: unknown,
   ) {
-    super(message)
+    super(message, cause === undefined ? undefined : { cause })
     this.name = 'FoodCompositionLoadError'
   }
 }
 
+const errorMessage = (e: unknown): string =>
+  e instanceof Error ? e.message : String(e)
+
 export const parseFoodCompositionDataset = (
   raw: unknown,
-): ReadonlyArray<FoodCompositionRow> => {
+): Result<ReadonlyArray<FoodCompositionRow>, FoodCompositionLoadError> => {
   const parsed = foodCompositionDatasetSchema.safeParse(raw)
   if (!parsed.success) {
-    throw new FoodCompositionLoadError(
-      `invalid food composition dataset: ${parsed.error.message}`,
+    return err(
+      new FoodCompositionLoadError(
+        `invalid food composition dataset: ${parsed.error.message}`,
+      ),
     )
   }
   const seen = new Set<string>()
@@ -60,33 +67,45 @@ export const parseFoodCompositionDataset = (
     seen.add(row.code)
   }
   if (duplicates.size > 0) {
-    throw new FoodCompositionLoadError(
-      `duplicate food composition codes in dataset: ${[...duplicates].sort().join(', ')}`,
+    return err(
+      new FoodCompositionLoadError(
+        `duplicate food composition codes in dataset: ${[...duplicates].sort().join(', ')}`,
+      ),
     )
   }
-  return parsed.data
+  return ok(parsed.data)
 }
 
-export const loadFoodCompositionDatasetFromFile = async (
+export const loadFoodCompositionDatasetFromFile = (
   path: string,
-): Promise<ReadonlyArray<FoodCompositionRow>> => {
-  const text = await readFile(path, 'utf8')
-  const raw: unknown = JSON.parse(text)
-  return parseFoodCompositionDataset(raw)
-}
+): ResultAsync<ReadonlyArray<FoodCompositionRow>, FoodCompositionLoadError> =>
+  ResultAsync.fromPromise(
+    (async (): Promise<unknown> => JSON.parse(await readFile(path, 'utf8')))(),
+    (caughtErr): FoodCompositionLoadError =>
+      new FoodCompositionLoadError(
+        `failed to read food composition dataset file: ${errorMessage(caughtErr)}`,
+        undefined,
+        caughtErr,
+      ),
+  ).andThen((raw) => parseFoodCompositionDataset(raw))
 
 // Runs every write directly on the passed `tx`. Production callers wrap with
-// `sql.begin(...)` for atomicity; tests pass a per-test reserved tx that
-// rolls back in afterEach.
+// `sql.begin` for atomicity; tests pass a per-test reserved tx that rolls
+// back in afterEach. Returns a Result rather than rejecting on a domain-level
+// failure so a caller composing this with other steps can branch on it —
+// `loadFoodComposition` below re-derives a rejection from an Err result when
+// it needs `sql.begin` to roll back a partial write.
 const loadFoodCompositionInTx = async (
   tx: SqlOrTx,
   rows: ReadonlyArray<FoodCompositionRow>,
   options: LoadFoodCompositionOptions,
-): Promise<LoadFoodCompositionResult> => {
+): Promise<Result<LoadFoodCompositionResult, FoodCompositionLoadError>> => {
   const batchSize = options.batchSize ?? DEFAULT_BATCH_SIZE
   if (!Number.isInteger(batchSize) || batchSize <= 0) {
-    throw new FoodCompositionLoadError(
-      `batchSize must be a positive integer (got: ${String(batchSize)})`,
+    return err(
+      new FoodCompositionLoadError(
+        `batchSize must be a positive integer (got: ${String(batchSize)})`,
+      ),
     )
   }
 
@@ -112,10 +131,12 @@ const loadFoodCompositionInTx = async (
     const known = new Set(existing.map((r) => r.code))
     const missing = [...usedNutrientCodes].filter((c) => !known.has(c)).sort()
     if (missing.length > 0) {
-      throw new FoodCompositionLoadError(
-        `unknown nutrient codes: ${missing.join(', ')}. ` +
-          `Pass them via extraNutrientDefinitions or add to NUTRIENT_DEFINITION_SEEDS.`,
-        missing,
+      return err(
+        new FoodCompositionLoadError(
+          `unknown nutrient codes: ${missing.join(', ')}. ` +
+            `Pass them via extraNutrientDefinitions or add to NUTRIENT_DEFINITION_SEEDS.`,
+          missing,
+        ),
       )
     }
   }
@@ -148,25 +169,52 @@ const loadFoodCompositionInTx = async (
     await tx`INSERT INTO food_composition_nutrients ${tx(batch)}`
   }
 
-  return {
+  return ok({
     foodCount: rows.length,
     nutrientRowCount: nutrientRows.length,
-  }
+  })
 }
 
-export const loadFoodComposition = async (
+// `sql.begin`'s rollback-on-failure only triggers when the callback's promise
+// rejects, so an Err result (a normal resolution, not a rejection) has to be
+// turned back into a rejection here to trigger it — mirroring how
+// src/domain/food-master/repository.ts's runInSavepoint re-propagates a
+// caught error via Promise.reject rather than a throw statement.
+const settleInTx = async (
+  tx: SqlOrTx,
+  rows: ReadonlyArray<FoodCompositionRow>,
+  options: LoadFoodCompositionOptions,
+): Promise<LoadFoodCompositionResult> => {
+  const result = await loadFoodCompositionInTx(tx, rows, options)
+  if (result.isOk()) return result.value
+  return Promise.reject(result.error)
+}
+
+export const loadFoodComposition = (
   sql: SqlOrTx,
   rows: ReadonlyArray<FoodCompositionRow>,
   options: LoadFoodCompositionOptions = {},
-): Promise<LoadFoodCompositionResult> => {
+): ResultAsync<LoadFoodCompositionResult, FoodCompositionLoadError> => {
   if (rows.length === 0) {
-    return { foodCount: 0, nutrientRowCount: 0 }
+    return okAsync({ foodCount: 0, nutrientRowCount: 0 })
   }
   // Only open a new transaction on a top-level Sql (which has `.begin`).
   // A ReservedSql / TransactionSql passed by the caller doesn't have it,
   // and the caller is expected to manage the surrounding transaction.
-  if ('begin' in sql && typeof sql.begin === 'function') {
-    return await sql.begin((tx) => loadFoodCompositionInTx(tx, rows, options))
-  }
-  return await loadFoodCompositionInTx(sql, rows, options)
+  const settle =
+    'begin' in sql && typeof sql.begin === 'function'
+      ? sql.begin((tx) => settleInTx(tx, rows, options))
+      : settleInTx(sql, rows, options)
+
+  return ResultAsync.fromPromise(
+    settle,
+    (caughtErr): FoodCompositionLoadError =>
+      caughtErr instanceof FoodCompositionLoadError
+        ? caughtErr
+        : new FoodCompositionLoadError(
+            `failed to load food composition dataset: ${errorMessage(caughtErr)}`,
+            undefined,
+            caughtErr,
+          ),
+  )
 }

@@ -19,7 +19,10 @@ const main = async (): Promise<void> => {
       sql,
       foodCompositionJsonPath === undefined ? {} : { foodCompositionJsonPath },
     )
-    const foodCount = result.foodComposition?.foodCount
+    if (result.isErr()) {
+      throw result.error
+    }
+    const foodCount = result.value.foodComposition?.foodCount
     console.log(
       `seeded nutrient_definitions; food_compositions=${foodCount === undefined ? 'skipped' : String(foodCount)}`,
     )

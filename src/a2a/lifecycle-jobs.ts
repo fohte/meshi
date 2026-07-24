@@ -35,16 +35,14 @@ const runSweep = async (
   // notifications concurrently so one slow or rejecting call can't hold up
   // the rest of the batch (or the retention sweep below).
   await Promise.allSettled(
-    expired.map(async (task) => {
-      try {
-        await options.onExpire(task)
-      } catch (err) {
+    expired.map((task) =>
+      options.onExpire(task).catch((err: unknown) => {
         console.error(`a2a onExpire failed for task ${task.id}:`, err)
         captureWithFingerprint(err, ON_EXPIRE_FINGERPRINT, {
           extras: { taskId: task.id },
         })
-      }
-    }),
+      }),
+    ),
   )
 
   const retentionCutoff = new Date(
