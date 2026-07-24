@@ -15,6 +15,21 @@ import {
   type MeshiAgentResponse,
   meshiAgentResponseSchema,
 } from '@/llm/agent/response-schema'
+import {
+  type QueryMealHistoryOutput,
+  queryMealHistoryOutputSchema,
+  toMealHistoryEntryFields,
+} from '@/llm/domain-tools/tools/query-meal-history'
+import { formatMealHistoryEntries } from '@/llm/orchestrator/reply-formatter'
+
+// The minimal surface of a LangChain BaseMessage this module reads back out
+// of agent.invoke()'s result — just enough to walk the tool-call history,
+// not the full message class hierarchy.
+export interface AgentInvokeMessage {
+  readonly getType: () => string
+  readonly name?: string
+  readonly content: unknown
+}
 
 // The minimal surface createMeshiDomainAgent's return value (a langchain
 // ReactAgent instance) needs to satisfy. Kept narrow — rather than
@@ -27,7 +42,15 @@ export interface MeshiDomainAgentLike {
       messages: Array<{ role: 'user'; content: AgentContentBlock[] }>
     },
     config: { configurable: { thread_id: string } },
-  ): Promise<{ structuredResponse?: unknown }>
+  ): Promise<{
+    structuredResponse?: unknown
+    // With a checkpointer, this is the thread's full accumulated message
+    // history, not just this call's new messages (see LangChain's
+    // short-term-memory docs) — extractLatestMealHistoryOutput below scopes
+    // its search to messages after the last human turn to avoid picking up
+    // a stale tool result from an earlier turn on the same thread.
+    messages?: ReadonlyArray<AgentInvokeMessage>
+  }>
 }
 
 export interface MeshiAgentExecutorOptions {
@@ -78,6 +101,54 @@ const publishWorkingUpdate = (
     status: { state: 'working', timestamp: new Date().toISOString() },
     final: false,
   })
+}
+
+const QUERY_MEAL_HISTORY_TOOL_NAME = 'query_meal_history'
+
+// Finds the most recent query_meal_history tool result produced after the
+// turn's own human message — not just anywhere in the thread — so a history
+// query from an earlier turn on the same context can't leak its itemized
+// entries into a later, unrelated turn's response (e.g. recording a meal).
+const extractLatestMealHistoryOutput = (
+  messages: ReadonlyArray<AgentInvokeMessage> | undefined,
+): QueryMealHistoryOutput | null => {
+  if (messages === undefined) return null
+  const turnStart = messages.findLastIndex((m) => m.getType() === 'human')
+  if (turnStart === -1) return null
+
+  for (let i = messages.length - 1; i > turnStart; i -= 1) {
+    const message = messages[i]
+    if (
+      message === undefined ||
+      message.getType() !== 'tool' ||
+      message.name !== QUERY_MEAL_HISTORY_TOOL_NAME ||
+      typeof message.content !== 'string'
+    ) {
+      continue
+    }
+    let json: unknown
+    try {
+      json = JSON.parse(message.content)
+    } catch {
+      continue
+    }
+    const parsed = queryMealHistoryOutputSchema.safeParse(json)
+    if (parsed.success) return parsed.data
+  }
+  return null
+}
+
+// Appends a deterministic, code-rendered itemization of this turn's
+// query_meal_history entries after the LLM's own message — the LLM's text
+// stays free-form (it may still summarize or ask a follow-up), but the
+// actual list of what was eaten never depends on the LLM choosing to
+// enumerate it faithfully.
+const withItemizedMealHistory = (
+  message: string,
+  output: QueryMealHistoryOutput | null,
+): string => {
+  if (output === null || output.entries.length === 0) return message
+  return `${message}\n\n${formatMealHistoryEntries(output.entries.map(toMealHistoryEntryFields))}`
 }
 
 const buildAgentMessage = (
@@ -148,7 +219,10 @@ export const runAgentTurn = async (
       ? buildFinalTask(
           requestContext,
           STATUS_TO_TASK_STATE[parsed.data.status],
-          parsed.data.message,
+          withItemizedMealHistory(
+            parsed.data.message,
+            extractLatestMealHistoryOutput(result.messages),
+          ),
         )
       : buildFinalTask(
           requestContext,

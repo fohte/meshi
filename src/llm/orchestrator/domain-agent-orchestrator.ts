@@ -11,7 +11,10 @@ import {
   meshiAgentResponseSchema,
 } from '@/llm/agent/response-schema'
 import type { DomainToolsRegistry } from '@/llm/domain-tools/registry'
-import type { QueryMealHistoryOutput } from '@/llm/domain-tools/tools/query-meal-history'
+import {
+  type QueryMealHistoryOutput,
+  toMealHistoryEntryFields,
+} from '@/llm/domain-tools/tools/query-meal-history'
 import type { RecordMealLogOutput } from '@/llm/domain-tools/tools/record-meal-log'
 import type { SearchFoodMasterOutput } from '@/llm/domain-tools/tools/search-food-master'
 import type { DomainTool } from '@/llm/domain-tools/types'
@@ -150,11 +153,7 @@ const collectLastAggregate = (
     perDay: output.per_day.map((d) => ({ date: d.date, totals: d.totals })),
     entries: output.entries.map((entry) => ({
       mealLogId: entry.meal_log_id,
-      foodMasterId: entry.food_master_id,
-      eatenAtIso: entry.eaten_at_iso,
-      quantity: entry.quantity,
-      unit: entry.unit,
-      note: entry.note,
+      ...toMealHistoryEntryFields(entry),
     })),
     hasEstimatedValues: output.has_estimated_values,
   }

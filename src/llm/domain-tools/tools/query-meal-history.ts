@@ -18,24 +18,52 @@ const inputSchema = z.object({
   nutrient_codes: z.array(z.string().min(1)).optional(),
 })
 
-export interface QueryMealHistoryEntry {
-  readonly meal_log_id: string
-  readonly food_master_id: string
-  readonly eaten_at_iso: string
+const queryMealHistoryEntrySchema = z.object({
+  meal_log_id: z.string(),
+  food_master_id: z.string(),
+  eaten_at_iso: z.string(),
+  quantity: z.number(),
+  unit: z.string(),
+  note: z.string().nullable(),
+})
+
+// Exported so callers reading this tool's result back out of a serialized
+// form (e.g. the A2A path re-parsing it from a LangChain ToolMessage, see
+// agent-executor.ts) can validate it at that boundary instead of casting.
+export const queryMealHistoryOutputSchema = z.object({
+  totals: z.record(z.string(), z.number()),
+  per_day: z.array(
+    z.object({ date: z.string(), totals: z.record(z.string(), z.number()) }),
+  ),
+  entries: z.array(queryMealHistoryEntrySchema),
+  has_estimated_values: z.boolean(),
+})
+
+export type QueryMealHistoryEntry = z.infer<typeof queryMealHistoryEntrySchema>
+export type QueryMealHistoryOutput = z.infer<
+  typeof queryMealHistoryOutputSchema
+>
+
+// The snake_case-to-camelCase field mapping every consumer of this tool's
+// wire-format entries needs (the A2A path's itemized rendering, the
+// orchestrator's MealHistoryAggregateSnapshot) — kept here as the single
+// place that knows this tool's output field names, rather than duplicated
+// per caller.
+export const toMealHistoryEntryFields = (
+  entry: QueryMealHistoryEntry,
+): {
+  readonly foodMasterId: string
+  readonly eatenAtIso: string
   readonly quantity: number
   readonly unit: string
   readonly note: string | null
-}
-
-export interface QueryMealHistoryOutput {
-  readonly totals: Readonly<Record<string, number>>
-  readonly per_day: ReadonlyArray<{
-    readonly date: string
-    readonly totals: Readonly<Record<string, number>>
-  }>
-  readonly entries: ReadonlyArray<QueryMealHistoryEntry>
-  readonly has_estimated_values: boolean
-}
+} => ({
+  foodMasterId: entry.food_master_id,
+  eatenAtIso: entry.eaten_at_iso,
+  quantity: entry.quantity,
+  unit: entry.unit,
+  note: entry.note,
+})
 
 export const createQueryMealHistoryTool = (
   service: MealHistoryService,
