@@ -44,6 +44,27 @@ export type QueryMealHistoryOutput = z.infer<
   typeof queryMealHistoryOutputSchema
 >
 
+// The snake_case-to-camelCase field mapping every consumer of this tool's
+// wire-format entries needs (the A2A path's itemized rendering, the
+// orchestrator's MealHistoryAggregateSnapshot) — kept here as the single
+// place that knows this tool's output field names, rather than duplicated
+// per caller.
+export const toMealHistoryEntryFields = (
+  entry: QueryMealHistoryEntry,
+): {
+  readonly foodMasterId: string
+  readonly eatenAtIso: string
+  readonly quantity: number
+  readonly unit: string
+  readonly note: string | null
+} => ({
+  foodMasterId: entry.food_master_id,
+  eatenAtIso: entry.eaten_at_iso,
+  quantity: entry.quantity,
+  unit: entry.unit,
+  note: entry.note,
+})
+
 export const createQueryMealHistoryTool = (
   service: MealHistoryService,
 ): DomainTool => ({

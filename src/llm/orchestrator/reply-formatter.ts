@@ -168,6 +168,12 @@ export interface MealHistoryEntryDisplay {
   readonly note: string | null
 }
 
+// eatenAtIso is always UTC (mealHistoryService renders it via `AT TIME ZONE
+// 'UTC'`), and neither caller of this formatter (the MCP/orchestrator path's
+// `timezone` input, the A2A path with no timezone input at all) threads a
+// user timezone through to structured data — only into the LLM's own prompt
+// as a hint string. So this displays the UTC date/time as-is rather than
+// converting to a timezone this layer doesn't actually have.
 const formatMealHistoryEntry = (entry: MealHistoryEntryDisplay): string => {
   const date = entry.eatenAtIso.slice(0, 10)
   const time = entry.eatenAtIso.slice(11, 16)

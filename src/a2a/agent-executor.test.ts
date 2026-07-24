@@ -555,7 +555,7 @@ describe('runAgentTurn meal history itemization', () => {
     })
   })
 
-  it('ignores a query_meal_history tool message whose content is not a valid output', async () => {
+  it('ignores a query_meal_history tool message whose content does not match the expected schema', async () => {
     const contextId = `ctx-${randomUUID()}`
     const taskId = `task-${randomUUID()}`
     const userMessage = buildUserMessage(taskId, contextId, '最近の食事は?')
@@ -572,6 +572,50 @@ describe('runAgentTurn meal history itemization', () => {
             content: JSON.stringify({
               error: { code: 'internal_error', message: 'db unavailable' },
             }),
+          }),
+          buildInvokeMessage('ai'),
+        ],
+      }),
+    }
+
+    const task = await runAgentTurn(
+      agent,
+      new RequestContext(userMessage, taskId, contextId),
+    )
+
+    const agentMessage = buildExpectedAgentMessage(
+      taskId,
+      contextId,
+      '履歴の取得に失敗しました。',
+    )
+    expect(normalizeEvent(task)).toEqual({
+      kind: 'task',
+      id: taskId,
+      contextId,
+      status: {
+        state: 'completed',
+        timestamp: NORMALIZED,
+        message: agentMessage,
+      },
+      history: [userMessage, agentMessage],
+    })
+  })
+
+  it('ignores a query_meal_history tool message whose content is not valid JSON', async () => {
+    const contextId = `ctx-${randomUUID()}`
+    const taskId = `task-${randomUUID()}`
+    const userMessage = buildUserMessage(taskId, contextId, '最近の食事は?')
+    const agent: MeshiDomainAgentLike = {
+      invoke: vi.fn().mockResolvedValue({
+        structuredResponse: {
+          status: 'completed',
+          message: '履歴の取得に失敗しました。',
+        },
+        messages: [
+          buildInvokeMessage('human'),
+          buildInvokeMessage('tool', {
+            name: 'query_meal_history',
+            content: 'not json{',
           }),
           buildInvokeMessage('ai'),
         ],

@@ -18,6 +18,7 @@ import {
 import {
   type QueryMealHistoryOutput,
   queryMealHistoryOutputSchema,
+  toMealHistoryEntryFields,
 } from '@/llm/domain-tools/tools/query-meal-history'
 import { formatMealHistoryEntries } from '@/llm/orchestrator/reply-formatter'
 
@@ -137,17 +138,6 @@ const extractLatestMealHistoryOutput = (
   return null
 }
 
-const toMealHistoryEntryDisplays = (
-  entries: QueryMealHistoryOutput['entries'],
-): Parameters<typeof formatMealHistoryEntries>[0] =>
-  entries.map((entry) => ({
-    foodMasterId: entry.food_master_id,
-    eatenAtIso: entry.eaten_at_iso,
-    quantity: entry.quantity,
-    unit: entry.unit,
-    note: entry.note,
-  }))
-
 // Appends a deterministic, code-rendered itemization of this turn's
 // query_meal_history entries after the LLM's own message — the LLM's text
 // stays free-form (it may still summarize or ask a follow-up), but the
@@ -158,7 +148,7 @@ const withItemizedMealHistory = (
   output: QueryMealHistoryOutput | null,
 ): string => {
   if (output === null || output.entries.length === 0) return message
-  return `${message}\n\n${formatMealHistoryEntries(toMealHistoryEntryDisplays(output.entries))}`
+  return `${message}\n\n${formatMealHistoryEntries(output.entries.map(toMealHistoryEntryFields))}`
 }
 
 const buildAgentMessage = (
