@@ -18,6 +18,9 @@ const INTEROP_BOUNDARY_FILES = [
   'src/db/**/*.ts',
   'drizzle.config.ts',
   'scripts/seed.ts',
+  // Not an interop boundary, but @fohte/eslint-config's built-in test
+  // exemption only matches `*.test.ts`/`__tests__/**`, narrower than the
+  // test helpers here (e.g. src/test/db.ts) that also use throw/try-catch.
   'src/test/**/*.ts',
 ]
 
