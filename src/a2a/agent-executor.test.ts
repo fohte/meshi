@@ -6,7 +6,10 @@ import { RequestContext } from '@a2a-js/sdk/server'
 import { captureWithFingerprint } from '@fohte/service-kit/observability'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
-import type { MeshiDomainAgentLike } from '@/a2a/agent-executor'
+import type {
+  AgentInvokeMessage,
+  MeshiDomainAgentLike,
+} from '@/a2a/agent-executor'
 import { createMeshiAgentExecutor, runAgentTurn } from '@/a2a/agent-executor'
 import type { Sql } from '@/db'
 import { describeIfDb, getTestSql } from '@/test/db'
@@ -423,6 +426,228 @@ describe('runAgentTurn', () => {
       task.status.message,
     ])
     expect(task.artifacts).toEqual(existingTask.artifacts)
+  })
+})
+
+const buildInvokeMessage = (
+  type: string,
+  overrides: { name?: string; content?: unknown } = {},
+): AgentInvokeMessage => ({
+  getType: () => type,
+  ...(overrides.name !== undefined ? { name: overrides.name } : {}),
+  content: overrides.content ?? '',
+})
+
+const QUERY_MEAL_HISTORY_OUTPUT = {
+  totals: { energy_kcal: 300 },
+  per_day: [{ date: '2026-06-12', totals: { energy_kcal: 300 } }],
+  entries: [
+    {
+      meal_log_id: 'ml_1',
+      food_master_id: 'fm_rice',
+      eaten_at_iso: '2026-06-12T03:30:00.000Z',
+      quantity: 200,
+      unit: 'g',
+      note: null,
+    },
+  ],
+  has_estimated_values: false,
+}
+
+describe('runAgentTurn meal history itemization', () => {
+  it("appends a deterministic itemized entries block from this turn's query_meal_history result", async () => {
+    const contextId = `ctx-${randomUUID()}`
+    const taskId = `task-${randomUUID()}`
+    const userMessage = buildUserMessage(taskId, contextId, '最近の食事は?')
+    const agent: MeshiDomainAgentLike = {
+      invoke: vi.fn().mockResolvedValue({
+        structuredResponse: {
+          status: 'completed',
+          message: '直近の食事履歴をお伝えしました。',
+        },
+        messages: [
+          buildInvokeMessage('human'),
+          buildInvokeMessage('ai'),
+          buildInvokeMessage('tool', {
+            name: 'query_meal_history',
+            content: JSON.stringify(QUERY_MEAL_HISTORY_OUTPUT),
+          }),
+          buildInvokeMessage('ai'),
+        ],
+      }),
+    }
+
+    const task = await runAgentTurn(
+      agent,
+      new RequestContext(userMessage, taskId, contextId),
+    )
+
+    const agentMessage = buildExpectedAgentMessage(
+      taskId,
+      contextId,
+      [
+        '直近の食事履歴をお伝えしました。',
+        '',
+        '明細 (1 件):',
+        '- 2026-06-12 03:30 fm_rice: 200g',
+      ].join('\n'),
+    )
+    expect(normalizeEvent(task)).toEqual({
+      kind: 'task',
+      id: taskId,
+      contextId,
+      status: {
+        state: 'completed',
+        timestamp: NORMALIZED,
+        message: agentMessage,
+      },
+      history: [userMessage, agentMessage],
+    })
+  })
+
+  it("does not leak an earlier turn's query_meal_history result into a later unrelated turn", async () => {
+    const contextId = `ctx-${randomUUID()}`
+    const taskId = `task-${randomUUID()}`
+    const userMessage = buildUserMessage(taskId, contextId, '白米を記録して')
+    const agent: MeshiDomainAgentLike = {
+      invoke: vi.fn().mockResolvedValue({
+        structuredResponse: { status: 'completed', message: '記録しました。' },
+        messages: [
+          // An earlier turn's query_meal_history exchange, still present in
+          // the checkpointer-accumulated thread history.
+          buildInvokeMessage('human'),
+          buildInvokeMessage('tool', {
+            name: 'query_meal_history',
+            content: JSON.stringify(QUERY_MEAL_HISTORY_OUTPUT),
+          }),
+          buildInvokeMessage('ai'),
+          // This turn's own exchange never calls query_meal_history.
+          buildInvokeMessage('human'),
+          buildInvokeMessage('tool', {
+            name: 'record_meal_log',
+            content: '{}',
+          }),
+          buildInvokeMessage('ai'),
+        ],
+      }),
+    }
+
+    const task = await runAgentTurn(
+      agent,
+      new RequestContext(userMessage, taskId, contextId),
+    )
+
+    const agentMessage = buildExpectedAgentMessage(
+      taskId,
+      contextId,
+      '記録しました。',
+    )
+    expect(normalizeEvent(task)).toEqual({
+      kind: 'task',
+      id: taskId,
+      contextId,
+      status: {
+        state: 'completed',
+        timestamp: NORMALIZED,
+        message: agentMessage,
+      },
+      history: [userMessage, agentMessage],
+    })
+  })
+
+  it('ignores a query_meal_history tool message whose content is not a valid output', async () => {
+    const contextId = `ctx-${randomUUID()}`
+    const taskId = `task-${randomUUID()}`
+    const userMessage = buildUserMessage(taskId, contextId, '最近の食事は?')
+    const agent: MeshiDomainAgentLike = {
+      invoke: vi.fn().mockResolvedValue({
+        structuredResponse: {
+          status: 'completed',
+          message: '履歴の取得に失敗しました。',
+        },
+        messages: [
+          buildInvokeMessage('human'),
+          buildInvokeMessage('tool', {
+            name: 'query_meal_history',
+            content: JSON.stringify({
+              error: { code: 'internal_error', message: 'db unavailable' },
+            }),
+          }),
+          buildInvokeMessage('ai'),
+        ],
+      }),
+    }
+
+    const task = await runAgentTurn(
+      agent,
+      new RequestContext(userMessage, taskId, contextId),
+    )
+
+    const agentMessage = buildExpectedAgentMessage(
+      taskId,
+      contextId,
+      '履歴の取得に失敗しました。',
+    )
+    expect(normalizeEvent(task)).toEqual({
+      kind: 'task',
+      id: taskId,
+      contextId,
+      status: {
+        state: 'completed',
+        timestamp: NORMALIZED,
+        message: agentMessage,
+      },
+      history: [userMessage, agentMessage],
+    })
+  })
+
+  it('does not append an itemized block when the aggregate has no entries', async () => {
+    const contextId = `ctx-${randomUUID()}`
+    const taskId = `task-${randomUUID()}`
+    const userMessage = buildUserMessage(taskId, contextId, '最近の食事は?')
+    const agent: MeshiDomainAgentLike = {
+      invoke: vi.fn().mockResolvedValue({
+        structuredResponse: {
+          status: 'completed',
+          message: '該当する記録はありませんでした。',
+        },
+        messages: [
+          buildInvokeMessage('human'),
+          buildInvokeMessage('tool', {
+            name: 'query_meal_history',
+            content: JSON.stringify({
+              totals: {},
+              per_day: [],
+              entries: [],
+              has_estimated_values: false,
+            }),
+          }),
+          buildInvokeMessage('ai'),
+        ],
+      }),
+    }
+
+    const task = await runAgentTurn(
+      agent,
+      new RequestContext(userMessage, taskId, contextId),
+    )
+
+    const agentMessage = buildExpectedAgentMessage(
+      taskId,
+      contextId,
+      '該当する記録はありませんでした。',
+    )
+    expect(normalizeEvent(task)).toEqual({
+      kind: 'task',
+      id: taskId,
+      contextId,
+      status: {
+        state: 'completed',
+        timestamp: NORMALIZED,
+        message: agentMessage,
+      },
+      history: [userMessage, agentMessage],
+    })
   })
 })
 

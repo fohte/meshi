@@ -258,7 +258,7 @@ describe('createTemplateReplyFormatter', () => {
   })
 
   describe('formatMealHistory', () => {
-    it('summarizes an aggregate and notes estimated values', () => {
+    it('summarizes an aggregate, itemizes entries, and notes estimated values', () => {
       const text = formatter.formatMealHistory({
         aggregate: {
           totals: { energy_kcal: 1800, protein_g: 70 },
@@ -275,6 +275,14 @@ describe('createTemplateReplyFormatter', () => {
               unit: '杯',
               note: null,
             },
+            {
+              mealLogId: 'log_2',
+              foodMasterId: 'fm_2',
+              eatenAtIso: '2026-06-18T03:00:00Z',
+              quantity: 180,
+              unit: 'g',
+              note: 'サラダ付き',
+            },
           ],
           hasEstimatedValues: true,
         },
@@ -287,8 +295,35 @@ describe('createTemplateReplyFormatter', () => {
           '集計結果:',
           '- 合計: 1800 kcal / P 70g',
           '- 期間内の日数: 2 日',
-          '- 記録件数: 1 件',
+          '- 記録件数: 2 件',
+          [
+            '明細 (2 件):',
+            '- 2026-06-17 12:00 fm_1: 1杯',
+            '- 2026-06-18 03:00 fm_2: 180g (サラダ付き)',
+          ].join('\n'),
           '※ 集計には推測値が含まれています。値は目安としてご確認ください。',
+        ].join('\n'),
+      )
+    })
+
+    it('omits the itemized block when the aggregate has no entries', () => {
+      const text = formatter.formatMealHistory({
+        aggregate: {
+          totals: {},
+          perDay: [],
+          entries: [],
+          hasEstimatedValues: false,
+        },
+        finalText: '',
+        error: null,
+      })
+
+      expect(text).toEqual(
+        [
+          '集計結果:',
+          '- 合計: (該当データなし)',
+          '- 期間内の日数: 0 日',
+          '- 記録件数: 0 件',
         ].join('\n'),
       )
     })

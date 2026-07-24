@@ -156,6 +156,39 @@ const formatTotalsLine = (totals: Readonly<Record<string, number>>): string => {
   return formatted === '' ? '合計: (該当データなし)' : `合計: ${formatted}`
 }
 
+// The rendering-relevant subset of MealHistoryAggregateSnapshot['entries'][number]
+// — deliberately narrower than that type (omits mealLogId) so callers outside
+// the orchestrator (e.g. the A2A path re-deriving entries from a tool result)
+// can build this shape without needing an orchestrator-internal id.
+export interface MealHistoryEntryDisplay {
+  readonly foodMasterId: string
+  readonly eatenAtIso: string
+  readonly quantity: number
+  readonly unit: string
+  readonly note: string | null
+}
+
+const formatMealHistoryEntry = (entry: MealHistoryEntryDisplay): string => {
+  const date = entry.eatenAtIso.slice(0, 10)
+  const time = entry.eatenAtIso.slice(11, 16)
+  const noteSuffix =
+    entry.note !== null && entry.note !== '' ? ` (${entry.note})` : ''
+  return `- ${date} ${time} ${entry.foodMasterId}: ${formatNumber(entry.quantity)}${entry.unit}${noteSuffix}`
+}
+
+// Itemizes meal-history entries deterministically from structured data,
+// mirroring formatMealRecordTemplate's per-item bullet list — shared between
+// formatMealHistoryTemplate (MCP/orchestrator path) and the A2A path
+// (agent-executor.ts), which has no orchestrator layer of its own to render
+// through.
+export const formatMealHistoryEntries = (
+  entries: ReadonlyArray<MealHistoryEntryDisplay>,
+): string => {
+  const lines = [`明細 (${String(entries.length)} 件):`]
+  for (const entry of entries) lines.push(formatMealHistoryEntry(entry))
+  return lines.join('\n')
+}
+
 const formatMealHistoryTemplate = (input: MealHistorySummaryInput): string => {
   if (input.error) return formatErrorReply(input.error)
 
@@ -171,6 +204,9 @@ const formatMealHistoryTemplate = (input: MealHistorySummaryInput): string => {
   lines.push(`- ${formatTotalsLine(aggregate.totals)}`)
   lines.push(`- 期間内の日数: ${String(aggregate.perDay.length)} 日`)
   lines.push(`- 記録件数: ${String(aggregate.entries.length)} 件`)
+  if (aggregate.entries.length > 0) {
+    lines.push(formatMealHistoryEntries(aggregate.entries))
+  }
   if (aggregate.hasEstimatedValues) {
     lines.push(
       '※ 集計には推測値が含まれています。値は目安としてご確認ください。',

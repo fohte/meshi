@@ -38,7 +38,7 @@ import {
   setupTx,
   TEST_DATABASE_URL,
 } from '@/test/db'
-import { seedFoodMaster } from '@/test/seed'
+import { seedFoodMaster, seedMealLog } from '@/test/seed'
 
 const AGENT_CARD_URL = 'http://localhost/a2a'
 const NORMALIZED = 'NORMALIZED'
@@ -560,6 +560,98 @@ describeIfDb('A2A integration', () => {
       } finally {
         await cleanup.end()
       }
+    }
+  })
+
+  it('queries meal history via A2A message/send end-to-end and itemizes entries in the completed task', async () => {
+    if (TEST_DATABASE_URL === undefined)
+      throw new Error('TEST_DATABASE_URL is not set')
+    const domainTx = getDomainTx()
+    await seedFoodMaster(domainTx, {
+      id: 'fm_rice_history',
+      name: '白米 history',
+      source: 'user_input',
+      nutrients: { energy_kcal: 168 },
+    })
+    await seedMealLog(domainTx, {
+      id: 'ml_history_a2a',
+      foodMasterId: 'fm_rice_history',
+      eatenAt: new Date('2026-06-12T03:30:00+00:00'),
+      quantity: 200,
+      unit: 'g',
+    })
+
+    const model = fakeModel()
+      .respondWithTools([
+        {
+          name: 'query_meal_history',
+          args: {
+            period_from_iso: '2026-06-12T00:00:00+00:00',
+            period_to_iso: '2026-06-13T00:00:00+00:00',
+          },
+          id: 'call_1',
+        },
+      ])
+      .respondWithTools([
+        {
+          name: 'meshi_agent_response',
+          args: {
+            status: 'completed',
+            message: '2026-06-12 の食事履歴をお伝えしました。',
+          },
+          id: 'call_2',
+        },
+      ])
+
+    const registry = buildRegistry(domainTx)
+    const contextId = `ctx-${randomUUID()}`
+    const checkpointer = createMeshiCheckpointer(TEST_DATABASE_URL)
+    try {
+      const client = await buildHarness({
+        registry,
+        model,
+        checkpointer,
+        taskStoreTx: getTaskStoreTx(),
+      })
+      const messageId = randomUUID()
+
+      const task = await sendUserMessage(client, '2026-06-12 に何を食べた?', {
+        messageId,
+        contextId,
+      })
+
+      const userMessage: Message = {
+        kind: 'message',
+        messageId,
+        role: 'user',
+        parts: [{ kind: 'text', text: '2026-06-12 に何を食べた?' }],
+        taskId: task.id,
+        contextId,
+      }
+      const agentMessage = buildAgentMessage(
+        task.id,
+        contextId,
+        [
+          '2026-06-12 の食事履歴をお伝えしました。',
+          '',
+          '明細 (1 件):',
+          '- 2026-06-12 03:30 fm_rice_history: 200g',
+        ].join('\n'),
+      )
+      expect(normalizeTask(task)).toEqual({
+        kind: 'task',
+        id: task.id,
+        contextId,
+        status: {
+          state: 'completed',
+          timestamp: NORMALIZED,
+          message: agentMessage,
+        },
+        history: [userMessage, agentMessage],
+      })
+    } finally {
+      await checkpointer.deleteThread(contextId)
+      await checkpointer.end()
     }
   })
 })
