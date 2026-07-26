@@ -10,6 +10,7 @@ import type {
   NutritionMap,
 } from '@/domain/meal-history/types'
 import { MealHistoryQueryError } from '@/domain/meal-history/types'
+import { MEAL_TYPES } from '@/domain/meal-log/types'
 
 const PER_100G_BASE = 100
 
@@ -48,7 +49,7 @@ const entryRowSchema = z.object({
   id: z.string(),
   food_master_id: z.string(),
   eaten_at: isoTimestamp,
-  meal_type: z.enum(['breakfast', 'lunch', 'dinner', 'snack']),
+  meal_type: z.enum(MEAL_TYPES),
   quantity: numericString,
   unit: z.string(),
   note: z.string().nullable(),

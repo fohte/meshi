@@ -14,5 +14,12 @@ UPDATE "meal_logs" SET "meal_type" = CASE
   ELSE 'snack'
 END::"meal_type"
 WHERE "meal_type" IS NULL;--> statement-breakpoint
+-- SET NOT NULL alone would take an ACCESS EXCLUSIVE lock for the full-table
+-- scan that validates it. Backing it with an already-VALIDATEd NOT VALID
+-- CHECK constraint first lets Postgres skip that scan: VALIDATE CONSTRAINT
+-- only needs SHARE UPDATE EXCLUSIVE, so concurrent reads/writes aren't
+-- blocked while pre-existing rows are checked.
+ALTER TABLE "meal_logs" ADD CONSTRAINT "meal_logs_meal_type_not_null" CHECK ("meal_type" IS NOT NULL) NOT VALID;--> statement-breakpoint
+ALTER TABLE "meal_logs" VALIDATE CONSTRAINT "meal_logs_meal_type_not_null";--> statement-breakpoint
 ALTER TABLE "meal_logs" ALTER COLUMN "meal_type" SET NOT NULL;--> statement-breakpoint
-CREATE INDEX "meal_logs_meal_type_eaten_at_idx" ON "meal_logs" USING btree ("meal_type","eaten_at" DESC NULLS LAST);
+ALTER TABLE "meal_logs" DROP CONSTRAINT "meal_logs_meal_type_not_null";

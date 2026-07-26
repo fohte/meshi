@@ -1,5 +1,5 @@
 {
-  "id": "a1690a5a-2155-4a82-b180-8d7d883958f3",
+  "id": "0f678e04-3c8e-4845-aee6-4baf9a99755a",
   "prevId": "61c69650-7939-4490-aabb-15c7d1e0d820",
   "version": "7",
   "dialect": "postgresql",
@@ -627,27 +627,6 @@
           "columns": [
             {
               "expression": "food_master_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "eaten_at",
-              "isExpression": false,
-              "asc": false,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
-        "meal_logs_meal_type_eaten_at_idx": {
-          "name": "meal_logs_meal_type_eaten_at_idx",
-          "columns": [
-            {
-              "expression": "meal_type",
               "isExpression": false,
               "asc": true,
               "nulls": "last"

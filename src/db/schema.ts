@@ -165,11 +165,6 @@ export const mealLogs = pgTable(
       table.foodMasterId,
       table.eatenAt.desc(),
     ),
-    // Serves the web frontend's meal-type-grouped timeline view.
-    index('meal_logs_meal_type_eaten_at_idx').on(
-      table.mealType,
-      table.eatenAt.desc(),
-    ),
     check('meal_logs_quantity_positive', sql`${table.quantity} > 0`),
   ],
 )

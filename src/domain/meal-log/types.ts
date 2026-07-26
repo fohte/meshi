@@ -1,6 +1,8 @@
 export type NutritionMap = Readonly<Record<string, number>>
 
-export type MealType = 'breakfast' | 'lunch' | 'dinner' | 'snack'
+export const MEAL_TYPES = ['breakfast', 'lunch', 'dinner', 'snack'] as const
+
+export type MealType = (typeof MEAL_TYPES)[number]
 
 export interface FoodMasterRef {
   readonly id: string

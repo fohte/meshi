@@ -2,6 +2,7 @@ import { z } from 'zod'
 
 import type { DomainError } from '@/domain/meal-log/errors'
 import type { MealLogService } from '@/domain/meal-log/meal-log-service'
+import { MEAL_TYPES } from '@/domain/meal-log/types'
 import { parseToolInput } from '@/llm/domain-tools/parse'
 import {
   type DomainTool,
@@ -14,7 +15,7 @@ import {
 const inputSchema = z.object({
   food_master_id: z.string().min(1),
   eaten_at_iso: z.iso.datetime({ offset: true }),
-  meal_type: z.enum(['breakfast', 'lunch', 'dinner', 'snack']).optional(),
+  meal_type: z.enum(MEAL_TYPES).optional(),
   quantity: z.number().positive(),
   unit: z.string().min(1),
   note: z.string().optional(),

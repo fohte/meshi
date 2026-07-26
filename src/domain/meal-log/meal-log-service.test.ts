@@ -394,7 +394,23 @@ describe('MealLogService.record', () => {
       })
     )._unsafeUnwrap()
 
-    expect(result.mealType).toBe('snack')
+    expect(result).toEqual({
+      id: 'ml_1',
+      foodMasterId: 'fm_rice',
+      eatenAt: EATEN_AT,
+      mealType: 'snack',
+      quantity: 100,
+      unit: 'g',
+      note: null,
+      createdAt: CREATED_AT,
+      nutrition: {
+        energy_kcal: 156,
+        protein_g: 2.5,
+        fat_g: 0.3,
+        carb_g: 37.1,
+      },
+      isEstimated: false,
+    })
     expect(inserted).toEqual([
       {
         id: 'ml_1',
@@ -410,17 +426,34 @@ describe('MealLogService.record', () => {
 
   it('defaults mealType from eaten_at when omitted', async () => {
     const { service } = buildService([RICE])
+    const eatenAt = new Date('2026-06-15T23:30:00.000Z') // 08:30 JST
 
     const result = (
       await service.record({
         foodMasterId: 'fm_rice',
-        eatenAt: new Date('2026-06-15T23:30:00.000Z'), // 08:30 JST
+        eatenAt,
         quantity: 100,
         unit: 'g',
       })
     )._unsafeUnwrap()
 
-    expect(result.mealType).toBe('breakfast')
+    expect(result).toEqual({
+      id: 'ml_1',
+      foodMasterId: 'fm_rice',
+      eatenAt,
+      mealType: 'breakfast',
+      quantity: 100,
+      unit: 'g',
+      note: null,
+      createdAt: CREATED_AT,
+      nutrition: {
+        energy_kcal: 156,
+        protein_g: 2.5,
+        fat_g: 0.3,
+        carb_g: 37.1,
+      },
+      isEstimated: false,
+    })
   })
 })
 

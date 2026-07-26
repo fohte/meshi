@@ -1,7 +1,7 @@
 import { z } from 'zod'
 
 import type { MealHistoryService } from '@/domain/meal-history/types'
-import type { MealType } from '@/domain/meal-log/types'
+import { MEAL_TYPES, type MealType } from '@/domain/meal-log/types'
 import { internalErr } from '@/llm/domain-tools/internal-error'
 import { parseToolInput } from '@/llm/domain-tools/parse'
 import {
@@ -23,7 +23,7 @@ const queryMealHistoryEntrySchema = z.object({
   meal_log_id: z.string(),
   food_master_id: z.string(),
   eaten_at_iso: z.string(),
-  meal_type: z.enum(['breakfast', 'lunch', 'dinner', 'snack']),
+  meal_type: z.enum(MEAL_TYPES),
   quantity: z.number(),
   unit: z.string(),
   note: z.string().nullable(),
