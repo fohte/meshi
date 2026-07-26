@@ -7,11 +7,11 @@ import type {
   RequestContext,
 } from '@a2a-js/sdk/server'
 import { captureWithFingerprint } from '@fohte/service-kit/observability'
-import { Result } from 'neverthrow'
 
 import { withAdvisoryLock } from '@/a2a/advisory-lock'
 import { type AgentContentBlock, toAgentContent } from '@/a2a/message-content'
 import type { Sql } from '@/db'
+import { parseJson } from '@/lib/json'
 import {
   type MeshiAgentResponse,
   meshiAgentResponseSchema,
@@ -105,10 +105,6 @@ const publishWorkingUpdate = (
 }
 
 const QUERY_MEAL_HISTORY_TOOL_NAME = 'query_meal_history'
-
-const parseJson = Result.fromThrowable((text: string): unknown =>
-  JSON.parse(text),
-)
 
 // Finds the most recent query_meal_history tool result produced after the
 // turn's own human message — not just anywhere in the thread — so a history

@@ -10,9 +10,9 @@ import {
   GEN_AI_OPERATION_NAME_VALUE_EXECUTE_TOOL,
   MCP_METHOD_NAME_VALUE_TOOLS_CALL,
 } from '@opentelemetry/semantic-conventions/incubating'
-import { Result } from 'neverthrow'
 import { z } from 'zod'
 
+import { parseJson } from '@/lib/json'
 import { createMcpServer } from '@/mcp'
 import type { MeshiToolDeps } from '@/mcp-tools'
 
@@ -69,10 +69,6 @@ export const handleMcpRequest = async (
 
 const isJsonContentType = (contentType: string | undefined): boolean =>
   contentType !== undefined && contentType.includes('application/json')
-
-const parseJson = Result.fromThrowable((text: string): unknown =>
-  JSON.parse(text),
-)
 
 // The SDK reads the body itself via `transport.handleRequest`, so it's
 // buffered here instead and fed back through `handleRequest`'s `parsedBody`
