@@ -10,6 +10,7 @@ import type {
   NutritionMap,
 } from '@/domain/meal-history/types'
 import { MealHistoryQueryError } from '@/domain/meal-history/types'
+import { MEAL_TYPES } from '@/domain/meal-log/types'
 
 const PER_100G_BASE = 100
 
@@ -48,6 +49,7 @@ const entryRowSchema = z.object({
   id: z.string(),
   food_master_id: z.string(),
   eaten_at: isoTimestamp,
+  meal_type: z.enum(MEAL_TYPES),
   quantity: numericString,
   unit: z.string(),
   note: z.string().nullable(),
@@ -111,6 +113,7 @@ export const createMealHistoryService = (sql: Sql): MealHistoryService => {
               ml.food_master_id AS food_master_id,
               to_char(ml.eaten_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"')
                 AS eaten_at,
+              ml.meal_type AS meal_type,
               ml.quantity AS quantity,
               ml.unit AS unit,
               ml.note AS note,
@@ -158,6 +161,7 @@ export const createMealHistoryService = (sql: Sql): MealHistoryService => {
           id: row.id,
           foodMasterId: row.food_master_id,
           eatenAt: row.eaten_at,
+          mealType: row.meal_type,
           quantity: row.quantity,
           unit: row.unit,
           note: row.note,

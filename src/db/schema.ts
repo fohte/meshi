@@ -29,6 +29,13 @@ export const nutrientUnitEnum = pgEnum('nutrient_unit', [
   'µg',
 ])
 
+export const mealTypeEnum = pgEnum('meal_type', [
+  'breakfast',
+  'lunch',
+  'dinner',
+  'snack',
+])
+
 export const nutrientDefinitions = pgTable(
   'nutrient_definitions',
   {
@@ -137,6 +144,7 @@ export const mealLogs = pgTable(
       withTimezone: true,
       mode: 'date',
     }).notNull(),
+    mealType: mealTypeEnum('meal_type').notNull(),
     quantity: numeric('quantity').notNull(),
     unit: text('unit').notNull(),
     note: text('note'),

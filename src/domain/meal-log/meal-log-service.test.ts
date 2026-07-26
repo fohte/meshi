@@ -44,6 +44,7 @@ const createFakeRepository = (
         id: input.id,
         foodMasterId: input.foodMasterId,
         eatenAt: input.eatenAt,
+        mealType: input.mealType,
         quantity: input.quantity,
         unit: input.unit,
         note: input.note,
@@ -121,6 +122,7 @@ describe('MealLogService.record', () => {
       id: 'ml_1',
       foodMasterId: 'fm_rice',
       eatenAt: EATEN_AT,
+      mealType: 'dinner',
       quantity: 100,
       unit: 'g',
       note: null,
@@ -138,6 +140,7 @@ describe('MealLogService.record', () => {
         id: 'ml_1',
         foodMasterId: 'fm_rice',
         eatenAt: EATEN_AT,
+        mealType: 'dinner',
         quantity: 100,
         unit: 'g',
         note: null,
@@ -161,6 +164,7 @@ describe('MealLogService.record', () => {
       id: 'ml_1',
       foodMasterId: 'fm_rice',
       eatenAt: EATEN_AT,
+      mealType: 'dinner',
       quantity: 200,
       unit: 'g',
       note: null,
@@ -214,6 +218,7 @@ describe('MealLogService.record', () => {
       id: 'ml_1',
       foodMasterId: 'fm_latte',
       eatenAt: EATEN_AT,
+      mealType: 'dinner',
       quantity: 0.5,
       unit: '杯',
       note: null,
@@ -252,6 +257,7 @@ describe('MealLogService.record', () => {
       id: 'ml_1',
       foodMasterId: 'fm_rice',
       eatenAt: EATEN_AT,
+      mealType: 'dinner',
       quantity: 100,
       unit: 'g',
       note: null,
@@ -268,6 +274,7 @@ describe('MealLogService.record', () => {
       id: 'ml_2',
       foodMasterId: 'fm_karaage',
       eatenAt: EATEN_AT,
+      mealType: 'dinner',
       quantity: 100,
       unit: 'g',
       note: null,
@@ -318,6 +325,7 @@ describe('MealLogService.record', () => {
       id: 'ml_1',
       foodMasterId: 'fm_rice',
       eatenAt: NOW,
+      mealType: 'dinner',
       quantity: 100,
       unit: 'g',
       note: null,
@@ -372,6 +380,81 @@ describe('MealLogService.record', () => {
     ).toBe('fm_missing')
     expect(inserted).toEqual([])
   })
+
+  it('uses the given mealType verbatim instead of the time-of-day default', async () => {
+    const { service, inserted } = buildService([RICE])
+
+    const result = (
+      await service.record({
+        foodMasterId: 'fm_rice',
+        eatenAt: EATEN_AT,
+        mealType: 'snack',
+        quantity: 100,
+        unit: 'g',
+      })
+    )._unsafeUnwrap()
+
+    expect(result).toEqual({
+      id: 'ml_1',
+      foodMasterId: 'fm_rice',
+      eatenAt: EATEN_AT,
+      mealType: 'snack',
+      quantity: 100,
+      unit: 'g',
+      note: null,
+      createdAt: CREATED_AT,
+      nutrition: {
+        energy_kcal: 156,
+        protein_g: 2.5,
+        fat_g: 0.3,
+        carb_g: 37.1,
+      },
+      isEstimated: false,
+    })
+    expect(inserted).toEqual([
+      {
+        id: 'ml_1',
+        foodMasterId: 'fm_rice',
+        eatenAt: EATEN_AT,
+        mealType: 'snack',
+        quantity: 100,
+        unit: 'g',
+        note: null,
+      },
+    ])
+  })
+
+  it('defaults mealType from eaten_at when omitted', async () => {
+    const { service } = buildService([RICE])
+    const eatenAt = new Date('2026-06-15T23:30:00.000Z') // 08:30 JST
+
+    const result = (
+      await service.record({
+        foodMasterId: 'fm_rice',
+        eatenAt,
+        quantity: 100,
+        unit: 'g',
+      })
+    )._unsafeUnwrap()
+
+    expect(result).toEqual({
+      id: 'ml_1',
+      foodMasterId: 'fm_rice',
+      eatenAt,
+      mealType: 'breakfast',
+      quantity: 100,
+      unit: 'g',
+      note: null,
+      createdAt: CREATED_AT,
+      nutrition: {
+        energy_kcal: 156,
+        protein_g: 2.5,
+        fat_g: 0.3,
+        carb_g: 37.1,
+      },
+      isEstimated: false,
+    })
+  })
 })
 
 describe('MealLogService.getById', () => {
@@ -390,6 +473,7 @@ describe('MealLogService.getById', () => {
             id,
             foodMasterId: KARAAGE_GUESS.id,
             eatenAt: new Date('2026-06-15T12:00:00.000Z'),
+            mealType: 'lunch',
             quantity: 200,
             unit: 'g',
             note: 'lunch',
@@ -408,6 +492,7 @@ describe('MealLogService.getById', () => {
       id: 'ml_1',
       foodMasterId: KARAAGE_GUESS.id,
       eatenAt: new Date('2026-06-15T12:00:00.000Z'),
+      mealType: 'lunch',
       quantity: 200,
       unit: 'g',
       note: 'lunch',

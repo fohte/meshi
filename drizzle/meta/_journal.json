@@ -22,6 +22,13 @@
       "when": 1783747771799,
       "tag": "0002_white_jetstream",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1785051433826,
+      "tag": "0003_faulty_lord_hawal",
+      "breakpoints": true
     }
   ]
 }

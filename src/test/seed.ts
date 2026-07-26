@@ -7,6 +7,7 @@ import type {
   mealLogs,
   nutrientDefinitions,
 } from '@/db/schema'
+import { inferMealType } from '@/domain/meal-log/infer-meal-type'
 
 export const seedNutrientDefinition = async (
   sql: Sql,
@@ -76,18 +77,20 @@ export const seedMealLog = async (
   sql: Sql,
   values: Omit<
     typeof mealLogs.$inferInsert,
-    'quantity' | 'unit' | 'createdAt'
+    'mealType' | 'quantity' | 'unit' | 'createdAt'
   > & {
+    mealType?: (typeof mealLogs.$inferInsert)['mealType']
     quantity: number
     unit?: string
   },
 ): Promise<void> => {
   await sql`
-    INSERT INTO meal_logs (id, food_master_id, eaten_at, quantity, unit, note)
+    INSERT INTO meal_logs (id, food_master_id, eaten_at, meal_type, quantity, unit, note)
     VALUES (
       ${values.id},
       ${values.foodMasterId},
       ${values.eatenAt},
+      ${values.mealType ?? inferMealType(values.eatenAt)},
       ${values.quantity},
       ${values.unit ?? 'g'},
       ${values.note ?? null}

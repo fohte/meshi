@@ -1,3 +1,4 @@
+import type { MealType } from '@/domain/meal-log/types'
 import type {
   FoodCandidate,
   MealHistoryAggregateSnapshot,
@@ -163,9 +164,17 @@ const formatTotalsLine = (totals: Readonly<Record<string, number>>): string => {
 export interface MealHistoryEntryDisplay {
   readonly foodMasterId: string
   readonly eatenAtIso: string
+  readonly mealType: MealType
   readonly quantity: number
   readonly unit: string
   readonly note: string | null
+}
+
+const MEAL_TYPE_LABEL: Readonly<Record<MealType, string>> = {
+  breakfast: '朝食',
+  lunch: '昼食',
+  dinner: '夕食',
+  snack: '間食',
 }
 
 // eatenAtIso is always UTC (mealHistoryService renders it via `AT TIME ZONE
@@ -179,7 +188,7 @@ const formatMealHistoryEntry = (entry: MealHistoryEntryDisplay): string => {
   const time = entry.eatenAtIso.slice(11, 16)
   const noteSuffix =
     entry.note !== null && entry.note !== '' ? ` (${entry.note})` : ''
-  return `- ${date} ${time} ${entry.foodMasterId}: ${formatNumber(entry.quantity)}${entry.unit}${noteSuffix}`
+  return `- ${date} ${time} ${MEAL_TYPE_LABEL[entry.mealType]} ${entry.foodMasterId}: ${formatNumber(entry.quantity)}${entry.unit}${noteSuffix}`
 }
 
 // Itemizes meal-history entries deterministically from structured data,

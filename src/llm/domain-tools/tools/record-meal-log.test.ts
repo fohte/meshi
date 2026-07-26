@@ -25,6 +25,7 @@ const setup = (
         id: 'ml_1',
         foodMasterId: input.foodMasterId,
         eatenAt: input.eatenAt,
+        mealType: input.mealType ?? 'lunch',
         quantity: input.quantity,
         unit: input.unit,
         note: input.note ?? null,
@@ -71,6 +72,52 @@ describe('record_meal_log tool', () => {
         },
       ],
     })
+  })
+
+  it('passes meal_type through when provided', async () => {
+    const { tool, calls } = setup()
+
+    await tool.execute({
+      food_master_id: 'fm_rice',
+      eaten_at_iso: '2026-06-18T09:00:00+09:00',
+      meal_type: 'breakfast',
+      quantity: 1,
+      unit: '杯',
+    })
+
+    expect(calls).toEqual({
+      record: [
+        {
+          foodMasterId: 'fm_rice',
+          eatenAt: new Date('2026-06-18T09:00:00+09:00'),
+          mealType: 'breakfast',
+          quantity: 1,
+          unit: '杯',
+        },
+      ],
+    })
+  })
+
+  it('rejects an invalid meal_type value with invalid_input', async () => {
+    const { tool, calls } = setup()
+
+    const result = await tool.execute({
+      food_master_id: 'fm_rice',
+      eaten_at_iso: '2026-06-18T09:00:00+09:00',
+      meal_type: 'brunch',
+      quantity: 1,
+      unit: '杯',
+    })
+
+    expect(normalizeResult(result)).toEqual({
+      ok: false,
+      error: {
+        code: 'invalid_input',
+        message: '<dynamic>',
+        details: { issues: { count: 1 } },
+      },
+    })
+    expect(calls).toEqual({ record: [] })
   })
 
   it('returns invalid_input when required fields are missing', async () => {
