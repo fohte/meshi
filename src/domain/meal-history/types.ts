@@ -1,5 +1,7 @@
 import type { ResultAsync } from 'neverthrow'
 
+import type { MealType } from '@/domain/meal-log/types'
+
 export type NutrientCode = string
 
 export type NutritionMap = Readonly<Record<NutrientCode, number>>
@@ -15,6 +17,7 @@ export interface MealLogEntry {
   readonly id: string
   readonly foodMasterId: string
   readonly eatenAt: Date
+  readonly mealType: MealType
   readonly quantity: number
   readonly unit: string
   readonly note: string | null

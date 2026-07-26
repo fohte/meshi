@@ -5,6 +5,7 @@ import {
   FutureEatenAtError,
   InvalidQuantityError,
 } from '@/domain/meal-log/errors'
+import { inferMealType } from '@/domain/meal-log/infer-meal-type'
 import type { MealLogRepository } from '@/domain/meal-log/meal-log-repository'
 import type {
   FoodMasterRef,
@@ -41,6 +42,7 @@ export const createMealLogService = (
           id: deps.idGenerator(),
           foodMasterId: input.foodMasterId,
           eatenAt: input.eatenAt,
+          mealType: input.mealType ?? inferMealType(input.eatenAt),
           quantity: input.quantity,
           unit: input.unit,
           note: input.note ?? null,

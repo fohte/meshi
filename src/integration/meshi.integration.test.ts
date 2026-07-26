@@ -18,6 +18,7 @@ import {
 import { createDrizzleFoodMatcher } from '@/domain/food-matcher'
 import { createMealHistoryService } from '@/domain/meal-history'
 import { createDrizzleMealLogRepository } from '@/domain/meal-log/drizzle-meal-log-repository'
+import { inferMealType } from '@/domain/meal-log/infer-meal-type'
 import { createMealLogService } from '@/domain/meal-log/meal-log-service'
 import { createUserProfileService } from '@/domain/user-profile/user-profile-service'
 import { createDomainToolsRegistry } from '@/llm/domain-tools'
@@ -233,12 +234,14 @@ const seedMealLog = async (
     readonly unit: string
   },
 ): Promise<void> => {
+  const eatenAt = new Date(args.eatenAt)
   await tx`
-    INSERT INTO meal_logs (id, food_master_id, eaten_at, quantity, unit)
+    INSERT INTO meal_logs (id, food_master_id, eaten_at, meal_type, quantity, unit)
     VALUES (
       ${args.id},
       ${args.foodMasterId},
-      ${new Date(args.eatenAt)},
+      ${eatenAt},
+      ${inferMealType(eatenAt)},
       ${String(args.quantity)},
       ${args.unit}
     )
@@ -693,7 +696,7 @@ describeIfDb('meshi integration', () => {
               '- 期間内の日数: 1 日',
               '- 記録件数: 1 件',
               '明細 (1 件):',
-              '- 2026-06-12 03:30 fm_rice: 200g',
+              '- 2026-06-12 03:30 昼食 fm_rice: 200g',
             ].join('\n'),
           },
         ],

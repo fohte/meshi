@@ -1,5 +1,7 @@
 export type NutritionMap = Readonly<Record<string, number>>
 
+export type MealType = 'breakfast' | 'lunch' | 'dinner' | 'snack'
+
 export interface FoodMasterRef {
   readonly id: string
   readonly name: string
@@ -11,6 +13,7 @@ export interface MealLogRow {
   readonly id: string
   readonly foodMasterId: string
   readonly eatenAt: Date
+  readonly mealType: MealType
   readonly quantity: number
   readonly unit: string
   readonly note: string | null
@@ -20,6 +23,7 @@ export interface MealLogRow {
 export interface RecordMealLogInput {
   readonly foodMasterId: string
   readonly eatenAt: Date
+  readonly mealType?: MealType
   readonly quantity: number
   readonly unit: string
   readonly note?: string

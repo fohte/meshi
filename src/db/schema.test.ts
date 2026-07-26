@@ -25,14 +25,14 @@ describeIfDb('schema migrations', () => {
     ])
   })
 
-  it('creates the food_source and nutrient_unit enums with expected values', async () => {
+  it('creates the food_source, nutrient_unit, and meal_type enums with expected values', async () => {
     const sql = getTestSql()
     const rows = await sql<{ typname: string; labels: string[] }[]>`
       SELECT t.typname,
              array_agg(e.enumlabel ORDER BY e.enumsortorder) AS labels
       FROM pg_type t
       JOIN pg_enum e ON e.enumtypid = t.oid
-      WHERE t.typname IN ('food_source', 'nutrient_unit')
+      WHERE t.typname IN ('food_source', 'nutrient_unit', 'meal_type')
       GROUP BY t.typname
       ORDER BY t.typname
     `
@@ -40,6 +40,10 @@ describeIfDb('schema migrations', () => {
       {
         typname: 'food_source',
         labels: ['web_search', 'composition_table_estimate', 'user_input'],
+      },
+      {
+        typname: 'meal_type',
+        labels: ['breakfast', 'lunch', 'dinner', 'snack'],
       },
       { typname: 'nutrient_unit', labels: ['kcal', 'g', 'mg', 'µg'] },
     ])
@@ -272,8 +276,8 @@ describeIfDb('schema runtime constraints', () => {
     `
     expect(
       await runOutcome(tx`
-        INSERT INTO meal_logs (id, food_master_id, eaten_at, quantity, unit)
-        VALUES ('ml_q', 'fm_q', now(), 0, 'g')
+        INSERT INTO meal_logs (id, food_master_id, eaten_at, meal_type, quantity, unit)
+        VALUES ('ml_q', 'fm_q', now(), 'breakfast', 0, 'g')
       `),
     ).toEqual({ status: 'error', code: '23514' })
   })
@@ -330,8 +334,8 @@ describeIfDb('schema runtime constraints', () => {
       VALUES ('fm_d', 'natto', 'user_input')
     `
     await tx`
-      INSERT INTO meal_logs (id, food_master_id, eaten_at, quantity, unit)
-      VALUES ('ml_d', 'fm_d', now(), 1, 'パック')
+      INSERT INTO meal_logs (id, food_master_id, eaten_at, meal_type, quantity, unit)
+      VALUES ('ml_d', 'fm_d', now(), 'breakfast', 1, 'パック')
     `
     expect(
       await runOutcome(tx`DELETE FROM food_masters WHERE id = 'fm_d'`),

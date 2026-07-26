@@ -29,6 +29,13 @@ export const nutrientUnitEnum = pgEnum('nutrient_unit', [
   'µg',
 ])
 
+export const mealTypeEnum = pgEnum('meal_type', [
+  'breakfast',
+  'lunch',
+  'dinner',
+  'snack',
+])
+
 export const nutrientDefinitions = pgTable(
   'nutrient_definitions',
   {
@@ -137,6 +144,7 @@ export const mealLogs = pgTable(
       withTimezone: true,
       mode: 'date',
     }).notNull(),
+    mealType: mealTypeEnum('meal_type').notNull(),
     quantity: numeric('quantity').notNull(),
     unit: text('unit').notNull(),
     note: text('note'),
@@ -155,6 +163,11 @@ export const mealLogs = pgTable(
     index('meal_logs_eaten_at_idx').on(table.eatenAt.desc()),
     index('meal_logs_food_master_id_eaten_at_idx').on(
       table.foodMasterId,
+      table.eatenAt.desc(),
+    ),
+    // Serves the web frontend's meal-type-grouped timeline view.
+    index('meal_logs_meal_type_eaten_at_idx').on(
+      table.mealType,
       table.eatenAt.desc(),
     ),
     check('meal_logs_quantity_positive', sql`${table.quantity} > 0`),

@@ -98,6 +98,7 @@ describeIfDb('MealHistoryService.query', () => {
           id: 'log-1',
           foodMasterId: 'rice',
           eatenAt: new Date('2026-06-01T03:00:00Z'),
+          mealType: 'lunch',
           quantity: 200,
           unit: 'g',
           note: null,
@@ -106,6 +107,7 @@ describeIfDb('MealHistoryService.query', () => {
           id: 'log-2',
           foodMasterId: 'egg',
           eatenAt: new Date('2026-06-01T12:00:00Z'),
+          mealType: 'dinner',
           quantity: 50,
           unit: 'g',
           note: null,
@@ -165,6 +167,7 @@ describeIfDb('MealHistoryService.query', () => {
           id: 'log-2',
           foodMasterId: 'egg',
           eatenAt: new Date('2026-06-01T12:00:00Z'),
+          mealType: 'dinner',
           quantity: 50,
           unit: 'g',
           note: null,
@@ -212,6 +215,7 @@ describeIfDb('MealHistoryService.query', () => {
           id: 'log-1',
           foodMasterId: 'spinach',
           eatenAt: new Date('2026-06-01T03:00:00Z'),
+          mealType: 'lunch',
           quantity: 100,
           unit: 'g',
           note: null,
@@ -254,6 +258,7 @@ describeIfDb('MealHistoryService.query', () => {
           id: 'log-1',
           foodMasterId: 'rice',
           eatenAt: new Date('2026-06-01T03:00:00Z'),
+          mealType: 'lunch',
           quantity: 100,
           unit: 'g',
           note: null,
@@ -319,6 +324,7 @@ describeIfDb('MealHistoryService.query', () => {
           id: 'log-1',
           foodMasterId: 'rice',
           eatenAt: new Date('2026-06-01T03:00:00Z'),
+          mealType: 'lunch',
           quantity: 100,
           unit: 'g',
           note: null,
@@ -327,6 +333,7 @@ describeIfDb('MealHistoryService.query', () => {
           id: 'log-2',
           foodMasterId: 'mystery_stew',
           eatenAt: new Date('2026-06-01T12:00:00Z'),
+          mealType: 'dinner',
           quantity: 250,
           unit: 'g',
           note: null,
@@ -393,8 +400,8 @@ describeIfDb(
           // `Date`, which fails against this corrupted pool the same way a
           // raw `Date` bind anywhere in this file would.
           await tx`
-            INSERT INTO meal_logs (id, food_master_id, eaten_at, quantity, unit)
-            VALUES ('probe_log_1', 'probe_rice', '2026-06-01T03:00:00Z'::timestamptz, 200, 'g')
+            INSERT INTO meal_logs (id, food_master_id, eaten_at, meal_type, quantity, unit)
+            VALUES ('probe_log_1', 'probe_rice', '2026-06-01T03:00:00Z'::timestamptz, 'lunch', 200, 'g')
           `
 
           const service = createMealHistoryService(tx)
@@ -418,6 +425,7 @@ describeIfDb(
                 id: 'probe_log_1',
                 foodMasterId: 'probe_rice',
                 eatenAt: new Date('2026-06-01T03:00:00Z'),
+                mealType: 'lunch',
                 quantity: 200,
                 unit: 'g',
                 note: null,

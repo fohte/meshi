@@ -14,7 +14,11 @@ import type {
   InsertMealLogInput,
   MealLogRepository,
 } from '@/domain/meal-log/meal-log-repository'
-import type { FoodMasterRef, MealLogRow } from '@/domain/meal-log/types'
+import type {
+  FoodMasterRef,
+  MealLogRow,
+  MealType,
+} from '@/domain/meal-log/types'
 
 type Db = ReturnType<typeof drizzle>
 
@@ -73,6 +77,7 @@ const toRow = (row: {
   id: string
   foodMasterId: string
   eatenAt: Date
+  mealType: MealType
   quantity: string
   unit: string
   note: string | null
@@ -81,6 +86,7 @@ const toRow = (row: {
   id: row.id,
   foodMasterId: row.foodMasterId,
   eatenAt: row.eatenAt,
+  mealType: row.mealType,
   quantity: Number(row.quantity),
   unit: row.unit,
   note: row.note,
@@ -104,6 +110,7 @@ export const createDrizzleMealLogRepository = (sql: Sql): MealLogRepository => {
               id: input.id,
               foodMasterId: input.foodMasterId,
               eatenAt: input.eatenAt,
+              mealType: input.mealType,
               quantity: input.quantity.toString(),
               unit: input.unit,
               note: input.note,
