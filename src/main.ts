@@ -48,12 +48,14 @@ const parseListenAddr = (addr: string): { hostname: string; port: number } => {
   const match = LISTEN_ADDR_RE.exec(addr)
   const hostname = match?.[1] ?? match?.[3]
   if (match === null || hostname === undefined || hostname === '') {
+    // eslint-disable-next-line no-restricted-syntax -- runs at process bootstrap inside main(); src/index.ts's main().catch() is the top-level failure boundary
     throw new EnvError([
       `MCP_LISTEN_ADDR must be "host:port" or "[ipv6]:port" (got: ${addr})`,
     ])
   }
   const port = Number(match[2] ?? match[4])
   if (!Number.isInteger(port) || port <= 0 || port > 65_535) {
+    // eslint-disable-next-line no-restricted-syntax -- see comment above
     throw new EnvError([
       `MCP_LISTEN_ADDR port must be a valid TCP port (got: ${addr})`,
     ])

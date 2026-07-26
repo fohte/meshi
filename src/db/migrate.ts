@@ -7,6 +7,7 @@ import { setupMeshiCheckpointSchema } from '@/llm/agent/checkpointer'
 const main = async (): Promise<void> => {
   const databaseUrl = requireDatabaseUrl()
   const sql = createSql(databaseUrl)
+  // eslint-disable-next-line no-restricted-syntax -- standalone init-container script; try/finally only guarantees sql.end() runs, main().catch() below is the top-level failure boundary
   try {
     await runMigrations(sql)
     await setupMeshiCheckpointSchema(databaseUrl)

@@ -1,6 +1,7 @@
 import type { AgentCard } from '@a2a-js/sdk'
 import type { DefaultRequestHandler } from '@a2a-js/sdk/server'
 import { Hono } from 'hono'
+import { ResultAsync } from 'neverthrow'
 
 import { mountA2aRoutes } from '@/a2a/hono-bridge'
 import type { Sql } from '@/db'
@@ -19,14 +20,12 @@ const errorMessage = (err: unknown): string =>
 export const createApp = (deps: AppDeps): Hono => {
   const app = new Hono()
 
-  app.get('/health', async (c) => {
-    try {
-      await pingDb(deps.sql)
-      return c.json({ status: 'ok' })
-    } catch (err) {
-      return c.json({ status: 'error', error: errorMessage(err) }, 503)
-    }
-  })
+  app.get('/health', async (c) =>
+    ResultAsync.fromPromise(pingDb(deps.sql), errorMessage).match(
+      () => c.json({ status: 'ok' }),
+      (message) => c.json({ status: 'error', error: message }, 503),
+    ),
+  )
 
   mountA2aRoutes(app, {
     agentCard: deps.agentCard,

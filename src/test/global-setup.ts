@@ -9,6 +9,7 @@ export default async function setup(): Promise<void> {
   if (url === undefined) return
 
   const sql = postgres(url, { max: 2, onnotice: () => {} })
+  // eslint-disable-next-line no-restricted-syntax -- vitest's globalSetup contract itself expects this function to throw to fail the whole run; try/finally here only guarantees sql.end() runs either way
   try {
     await sql.unsafe('DROP SCHEMA IF EXISTS public CASCADE')
     await sql.unsafe('DROP SCHEMA IF EXISTS drizzle CASCADE')

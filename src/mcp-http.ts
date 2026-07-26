@@ -12,6 +12,7 @@ import {
 } from '@opentelemetry/semantic-conventions/incubating'
 import { z } from 'zod'
 
+import { parseJson } from '@/lib/json'
 import { createMcpServer } from '@/mcp'
 import type { MeshiToolDeps } from '@/mcp-tools'
 
@@ -32,6 +33,7 @@ export const handleMcpRequest = async (
     void server.close()
   })
 
+  // eslint-disable-next-line no-restricted-syntax -- bridges the MCP SDK's throw-based server.connect()/transport.handleRequest() directly to the raw Node response; Hono is bypassed here (see comment above), so this handler must catch the SDK's throw itself and write the HTTP error response manually
   try {
     // eslint-disable-next-line @typescript-eslint/no-unsafe-type-assertion -- SDK transport widens callback props to include undefined, conflicting with Transport under exactOptionalPropertyTypes.
     await server.connect(transport as unknown as Transport)
@@ -78,15 +80,11 @@ const readJsonRpcBody = async (req: IncomingMessage): Promise<unknown> => {
     if (Buffer.isBuffer(chunk)) chunks.push(chunk)
   }
   const raw = Buffer.concat(chunks).toString('utf-8')
-  try {
-    return JSON.parse(raw) as unknown
-  } catch {
-    // Malformed JSON: hand the raw text through so the SDK's own JSON-RPC
-    // validation rejects it too (its exact error message differs from the
-    // one it produces for a JSON parse failure, but both are 400s with a
-    // JSON-RPC parse-error code).
-    return raw
-  }
+  // Malformed JSON: hand the raw text through so the SDK's own JSON-RPC
+  // validation rejects it too (its exact error message differs from the
+  // one it produces for a JSON parse failure, but both are 400s with a
+  // JSON-RPC parse-error code).
+  return parseJson(raw).unwrapOr(raw)
 }
 
 // Only messages that could plausibly reach a tool handler are used to name

@@ -1,15 +1,15 @@
 import { tool } from 'langchain'
+import { Result } from 'neverthrow'
 
 import { toInternalToolError } from '@/llm/domain-tools/internal-error'
 import type { DomainTool, ToolError } from '@/llm/domain-tools/types'
 
-const safeStringify = (value: unknown): string | null => {
-  try {
-    return JSON.stringify(value)
-  } catch {
-    return null
-  }
-}
+const stringify = Result.fromThrowable((value: unknown): string =>
+  JSON.stringify(value),
+)
+
+const safeStringify = (value: unknown): string | null =>
+  stringify(value).unwrapOr(null)
 
 // Same envelope as createDomainToolsRegistry's executeToolUse (registry.ts)
 // and the orchestrator's encodeOk/encodeToolError (orchestrator.ts): each
@@ -40,6 +40,7 @@ const encodeError = (error: ToolError): string =>
 export const toLangChainTool = (domainTool: DomainTool) =>
   tool(
     async (input: unknown): Promise<string> => {
+      // eslint-disable-next-line no-restricted-syntax -- runs inside LangChain's tool() executor, which expects a resolved string or a thrown rejection; domainTool.execute()'s Result is already handled via .match() below, so this only guards a genuinely unexpected throw before it reaches LangChain unhandled
       try {
         const result = await domainTool.execute(input)
         return result.match(encodeOk, encodeError)

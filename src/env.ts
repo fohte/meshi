@@ -37,6 +37,7 @@ export const requireDatabaseUrl = (
 ): string => {
   const raw = source['DATABASE_URL']
   if (raw === undefined || raw === '') {
+    // eslint-disable-next-line no-restricted-syntax -- runs at process bootstrap before any Result-consuming caller exists; callers catch EnvError by type at their own top-level main().catch()
     throw new EnvError([missingEnvMessage('DATABASE_URL')])
   }
   return raw
@@ -74,6 +75,7 @@ export const loadEnv = (
   }
 
   if (issues.length > 0) {
+    // eslint-disable-next-line no-restricted-syntax -- runs at process bootstrap before any Result-consuming caller exists; callers catch EnvError by type at their own top-level main().catch()
     throw new EnvError(issues)
   }
 

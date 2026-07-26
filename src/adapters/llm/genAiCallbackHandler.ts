@@ -291,6 +291,7 @@ export class GenAiCallbackHandler extends BaseCallbackHandler {
       [ATTR_GEN_AI_REQUEST_MODEL]: model,
     })
     if (this.captureMessageContent) {
+      // eslint-disable-next-line no-restricted-syntax -- handleChatModelStart is a void callback LangChain's CallbackManager invokes directly; a serialization throw here can't return a Result and must be recorded as a span exception instead of breaking the LLM call being instrumented
       try {
         // messages is one entry per prompt in a batched call, but
         // CallbackManager.handleChatModelStart splits a batch into one call
@@ -311,6 +312,7 @@ export class GenAiCallbackHandler extends BaseCallbackHandler {
   override handleLLMEnd(output: LLMResult, runId: string): void {
     const openSpan = this.takeOpenSpan(runId)
     if (openSpan === undefined) return
+    // eslint-disable-next-line no-restricted-syntax -- handleLLMEnd is a void callback LangChain's CallbackManager invokes directly; a throw here can't return a Result and must be recorded as a span exception instead of breaking the LLM call being instrumented
     try {
       setGenAiResponseAttributes(
         openSpan.span,

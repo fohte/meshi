@@ -11,6 +11,7 @@ import { captureWithFingerprint } from '@fohte/service-kit/observability'
 import { withAdvisoryLock } from '@/a2a/advisory-lock'
 import { type AgentContentBlock, toAgentContent } from '@/a2a/message-content'
 import type { Sql } from '@/db'
+import { parseJson } from '@/lib/json'
 import {
   type MeshiAgentResponse,
   meshiAgentResponseSchema,
@@ -126,13 +127,9 @@ const extractLatestMealHistoryOutput = (
     ) {
       continue
     }
-    let json: unknown
-    try {
-      json = JSON.parse(message.content)
-    } catch {
-      continue
-    }
-    const parsed = queryMealHistoryOutputSchema.safeParse(json)
+    const json = parseJson(message.content)
+    if (json.isErr()) continue
+    const parsed = queryMealHistoryOutputSchema.safeParse(json.value)
     if (parsed.success) return parsed.data
   }
   return null
@@ -202,6 +199,7 @@ export const runAgentTurn = async (
   agent: MeshiDomainAgentLike,
   requestContext: RequestContext,
 ): Promise<Task> => {
+  // eslint-disable-next-line no-restricted-syntax -- boundary between LangGraph's throw-based agent.invoke() and this module's Task mapping; the catch below turns any thrown error into a failed Task instead of propagating it
   try {
     const result = await agent.invoke(
       {
@@ -288,6 +286,7 @@ export const createMeshiAgentExecutor = (
         // unguarded, it would surface as an unhandled exception instead of
         // just costing this one heartbeat tick.
         const heartbeat = setInterval(() => {
+          // eslint-disable-next-line no-restricted-syntax -- runs outside execute()'s call stack (see the comment above), so a throw here can't reach the try/finally below and must be swallowed locally
           try {
             publishWorkingUpdate(eventBus, taskId, contextId)
           } catch (err) {
@@ -297,6 +296,7 @@ export const createMeshiAgentExecutor = (
             })
           }
         }, heartbeatIntervalMs)
+        // eslint-disable-next-line no-restricted-syntax -- runAgentTurn() already converts its own failures into a Task rather than throwing; this try/finally only guarantees clearInterval(heartbeat) runs
         try {
           eventBus.publish(await runAgentTurn(options.agent, requestContext))
         } finally {
