@@ -1,17 +1,17 @@
 import { okAsync, ResultAsync } from 'neverthrow'
 
-import type { Sql } from '@/db'
+import type { Sql } from '#db/index'
 import {
   type FoodCompositionLoadError,
   loadFoodComposition,
   loadFoodCompositionDatasetFromFile,
   type LoadFoodCompositionOptions,
   type LoadFoodCompositionResult,
-} from '@/db/seed/food-composition'
-import { seedNutrientDefinitions } from '@/db/seed/nutrient-definitions'
+} from '#db/seed/food-composition'
+import { seedNutrientDefinitions } from '#db/seed/nutrient-definitions'
 
-export * from '@/db/seed/food-composition'
-export * from '@/db/seed/nutrient-definitions'
+export * from '#db/seed/food-composition'
+export * from '#db/seed/nutrient-definitions'
 
 export interface RunSeedOptions {
   readonly foodCompositionJsonPath?: string

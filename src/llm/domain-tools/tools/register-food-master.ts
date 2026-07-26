@@ -1,13 +1,13 @@
 import { z } from 'zod'
 
-import type { FoodMasterService } from '@/domain/food-master/service'
-import { parseToolInput } from '@/llm/domain-tools/parse'
+import type { FoodMasterService } from '#domain/food-master/service'
+import { parseToolInput } from '#llm/domain-tools/parse'
 import {
   type DomainTool,
   err,
   type Result,
   type ToolError,
-} from '@/llm/domain-tools/types'
+} from '#llm/domain-tools/types'
 
 const inputSchema = z.object({
   name: z.string().min(1),

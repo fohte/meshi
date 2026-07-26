@@ -1,11 +1,11 @@
 import type { ResultAsync } from 'neverthrow'
 
-import type { DomainError } from '@/domain/meal-log/errors'
+import type { DomainError } from '#domain/meal-log/errors'
 import type {
   FoodMasterRef,
   MealLogRow,
   MealType,
-} from '@/domain/meal-log/types'
+} from '#domain/meal-log/types'
 
 export interface InsertMealLogInput {
   readonly id: string

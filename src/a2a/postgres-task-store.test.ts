@@ -6,10 +6,10 @@ import {
   createPostgresTaskStore,
   TaskRowInvalidError,
   TaskStorePersistenceError,
-} from '@/a2a/postgres-task-store'
-import type { Sql } from '@/db'
-import { captureSqlParams, describeIfDb, setupTx } from '@/test/db'
-import { seedA2aPushConfig } from '@/test/seed'
+} from '#a2a/postgres-task-store'
+import type { Sql } from '#db/index'
+import { captureSqlParams, describeIfDb, setupTx } from '#test/db'
+import { seedA2aPushConfig } from '#test/seed'
 
 vi.mock('@fohte/service-kit/observability', () => ({
   captureWithFingerprint: vi.fn(),

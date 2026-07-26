@@ -4,36 +4,36 @@ import { okAsync } from 'neverthrow'
 import { beforeEach, expect, it } from 'vitest'
 import { z } from 'zod'
 
-import { createDrizzleUserProfileRepository } from '@/adapters/db/drizzle-user-profile-repository'
+import { createDrizzleUserProfileRepository } from '#adapters/db/drizzle-user-profile-repository'
 import type {
   WebSearchClient,
   WebSearchResult,
-} from '@/adapters/web-search/web-search-client'
-import type { Sql } from '@/db'
-import { upsertNutrientDefinitions } from '@/db/seed/nutrient-definitions'
+} from '#adapters/web-search/web-search-client'
+import type { Sql } from '#db/index'
+import { upsertNutrientDefinitions } from '#db/seed/nutrient-definitions'
 import {
   createFoodMasterRepository,
   createFoodMasterService,
-} from '@/domain/food-master'
-import { createDrizzleFoodMatcher } from '@/domain/food-matcher'
-import { createMealHistoryService } from '@/domain/meal-history'
-import { createDrizzleMealLogRepository } from '@/domain/meal-log/drizzle-meal-log-repository'
-import { inferMealType } from '@/domain/meal-log/infer-meal-type'
-import { createMealLogService } from '@/domain/meal-log/meal-log-service'
-import { createUserProfileService } from '@/domain/user-profile/user-profile-service'
-import { createDomainToolsRegistry } from '@/llm/domain-tools'
+} from '#domain/food-master/index'
+import { createDrizzleFoodMatcher } from '#domain/food-matcher/index'
+import { createMealHistoryService } from '#domain/meal-history/index'
+import { createDrizzleMealLogRepository } from '#domain/meal-log/drizzle-meal-log-repository'
+import { inferMealType } from '#domain/meal-log/infer-meal-type'
+import { createMealLogService } from '#domain/meal-log/meal-log-service'
+import { createUserProfileService } from '#domain/user-profile/user-profile-service'
+import { createDomainToolsRegistry } from '#llm/domain-tools/index'
 import {
   createDomainAgentOrchestrator,
   createTemplateReplyFormatter,
-} from '@/llm/orchestrator'
-import { createNullLogger } from '@/logger'
-import { createMcpServer } from '@/mcp'
-import { describeIfDb, getTestSql, setupTx } from '@/test/db'
+} from '#llm/orchestrator/index'
+import { createNullLogger } from '#logger'
+import { createMcpServer } from '#mcp'
+import { describeIfDb, getTestSql, setupTx } from '#test/db'
 import type {
   ScriptedFinalResponse,
   ScriptedToolCall,
-} from '@/test/scripted-domain-agent-model'
-import { scriptedDomainAgentModel } from '@/test/scripted-domain-agent-model'
+} from '#test/scripted-domain-agent-model'
+import { scriptedDomainAgentModel } from '#test/scripted-domain-agent-model'
 
 const stubWebSearchClient = (result: WebSearchResult): WebSearchClient => ({
   search: () => okAsync(result),

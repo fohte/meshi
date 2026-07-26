@@ -1,14 +1,14 @@
 import { errAsync } from 'neverthrow'
 import { describe, expect, it, vi } from 'vitest'
 
-import { createTavilyWebSearchClient } from '@/adapters/web-search/tavily-web-search-client'
-import type { WebSearchClient } from '@/adapters/web-search/web-search-client'
+import { createTavilyWebSearchClient } from '#adapters/web-search/tavily-web-search-client'
+import type { WebSearchClient } from '#adapters/web-search/web-search-client'
 import {
   WebSearchError,
   WebSearchRateLimitError,
-} from '@/adapters/web-search/web-search-client'
-import { normalizeResult } from '@/llm/domain-tools/test-helpers'
-import { createWebSearchTool } from '@/llm/domain-tools/tools/web-search'
+} from '#adapters/web-search/web-search-client'
+import { normalizeResult } from '#llm/domain-tools/test-helpers'
+import { createWebSearchTool } from '#llm/domain-tools/tools/web-search'
 
 const jsonResponse = (status: number, body: unknown): Response =>
   new Response(JSON.stringify(body), {

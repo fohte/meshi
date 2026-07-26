@@ -1,8 +1,8 @@
 import { tool } from 'langchain'
 import { Result } from 'neverthrow'
 
-import { toInternalToolError } from '@/llm/domain-tools/internal-error'
-import type { DomainTool, ToolError } from '@/llm/domain-tools/types'
+import { toInternalToolError } from '#llm/domain-tools/internal-error'
+import type { DomainTool, ToolError } from '#llm/domain-tools/types'
 
 const stringify = Result.fromThrowable((value: unknown): string =>
   JSON.stringify(value),

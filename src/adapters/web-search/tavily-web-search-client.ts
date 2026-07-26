@@ -5,7 +5,7 @@ import {
   type WebSearchClient,
   WebSearchError,
   WebSearchRateLimitError,
-} from '@/adapters/web-search/web-search-client'
+} from '#adapters/web-search/web-search-client'
 
 const DEFAULT_ENDPOINT = 'https://api.tavily.com/search'
 const DEFAULT_LIMIT = 5

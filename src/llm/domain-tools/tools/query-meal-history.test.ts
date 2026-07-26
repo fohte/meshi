@@ -5,9 +5,9 @@ import type {
   MealHistoryAggregate,
   MealHistoryService,
   QueryMealHistoryInput,
-} from '@/domain/meal-history/types'
-import { normalizeResult } from '@/llm/domain-tools/test-helpers'
-import { createQueryMealHistoryTool } from '@/llm/domain-tools/tools/query-meal-history'
+} from '#domain/meal-history/types'
+import { normalizeResult } from '#llm/domain-tools/test-helpers'
+import { createQueryMealHistoryTool } from '#llm/domain-tools/tools/query-meal-history'
 
 const AGGREGATE: MealHistoryAggregate = {
   totals: { energy_kcal: 1850 },

@@ -6,7 +6,7 @@ import {
   describeIfDb,
   getTestSql,
   setupDrizzleTx,
-} from '@/test/db'
+} from '#test/db'
 
 describeIfDb('setupDrizzleTx', () => {
   const getTx = setupDrizzleTx()

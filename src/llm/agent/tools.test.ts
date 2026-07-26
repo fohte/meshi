@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest'
 
-import { toLangChainTool, toLangChainTools } from '@/llm/agent/tools'
-import type { DomainTool } from '@/llm/domain-tools/types'
-import { err, ok } from '@/llm/domain-tools/types'
+import { toLangChainTool, toLangChainTools } from '#llm/agent/tools'
+import type { DomainTool } from '#llm/domain-tools/types'
+import { err, ok } from '#llm/domain-tools/types'
 
 const stubTool = (execute: DomainTool['execute']): DomainTool => ({
   name: 'record_meal_log',

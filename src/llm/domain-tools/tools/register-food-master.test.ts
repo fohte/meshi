@@ -1,14 +1,14 @@
 import { errAsync, okAsync } from 'neverthrow'
 import { describe, expect, it } from 'vitest'
 
-import { FoodMasterDomainError } from '@/domain/food-master/errors'
-import type { FoodMasterService } from '@/domain/food-master/service'
+import { FoodMasterDomainError } from '#domain/food-master/errors'
+import type { FoodMasterService } from '#domain/food-master/service'
 import type {
   FoodMaster,
   RegisterFoodMasterInput,
-} from '@/domain/food-master/types'
-import { normalizeResult } from '@/llm/domain-tools/test-helpers'
-import { createRegisterFoodMasterTool } from '@/llm/domain-tools/tools/register-food-master'
+} from '#domain/food-master/types'
+import { normalizeResult } from '#llm/domain-tools/test-helpers'
+import { createRegisterFoodMasterTool } from '#llm/domain-tools/tools/register-food-master'
 
 const sampleMaster = (
   id: string,

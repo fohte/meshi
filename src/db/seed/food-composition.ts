@@ -3,11 +3,11 @@ import { readFile } from 'node:fs/promises'
 import { err, ok, okAsync, type Result, ResultAsync } from 'neverthrow'
 import { z } from 'zod'
 
-import type { SqlOrTx } from '@/db'
+import type { SqlOrTx } from '#db/index'
 import {
   type NutrientDefinitionSeed,
   upsertNutrientDefinitions,
-} from '@/db/seed/nutrient-definitions'
+} from '#db/seed/nutrient-definitions'
 
 const foodCompositionRowSchema = z.object({
   code: z.string().min(1),

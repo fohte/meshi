@@ -2,7 +2,7 @@ export {
   createDomainToolsRegistry,
   type DomainToolsDeps,
   type DomainToolsRegistry,
-} from '@/llm/domain-tools/registry'
+} from '#llm/domain-tools/registry'
 export {
   type DomainTool,
   type DomainToolName,
@@ -10,4 +10,4 @@ export {
   ok,
   type Result,
   type ToolError,
-} from '@/llm/domain-tools/types'
+} from '#llm/domain-tools/types'

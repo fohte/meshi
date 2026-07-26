@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { inferMealType } from '@/domain/meal-log/infer-meal-type'
+import { inferMealType } from '#domain/meal-log/infer-meal-type'
 
 describe('inferMealType', () => {
   it.each([

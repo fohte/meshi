@@ -4,12 +4,12 @@ import type {
   ImageDownsampler,
   McpImageContent,
   SupportedImageMimeType,
-} from '@/adapters/image/image-interpreter'
+} from '#adapters/image/image-interpreter'
 import {
   DEFAULT_MAX_IMAGE_BYTES,
   interpretImage,
   SUPPORTED_IMAGE_MIME_TYPES,
-} from '@/adapters/image/image-interpreter'
+} from '#adapters/image/image-interpreter'
 
 const base64OfDecodedBytes = (bytes: number): string =>
   Buffer.alloc(bytes).toString('base64')

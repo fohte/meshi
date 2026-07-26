@@ -4,11 +4,11 @@ import { describe, expect, it } from 'vitest'
 import type {
   UserProfile,
   UserProfilePatch,
-} from '@/domain/user-profile/user-profile'
-import type { UserProfileService } from '@/domain/user-profile/user-profile-service'
-import { normalizeResult } from '@/llm/domain-tools/test-helpers'
-import { createGetUserProfileTool } from '@/llm/domain-tools/tools/get-user-profile'
-import { createUpdateUserProfileTool } from '@/llm/domain-tools/tools/update-user-profile'
+} from '#domain/user-profile/user-profile'
+import type { UserProfileService } from '#domain/user-profile/user-profile-service'
+import { normalizeResult } from '#llm/domain-tools/test-helpers'
+import { createGetUserProfileTool } from '#llm/domain-tools/tools/get-user-profile'
+import { createUpdateUserProfileTool } from '#llm/domain-tools/tools/update-user-profile'
 
 const PROFILE: UserProfile = {
   likes: ['banana'],

@@ -1,8 +1,8 @@
 import { parseArgs } from 'node:util'
 
-import { createSql } from '@/db'
-import { runSeed } from '@/db/seed'
-import { EnvError, loadEnv } from '@/env'
+import { createSql } from '#db/index'
+import { runSeed } from '#db/seed/index'
+import { EnvError, loadEnv } from '#env'
 
 const main = async (): Promise<void> => {
   const { values } = parseArgs({

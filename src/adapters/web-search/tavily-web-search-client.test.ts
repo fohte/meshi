@@ -3,11 +3,11 @@ import { describe, expect, it, vi } from 'vitest'
 import {
   createTavilyWebSearchClient,
   WebSearchInvalidResponseError,
-} from '@/adapters/web-search/tavily-web-search-client'
+} from '#adapters/web-search/tavily-web-search-client'
 import {
   WebSearchError,
   WebSearchRateLimitError,
-} from '@/adapters/web-search/web-search-client'
+} from '#adapters/web-search/web-search-client'
 
 const jsonResponse = (status: number, body: unknown): Response =>
   new Response(JSON.stringify(body), {

@@ -1,4 +1,4 @@
-import type { UserProfile } from '@/domain/user-profile/user-profile'
+import type { UserProfile } from '#domain/user-profile/user-profile'
 
 export interface UserProfilePayload {
   readonly likes: ReadonlyArray<string>

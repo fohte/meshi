@@ -5,10 +5,10 @@ import { Client } from '@modelcontextprotocol/sdk/client/index.js'
 import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js'
 import { describe, expect, it } from 'vitest'
 
-import { createApp } from '@/app'
-import type { Sql } from '@/db'
-import { createMcpServer, MCP_SERVER_NAME, MCP_SERVER_VERSION } from '@/mcp'
-import { createStubMcpDeps } from '@/test/mcp-stubs'
+import { createApp } from '#app'
+import type { Sql } from '#db/index'
+import { createMcpServer, MCP_SERVER_NAME, MCP_SERVER_VERSION } from '#mcp'
+import { createStubMcpDeps } from '#test/mcp-stubs'
 
 const fakeSql = (
   tag: (strings: TemplateStringsArray) => Promise<unknown[]>,

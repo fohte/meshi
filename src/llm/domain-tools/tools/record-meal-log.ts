@@ -1,16 +1,16 @@
 import { z } from 'zod'
 
-import type { DomainError } from '@/domain/meal-log/errors'
-import type { MealLogService } from '@/domain/meal-log/meal-log-service'
-import { MEAL_TYPES } from '@/domain/meal-log/types'
-import { parseToolInput } from '@/llm/domain-tools/parse'
+import type { DomainError } from '#domain/meal-log/errors'
+import type { MealLogService } from '#domain/meal-log/meal-log-service'
+import { MEAL_TYPES } from '#domain/meal-log/types'
+import { parseToolInput } from '#llm/domain-tools/parse'
 import {
   type DomainTool,
   err,
   ok,
   type Result,
   type ToolError,
-} from '@/llm/domain-tools/types'
+} from '#llm/domain-tools/types'
 
 const inputSchema = z.object({
   food_master_id: z.string().min(1),

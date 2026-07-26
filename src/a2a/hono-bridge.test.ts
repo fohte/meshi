@@ -10,7 +10,7 @@ import { Hono } from 'hono'
 import { describe, expect, it, vi } from 'vitest'
 import { z } from 'zod'
 
-import { mountA2aRoutes } from '@/a2a/hono-bridge'
+import { mountA2aRoutes } from '#a2a/hono-bridge'
 
 vi.mock('@fohte/service-kit/observability', () => ({
   captureWithFingerprint: vi.fn(),

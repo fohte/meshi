@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 
-import { normalizeResult } from '@/llm/domain-tools/test-helpers'
-import { err, ok } from '@/llm/domain-tools/types'
+import { normalizeResult } from '#llm/domain-tools/test-helpers'
+import { err, ok } from '#llm/domain-tools/types'
 
 describe('normalizeResult', () => {
   it('passes through ok results unchanged', () => {

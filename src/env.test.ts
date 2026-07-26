@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { EnvError, loadEnv, requireDatabaseUrl } from '@/env'
+import { EnvError, loadEnv, requireDatabaseUrl } from '#env'
 
 const fullSource = {
   OPENCODE_API_KEY: 'k',

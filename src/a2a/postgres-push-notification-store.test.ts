@@ -5,9 +5,9 @@ import {
   createPostgresPushNotificationStore,
   PushConfigRowInvalidError,
   PushNotificationStorePersistenceError,
-} from '@/a2a/postgres-push-notification-store'
-import type { Sql } from '@/db'
-import { captureSqlParams, describeIfDb, setupTx } from '@/test/db'
+} from '#a2a/postgres-push-notification-store'
+import type { Sql } from '#db/index'
+import { captureSqlParams, describeIfDb, setupTx } from '#test/db'
 
 vi.mock('@fohte/service-kit/observability', () => ({
   captureWithFingerprint: vi.fn(),

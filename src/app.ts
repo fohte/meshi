@@ -3,9 +3,9 @@ import type { DefaultRequestHandler } from '@a2a-js/sdk/server'
 import { Hono } from 'hono'
 import { ResultAsync } from 'neverthrow'
 
-import { mountA2aRoutes } from '@/a2a/hono-bridge'
-import type { Sql } from '@/db'
-import { pingDb } from '@/db'
+import { mountA2aRoutes } from '#a2a/hono-bridge'
+import type { Sql } from '#db/index'
+import { pingDb } from '#db/index'
 
 export interface AppDeps {
   sql: Sql

@@ -11,8 +11,8 @@ import {
   NUTRIENT_DEFINITION_SEEDS,
   parseFoodCompositionDataset,
   seedNutrientDefinitions,
-} from '@/db/seed'
-import { describeIfDb, setupTx } from '@/test/db'
+} from '#db/seed/index'
+import { describeIfDb, setupTx } from '#test/db'
 
 const SAMPLE_DATASET_PATH = fileURLToPath(
   new URL('./__fixtures__/sample-food-composition.json', import.meta.url),

@@ -1,16 +1,16 @@
 import { err, ok, ResultAsync } from 'neverthrow'
 import { z } from 'zod'
 
-import { createAsText, type Sql } from '@/db'
+import { createAsText, type Sql } from '#db/index'
 import type {
   MealHistoryDayTotals,
   MealHistoryService,
   MealLogEntry,
   NutrientCode,
   NutritionMap,
-} from '@/domain/meal-history/types'
-import { MealHistoryQueryError } from '@/domain/meal-history/types'
-import { MEAL_TYPES } from '@/domain/meal-log/types'
+} from '#domain/meal-history/types'
+import { MealHistoryQueryError } from '#domain/meal-history/types'
+import { MEAL_TYPES } from '#domain/meal-log/types'
 
 const PER_100G_BASE = 100
 

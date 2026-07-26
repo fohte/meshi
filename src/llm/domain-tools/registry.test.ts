@@ -1,18 +1,18 @@
 import { errAsync, okAsync } from 'neverthrow'
 import { describe, expect, it } from 'vitest'
 
-import type { WebSearchClient } from '@/adapters/web-search/web-search-client'
-import { FoodMasterDomainError } from '@/domain/food-master/errors'
-import type { FoodMasterService } from '@/domain/food-master/service'
-import type { FoodMatcher } from '@/domain/food-matcher/food-matcher'
-import type { MealHistoryService } from '@/domain/meal-history/types'
-import { DomainError } from '@/domain/meal-log/errors'
-import type { MealLogService } from '@/domain/meal-log/meal-log-service'
-import type { UserProfileService } from '@/domain/user-profile/user-profile-service'
+import type { WebSearchClient } from '#adapters/web-search/web-search-client'
+import { FoodMasterDomainError } from '#domain/food-master/errors'
+import type { FoodMasterService } from '#domain/food-master/service'
+import type { FoodMatcher } from '#domain/food-matcher/food-matcher'
+import type { MealHistoryService } from '#domain/meal-history/types'
+import { DomainError } from '#domain/meal-log/errors'
+import type { MealLogService } from '#domain/meal-log/meal-log-service'
+import type { UserProfileService } from '#domain/user-profile/user-profile-service'
 import {
   createDomainToolsRegistry,
   type DomainToolsDeps,
-} from '@/llm/domain-tools/registry'
+} from '#llm/domain-tools/registry'
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === 'object' && value !== null

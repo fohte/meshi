@@ -9,36 +9,36 @@ import { fakeModel } from 'langchain'
 import { okAsync } from 'neverthrow'
 import { expect, it } from 'vitest'
 
-import { createMeshiAgentCard } from '@/a2a/agent-card'
-import { createMeshiAgentExecutor } from '@/a2a/agent-executor'
-import { createPostgresTaskStore } from '@/a2a/postgres-task-store'
-import { createDrizzleUserProfileRepository } from '@/adapters/db/drizzle-user-profile-repository'
-import type { WebSearchClient } from '@/adapters/web-search/web-search-client'
-import { createApp } from '@/app'
-import type { Sql } from '@/db'
+import { createMeshiAgentCard } from '#a2a/agent-card'
+import { createMeshiAgentExecutor } from '#a2a/agent-executor'
+import { createPostgresTaskStore } from '#a2a/postgres-task-store'
+import { createDrizzleUserProfileRepository } from '#adapters/db/drizzle-user-profile-repository'
+import type { WebSearchClient } from '#adapters/web-search/web-search-client'
+import { createApp } from '#app'
+import type { Sql } from '#db/index'
 import {
   createFoodMasterRepository,
   createFoodMasterService,
-} from '@/domain/food-master'
-import { createDrizzleFoodMatcher } from '@/domain/food-matcher'
-import { createMealHistoryService } from '@/domain/meal-history'
-import { createDrizzleMealLogRepository } from '@/domain/meal-log/drizzle-meal-log-repository'
-import { createMealLogService } from '@/domain/meal-log/meal-log-service'
-import { createUserProfileService } from '@/domain/user-profile/user-profile-service'
-import { createMeshiCheckpointer } from '@/llm/agent/checkpointer'
-import { createMeshiDomainAgent } from '@/llm/agent/domain-agent'
+} from '#domain/food-master/index'
+import { createDrizzleFoodMatcher } from '#domain/food-matcher/index'
+import { createMealHistoryService } from '#domain/meal-history/index'
+import { createDrizzleMealLogRepository } from '#domain/meal-log/drizzle-meal-log-repository'
+import { createMealLogService } from '#domain/meal-log/meal-log-service'
+import { createUserProfileService } from '#domain/user-profile/user-profile-service'
+import { createMeshiCheckpointer } from '#llm/agent/checkpointer'
+import { createMeshiDomainAgent } from '#llm/agent/domain-agent'
 import {
   createDomainToolsRegistry,
   type DomainToolsRegistry,
-} from '@/llm/domain-tools'
+} from '#llm/domain-tools/index'
 import {
   describeIfDb,
   getTestSql,
   setupDrizzleTx,
   setupTx,
   TEST_DATABASE_URL,
-} from '@/test/db'
-import { seedFoodMaster, seedMealLog } from '@/test/seed'
+} from '#test/db'
+import { seedFoodMaster, seedMealLog } from '#test/seed'
 
 const AGENT_CARD_URL = 'http://localhost/a2a'
 const NORMALIZED = 'NORMALIZED'

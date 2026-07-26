@@ -1,8 +1,8 @@
 import { ChatOpenAI } from '@langchain/openai'
 import { describe, expect, it, vi } from 'vitest'
 
-import { GenAiCallbackHandler, OPENCODE_GO_BASE_URL } from '@/adapters/llm'
-import { createMeshiChatModel } from '@/llm/agent/model'
+import { GenAiCallbackHandler, OPENCODE_GO_BASE_URL } from '#adapters/llm/index'
+import { createMeshiChatModel } from '#llm/agent/model'
 
 describe('createMeshiChatModel', () => {
   it('builds a ChatOpenAI defaulted to the OpenCode Go base URL', () => {

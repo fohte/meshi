@@ -7,8 +7,8 @@ import {
   type FoodMasterDomainError,
   type FoodMasterService,
   type RegisterFoodMasterInput,
-} from '@/domain/food-master'
-import { describeIfDb, setupTx } from '@/test/db'
+} from '#domain/food-master/index'
+import { describeIfDb, setupTx } from '#test/db'
 
 interface IdCounter {
   next(): number

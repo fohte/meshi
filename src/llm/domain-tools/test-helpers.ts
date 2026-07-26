@@ -1,4 +1,4 @@
-import type { Result, ToolError } from '@/llm/domain-tools/types'
+import type { Result, ToolError } from '#llm/domain-tools/types'
 
 // Tool error messages come from upstream sources (Zod, DomainError, fetch) and
 // drift across library versions and locales.

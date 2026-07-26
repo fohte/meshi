@@ -3,11 +3,11 @@ import { drizzle } from 'drizzle-orm/postgres-js'
 import { err, ok, type Result, ResultAsync } from 'neverthrow'
 import { z } from 'zod'
 
-import type { Sql } from '@/db'
-import { userProfiles } from '@/db/schema'
-import { UserProfileRepositoryError } from '@/domain/user-profile/errors'
-import type { UserProfile } from '@/domain/user-profile/user-profile'
-import type { UserProfileRepository } from '@/domain/user-profile/user-profile-repository'
+import type { Sql } from '#db/index'
+import { userProfiles } from '#db/schema'
+import { UserProfileRepositoryError } from '#domain/user-profile/errors'
+import type { UserProfile } from '#domain/user-profile/user-profile'
+import type { UserProfileRepository } from '#domain/user-profile/user-profile-repository'
 
 const SINGLETON_ID = 1
 

@@ -1,5 +1,5 @@
-import type { SupportedImageMimeType } from '@/adapters/image/image-interpreter'
-import type { MealType } from '@/domain/meal-log/types'
+import type { SupportedImageMimeType } from '#adapters/image/image-interpreter'
+import type { MealType } from '#domain/meal-log/types'
 
 export interface RecordFromTextInput {
   readonly text: string

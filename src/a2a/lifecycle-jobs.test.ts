@@ -2,8 +2,8 @@ import type { Task } from '@a2a-js/sdk'
 import { captureWithFingerprint } from '@fohte/service-kit/observability'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
-import { startTaskLifecycleJobs } from '@/a2a/lifecycle-jobs'
-import type { A2aTaskStore } from '@/a2a/postgres-task-store'
+import { startTaskLifecycleJobs } from '#a2a/lifecycle-jobs'
+import type { A2aTaskStore } from '#a2a/postgres-task-store'
 
 vi.mock('@fohte/service-kit/observability', () => ({
   captureWithFingerprint: vi.fn(),

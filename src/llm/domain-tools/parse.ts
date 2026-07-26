@@ -1,6 +1,6 @@
 import { z } from 'zod'
 
-import { err, ok, type Result, type ToolError } from '@/llm/domain-tools/types'
+import { err, ok, type Result, type ToolError } from '#llm/domain-tools/types'
 
 export const parseToolInput = <T>(
   schema: z.ZodType<T>,

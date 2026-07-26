@@ -3,7 +3,7 @@ import type { PushNotificationStore } from '@a2a-js/sdk/server'
 import { captureWithFingerprint } from '@fohte/service-kit/observability'
 import { z } from 'zod'
 
-import { createAsText, type Sql } from '@/db'
+import { createAsText, type Sql } from '#db/index'
 
 // Raw SQL, not the drizzle query builder: this table shares a connection
 // pool with PostgresTaskStore in production wiring (main.ts), and

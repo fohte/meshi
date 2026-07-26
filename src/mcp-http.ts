@@ -12,9 +12,9 @@ import {
 } from '@opentelemetry/semantic-conventions/incubating'
 import { z } from 'zod'
 
-import { parseJson } from '@/lib/json'
-import { createMcpServer } from '@/mcp'
-import type { MeshiToolDeps } from '@/mcp-tools'
+import { parseJson } from '#lib/json'
+import { createMcpServer } from '#mcp'
+import type { MeshiToolDeps } from '#mcp-tools'
 
 // Stateless mode: the SDK mandates a fresh transport per request
 // (webStandardStreamableHttp.js: "Stateless transport cannot be reused

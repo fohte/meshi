@@ -9,10 +9,10 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import type {
   AgentInvokeMessage,
   MeshiDomainAgentLike,
-} from '@/a2a/agent-executor'
-import { createMeshiAgentExecutor, runAgentTurn } from '@/a2a/agent-executor'
-import type { Sql } from '@/db'
-import { describeIfDb, getTestSql } from '@/test/db'
+} from '#a2a/agent-executor'
+import { createMeshiAgentExecutor, runAgentTurn } from '#a2a/agent-executor'
+import type { Sql } from '#db/index'
+import { describeIfDb, getTestSql } from '#test/db'
 
 vi.mock('@fohte/service-kit/observability', () => ({
   captureWithFingerprint: vi.fn(),

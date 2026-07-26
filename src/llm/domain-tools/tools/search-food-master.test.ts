@@ -1,15 +1,15 @@
 import { errAsync, okAsync, type ResultAsync } from 'neverthrow'
 import { describe, expect, it } from 'vitest'
 
-import { FoodMatcherQueryError } from '@/domain/food-matcher/drizzle-food-matcher'
+import { FoodMatcherQueryError } from '#domain/food-matcher/drizzle-food-matcher'
 import type {
   FoodMatchCandidate,
   FoodMatcher,
   FoodMatcherError,
   SearchFoodInput,
-} from '@/domain/food-matcher/food-matcher'
-import { normalizeResult } from '@/llm/domain-tools/test-helpers'
-import { createSearchFoodMasterTool } from '@/llm/domain-tools/tools/search-food-master'
+} from '#domain/food-matcher/food-matcher'
+import { normalizeResult } from '#llm/domain-tools/test-helpers'
+import { createSearchFoodMasterTool } from '#llm/domain-tools/tools/search-food-master'
 
 const setup = (override?: {
   search?: (

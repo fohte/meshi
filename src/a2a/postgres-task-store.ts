@@ -3,7 +3,7 @@ import type { TaskStore } from '@a2a-js/sdk/server'
 import { captureWithFingerprint } from '@fohte/service-kit/observability'
 import { z } from 'zod'
 
-import { createAsText, type Sql } from '@/db'
+import { createAsText, type Sql } from '#db/index'
 
 export class TaskStorePersistenceError extends Error {
   constructor(message: string, cause: unknown) {
@@ -79,7 +79,7 @@ const parseTaskRow = (taskId: string, rawTask: unknown): Task => {
 }
 
 // Every timestamp and the `task` payload below are bound as an explicit
-// text parameter (`asText`, from createAsText in @/db) with an inline SQL
+// text parameter (`asText`, from createAsText in #db/index) with an inline SQL
 // cast, rather than interpolated as a raw `Date`/object or left for
 // postgres.js to infer a type for. Two independent Postgres/driver
 // behaviors make this necessary, not just defensive:

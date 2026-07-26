@@ -1,13 +1,13 @@
 import { err, ok, okAsync, ResultAsync } from 'neverthrow'
 import { z } from 'zod'
 
-import type { Sql } from '@/db'
+import type { Sql } from '#db/index'
 import type {
   FoodMatchCandidate,
   FoodMatcher,
   FoodMatchReason,
   SearchFoodInput,
-} from '@/domain/food-matcher/food-matcher'
+} from '#domain/food-matcher/food-matcher'
 
 export interface DrizzleFoodMatcherConfig {
   // A log eaten within this many days is treated as recent.

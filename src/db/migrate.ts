@@ -1,7 +1,7 @@
-import { createSql } from '@/db'
-import { runMigrations } from '@/db/migrations'
-import { EnvError, requireDatabaseUrl } from '@/env'
-import { setupMeshiCheckpointSchema } from '@/llm/agent/checkpointer'
+import { createSql } from '#db/index'
+import { runMigrations } from '#db/migrations'
+import { EnvError, requireDatabaseUrl } from '#env'
+import { setupMeshiCheckpointSchema } from '#llm/agent/checkpointer'
 
 // infra runs this as `node dist/db/migrate.js` in an init container.
 const main = async (): Promise<void> => {

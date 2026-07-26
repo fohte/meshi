@@ -1,11 +1,11 @@
 import { describe, expect, it } from 'vitest'
 
-import type { DomainToolsRegistry } from '@/llm/domain-tools/registry'
-import type { DomainTool, DomainToolName } from '@/llm/domain-tools/types'
-import { err, ok } from '@/llm/domain-tools/types'
-import { createDomainAgentOrchestrator } from '@/llm/orchestrator/domain-agent-orchestrator'
-import type { MealRecordResult } from '@/llm/orchestrator/types'
-import { scriptedDomainAgentModel } from '@/test/scripted-domain-agent-model'
+import type { DomainToolsRegistry } from '#llm/domain-tools/registry'
+import type { DomainTool, DomainToolName } from '#llm/domain-tools/types'
+import { err, ok } from '#llm/domain-tools/types'
+import { createDomainAgentOrchestrator } from '#llm/orchestrator/domain-agent-orchestrator'
+import type { MealRecordResult } from '#llm/orchestrator/types'
+import { scriptedDomainAgentModel } from '#test/scripted-domain-agent-model'
 
 const stubRegistry = (
   tools: ReadonlyArray<DomainTool>,

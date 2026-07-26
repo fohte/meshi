@@ -1,14 +1,14 @@
 import { z } from 'zod'
 
-import type { FoodMatcher } from '@/domain/food-matcher/food-matcher'
-import { toInternalToolError } from '@/llm/domain-tools/internal-error'
-import { parseToolInput } from '@/llm/domain-tools/parse'
+import type { FoodMatcher } from '#domain/food-matcher/food-matcher'
+import { toInternalToolError } from '#llm/domain-tools/internal-error'
+import { parseToolInput } from '#llm/domain-tools/parse'
 import {
   type DomainTool,
   err,
   type Result,
   type ToolError,
-} from '@/llm/domain-tools/types'
+} from '#llm/domain-tools/types'
 
 const inputSchema = z.object({
   query: z.string().min(1),

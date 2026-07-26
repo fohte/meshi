@@ -1,4 +1,4 @@
-import type { JsonValue, Sql } from '@/db'
+import type { JsonValue, Sql } from '#db/index'
 import type {
   a2aPushConfigs,
   foodCompositions,
@@ -6,8 +6,8 @@ import type {
   foodMasters,
   mealLogs,
   nutrientDefinitions,
-} from '@/db/schema'
-import { inferMealType } from '@/domain/meal-log/infer-meal-type'
+} from '#db/schema'
+import { inferMealType } from '#domain/meal-log/infer-meal-type'
 
 export const seedNutrientDefinition = async (
   sql: Sql,
