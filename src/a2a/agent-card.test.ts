@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { createMeshiAgentCard } from '@/a2a/agent-card'
+import { createMeshiAgentCard } from '#a2a/agent-card'
 
 describe('createMeshiAgentCard', () => {
   it('declares the four intent-level skills with the given url', () => {

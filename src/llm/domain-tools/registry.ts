@@ -2,21 +2,21 @@ import type {
   LlmToolCall,
   LlmToolExecutionResult,
   LlmToolSchema,
-} from '@/adapters/llm/types'
-import type { WebSearchClient } from '@/adapters/web-search/web-search-client'
-import type { FoodMasterService } from '@/domain/food-master/service'
-import type { FoodMatcher } from '@/domain/food-matcher/food-matcher'
-import type { MealHistoryService } from '@/domain/meal-history/types'
-import type { MealLogService } from '@/domain/meal-log/meal-log-service'
-import type { UserProfileService } from '@/domain/user-profile/user-profile-service'
-import { createGetUserProfileTool } from '@/llm/domain-tools/tools/get-user-profile'
-import { createQueryMealHistoryTool } from '@/llm/domain-tools/tools/query-meal-history'
-import { createRecordMealLogTool } from '@/llm/domain-tools/tools/record-meal-log'
-import { createRegisterFoodMasterTool } from '@/llm/domain-tools/tools/register-food-master'
-import { createSearchFoodMasterTool } from '@/llm/domain-tools/tools/search-food-master'
-import { createUpdateUserProfileTool } from '@/llm/domain-tools/tools/update-user-profile'
-import { createWebSearchTool } from '@/llm/domain-tools/tools/web-search'
-import type { DomainTool, ToolError } from '@/llm/domain-tools/types'
+} from '#adapters/llm/types'
+import type { WebSearchClient } from '#adapters/web-search/web-search-client'
+import type { FoodMasterService } from '#domain/food-master/service'
+import type { FoodMatcher } from '#domain/food-matcher/food-matcher'
+import type { MealHistoryService } from '#domain/meal-history/types'
+import type { MealLogService } from '#domain/meal-log/meal-log-service'
+import type { UserProfileService } from '#domain/user-profile/user-profile-service'
+import { createGetUserProfileTool } from '#llm/domain-tools/tools/get-user-profile'
+import { createQueryMealHistoryTool } from '#llm/domain-tools/tools/query-meal-history'
+import { createRecordMealLogTool } from '#llm/domain-tools/tools/record-meal-log'
+import { createRegisterFoodMasterTool } from '#llm/domain-tools/tools/register-food-master'
+import { createSearchFoodMasterTool } from '#llm/domain-tools/tools/search-food-master'
+import { createUpdateUserProfileTool } from '#llm/domain-tools/tools/update-user-profile'
+import { createWebSearchTool } from '#llm/domain-tools/tools/web-search'
+import type { DomainTool, ToolError } from '#llm/domain-tools/types'
 
 const safeStringify = (value: unknown): string | null => {
   // JSON.stringify throwing (circular refs, BigInt) is the only signal for

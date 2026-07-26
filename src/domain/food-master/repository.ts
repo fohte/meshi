@@ -1,16 +1,16 @@
 import { err, errAsync, ok, type Result, ResultAsync } from 'neverthrow'
 import type postgres from 'postgres'
 
-import type { Sql } from '@/db'
-import { FoodMasterDomainError } from '@/domain/food-master/errors'
-import { defaultIdGenerator, type IdGenerator } from '@/domain/food-master/id'
+import type { Sql } from '#db/index'
+import { FoodMasterDomainError } from '#domain/food-master/errors'
+import { defaultIdGenerator, type IdGenerator } from '#domain/food-master/id'
 import type {
   FoodMaster,
   FoodMasterId,
   FoodSource,
   NutritionMap,
   RegisterFoodMasterInput,
-} from '@/domain/food-master/types'
+} from '#domain/food-master/types'
 
 export interface FoodMasterRepository {
   register(

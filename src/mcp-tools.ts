@@ -1,8 +1,8 @@
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 
-import type { UserProfileService } from '@/domain/user-profile/user-profile-service'
-import type { ConversationOrchestrator } from '@/llm/orchestrator'
-import type { Logger } from '@/logger'
+import type { UserProfileService } from '#domain/user-profile/user-profile-service'
+import type { ConversationOrchestrator } from '#llm/orchestrator/index'
+import type { Logger } from '#logger'
 import {
   buildMealHistoryPayload,
   buildMealRecordPayload,
@@ -13,7 +13,7 @@ import {
   orchestratorCallToolResult,
   TOOL_CALLED,
   TOOL_SUCCEEDED,
-} from '@/mcp-tools/payloads'
+} from '#mcp-tools/payloads'
 import {
   mealHistoryStructuredOutput,
   mealRecordStructuredOutput,
@@ -24,7 +24,7 @@ import {
   recordFromImageInput,
   recordFromTextInput,
   updateProfileInput,
-} from '@/mcp-tools/schemas'
+} from '#mcp-tools/schemas'
 
 export interface MeshiToolDeps {
   readonly orchestrator: ConversationOrchestrator

@@ -2,13 +2,9 @@ import { drizzle } from 'drizzle-orm/postgres-js'
 import postgres from 'postgres'
 import { expect, it } from 'vitest'
 
-import { createMealHistoryService } from '@/domain/meal-history/mealHistoryService'
-import { describeIfDb, setupTx, TEST_DATABASE_URL } from '@/test/db'
-import {
-  seedFoodMaster,
-  seedMealLog,
-  seedNutrientDefinition,
-} from '@/test/seed'
+import { createMealHistoryService } from '#domain/meal-history/mealHistoryService'
+import { describeIfDb, setupTx, TEST_DATABASE_URL } from '#test/db'
+import { seedFoodMaster, seedMealLog, seedNutrientDefinition } from '#test/seed'
 
 const seedNutrientDefinitions = async (sql: postgres.Sql): Promise<void> => {
   await seedNutrientDefinition(sql, {
@@ -396,7 +392,7 @@ describeIfDb(
             source: 'user_input',
             nutrients: { probe_energy_kcal: 156 },
           })
-          // Not seedMealLog() from @/test/seed: it binds eaten_at as a raw
+          // Not seedMealLog() from #test/seed: it binds eaten_at as a raw
           // `Date`, which fails against this corrupted pool the same way a
           // raw `Date` bind anywhere in this file would.
           await tx`

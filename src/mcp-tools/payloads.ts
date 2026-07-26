@@ -1,13 +1,13 @@
 import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js'
 
-import type { UserProfile } from '@/domain/user-profile/user-profile'
+import type { UserProfile } from '#domain/user-profile/user-profile'
 import type {
   MealHistoryResult,
   MealRecordResult,
   OrchestratorError,
   RecommendResult,
-} from '@/llm/orchestrator'
-import type { Logger } from '@/logger'
+} from '#llm/orchestrator/index'
+import type { Logger } from '#logger'
 
 export const TOOL_CALLED = 'meshi.tool_called'
 export const TOOL_SUCCEEDED = 'meshi.tool_succeeded'

@@ -1,8 +1,8 @@
 import { describe, expect, it, vi } from 'vitest'
 
-import { withAdvisoryLock } from '@/a2a/advisory-lock'
-import type { Sql } from '@/db'
-import { describeIfDb, getTestSql } from '@/test/db'
+import { withAdvisoryLock } from '#a2a/advisory-lock'
+import type { Sql } from '#db/index'
+import { describeIfDb, getTestSql } from '#test/db'
 
 // Reserves its own connection to probe the lock so the probe itself can
 // never be mistaken for the lock held by withAdvisoryLock's connection —

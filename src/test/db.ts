@@ -1,7 +1,7 @@
 import postgres from 'postgres'
 import { afterAll, afterEach, beforeEach, describe } from 'vitest'
 
-import type { Sql } from '@/db'
+import type { Sql } from '#db/index'
 
 const LOCAL_HOSTS = new Set(['127.0.0.1', 'localhost', '::1'])
 

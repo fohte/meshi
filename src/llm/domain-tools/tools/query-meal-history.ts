@@ -1,16 +1,16 @@
 import { z } from 'zod'
 
-import type { MealHistoryService } from '@/domain/meal-history/types'
-import { MEAL_TYPES, type MealType } from '@/domain/meal-log/types'
-import { internalErr } from '@/llm/domain-tools/internal-error'
-import { parseToolInput } from '@/llm/domain-tools/parse'
+import type { MealHistoryService } from '#domain/meal-history/types'
+import { MEAL_TYPES, type MealType } from '#domain/meal-log/types'
+import { internalErr } from '#llm/domain-tools/internal-error'
+import { parseToolInput } from '#llm/domain-tools/parse'
 import {
   type DomainTool,
   err,
   ok,
   type Result,
   type ToolError,
-} from '@/llm/domain-tools/types'
+} from '#llm/domain-tools/types'
 
 const inputSchema = z.object({
   period_from_iso: z.iso.datetime({ offset: true }),

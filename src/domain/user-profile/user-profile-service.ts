@@ -1,13 +1,13 @@
 import { okAsync, type ResultAsync } from 'neverthrow'
 
-import type { UserProfileRepositoryError } from '@/domain/user-profile/errors'
+import type { UserProfileRepositoryError } from '#domain/user-profile/errors'
 import {
   DEFAULT_USER_PROFILE,
   mergeUserProfile,
   type UserProfile,
   type UserProfilePatch,
-} from '@/domain/user-profile/user-profile'
-import type { UserProfileRepository } from '@/domain/user-profile/user-profile-repository'
+} from '#domain/user-profile/user-profile'
+import type { UserProfileRepository } from '#domain/user-profile/user-profile-repository'
 
 export interface UserProfileService {
   get(): ResultAsync<UserProfile, UserProfileRepositoryError>

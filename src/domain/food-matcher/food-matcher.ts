@@ -3,7 +3,7 @@ import type { ResultAsync } from 'neverthrow'
 import type {
   FoodMatcherInvalidRowError,
   FoodMatcherQueryError,
-} from '@/domain/food-matcher/drizzle-food-matcher'
+} from '#domain/food-matcher/drizzle-food-matcher'
 
 export type FoodMatchReason =
   'history_recent' | 'history_frequent' | 'fuzzy_name' | 'composition_table'

@@ -1,4 +1,4 @@
-import type { Sql } from '@/db'
+import type { Sql } from '#db/index'
 
 // pg_advisory_lock/unlock are scoped to the session (physical connection)
 // that took the lock, not to a transaction, so this reserves a dedicated

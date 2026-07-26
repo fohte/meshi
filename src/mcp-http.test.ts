@@ -9,8 +9,8 @@ import {
 } from '@opentelemetry/sdk-trace-base'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
-import { handleMcpRequest } from '@/mcp-http'
-import { createStubMcpDeps } from '@/test/mcp-stubs'
+import { handleMcpRequest } from '#mcp-http'
+import { createStubMcpDeps } from '#test/mcp-stubs'
 
 const stubDeps = createStubMcpDeps()
 

@@ -1,6 +1,6 @@
 import { z } from 'zod'
 
-import { SUPPORTED_IMAGE_MIME_TYPES } from '@/adapters/image/image-interpreter'
+import { SUPPORTED_IMAGE_MIME_TYPES } from '#adapters/image/image-interpreter'
 
 const isoDatetime = z.iso.datetime({ offset: true })
 // z.number() rejects NaN and Infinity by default in zod v4, so it is safe to

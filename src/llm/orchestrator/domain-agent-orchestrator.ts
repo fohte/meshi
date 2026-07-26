@@ -4,24 +4,24 @@ import type { BaseChatModel } from '@langchain/core/language_models/chat_models'
 import { MemorySaver } from '@langchain/langgraph'
 import { ResultAsync } from 'neverthrow'
 
-import type { AgentContentBlock } from '@/llm/agent/content-block'
-import { createMeshiDomainAgent } from '@/llm/agent/domain-agent'
+import type { AgentContentBlock } from '#llm/agent/content-block'
+import { createMeshiDomainAgent } from '#llm/agent/domain-agent'
 import {
   type MeshiAgentResponse,
   meshiAgentResponseSchema,
-} from '@/llm/agent/response-schema'
-import type { DomainToolsRegistry } from '@/llm/domain-tools/registry'
+} from '#llm/agent/response-schema'
+import type { DomainToolsRegistry } from '#llm/domain-tools/registry'
 import {
   type QueryMealHistoryOutput,
   toMealHistoryEntryFields,
-} from '@/llm/domain-tools/tools/query-meal-history'
-import type { RecordMealLogOutput } from '@/llm/domain-tools/tools/record-meal-log'
-import type { SearchFoodMasterOutput } from '@/llm/domain-tools/tools/search-food-master'
-import type { DomainTool } from '@/llm/domain-tools/types'
+} from '#llm/domain-tools/tools/query-meal-history'
+import type { RecordMealLogOutput } from '#llm/domain-tools/tools/record-meal-log'
+import type { SearchFoodMasterOutput } from '#llm/domain-tools/tools/search-food-master'
+import type { DomainTool } from '#llm/domain-tools/types'
 import {
   createPassthroughReplyFormatter,
   type ReplyFormatter,
-} from '@/llm/orchestrator/reply-formatter'
+} from '#llm/orchestrator/reply-formatter'
 import type {
   ConversationOrchestrator,
   FoodCandidate,
@@ -35,7 +35,7 @@ import type {
   RecordedMeal,
   RecordFromImageInput,
   RecordFromTextInput,
-} from '@/llm/orchestrator/types'
+} from '#llm/orchestrator/types'
 
 export interface DomainAgentOrchestratorOptions {
   readonly model: BaseChatModel

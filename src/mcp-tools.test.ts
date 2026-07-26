@@ -3,12 +3,12 @@ import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js'
 import { errAsync, okAsync } from 'neverthrow'
 import { describe, expect, it } from 'vitest'
 
-import type { UserProfileRepositoryError } from '@/domain/user-profile/errors'
+import type { UserProfileRepositoryError } from '#domain/user-profile/errors'
 import type {
   UserProfile,
   UserProfilePatch,
-} from '@/domain/user-profile/user-profile'
-import type { UserProfileService } from '@/domain/user-profile/user-profile-service'
+} from '#domain/user-profile/user-profile'
+import type { UserProfileService } from '#domain/user-profile/user-profile-service'
 import type {
   ConversationOrchestrator,
   MealHistoryResult,
@@ -19,9 +19,9 @@ import type {
   RecommendResult,
   RecordFromImageInput,
   RecordFromTextInput,
-} from '@/llm/orchestrator'
-import type { Logger } from '@/logger'
-import { createMcpServer } from '@/mcp'
+} from '#llm/orchestrator/index'
+import type { Logger } from '#logger'
+import { createMcpServer } from '#mcp'
 
 const VALIDATION_ERROR_TEXT = '<schema validation error>'
 

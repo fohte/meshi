@@ -1,9 +1,9 @@
 import { describe, expect, it } from 'vitest'
 
-import type { FoodMatchCandidate } from '@/domain/food-matcher'
-import { createDrizzleFoodMatcher } from '@/domain/food-matcher'
-import { describeIfDb, setupTx } from '@/test/db'
-import { seedFoodComposition, seedFoodMaster, seedMealLog } from '@/test/seed'
+import type { FoodMatchCandidate } from '#domain/food-matcher/index'
+import { createDrizzleFoodMatcher } from '#domain/food-matcher/index'
+import { describeIfDb, setupTx } from '#test/db'
+import { seedFoodComposition, seedFoodMaster, seedMealLog } from '#test/seed'
 
 const MS_PER_DAY = 24 * 60 * 60 * 1000
 

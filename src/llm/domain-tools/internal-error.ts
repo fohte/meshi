@@ -1,4 +1,4 @@
-import { err, type Result, type ToolError } from '@/llm/domain-tools/types'
+import { err, type Result, type ToolError } from '#llm/domain-tools/types'
 
 export const toInternalToolError = (e: unknown): ToolError => ({
   code: 'internal_error',

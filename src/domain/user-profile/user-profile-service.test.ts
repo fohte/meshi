@@ -4,9 +4,9 @@ import { describe, expect, it } from 'vitest'
 import {
   DEFAULT_USER_PROFILE,
   type UserProfile,
-} from '@/domain/user-profile/user-profile'
-import type { UserProfileRepository } from '@/domain/user-profile/user-profile-repository'
-import { createUserProfileService } from '@/domain/user-profile/user-profile-service'
+} from '#domain/user-profile/user-profile'
+import type { UserProfileRepository } from '#domain/user-profile/user-profile-repository'
+import { createUserProfileService } from '#domain/user-profile/user-profile-service'
 
 const createInMemoryRepository = (
   initial: UserProfile | null = null,

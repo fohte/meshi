@@ -1,6 +1,6 @@
 import type { AgentCard, AgentSkill } from '@a2a-js/sdk'
 
-import { SUPPORTED_IMAGE_MIME_TYPES } from '@/adapters/image/image-interpreter'
+import { SUPPORTED_IMAGE_MIME_TYPES } from '#adapters/image/image-interpreter'
 
 const MESHI_AGENT_NAME = 'meshi'
 const MESHI_AGENT_VERSION = '0.0.0'

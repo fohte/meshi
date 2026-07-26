@@ -1,4 +1,4 @@
-import type { MealType } from '@/domain/meal-log/types'
+import type { MealType } from '#domain/meal-log/types'
 
 const JST_OFFSET_MS = 9 * 60 * 60 * 1000
 

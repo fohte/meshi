@@ -1,7 +1,7 @@
 export {
   createDomainAgentOrchestrator,
   type DomainAgentOrchestratorOptions,
-} from '@/llm/orchestrator/domain-agent-orchestrator'
+} from '#llm/orchestrator/domain-agent-orchestrator'
 export {
   createPassthroughReplyFormatter,
   createTemplateReplyFormatter,
@@ -9,7 +9,7 @@ export {
   type MealRecordSummaryInput,
   type RecommendSummaryInput,
   type ReplyFormatter,
-} from '@/llm/orchestrator/reply-formatter'
+} from '#llm/orchestrator/reply-formatter'
 export type {
   ConversationOrchestrator,
   FoodCandidate,
@@ -24,4 +24,4 @@ export type {
   RecordedMeal,
   RecordFromImageInput,
   RecordFromTextInput,
-} from '@/llm/orchestrator/types'
+} from '#llm/orchestrator/types'

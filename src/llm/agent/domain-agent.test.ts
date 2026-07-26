@@ -2,10 +2,10 @@ import { MemorySaver } from '@langchain/langgraph'
 import { fakeModel } from 'langchain'
 import { describe, expect, it } from 'vitest'
 
-import { createMeshiDomainAgent } from '@/llm/agent/domain-agent'
-import type { DomainToolsRegistry } from '@/llm/domain-tools/registry'
-import type { DomainTool } from '@/llm/domain-tools/types'
-import { err, ok } from '@/llm/domain-tools/types'
+import { createMeshiDomainAgent } from '#llm/agent/domain-agent'
+import type { DomainToolsRegistry } from '#llm/domain-tools/registry'
+import type { DomainTool } from '#llm/domain-tools/types'
+import { err, ok } from '#llm/domain-tools/types'
 
 const stubRegistry = (
   tools: ReadonlyArray<DomainTool>,

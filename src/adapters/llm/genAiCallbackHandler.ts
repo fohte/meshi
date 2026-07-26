@@ -39,7 +39,7 @@ import {
   type GenAiMessagePart,
   type GenAiOutputMessage,
   recordSpanException,
-} from '@/adapters/llm/genAiSemconv'
+} from '#adapters/llm/genAiSemconv'
 
 const tracer = trace.getTracer('meshi-genai-callback-handler')
 

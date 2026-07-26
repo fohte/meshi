@@ -1,10 +1,10 @@
 import { errAsync } from 'neverthrow'
 
-import { UserProfileRepositoryError } from '@/domain/user-profile/errors'
-import type { UserProfileService } from '@/domain/user-profile/user-profile-service'
-import type { ConversationOrchestrator } from '@/llm/orchestrator'
-import { createNullLogger } from '@/logger'
-import type { MeshiToolDeps } from '@/mcp-tools'
+import { UserProfileRepositoryError } from '#domain/user-profile/errors'
+import type { UserProfileService } from '#domain/user-profile/user-profile-service'
+import type { ConversationOrchestrator } from '#llm/orchestrator/index'
+import { createNullLogger } from '#logger'
+import type { MeshiToolDeps } from '#mcp-tools'
 
 const rejectingOrchestrator: ConversationOrchestrator = {
   recordFromText: () => Promise.reject(new Error('stub')),

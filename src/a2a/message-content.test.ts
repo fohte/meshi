@@ -1,7 +1,7 @@
 import type { Message } from '@a2a-js/sdk'
 import { describe, expect, it } from 'vitest'
 
-import { toAgentContent } from '@/a2a/message-content'
+import { toAgentContent } from '#a2a/message-content'
 
 const buildMessage = (parts: Message['parts']): Message => ({
   kind: 'message',

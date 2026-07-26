@@ -4,7 +4,7 @@ import {
   GEN_AI_PROVIDER_NAME_VALUE_OPENCODE,
   GenAiCallbackHandler,
   OPENCODE_GO_BASE_URL,
-} from '@/adapters/llm'
+} from '#adapters/llm/index'
 
 export interface CreateMeshiChatModelOptions {
   readonly apiKey: string

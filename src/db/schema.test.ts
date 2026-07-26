@@ -1,6 +1,6 @@
 import { expect, it } from 'vitest'
 
-import { describeIfDb, getTestSql, setupTx } from '@/test/db'
+import { describeIfDb, getTestSql, setupTx } from '#test/db'
 
 describeIfDb('schema migrations', () => {
   it('creates the expected tables', async () => {

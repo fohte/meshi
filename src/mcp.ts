@@ -1,6 +1,6 @@
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 
-import { type MeshiToolDeps, registerMeshiTools } from '@/mcp-tools'
+import { type MeshiToolDeps, registerMeshiTools } from '#mcp-tools'
 
 export const MCP_SERVER_NAME = 'meshi'
 export const MCP_SERVER_VERSION = '0.0.0'

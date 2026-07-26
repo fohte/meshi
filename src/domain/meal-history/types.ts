@@ -1,6 +1,6 @@
 import type { ResultAsync } from 'neverthrow'
 
-import type { MealType } from '@/domain/meal-log/types'
+import type { MealType } from '#domain/meal-log/types'
 
 export type NutrientCode = string
 

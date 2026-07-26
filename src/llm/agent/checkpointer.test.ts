@@ -4,10 +4,10 @@ import { HumanMessage } from '@langchain/core/messages'
 import { fakeModel } from 'langchain'
 import { expect, it } from 'vitest'
 
-import { createMeshiCheckpointer } from '@/llm/agent/checkpointer'
-import { createMeshiDomainAgent } from '@/llm/agent/domain-agent'
-import type { DomainToolsRegistry } from '@/llm/domain-tools/registry'
-import { describeIfDb, TEST_DATABASE_URL } from '@/test/db'
+import { createMeshiCheckpointer } from '#llm/agent/checkpointer'
+import { createMeshiDomainAgent } from '#llm/agent/domain-agent'
+import type { DomainToolsRegistry } from '#llm/domain-tools/registry'
+import { describeIfDb, TEST_DATABASE_URL } from '#test/db'
 
 const emptyRegistry: DomainToolsRegistry = {
   list: () => [],

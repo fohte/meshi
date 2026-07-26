@@ -4,11 +4,11 @@ import { describe, expect, it } from 'vitest'
 import {
   FoodMasterNotFoundError,
   FutureEatenAtError,
-} from '@/domain/meal-log/errors'
-import type { MealLogService } from '@/domain/meal-log/meal-log-service'
-import type { MealLogResult, RecordMealLogInput } from '@/domain/meal-log/types'
-import { normalizeResult } from '@/llm/domain-tools/test-helpers'
-import { createRecordMealLogTool } from '@/llm/domain-tools/tools/record-meal-log'
+} from '#domain/meal-log/errors'
+import type { MealLogService } from '#domain/meal-log/meal-log-service'
+import type { MealLogResult, RecordMealLogInput } from '#domain/meal-log/types'
+import { normalizeResult } from '#llm/domain-tools/test-helpers'
+import { createRecordMealLogTool } from '#llm/domain-tools/tools/record-meal-log'
 
 interface Calls {
   record: RecordMealLogInput[]

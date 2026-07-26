@@ -1,10 +1,10 @@
-import type { MealType } from '@/domain/meal-log/types'
+import type { MealType } from '#domain/meal-log/types'
 import type {
   FoodCandidate,
   MealHistoryAggregateSnapshot,
   OrchestratorError,
   RecordedMeal,
-} from '@/llm/orchestrator/types'
+} from '#llm/orchestrator/types'
 
 export interface MealRecordSummaryInput {
   readonly recorded: ReadonlyArray<RecordedMeal>

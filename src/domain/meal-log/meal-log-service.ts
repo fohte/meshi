@@ -4,16 +4,16 @@ import {
   type DomainError,
   FutureEatenAtError,
   InvalidQuantityError,
-} from '@/domain/meal-log/errors'
-import { inferMealType } from '@/domain/meal-log/infer-meal-type'
-import type { MealLogRepository } from '@/domain/meal-log/meal-log-repository'
+} from '#domain/meal-log/errors'
+import { inferMealType } from '#domain/meal-log/infer-meal-type'
+import type { MealLogRepository } from '#domain/meal-log/meal-log-repository'
 import type {
   FoodMasterRef,
   MealLogResult,
   MealLogRow,
   NutritionMap,
   RecordMealLogInput,
-} from '@/domain/meal-log/types'
+} from '#domain/meal-log/types'
 
 export interface MealLogService {
   record(input: RecordMealLogInput): ResultAsync<MealLogResult, DomainError>

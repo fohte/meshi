@@ -1,10 +1,10 @@
 import { expect, it } from 'vitest'
 
-import { createDrizzleMealLogRepository } from '@/domain/meal-log/drizzle-meal-log-repository'
-import { FoodMasterNotFoundError } from '@/domain/meal-log/errors'
-import type { MealLogRow } from '@/domain/meal-log/types'
-import { describeIfDb, setupDrizzleTx } from '@/test/db'
-import { seedFoodMaster } from '@/test/seed'
+import { createDrizzleMealLogRepository } from '#domain/meal-log/drizzle-meal-log-repository'
+import { FoodMasterNotFoundError } from '#domain/meal-log/errors'
+import type { MealLogRow } from '#domain/meal-log/types'
+import { describeIfDb, setupDrizzleTx } from '#test/db'
+import { seedFoodMaster } from '#test/seed'
 
 const CREATED_AT_PLACEHOLDER = new Date('2000-01-01T00:00:00.000Z')
 

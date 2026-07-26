@@ -1,7 +1,7 @@
 import type { Task } from '@a2a-js/sdk'
 import { captureWithFingerprint } from '@fohte/service-kit/observability'
 
-import type { A2aTaskStore } from '@/a2a/postgres-task-store'
+import type { A2aTaskStore } from '#a2a/postgres-task-store'
 
 const SWEEP_FINGERPRINT = 'a2a.lifecycle.sweep-failed'
 const ON_EXPIRE_FINGERPRINT = 'a2a.lifecycle.on-expire-failed'

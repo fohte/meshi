@@ -1,4 +1,4 @@
-import type { Sql, SqlOrTx } from '@/db'
+import type { Sql, SqlOrTx } from '#db/index'
 
 export type NutrientUnit = 'kcal' | 'g' | 'mg' | 'µg'
 

@@ -36,7 +36,7 @@ import {
 } from '@opentelemetry/semantic-conventions/incubating'
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 
-import { GenAiCallbackHandler } from '@/adapters/llm/genAiCallbackHandler'
+import { GenAiCallbackHandler } from '#adapters/llm/genAiCallbackHandler'
 
 const serializedLlm: Serialized = {
   lc: 1,

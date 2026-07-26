@@ -6,13 +6,13 @@ import {
   FoodMasterNotFoundError,
   FutureEatenAtError,
   InvalidQuantityError,
-} from '@/domain/meal-log/errors'
+} from '#domain/meal-log/errors'
 import type {
   InsertMealLogInput,
   MealLogRepository,
-} from '@/domain/meal-log/meal-log-repository'
-import { createMealLogService } from '@/domain/meal-log/meal-log-service'
-import type { FoodMasterRef, MealLogRow } from '@/domain/meal-log/types'
+} from '#domain/meal-log/meal-log-repository'
+import { createMealLogService } from '#domain/meal-log/meal-log-service'
+import type { FoodMasterRef, MealLogRow } from '#domain/meal-log/types'
 
 const NOW = new Date('2026-06-16T12:00:00.000Z')
 const CREATED_AT = new Date('2026-06-16T12:00:00.500Z')

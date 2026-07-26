@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { createTemplateReplyFormatter } from '@/llm/orchestrator/reply-formatter'
+import { createTemplateReplyFormatter } from '#llm/orchestrator/reply-formatter'
 
 describe('createTemplateReplyFormatter', () => {
   const formatter = createTemplateReplyFormatter()

@@ -8,20 +8,20 @@ import type {
 } from '@a2a-js/sdk/server'
 import { captureWithFingerprint } from '@fohte/service-kit/observability'
 
-import { withAdvisoryLock } from '@/a2a/advisory-lock'
-import { type AgentContentBlock, toAgentContent } from '@/a2a/message-content'
-import type { Sql } from '@/db'
-import { parseJson } from '@/lib/json'
+import { withAdvisoryLock } from '#a2a/advisory-lock'
+import { type AgentContentBlock, toAgentContent } from '#a2a/message-content'
+import type { Sql } from '#db/index'
+import { parseJson } from '#lib/json'
 import {
   type MeshiAgentResponse,
   meshiAgentResponseSchema,
-} from '@/llm/agent/response-schema'
+} from '#llm/agent/response-schema'
 import {
   type QueryMealHistoryOutput,
   queryMealHistoryOutputSchema,
   toMealHistoryEntryFields,
-} from '@/llm/domain-tools/tools/query-meal-history'
-import { formatMealHistoryEntries } from '@/llm/orchestrator/reply-formatter'
+} from '#llm/domain-tools/tools/query-meal-history'
+import { formatMealHistoryEntries } from '#llm/orchestrator/reply-formatter'
 
 // The minimal surface of a LangChain BaseMessage this module reads back out
 // of agent.invoke()'s result — just enough to walk the tool-call history,
