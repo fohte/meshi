@@ -1,16 +1,15 @@
 import { tool } from 'langchain'
+import { Result } from 'neverthrow'
 
 import { toInternalToolError } from '@/llm/domain-tools/internal-error'
 import type { DomainTool, ToolError } from '@/llm/domain-tools/types'
 
-const safeStringify = (value: unknown): string | null => {
-  // eslint-disable-next-line no-restricted-syntax -- JSON.stringify throwing (circular refs, BigInt) is the only signal for this failure mode; there's no Result-returning equivalent to chain into
-  try {
-    return JSON.stringify(value)
-  } catch {
-    return null
-  }
-}
+const stringify = Result.fromThrowable((value: unknown): string =>
+  JSON.stringify(value),
+)
+
+const safeStringify = (value: unknown): string | null =>
+  stringify(value).unwrapOr(null)
 
 // Same envelope as createDomainToolsRegistry's executeToolUse (registry.ts)
 // and the orchestrator's encodeOk/encodeToolError (orchestrator.ts): each

@@ -7,6 +7,7 @@ import type {
   RequestContext,
 } from '@a2a-js/sdk/server'
 import { captureWithFingerprint } from '@fohte/service-kit/observability'
+import { Result } from 'neverthrow'
 
 import { withAdvisoryLock } from '@/a2a/advisory-lock'
 import { type AgentContentBlock, toAgentContent } from '@/a2a/message-content'
@@ -105,6 +106,10 @@ const publishWorkingUpdate = (
 
 const QUERY_MEAL_HISTORY_TOOL_NAME = 'query_meal_history'
 
+const parseJson = Result.fromThrowable((text: string): unknown =>
+  JSON.parse(text),
+)
+
 // Finds the most recent query_meal_history tool result produced after the
 // turn's own human message — not just anywhere in the thread — so a history
 // query from an earlier turn on the same context can't leak its itemized
@@ -126,14 +131,9 @@ const extractLatestMealHistoryOutput = (
     ) {
       continue
     }
-    let json: unknown
-    // eslint-disable-next-line no-restricted-syntax -- JSON.parse throws natively on malformed content; the catch just skips this message and keeps scanning for the latest query_meal_history result
-    try {
-      json = JSON.parse(message.content)
-    } catch {
-      continue
-    }
-    const parsed = queryMealHistoryOutputSchema.safeParse(json)
+    const json = parseJson(message.content)
+    if (json.isErr()) continue
+    const parsed = queryMealHistoryOutputSchema.safeParse(json.value)
     if (parsed.success) return parsed.data
   }
   return null

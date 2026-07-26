@@ -10,6 +10,7 @@ import {
   GEN_AI_OPERATION_NAME_VALUE_EXECUTE_TOOL,
   MCP_METHOD_NAME_VALUE_TOOLS_CALL,
 } from '@opentelemetry/semantic-conventions/incubating'
+import { Result } from 'neverthrow'
 import { z } from 'zod'
 
 import { createMcpServer } from '@/mcp'
@@ -69,6 +70,10 @@ export const handleMcpRequest = async (
 const isJsonContentType = (contentType: string | undefined): boolean =>
   contentType !== undefined && contentType.includes('application/json')
 
+const parseJson = Result.fromThrowable((text: string): unknown =>
+  JSON.parse(text),
+)
+
 // The SDK reads the body itself via `transport.handleRequest`, so it's
 // buffered here instead and fed back through `handleRequest`'s `parsedBody`
 // param (the mechanism the SDK documents for body-parser middleware) to
@@ -79,16 +84,11 @@ const readJsonRpcBody = async (req: IncomingMessage): Promise<unknown> => {
     if (Buffer.isBuffer(chunk)) chunks.push(chunk)
   }
   const raw = Buffer.concat(chunks).toString('utf-8')
-  // eslint-disable-next-line no-restricted-syntax -- JSON.parse throws natively on malformed input; the catch falls back to the raw text so the SDK's own JSON-RPC validation rejects it too (see comment below)
-  try {
-    return JSON.parse(raw) as unknown
-  } catch {
-    // Malformed JSON: hand the raw text through so the SDK's own JSON-RPC
-    // validation rejects it too (its exact error message differs from the
-    // one it produces for a JSON parse failure, but both are 400s with a
-    // JSON-RPC parse-error code).
-    return raw
-  }
+  // Malformed JSON: hand the raw text through so the SDK's own JSON-RPC
+  // validation rejects it too (its exact error message differs from the
+  // one it produces for a JSON parse failure, but both are 400s with a
+  // JSON-RPC parse-error code).
+  return parseJson(raw).unwrapOr(raw)
 }
 
 // Only messages that could plausibly reach a tool handler are used to name
