@@ -127,6 +127,7 @@ const extractLatestMealHistoryOutput = (
       continue
     }
     let json: unknown
+    // eslint-disable-next-line no-restricted-syntax -- JSON.parse throws natively on malformed content; the catch just skips this message and keeps scanning for the latest query_meal_history result
     try {
       json = JSON.parse(message.content)
     } catch {
@@ -202,6 +203,7 @@ export const runAgentTurn = async (
   agent: MeshiDomainAgentLike,
   requestContext: RequestContext,
 ): Promise<Task> => {
+  // eslint-disable-next-line no-restricted-syntax -- boundary between LangGraph's throw-based agent.invoke() and this module's Task mapping; the catch below turns any thrown error into a failed Task instead of propagating it
   try {
     const result = await agent.invoke(
       {
@@ -288,6 +290,7 @@ export const createMeshiAgentExecutor = (
         // unguarded, it would surface as an unhandled exception instead of
         // just costing this one heartbeat tick.
         const heartbeat = setInterval(() => {
+          // eslint-disable-next-line no-restricted-syntax -- runs outside execute()'s call stack (see the comment above), so a throw here can't reach the try/finally below and must be swallowed locally
           try {
             publishWorkingUpdate(eventBus, taskId, contextId)
           } catch (err) {
@@ -297,6 +300,7 @@ export const createMeshiAgentExecutor = (
             })
           }
         }, heartbeatIntervalMs)
+        // eslint-disable-next-line no-restricted-syntax -- runAgentTurn() already converts its own failures into a Task rather than throwing; this try/finally only guarantees clearInterval(heartbeat) runs
         try {
           eventBus.publish(await runAgentTurn(options.agent, requestContext))
         } finally {

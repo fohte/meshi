@@ -20,6 +20,7 @@ export const createApp = (deps: AppDeps): Hono => {
   const app = new Hono()
 
   app.get('/health', async (c) => {
+    // eslint-disable-next-line no-restricted-syntax -- postgres-js's tagged-template query throws natively (no Result wrapper) and this handler must return a Response either way
     try {
       await pingDb(deps.sql)
       return c.json({ status: 'ok' })

@@ -71,6 +71,7 @@ export interface A2aTaskStore extends TaskStore {
 const parseTaskRow = (taskId: string, rawTask: unknown): Task => {
   const parsed = taskEnvelopeSchema.safeParse(rawTask)
   if (!parsed.success) {
+    // eslint-disable-next-line no-restricted-syntax -- signals an invalid a2a_tasks row to load() below, which implements the SDK's throw-based TaskStore.load() contract
     throw new TaskRowInvalidError(taskId, parsed.error)
   }
   // eslint-disable-next-line @typescript-eslint/no-unsafe-type-assertion -- taskEnvelopeSchema validates the fields this store depends on; the rest of the shape is trusted to the SDK types that produced it.
@@ -108,6 +109,7 @@ export const createPostgresTaskStore = (sql: Sql): A2aTaskStore => {
 
   return {
     async save(task: Task): Promise<void> {
+      // eslint-disable-next-line no-restricted-syntax -- implements the SDK's throw-based TaskStore.save() contract; wraps the raw postgres-js failure before rethrowing
       try {
         const statusTimestamp =
           task.status.timestamp !== undefined
@@ -133,11 +135,13 @@ export const createPostgresTaskStore = (sql: Sql): A2aTaskStore => {
         captureWithFingerprint(wrapped, TASK_STORE_FINGERPRINT, {
           extras: { taskId: task.id, method: 'save' },
         })
+        // eslint-disable-next-line no-restricted-syntax -- TaskStore.save() must surface failure to the SDK by throwing, not by returning a Result
         throw wrapped
       }
     },
 
     async load(taskId: string): Promise<Task | undefined> {
+      // eslint-disable-next-line no-restricted-syntax -- implements the SDK's throw-based TaskStore.load() contract; wraps the raw postgres-js failure before rethrowing
       try {
         const rows = await sql`
           SELECT task FROM a2a_tasks WHERE task_id = ${taskId}
@@ -153,6 +157,7 @@ export const createPostgresTaskStore = (sql: Sql): A2aTaskStore => {
         captureWithFingerprint(wrapped, TASK_STORE_FINGERPRINT, {
           extras: { taskId, method: 'load' },
         })
+        // eslint-disable-next-line no-restricted-syntax -- TaskStore.load() must surface failure to the SDK by throwing, not by returning a Result
         throw wrapped
       }
     },

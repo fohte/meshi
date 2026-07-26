@@ -13,6 +13,7 @@ const main = async (): Promise<void> => {
 
   const env = loadEnv()
   const sql = createSql(env.DATABASE_URL)
+  // eslint-disable-next-line no-restricted-syntax -- standalone CLI script; try/finally only guarantees sql.end() runs, main().catch() below is the top-level failure boundary
   try {
     const foodCompositionJsonPath = values['food-composition']
     const result = await runSeed(
@@ -20,6 +21,7 @@ const main = async (): Promise<void> => {
       foodCompositionJsonPath === undefined ? {} : { foodCompositionJsonPath },
     )
     if (result.isErr()) {
+      // eslint-disable-next-line no-restricted-syntax -- re-throws the Result's error so it surfaces through the same main().catch() path as any other startup failure in this script
       throw result.error
     }
     const foodCount = result.value.foodComposition?.foodCount

@@ -62,6 +62,7 @@ export const createPostgresPushNotificationStore = (
       const configId = pushNotificationConfig.id ?? taskId
       const config = { ...pushNotificationConfig, id: configId }
 
+      // eslint-disable-next-line no-restricted-syntax -- implements the SDK's throw-based PushNotificationStore.save() contract; wraps the raw postgres-js failure before rethrowing
       try {
         const configJson = JSON.stringify(config)
         await sql`
@@ -78,11 +79,13 @@ export const createPostgresPushNotificationStore = (
         captureWithFingerprint(wrapped, PUSH_NOTIFICATION_STORE_FINGERPRINT, {
           extras: { taskId, configId, method: 'save' },
         })
+        // eslint-disable-next-line no-restricted-syntax -- PushNotificationStore.save() must surface failure to the SDK by throwing, not by returning a Result
         throw wrapped
       }
     },
 
     async load(taskId: string): Promise<PushNotificationConfig[]> {
+      // eslint-disable-next-line no-restricted-syntax -- implements the SDK's throw-based PushNotificationStore.load() contract; wraps the raw postgres-js failure before rethrowing
       try {
         const rows = await sql`
           SELECT config FROM a2a_push_configs WHERE task_id = ${taskId}
@@ -91,6 +94,7 @@ export const createPostgresPushNotificationStore = (
         return rows.map((row) => {
           const parsed = pushNotificationConfigSchema.safeParse(row['config'])
           if (!parsed.success) {
+            // eslint-disable-next-line no-restricted-syntax -- signals an invalid a2a_push_configs row so the enclosing try/catch below wraps it the same way as any other query failure crossing the SDK boundary
             throw new PushConfigRowInvalidError(taskId, parsed.error)
           }
           return parsed.data
@@ -103,6 +107,7 @@ export const createPostgresPushNotificationStore = (
         captureWithFingerprint(wrapped, PUSH_NOTIFICATION_STORE_FINGERPRINT, {
           extras: { taskId, method: 'load' },
         })
+        // eslint-disable-next-line no-restricted-syntax -- PushNotificationStore.load() must surface failure to the SDK by throwing, not by returning a Result
         throw wrapped
       }
     },
@@ -112,6 +117,7 @@ export const createPostgresPushNotificationStore = (
       // back to taskId (the default id assigned in save() above), not to
       // "delete every config for this task".
       const resolvedConfigId = configId ?? taskId
+      // eslint-disable-next-line no-restricted-syntax -- implements the SDK's throw-based PushNotificationStore.delete() contract; wraps the raw postgres-js failure before rethrowing
       try {
         await sql`
           DELETE FROM a2a_push_configs
@@ -125,6 +131,7 @@ export const createPostgresPushNotificationStore = (
         captureWithFingerprint(wrapped, PUSH_NOTIFICATION_STORE_FINGERPRINT, {
           extras: { taskId, configId: resolvedConfigId, method: 'delete' },
         })
+        // eslint-disable-next-line no-restricted-syntax -- PushNotificationStore.delete() must surface failure to the SDK by throwing, not by returning a Result
         throw wrapped
       }
     },

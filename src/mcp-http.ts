@@ -32,6 +32,7 @@ export const handleMcpRequest = async (
     void server.close()
   })
 
+  // eslint-disable-next-line no-restricted-syntax -- bridges the MCP SDK's throw-based server.connect()/transport.handleRequest() directly to the raw Node response; Hono is bypassed here (see comment above), so this handler must catch the SDK's throw itself and write the HTTP error response manually
   try {
     // eslint-disable-next-line @typescript-eslint/no-unsafe-type-assertion -- SDK transport widens callback props to include undefined, conflicting with Transport under exactOptionalPropertyTypes.
     await server.connect(transport as unknown as Transport)
@@ -78,6 +79,7 @@ const readJsonRpcBody = async (req: IncomingMessage): Promise<unknown> => {
     if (Buffer.isBuffer(chunk)) chunks.push(chunk)
   }
   const raw = Buffer.concat(chunks).toString('utf-8')
+  // eslint-disable-next-line no-restricted-syntax -- JSON.parse throws natively on malformed input; the catch falls back to the raw text so the SDK's own JSON-RPC validation rejects it too (see comment below)
   try {
     return JSON.parse(raw) as unknown
   } catch {

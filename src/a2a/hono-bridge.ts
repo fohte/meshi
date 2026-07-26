@@ -104,6 +104,7 @@ export const mountA2aRoutes = (
       sse.onAbort(() => {
         void stream.return()
       })
+      // eslint-disable-next-line no-restricted-syntax -- draining the SDK's async generator can throw mid-stream; must be caught here to emit a JSON-RPC error event instead of crashing this streamSSE callback
       try {
         for await (const event of stream) {
           await sse.writeSSE({ data: JSON.stringify(event) })
@@ -111,6 +112,7 @@ export const mountA2aRoutes = (
       } catch (err) {
         console.error('a2a JSON-RPC stream failed:', err)
         captureWithFingerprint(err, HONO_FINGERPRINT)
+        // eslint-disable-next-line no-restricted-syntax -- sse.writeSSE() can itself throw if the client already disconnected; swallowed since there's nothing more to do once the connection is gone (see comment below)
         try {
           await sse.writeSSE({
             event: 'error',

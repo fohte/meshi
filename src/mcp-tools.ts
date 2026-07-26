@@ -48,6 +48,7 @@ export const registerMeshiTools = (
     },
     async (args) => {
       logger.log(TOOL_CALLED, { tool: 'record_meal_from_text' })
+      // eslint-disable-next-line no-restricted-syntax -- orchestrator.recordFromText() already converts its own failures into result.error rather than rejecting; this only guards against a genuinely unexpected throw before it reaches the MCP SDK unhandled
       try {
         const result = await orchestrator.recordFromText({
           text: args.text,
@@ -81,6 +82,7 @@ export const registerMeshiTools = (
     },
     async (args) => {
       logger.log(TOOL_CALLED, { tool: 'record_meal_from_image' })
+      // eslint-disable-next-line no-restricted-syntax -- orchestrator.recordFromImage() already converts its own failures into result.error rather than rejecting; this only guards against a genuinely unexpected throw before it reaches the MCP SDK unhandled
       try {
         const result = await orchestrator.recordFromImage({
           image: { mimeType: args.image.mimeType, base64: args.image.data },
@@ -114,6 +116,7 @@ export const registerMeshiTools = (
     },
     async (args) => {
       logger.log(TOOL_CALLED, { tool: 'query_meals' })
+      // eslint-disable-next-line no-restricted-syntax -- orchestrator.queryMeals() already converts its own failures into result.error rather than rejecting; this only guards against a genuinely unexpected throw before it reaches the MCP SDK unhandled
       try {
         const result = await orchestrator.queryMeals({
           query: args.query_text,
@@ -149,6 +152,7 @@ export const registerMeshiTools = (
     },
     async (args) => {
       logger.log(TOOL_CALLED, { tool: 'recommend_meal' })
+      // eslint-disable-next-line no-restricted-syntax -- orchestrator.recommendMeal() already converts its own failures into result.error rather than rejecting; this only guards against a genuinely unexpected throw before it reaches the MCP SDK unhandled
       try {
         const result = await orchestrator.recommendMeal({
           ...(args.additional_constraints === undefined
@@ -178,6 +182,7 @@ export const registerMeshiTools = (
     async () => {
       logger.log(TOOL_CALLED, { tool: 'get_profile' })
       // Guards a synchronous throw from the .match() callbacks below; profileService itself can no longer reject.
+      // eslint-disable-next-line no-restricted-syntax -- see comment above
       try {
         return await profileService.get().match(
           (profile) => {
@@ -208,6 +213,7 @@ export const registerMeshiTools = (
     async (args) => {
       logger.log(TOOL_CALLED, { tool: 'update_profile' })
       // Guards a synchronous throw from the .match() callbacks below; profileService itself can no longer reject.
+      // eslint-disable-next-line no-restricted-syntax -- see comment above
       try {
         return await profileService
           .update({

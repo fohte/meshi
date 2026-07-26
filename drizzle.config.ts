@@ -8,6 +8,7 @@ const url =
     ? 'postgresql://localhost:5432/placeholder'
     : undefined)
 if (url === undefined) {
+  // eslint-disable-next-line no-restricted-syntax -- drizzle-kit's config file must export a plain object synchronously; there's no Result-consuming caller to return one to
   throw new Error(
     'DATABASE_URL is required (run `docker compose port postgres 5432` for the local Postgres URL)',
   )
