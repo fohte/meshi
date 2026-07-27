@@ -7,19 +7,9 @@
     "#*": "./src/*.ts"
   },
   "scripts": {
-<<<<<<< before updating
-    "start": "tsx --import ./otel-register.mjs src/index.ts",
-||||||| last update
-=======
     "start": "node --import ./otel-register.mjs dist/index.js",
->>>>>>> after updating
     "dev": "tsx watch --import ./otel-register.mjs src/index.ts",
-<<<<<<< before updating
-    "build": "tsup src/index.ts src/db/migrate.ts --format esm --out-dir dist --clean",
-||||||| last update
-=======
     "build": "tsup",
->>>>>>> after updating
     "db:up": "docker compose up -d postgres",
     "db:down": "docker compose down",
     "db:generate": "drizzle-kit generate",

@@ -1,11 +1,6 @@
 node_modules
 dist
 .git
-<<<<<<< before updating
-*.log
-.env*
-||||||| last update
-=======
 .github
 .worktrees
 .claude
@@ -28,4 +23,5 @@ scripts
 .storybook
 storybook-static
 **/*.test.ts
->>>>>>> after updating
+*.log
+.env*

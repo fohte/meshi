@@ -1,6 +1,5 @@
 import '#bootstrap'
 
-<<<<<<< before updating
 import * as Sentry from '@sentry/node'
 
 import { EnvError } from '#env'
@@ -21,12 +20,3 @@ main().catch(async (err: unknown) => {
   await observability?.shutdown()
   process.exit(1)
 })
-||||||| last update
-export const greet = (name: string): string => {
-  return `Hello, ${name}!`
-}
-=======
-export const greet = (name: string): string => {
-  return `Hello, ${name}!`
-}
->>>>>>> after updating

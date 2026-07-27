@@ -1,19 +1,10 @@
-<<<<<<< before updating
-name: Docker
-||||||| last update
-=======
 name: Docker publish
->>>>>>> after updating
 
 on:
   push:
     branches:
       - main
-<<<<<<< before updating
-||||||| last update
-=======
   workflow_dispatch:
->>>>>>> after updating
 
 permissions:
   contents: read

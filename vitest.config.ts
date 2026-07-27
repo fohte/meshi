@@ -1,6 +1,5 @@
 import { defineConfig } from 'vitest/config'
 
-<<<<<<< before updating
 export default defineConfig({
   test: {
     // Runs DROP/CREATE/migrate once at process start. Per-test isolation
@@ -12,14 +11,3 @@ export default defineConfig({
     clearMocks: true,
   },
 })
-||||||| last update
-export default defineConfig({
-  resolve: {
-    alias: {
-      '@': '/src',
-    },
-  },
-})
-=======
-export default defineConfig({})
->>>>>>> after updating
