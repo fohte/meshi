@@ -48,8 +48,8 @@ The server fails fast on missing required env at startup. This table covers ever
 ### Run
 
 ```sh
-pnpm start    # one-shot
-pnpm dev      # tsx watch
+pnpm build && pnpm start   # one-shot, from the built dist/
+pnpm dev                   # tsx watch, no build step
 ```
 
 Or run it in a container instead (source is bind-mounted, so it hot-reloads the same way):
