@@ -11,6 +11,10 @@ export interface QueryMealHistoryInput {
   readonly periodTo: Date
   readonly foodFilter?: ReadonlyArray<string>
   readonly nutrientCodes?: ReadonlyArray<NutrientCode>
+  // IANA zone name used to bucket `perDay` entries by calendar day; defaults
+  // to 'UTC' so existing callers (the LLM domain tool) keep their current
+  // day boundaries unchanged.
+  readonly timeZone?: string
 }
 
 export interface MealLogEntry {
