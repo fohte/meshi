@@ -12,6 +12,7 @@ import { withAdvisoryLock } from '#a2a/advisory-lock'
 import { type AgentContentBlock, toAgentContent } from '#a2a/message-content'
 import type { Sql } from '#db/index'
 import { parseJson } from '#lib/json'
+import { MESHI_AGENT_RECURSION_LIMIT } from '#llm/agent/domain-agent'
 import {
   type MeshiAgentResponse,
   meshiAgentResponseSchema,
@@ -42,7 +43,7 @@ export interface MeshiDomainAgentLike {
     input: {
       messages: Array<{ role: 'user'; content: AgentContentBlock[] }>
     },
-    config: { configurable: { thread_id: string } },
+    config: { configurable: { thread_id: string }; recursionLimit?: number },
   ): Promise<{
     structuredResponse?: unknown
     // With a checkpointer, this is the thread's full accumulated message
@@ -210,7 +211,10 @@ export const runAgentTurn = async (
           },
         ],
       },
-      { configurable: { thread_id: requestContext.contextId } },
+      {
+        configurable: { thread_id: requestContext.contextId },
+        recursionLimit: MESHI_AGENT_RECURSION_LIMIT,
+      },
     )
     const parsed = meshiAgentResponseSchema.safeParse(result.structuredResponse)
     return parsed.success

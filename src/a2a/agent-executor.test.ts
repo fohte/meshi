@@ -12,6 +12,7 @@ import type {
 } from '#a2a/agent-executor'
 import { createMeshiAgentExecutor, runAgentTurn } from '#a2a/agent-executor'
 import type { Sql } from '#db/index'
+import { MESHI_AGENT_RECURSION_LIMIT } from '#llm/agent/domain-agent'
 import { describeIfDb, getTestSql } from '#test/db'
 
 vi.mock('@fohte/service-kit/observability', () => ({
@@ -392,7 +393,10 @@ describe('runAgentTurn', () => {
           { role: 'user', content: [{ type: 'text', text: 'hello' }] },
         ],
       },
-      { configurable: { thread_id: contextId } },
+      {
+        configurable: { thread_id: contextId },
+        recursionLimit: MESHI_AGENT_RECURSION_LIMIT,
+      },
     )
   })
 
