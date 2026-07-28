@@ -47,12 +47,14 @@ describe('register_food_master tool', () => {
   it('exposes the registered nutrient codes as a closed enum in nutrition_per_100g so the LLM never has to guess one', () => {
     const { tool } = setup()
 
+    const nameField = { type: 'string', minLength: 1, pattern: '\\S' }
+
     expect(tool.inputSchema).toEqual({
       $schema: 'https://json-schema.org/draft/2020-12/schema',
       type: 'object',
       properties: {
-        name: { type: 'string', minLength: 1 },
-        aliases: { type: 'array', items: { type: 'string', minLength: 1 } },
+        name: nameField,
+        aliases: { type: 'array', items: nameField },
         nutrition_per_100g: {
           type: 'object',
           propertyNames: { type: 'string', enum: [...NUTRIENT_CODES] },
@@ -117,15 +119,49 @@ describe('register_food_master tool', () => {
     ])
   })
 
-  it('rejects unknown source values with invalid_input', async () => {
+  it.each([
+    {
+      label: 'an unknown source value',
+      input: {
+        name: 'X',
+        nutrition_per_100g: { energy_kcal: 1 },
+        source: 'made_up_source',
+        is_estimated: false,
+      },
+    },
+    {
+      label: 'is_estimated=true combined with source=web_search',
+      input: {
+        name: 'X',
+        nutrition_per_100g: { energy_kcal: 1 },
+        source: 'web_search',
+        is_estimated: true,
+      },
+    },
+    {
+      label: 'a whitespace-only alias',
+      input: {
+        name: 'X',
+        aliases: ['  '],
+        nutrition_per_100g: { energy_kcal: 1 },
+        source: 'user_input',
+        is_estimated: false,
+      },
+    },
+    {
+      label: 'aliases that duplicate each other after trimming',
+      input: {
+        name: 'X',
+        aliases: ['banana', ' banana '],
+        nutrition_per_100g: { energy_kcal: 1 },
+        source: 'user_input',
+        is_estimated: false,
+      },
+    },
+  ])('rejects $label with invalid_input', async ({ input }) => {
     const { tool, calls } = setup()
 
-    const result = await tool.execute({
-      name: 'X',
-      nutrition_per_100g: { energy_kcal: 1 },
-      source: 'made_up_source',
-      is_estimated: false,
-    })
+    const result = await tool.execute(input)
 
     expect(normalizeResult(result)).toEqual({
       ok: false,

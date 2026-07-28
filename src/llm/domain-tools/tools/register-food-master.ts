@@ -10,17 +10,40 @@ import {
   type ToolError,
 } from '#llm/domain-tools/types'
 
-const inputSchema = z.object({
-  name: z.string().min(1),
-  aliases: z.array(z.string().min(1)).optional(),
-  nutrition_per_100g: z.partialRecord(
-    z.enum(NUTRIENT_CODES),
-    z.number().nonnegative(),
-  ),
-  source: z.enum(['web_search', 'composition_table_estimate', 'user_input']),
-  is_estimated: z.boolean(),
-  source_url: z.url().optional(),
-})
+// Rejects both the empty string and whitespace-only strings, matching the
+// trim-then-check-empty rule in normalizeAndValidate (repository.ts).
+const NON_BLANK = /\S/
+
+// Anthropic's and OpenAI's tool-calling APIs reject oneOf/anyOf/allOf at the
+// root of a tool's input schema, so the source/is_estimated combination rule
+// from normalizeAndValidate (repository.ts) is enforced with .refine() and
+// spelled out in the description below rather than the JSON Schema.
+const inputSchema = z
+  .object({
+    name: z.string().min(1).regex(NON_BLANK),
+    aliases: z.array(z.string().min(1).regex(NON_BLANK)).optional(),
+    nutrition_per_100g: z.partialRecord(
+      z.enum(NUTRIENT_CODES),
+      z.number().nonnegative(),
+    ),
+    source: z.enum(['web_search', 'composition_table_estimate', 'user_input']),
+    is_estimated: z.boolean(),
+    source_url: z.url().optional(),
+  })
+  .refine((v) => !(v.is_estimated && v.source === 'web_search'), {
+    message: "is_estimated=true must not be combined with source='web_search'",
+    path: ['is_estimated'],
+  })
+  .refine(
+    (v) => {
+      const aliases = (v.aliases ?? []).map((a) => a.trim())
+      return new Set(aliases).size === aliases.length
+    },
+    {
+      message: 'aliases must not contain duplicates within the same input',
+      path: ['aliases'],
+    },
+  )
 
 export interface RegisterFoodMasterOutput {
   readonly food_master_id: string
@@ -31,7 +54,7 @@ export const createRegisterFoodMasterTool = (
 ): DomainTool => ({
   name: 'register_food_master',
   description:
-    'Register a new food_master row with per-100g nutrition values. Use source=web_search with a source_url for confirmed values, composition_table_estimate (is_estimated=true) for fallbacks.',
+    'Register a new food_master row with per-100g nutrition values. source=web_search requires is_estimated=false (pair it with source_url for confirmed values); composition_table_estimate and user_input allow is_estimated to be true or false.',
   inputSchema: z.toJSONSchema(inputSchema, { io: 'input' }),
   async execute(
     input: unknown,
