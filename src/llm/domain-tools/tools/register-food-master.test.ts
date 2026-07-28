@@ -139,6 +139,15 @@ describe('register_food_master tool', () => {
       },
     },
     {
+      label: 'a whitespace-only name',
+      input: {
+        name: '  ',
+        nutrition_per_100g: { energy_kcal: 1 },
+        source: 'user_input',
+        is_estimated: false,
+      },
+    },
+    {
       label: 'a whitespace-only alias',
       input: {
         name: 'X',

@@ -2,6 +2,10 @@ import { z } from 'zod'
 
 import { NUTRIENT_CODES } from '#db/seed/nutrient-definitions'
 import type { FoodMasterService } from '#domain/food-master/service'
+import {
+  hasDuplicateAfterTrim,
+  isInvalidSourceCombination,
+} from '#domain/food-master/validation'
 import { parseToolInput } from '#llm/domain-tools/parse'
 import {
   type DomainTool,
@@ -16,8 +20,8 @@ const NON_BLANK = /\S/
 
 // Anthropic's and OpenAI's tool-calling APIs reject oneOf/anyOf/allOf at the
 // root of a tool's input schema, so the source/is_estimated combination rule
-// from normalizeAndValidate (repository.ts) is enforced with .refine() and
-// spelled out in the description below rather than the JSON Schema.
+// is enforced with .refine() and spelled out in the description below rather
+// than the JSON Schema.
 const inputSchema = z
   .object({
     name: z.string().min(1).regex(NON_BLANK),
@@ -30,20 +34,14 @@ const inputSchema = z
     is_estimated: z.boolean(),
     source_url: z.url().optional(),
   })
-  .refine((v) => !(v.is_estimated && v.source === 'web_search'), {
+  .refine((v) => !isInvalidSourceCombination(v.source, v.is_estimated), {
     message: "is_estimated=true must not be combined with source='web_search'",
     path: ['is_estimated'],
   })
-  .refine(
-    (v) => {
-      const aliases = (v.aliases ?? []).map((a) => a.trim())
-      return new Set(aliases).size === aliases.length
-    },
-    {
-      message: 'aliases must not contain duplicates within the same input',
-      path: ['aliases'],
-    },
-  )
+  .refine((v) => !hasDuplicateAfterTrim(v.aliases ?? []), {
+    message: 'aliases must not contain duplicates within the same input',
+    path: ['aliases'],
+  })
 
 export interface RegisterFoodMasterOutput {
   readonly food_master_id: string
