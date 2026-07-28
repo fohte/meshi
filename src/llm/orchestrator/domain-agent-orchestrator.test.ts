@@ -225,7 +225,7 @@ describe('createDomainAgentOrchestrator', () => {
       })
     })
 
-    // There is no more agent-self-reported error status: a domain tool
+    // The agent has no way to self-report an error status: a domain tool
     // failure only surfaces as an OrchestratorError via the "no usable
     // reply" guard (see below) or a thrown agent.invoke(), never because the
     // model narrated a failure in its own reply text.
@@ -256,19 +256,11 @@ describe('createDomainAgentOrchestrator', () => {
       })
     })
 
-    it('reports to Sentry and surfaces an item_conversation_failed OrchestratorError when the agent produces no usable reply', async () => {
+    it('surfaces an item_conversation_failed OrchestratorError when the agent produces no usable reply', async () => {
       const registry = stubRegistry([])
-      const logs: Array<{
-        event: string
-        payload: Readonly<Record<string, unknown>> | undefined
-      }> = []
-      const logger: Logger = {
-        log: (event, payload) => logs.push({ event, payload }),
-      }
       const orchestrator = createDomainAgentOrchestrator({
         model: fakeModel().respond(new AIMessage('')),
         registry,
-        logger,
       })
 
       const result = await orchestrator.recordFromText({ text: 'hello' })
@@ -283,16 +275,66 @@ describe('createDomainAgentOrchestrator', () => {
           message: 'The agent did not return a valid response.',
         },
       })
+    })
+
+    it('logs a warn event when the agent produces no usable reply', async () => {
+      const registry = stubRegistry([])
+      const logs: Array<{
+        event: string
+        payload: Readonly<Record<string, unknown>> | undefined
+      }> = []
+      const logger: Logger = {
+        log: (event, payload) => logs.push({ event, payload }),
+      }
+      const orchestrator = createDomainAgentOrchestrator({
+        model: fakeModel().respond(new AIMessage('')),
+        registry,
+        logger,
+      })
+
+      await orchestrator.recordFromText({ text: 'hello' })
+
       expect(logs).toEqual([
         { event: 'meshi.agent_no_usable_reply', payload: {} },
       ])
+    })
+
+    it('reports to Sentry when the agent produces no usable reply', async () => {
+      const registry = stubRegistry([])
+      const orchestrator = createDomainAgentOrchestrator({
+        model: fakeModel().respond(new AIMessage('')),
+        registry,
+      })
+
+      await orchestrator.recordFromText({ text: 'hello' })
+
       expect(captureWithFingerprint).toHaveBeenCalledExactlyOnceWith(
         expect.any(Error),
         'llm.orchestrator.no-usable-reply',
       )
     })
 
-    it('logs when a <think> block leaks into the reply and strips it from the summary text', async () => {
+    it('strips a leaked think block from the reply summary text', async () => {
+      const registry = stubRegistry([])
+      const orchestrator = createDomainAgentOrchestrator({
+        model: fakeModel().respond(
+          new AIMessage('<think>reasoning</think>final answer'),
+        ),
+        registry,
+      })
+
+      const result = await orchestrator.recordFromText({ text: 'hello' })
+
+      expect(result).toEqual({
+        recorded: [],
+        candidates: [],
+        hasEstimatedValues: false,
+        summaryText: 'final answer',
+        error: null,
+      })
+    })
+
+    it('logs a warn event when a think block leaks into the reply', async () => {
       const registry = stubRegistry([])
       const logs: Array<{
         event: string
@@ -309,9 +351,8 @@ describe('createDomainAgentOrchestrator', () => {
         logger,
       })
 
-      const result = await orchestrator.recordFromText({ text: 'hello' })
+      await orchestrator.recordFromText({ text: 'hello' })
 
-      expect(result.summaryText).toBe('final answer')
       expect(logs).toEqual([
         { event: 'meshi.agent_think_block_leaked', payload: {} },
       ])

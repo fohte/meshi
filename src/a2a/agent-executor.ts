@@ -17,8 +17,10 @@ import {
   AGENT_THINK_BLOCK_LEAKED_EVENT,
   type AgentInvokeMessage,
   type AgentReplyStatus,
+  buildNoUsableReplyError,
   deriveAgentReply,
   findTurnMessages,
+  NO_USABLE_REPLY_MESSAGE,
 } from '#llm/agent/derive-reply'
 import { MESHI_AGENT_RECURSION_LIMIT } from '#llm/agent/domain-agent'
 import {
@@ -66,7 +68,6 @@ export interface MeshiAgentExecutorOptions {
 
 const DEFAULT_HEARTBEAT_INTERVAL_MS = 30_000
 const USAGE_LIMIT_ERROR_KIND = 'usage_limit'
-const NO_USABLE_REPLY_MESSAGE = 'The agent did not return a valid response.'
 const NO_USABLE_REPLY_FINGERPRINT = 'a2a.agent-executor.no-usable-reply'
 
 const STATUS_TO_TASK_STATE: Record<AgentReplyStatus, TaskState> = {
@@ -223,7 +224,7 @@ export const runAgentTurn = async (
         contextId: requestContext.contextId,
       })
       captureWithFingerprint(
-        new Error('domain agent turn produced no usable reply'),
+        buildNoUsableReplyError(),
         NO_USABLE_REPLY_FINGERPRINT,
         {
           extras: {

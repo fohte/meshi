@@ -21,9 +21,8 @@ const nextScriptedCallId = (): string => {
 
 // Chains one fakeModel().respondWithTools() round per scripted tool call,
 // followed by a final AIMessage carrying `final.message` as its text — this
-// is what createMeshiDomainAgent's ReAct loop actually drives the model
-// through for one agent turn now that there is no mandatory
-// structured-output tool. `input_required` is scripted by attaching a
+// is what createMeshiDomainAgent's ReAct loop drives the model through for
+// one agent turn. `input_required` is scripted by attaching a
 // request_user_input tool call to that same final message, mirroring how
 // the real model is asked to signal it (see system-prompt.ts). `final` is
 // omitted for callers that never invoke the domain agent at all, so the

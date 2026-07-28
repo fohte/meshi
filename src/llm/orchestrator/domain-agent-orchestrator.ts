@@ -10,7 +10,9 @@ import {
   AGENT_NO_USABLE_REPLY_EVENT,
   AGENT_THINK_BLOCK_LEAKED_EVENT,
   type AgentReply,
+  buildNoUsableReplyError,
   deriveAgentReply,
+  NO_USABLE_REPLY_MESSAGE,
 } from '#llm/agent/derive-reply'
 import {
   createMeshiDomainAgent,
@@ -190,7 +192,6 @@ const recordedAfterLastSearch = (
 // item_conversation_failed is the closest existing bucket for "the internal
 // agent conversation did not produce a usable result".
 const AGENT_ERROR_KIND = 'item_conversation_failed'
-const INVALID_RESPONSE_MESSAGE = 'The agent did not return a valid response.'
 
 const AGENT_INVOKE_FAILED_PREFIX = 'meshi: domain agent turn failed:'
 const ORCHESTRATOR_INVOKE_FAILED_FINGERPRINT =
@@ -268,7 +269,7 @@ export const createDomainAgentOrchestrator = (
         if (reply === null) {
           logger.log(AGENT_NO_USABLE_REPLY_EVENT, {})
           captureWithFingerprint(
-            new Error('domain agent turn produced no usable reply'),
+            buildNoUsableReplyError(),
             ORCHESTRATOR_NO_USABLE_REPLY_FINGERPRINT,
           )
           return {
@@ -276,7 +277,7 @@ export const createDomainAgentOrchestrator = (
             reply: null,
             error: {
               kind: AGENT_ERROR_KIND,
-              message: INVALID_RESPONSE_MESSAGE,
+              message: NO_USABLE_REPLY_MESSAGE,
             },
           }
         }

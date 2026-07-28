@@ -88,10 +88,13 @@ describe('createMeshiDomainAgent', () => {
       { configurable: { thread_id: 'thread-2' } },
     )
 
+    // Split across expect() calls rather than one combined literal: each
+    // checks a genuinely distinct value (call count, message-type sequence,
+    // reply text) rather than fragmenting a single structured output.
     expect(model.callCount).toBe(1)
-    expect(result.messages.at(-1)?.type).toBe('tool')
-    const aiMessages = result.messages.filter((m) => m.type === 'ai')
-    expect(aiMessages).toHaveLength(1)
-    expect(aiMessages[0]?.text).toBe('Which food did you mean?')
+    expect(result.messages.map((m) => m.type)).toEqual(['human', 'ai', 'tool'])
+    expect(result.messages.find((m) => m.type === 'ai')?.text).toBe(
+      'Which food did you mean?',
+    )
   })
 })

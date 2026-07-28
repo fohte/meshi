@@ -265,7 +265,7 @@ describe('runAgentTurn', () => {
     })
   })
 
-  it('logs and reports to Sentry when the agent produces no usable reply', async () => {
+  it('logs a warn event when the agent produces no usable reply', async () => {
     const contextId = `ctx-${randomUUID()}`
     const taskId = `task-${randomUUID()}`
     const userMessage = buildUserMessage(taskId, contextId)
@@ -291,6 +291,23 @@ describe('runAgentTurn', () => {
     expect(logs).toEqual([
       { event: 'meshi.agent_no_usable_reply', payload: { taskId, contextId } },
     ])
+  })
+
+  it('reports to Sentry when the agent produces no usable reply', async () => {
+    const contextId = `ctx-${randomUUID()}`
+    const taskId = `task-${randomUUID()}`
+    const userMessage = buildUserMessage(taskId, contextId)
+    const agent: MeshiDomainAgentLike = {
+      invoke: vi
+        .fn()
+        .mockResolvedValue({ messages: [buildInvokeMessage('human')] }),
+    }
+
+    await runAgentTurn(
+      agent,
+      new RequestContext(userMessage, taskId, contextId),
+    )
+
     expect(captureWithFingerprint).toHaveBeenCalledExactlyOnceWith(
       expect.any(Error),
       'a2a.agent-executor.no-usable-reply',
@@ -298,7 +315,42 @@ describe('runAgentTurn', () => {
     )
   })
 
-  it('logs when a <think> block leaks into the reply and strips it from the task message', async () => {
+  it('strips a leaked think block from the task message', async () => {
+    const contextId = `ctx-${randomUUID()}`
+    const taskId = `task-${randomUUID()}`
+    const userMessage = buildUserMessage(taskId, contextId)
+    const agent: MeshiDomainAgentLike = {
+      invoke: vi
+        .fn()
+        .mockResolvedValue(
+          buildCompletedInvokeResult('<think>reasoning</think>final answer'),
+        ),
+    }
+
+    const task = await runAgentTurn(
+      agent,
+      new RequestContext(userMessage, taskId, contextId),
+    )
+
+    const agentMessage = buildExpectedAgentMessage(
+      taskId,
+      contextId,
+      'final answer',
+    )
+    expect(normalizeEvent(task)).toEqual({
+      kind: 'task',
+      id: taskId,
+      contextId,
+      status: {
+        state: 'completed',
+        timestamp: NORMALIZED,
+        message: agentMessage,
+      },
+      history: [userMessage, agentMessage],
+    })
+  })
+
+  it('logs a warn event when a think block leaks into the reply', async () => {
     const contextId = `ctx-${randomUUID()}`
     const taskId = `task-${randomUUID()}`
     const userMessage = buildUserMessage(taskId, contextId)
@@ -317,15 +369,12 @@ describe('runAgentTurn', () => {
       log: (event, payload) => logs.push({ event, payload }),
     }
 
-    const task = await runAgentTurn(
+    await runAgentTurn(
       agent,
       new RequestContext(userMessage, taskId, contextId),
       logger,
     )
 
-    expect(task.status.message?.parts).toEqual([
-      { kind: 'text', text: 'final answer' },
-    ])
     expect(logs).toEqual([
       {
         event: 'meshi.agent_think_block_leaked',
