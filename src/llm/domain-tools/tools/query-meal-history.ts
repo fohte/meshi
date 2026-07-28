@@ -1,5 +1,6 @@
 import { z } from 'zod'
 
+import { NUTRIENT_CODES } from '#db/seed/nutrient-definitions'
 import type { MealHistoryService } from '#domain/meal-history/types'
 import { MEAL_TYPES, type MealType } from '#domain/meal-log/types'
 import { internalErr } from '#llm/domain-tools/internal-error'
@@ -16,7 +17,7 @@ const inputSchema = z.object({
   period_from_iso: z.iso.datetime({ offset: true }),
   period_to_iso: z.iso.datetime({ offset: true }),
   food_master_ids: z.array(z.string().min(1)).optional(),
-  nutrient_codes: z.array(z.string().min(1)).optional(),
+  nutrient_codes: z.array(z.enum(NUTRIENT_CODES)).optional(),
 })
 
 const queryMealHistoryEntrySchema = z.object({

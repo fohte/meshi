@@ -1,6 +1,7 @@
 import { errAsync, okAsync } from 'neverthrow'
 import { describe, expect, it } from 'vitest'
 
+import { NUTRIENT_CODES } from '#db/seed/nutrient-definitions'
 import { FoodMasterDomainError } from '#domain/food-master/errors'
 import type { FoodMasterService } from '#domain/food-master/service'
 import type {
@@ -43,6 +44,31 @@ const setup = (
 }
 
 describe('register_food_master tool', () => {
+  it('exposes the registered nutrient codes as a closed enum in nutrition_per_100g so the LLM never has to guess one', () => {
+    const { tool } = setup()
+
+    expect(tool.inputSchema).toEqual({
+      $schema: 'https://json-schema.org/draft/2020-12/schema',
+      type: 'object',
+      properties: {
+        name: { type: 'string', minLength: 1 },
+        aliases: { type: 'array', items: { type: 'string', minLength: 1 } },
+        nutrition_per_100g: {
+          type: 'object',
+          propertyNames: { type: 'string', enum: [...NUTRIENT_CODES] },
+          additionalProperties: { type: 'number', minimum: 0 },
+        },
+        source: {
+          type: 'string',
+          enum: ['web_search', 'composition_table_estimate', 'user_input'],
+        },
+        is_estimated: { type: 'boolean' },
+        source_url: { type: 'string', format: 'uri' },
+      },
+      required: ['name', 'nutrition_per_100g', 'source', 'is_estimated'],
+    })
+  })
+
   it('bridges snake_case input to FoodMasterService.register and returns the new id', async () => {
     const { tool, calls } = setup()
 

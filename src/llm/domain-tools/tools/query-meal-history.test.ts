@@ -1,6 +1,7 @@
 import { okAsync } from 'neverthrow'
 import { describe, expect, it } from 'vitest'
 
+import { NUTRIENT_CODES } from '#db/seed/nutrient-definitions'
 import type {
   MealHistoryAggregate,
   MealHistoryService,
@@ -26,6 +27,13 @@ const AGGREGATE: MealHistoryAggregate = {
   hasEstimatedValues: true,
 }
 
+// The exact pattern zod's z.iso.datetime({ offset: true }) emits via
+// z.toJSONSchema — pinned here (rather than matched loosely) so the schema
+// equality check below covers the whole LLM-facing input shape in one
+// assertion, per this repo's test-philosophy.
+const ISO_DATETIME_PATTERN =
+  '^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$'
+
 const setup = (): {
   tool: ReturnType<typeof createQueryMealHistoryTool>
   calls: QueryMealHistoryInput[]
@@ -41,6 +49,36 @@ const setup = (): {
 }
 
 describe('query_meal_history tool', () => {
+  it('exposes the registered nutrient codes as a closed enum in nutrient_codes so the LLM never has to guess one', () => {
+    const { tool } = setup()
+
+    expect(tool.inputSchema).toEqual({
+      $schema: 'https://json-schema.org/draft/2020-12/schema',
+      type: 'object',
+      properties: {
+        period_from_iso: {
+          type: 'string',
+          format: 'date-time',
+          pattern: ISO_DATETIME_PATTERN,
+        },
+        period_to_iso: {
+          type: 'string',
+          format: 'date-time',
+          pattern: ISO_DATETIME_PATTERN,
+        },
+        food_master_ids: {
+          type: 'array',
+          items: { type: 'string', minLength: 1 },
+        },
+        nutrient_codes: {
+          type: 'array',
+          items: { type: 'string', enum: [...NUTRIENT_CODES] },
+        },
+      },
+      required: ['period_from_iso', 'period_to_iso'],
+    })
+  })
+
   it('bridges snake_case input to MealHistoryService.query and normalizes the response', async () => {
     const { tool, calls } = setup()
 

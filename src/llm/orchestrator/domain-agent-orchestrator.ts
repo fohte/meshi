@@ -5,7 +5,10 @@ import { MemorySaver } from '@langchain/langgraph'
 import { ResultAsync } from 'neverthrow'
 
 import type { AgentContentBlock } from '#llm/agent/content-block'
-import { createMeshiDomainAgent } from '#llm/agent/domain-agent'
+import {
+  createMeshiDomainAgent,
+  MESHI_AGENT_RECURSION_LIMIT,
+} from '#llm/agent/domain-agent'
 import {
   type MeshiAgentResponse,
   meshiAgentResponseSchema,
@@ -251,7 +254,10 @@ export const createDomainAgentOrchestrator = (
     const response = await ResultAsync.fromPromise(
       agent.invoke(
         { messages: [{ role: 'user', content: [...content] }] },
-        { configurable: { thread_id: randomUUID() } },
+        {
+          configurable: { thread_id: randomUUID() },
+          recursionLimit: MESHI_AGENT_RECURSION_LIMIT,
+        },
       ),
       (cause): MeshiAgentResponse => ({
         status: 'error',

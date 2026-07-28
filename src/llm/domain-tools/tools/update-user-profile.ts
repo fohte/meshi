@@ -1,5 +1,6 @@
 import { z } from 'zod'
 
+import { NUTRIENT_CODES } from '#db/seed/nutrient-definitions'
 import type { UserProfilePatch } from '#domain/user-profile/user-profile'
 import type { UserProfileService } from '#domain/user-profile/user-profile-service'
 import { toInternalToolError } from '#llm/domain-tools/internal-error'
@@ -20,7 +21,7 @@ const inputSchema = z.object({
   dislikes: z.array(z.string().min(1)).optional(),
   allergies: z.array(z.string().min(1)).optional(),
   constraints: z.array(z.string().min(1)).optional(),
-  daily_targets: z.record(z.string(), z.number()).optional(),
+  daily_targets: z.partialRecord(z.enum(NUTRIENT_CODES), z.number()).optional(),
 })
 
 export const createUpdateUserProfileTool = (
