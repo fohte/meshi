@@ -8,6 +8,7 @@ import {
   loadFoodCompositionDatasetFromFile,
   MAJOR_NUTRIENT_DEFINITIONS,
   MINOR_NUTRIENT_DEFINITIONS,
+  NUTRIENT_CODES,
   NUTRIENT_DEFINITION_SEEDS,
   parseFoodCompositionDataset,
   seedNutrientDefinitions,
@@ -204,6 +205,12 @@ describeIfDb('loadFoodComposition', () => {
       ])
     )._unsafeUnwrapErr()
     expect(error.missingNutrientCodes).toEqual(['unknown_nutrient_g'])
+  })
+})
+
+describe('NUTRIENT_CODES', () => {
+  it('matches the codes in NUTRIENT_DEFINITION_SEEDS exactly, in the same order', () => {
+    expect(NUTRIENT_CODES).toEqual(NUTRIENT_DEFINITION_SEEDS.map((d) => d.code))
   })
 })
 

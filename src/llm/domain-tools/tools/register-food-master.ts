@@ -1,5 +1,6 @@
 import { z } from 'zod'
 
+import { NUTRIENT_CODES } from '#db/seed/nutrient-definitions'
 import type { FoodMasterService } from '#domain/food-master/service'
 import { parseToolInput } from '#llm/domain-tools/parse'
 import {
@@ -12,7 +13,10 @@ import {
 const inputSchema = z.object({
   name: z.string().min(1),
   aliases: z.array(z.string().min(1)).optional(),
-  nutrition_per_100g: z.record(z.string(), z.number().nonnegative()),
+  nutrition_per_100g: z.partialRecord(
+    z.enum(NUTRIENT_CODES),
+    z.number().nonnegative(),
+  ),
   source: z.enum(['web_search', 'composition_table_estimate', 'user_input']),
   is_estimated: z.boolean(),
   source_url: z.url().optional(),

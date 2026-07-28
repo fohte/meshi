@@ -1,14 +1,9 @@
 import type { Sql, SqlOrTx } from '#db/index'
+import { nutrientDefinitions, nutrientUnitEnum } from '#db/schema'
 
-export type NutrientUnit = 'kcal' | 'g' | 'mg' | 'µg'
+export type NutrientUnit = (typeof nutrientUnitEnum.enumValues)[number]
 
-export interface NutrientDefinitionSeed {
-  readonly code: string
-  readonly displayName: string
-  readonly unit: NutrientUnit
-  readonly isMajor: boolean
-  readonly sortOrder: number
-}
+export type NutrientDefinitionSeed = typeof nutrientDefinitions.$inferInsert
 
 interface NutrientSeedInput {
   readonly code: string
@@ -16,16 +11,20 @@ interface NutrientSeedInput {
   readonly unit: NutrientUnit
 }
 
-const major: ReadonlyArray<NutrientSeedInput> = [
+// The single source of truth for which nutrient codes exist: NutrientCode /
+// NUTRIENT_CODES below are derived from these two arrays, so adding an entry
+// here automatically flows through to the zod schema every LLM tool exposes
+// and to the DB seed.
+const major = [
   { code: 'energy_kcal', displayName: 'エネルギー', unit: 'kcal' },
   { code: 'protein_g', displayName: 'たんぱく質', unit: 'g' },
   { code: 'fat_g', displayName: '脂質', unit: 'g' },
   { code: 'carb_g', displayName: '炭水化物', unit: 'g' },
   { code: 'dietary_fiber_g', displayName: '食物繊維', unit: 'g' },
   { code: 'salt_g', displayName: '食塩相当量', unit: 'g' },
-]
+] as const satisfies ReadonlyArray<NutrientSeedInput>
 
-const minor: ReadonlyArray<NutrientSeedInput> = [
+const minor = [
   { code: 'saturated_fat_g', displayName: '飽和脂肪酸', unit: 'g' },
   { code: 'cholesterol_mg', displayName: 'コレステロール', unit: 'mg' },
   { code: 'sodium_mg', displayName: 'ナトリウム', unit: 'mg' },
@@ -49,6 +48,14 @@ const minor: ReadonlyArray<NutrientSeedInput> = [
   { code: 'pantothenic_acid_mg', displayName: 'パントテン酸', unit: 'mg' },
   { code: 'biotin_µg', displayName: 'ビオチン', unit: 'µg' },
   { code: 'vitamin_c_mg', displayName: 'ビタミン C', unit: 'mg' },
+] as const satisfies ReadonlyArray<NutrientSeedInput>
+
+export type NutrientCode =
+  (typeof major)[number]['code'] | (typeof minor)[number]['code']
+
+export const NUTRIENT_CODES: ReadonlyArray<NutrientCode> = [
+  ...major.map((d) => d.code),
+  ...minor.map((d) => d.code),
 ]
 
 const withOrder = (

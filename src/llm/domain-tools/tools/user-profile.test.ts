@@ -1,6 +1,7 @@
 import { okAsync } from 'neverthrow'
 import { describe, expect, it } from 'vitest'
 
+import { NUTRIENT_CODES } from '#db/seed/nutrient-definitions'
 import type {
   UserProfile,
   UserProfilePatch,
@@ -91,6 +92,30 @@ describe('get_user_profile tool', () => {
 })
 
 describe('update_user_profile tool', () => {
+  it('exposes the registered nutrient codes as a closed enum in daily_targets so the LLM never has to guess one', () => {
+    const { service } = setup()
+    const tool = createUpdateUserProfileTool(service)
+
+    expect(tool.inputSchema).toEqual({
+      $schema: 'https://json-schema.org/draft/2020-12/schema',
+      type: 'object',
+      properties: {
+        likes: { type: 'array', items: { type: 'string', minLength: 1 } },
+        dislikes: { type: 'array', items: { type: 'string', minLength: 1 } },
+        allergies: { type: 'array', items: { type: 'string', minLength: 1 } },
+        constraints: {
+          type: 'array',
+          items: { type: 'string', minLength: 1 },
+        },
+        daily_targets: {
+          type: 'object',
+          propertyNames: { type: 'string', enum: [...NUTRIENT_CODES] },
+          additionalProperties: { type: 'number' },
+        },
+      },
+    })
+  })
+
   it('forwards only provided fields as a patch and returns the merged profile', async () => {
     const { service, calls } = setup({
       update: (patch) => {
