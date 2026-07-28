@@ -5,6 +5,7 @@ import type {
   FoodMasterRef,
   MealLogRow,
   MealType,
+  UpdateMealLogInput,
 } from '#domain/meal-log/types'
 
 export interface InsertMealLogInput {
@@ -25,5 +26,6 @@ export interface FoundMealLog {
 export interface MealLogRepository {
   findFoodMaster(foodMasterId: string): ResultAsync<FoodMasterRef, DomainError>
   insertMealLog(input: InsertMealLogInput): ResultAsync<MealLogRow, DomainError>
+  updateMealLog(input: UpdateMealLogInput): ResultAsync<MealLogRow, DomainError>
   findMealLogById(id: string): ResultAsync<FoundMealLog | null, DomainError>
 }

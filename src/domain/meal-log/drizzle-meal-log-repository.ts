@@ -18,6 +18,7 @@ import type {
   FoodMasterRef,
   MealLogRow,
   MealType,
+  UpdateMealLogInput,
 } from '#domain/meal-log/types'
 
 type Db = ReturnType<typeof drizzle>
@@ -125,6 +126,42 @@ export const createDrizzleMealLogRepository = (sql: Sql): MealLogRepository => {
         })(),
         (caughtErr) =>
           new MealLogPersistenceError('failed to insert meal_log', caughtErr),
+      ).andThen((result) => result),
+
+    updateMealLog: (
+      input: UpdateMealLogInput,
+    ): ResultAsync<MealLogRow, DomainError> =>
+      ResultAsync.fromPromise(
+        (async (): Promise<Result<MealLogRow, DomainError>> => {
+          const [updated] = await db
+            .update(mealLogs)
+            .set({
+              ...(input.foodMasterId === undefined
+                ? {}
+                : { foodMasterId: input.foodMasterId }),
+              ...(input.eatenAt === undefined
+                ? {}
+                : { eatenAt: input.eatenAt }),
+              ...(input.mealType === undefined
+                ? {}
+                : { mealType: input.mealType }),
+              ...(input.quantity === undefined
+                ? {}
+                : { quantity: input.quantity.toString() }),
+              ...(input.unit === undefined ? {} : { unit: input.unit }),
+              ...(input.note === undefined ? {} : { note: input.note }),
+            })
+            .where(eq(mealLogs.id, input.id))
+            .returning()
+          if (updated === undefined) {
+            return err(
+              new MealLogPersistenceError('meal_logs update returned no rows'),
+            )
+          }
+          return ok(toRow(updated))
+        })(),
+        (caughtErr) =>
+          new MealLogPersistenceError('failed to update meal_log', caughtErr),
       ).andThen((result) => result),
 
     findMealLogById: (

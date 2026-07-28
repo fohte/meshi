@@ -6,13 +6,19 @@ import {
   FoodMasterNotFoundError,
   FutureEatenAtError,
   InvalidQuantityError,
+  MealLogNotFoundError,
 } from '#domain/meal-log/errors'
 import type {
+  FoundMealLog,
   InsertMealLogInput,
   MealLogRepository,
 } from '#domain/meal-log/meal-log-repository'
 import { createMealLogService } from '#domain/meal-log/meal-log-service'
-import type { FoodMasterRef, MealLogRow } from '#domain/meal-log/types'
+import type {
+  FoodMasterRef,
+  MealLogRow,
+  UpdateMealLogInput,
+} from '#domain/meal-log/types'
 
 const NOW = new Date('2026-06-16T12:00:00.000Z')
 const CREATED_AT = new Date('2026-06-16T12:00:00.500Z')
@@ -20,6 +26,7 @@ const EATEN_AT = new Date('2026-06-16T09:00:00.000Z')
 
 interface FakeRepoOptions {
   readonly foodMasters: ReadonlyArray<FoodMasterRef>
+  readonly existingLogs?: ReadonlyArray<FoundMealLog>
 }
 
 const createFakeRepository = (
@@ -27,9 +34,14 @@ const createFakeRepository = (
 ): {
   repository: MealLogRepository
   inserted: InsertMealLogInput[]
+  updated: UpdateMealLogInput[]
 } => {
   const foodMasterById = new Map(options.foodMasters.map((f) => [f.id, f]))
+  const logs = new Map(
+    (options.existingLogs ?? []).map((found) => [found.log.id, found]),
+  )
   const inserted: InsertMealLogInput[] = []
+  const updated: UpdateMealLogInput[] = []
   const repository: MealLogRepository = {
     findFoodMaster: (id) => {
       const food = foodMasterById.get(id)
@@ -52,9 +64,31 @@ const createFakeRepository = (
       }
       return okAsync(row)
     },
-    findMealLogById: () => okAsync(null),
+    updateMealLog: (input) => {
+      updated.push(input)
+      const existing = logs.get(input.id)
+      if (existing === undefined) {
+        return errAsync(
+          new DomainError('meal_logs update returned no rows', 'test/unused'),
+        )
+      }
+      const merged: MealLogRow = {
+        ...existing.log,
+        ...(input.foodMasterId === undefined
+          ? {}
+          : { foodMasterId: input.foodMasterId }),
+        ...(input.eatenAt === undefined ? {} : { eatenAt: input.eatenAt }),
+        ...(input.mealType === undefined ? {} : { mealType: input.mealType }),
+        ...(input.quantity === undefined ? {} : { quantity: input.quantity }),
+        ...(input.unit === undefined ? {} : { unit: input.unit }),
+        ...(input.note === undefined ? {} : { note: input.note }),
+      }
+      logs.set(input.id, { log: merged, food: existing.food })
+      return okAsync(merged)
+    },
+    findMealLogById: (id) => okAsync(logs.get(id) ?? null),
   }
-  return { repository, inserted }
+  return { repository, inserted, updated }
 }
 
 const RICE: FoodMasterRef = {
@@ -93,8 +127,28 @@ const CAFE_LATTE: FoodMasterRef = {
   },
 }
 
-const buildService = (foodMasters: ReadonlyArray<FoodMasterRef>) => {
-  const { repository, inserted } = createFakeRepository({ foodMasters })
+const EXISTING_RICE_LOG: FoundMealLog = {
+  log: {
+    id: 'ml_1',
+    foodMasterId: 'fm_rice',
+    eatenAt: EATEN_AT,
+    mealType: 'dinner',
+    quantity: 100,
+    unit: 'g',
+    note: null,
+    createdAt: CREATED_AT,
+  },
+  food: RICE,
+}
+
+const buildService = (
+  foodMasters: ReadonlyArray<FoodMasterRef>,
+  existingLogs: ReadonlyArray<FoundMealLog> = [],
+) => {
+  const { repository, inserted, updated } = createFakeRepository({
+    foodMasters,
+    existingLogs,
+  })
   const ids = ['ml_1', 'ml_2', 'ml_3']
   let idx = 0
   const service = createMealLogService({
@@ -102,7 +156,7 @@ const buildService = (foodMasters: ReadonlyArray<FoodMasterRef>) => {
     idGenerator: () => ids[idx++] ?? 'ml_overflow',
     now: () => NOW,
   })
-  return { service, inserted }
+  return { service, inserted, updated }
 }
 
 describe('MealLogService.record', () => {
@@ -457,6 +511,231 @@ describe('MealLogService.record', () => {
   })
 })
 
+describe('MealLogService.update', () => {
+  it('returns the current state as a no-op when the patch carries no fields', async () => {
+    const { service, updated } = buildService(
+      [RICE, KARAAGE_GUESS],
+      [EXISTING_RICE_LOG],
+    )
+
+    const result = (await service.update({ id: 'ml_1' }))._unsafeUnwrap()
+
+    expect(result).toEqual({
+      id: 'ml_1',
+      foodMasterId: 'fm_rice',
+      eatenAt: EATEN_AT,
+      mealType: 'dinner',
+      quantity: 100,
+      unit: 'g',
+      note: null,
+      createdAt: CREATED_AT,
+      nutrition: {
+        energy_kcal: 156,
+        protein_g: 2.5,
+        fat_g: 0.3,
+        carb_g: 37.1,
+      },
+      isEstimated: false,
+    })
+    expect(updated).toEqual([])
+  })
+
+  it('updates quantity only, recomputing nutrition and forwarding only the changed field', async () => {
+    const { service, updated } = buildService(
+      [RICE, KARAAGE_GUESS],
+      [EXISTING_RICE_LOG],
+    )
+
+    const result = (
+      await service.update({ id: 'ml_1', quantity: 200 })
+    )._unsafeUnwrap()
+
+    expect(result).toEqual({
+      id: 'ml_1',
+      foodMasterId: 'fm_rice',
+      eatenAt: EATEN_AT,
+      mealType: 'dinner',
+      quantity: 200,
+      unit: 'g',
+      note: null,
+      createdAt: CREATED_AT,
+      nutrition: {
+        energy_kcal: 312,
+        protein_g: 5,
+        fat_g: 0.6,
+        carb_g: 74.2,
+      },
+      isEstimated: false,
+    })
+    expect(updated).toEqual([{ id: 'ml_1', quantity: 200 }])
+  })
+
+  it('changes food_master_id and recomputes nutrition against the new food', async () => {
+    const { service, updated } = buildService(
+      [RICE, KARAAGE_GUESS],
+      [EXISTING_RICE_LOG],
+    )
+
+    const result = (
+      await service.update({ id: 'ml_1', foodMasterId: 'fm_karaage' })
+    )._unsafeUnwrap()
+
+    expect(result).toEqual({
+      id: 'ml_1',
+      foodMasterId: 'fm_karaage',
+      eatenAt: EATEN_AT,
+      mealType: 'dinner',
+      quantity: 100,
+      unit: 'g',
+      note: null,
+      createdAt: CREATED_AT,
+      nutrition: {
+        energy_kcal: 290,
+        protein_g: 24.2,
+        fat_g: 18.1,
+        carb_g: 7.9,
+      },
+      isEstimated: true,
+    })
+    expect(updated).toEqual([{ id: 'ml_1', foodMasterId: 'fm_karaage' }])
+  })
+
+  it('does not re-fetch food_master when foodMasterId equals the current value', async () => {
+    // RICE is deliberately absent from foodMasters: if the service mistakenly
+    // called findFoodMaster for an unchanged id, this would fail with
+    // FoodMasterNotFoundError instead of reusing the already-loaded food.
+    const { service, updated } = buildService([], [EXISTING_RICE_LOG])
+
+    const result = (
+      await service.update({ id: 'ml_1', foodMasterId: 'fm_rice' })
+    )._unsafeUnwrap()
+
+    expect(result).toEqual({
+      id: 'ml_1',
+      foodMasterId: 'fm_rice',
+      eatenAt: EATEN_AT,
+      mealType: 'dinner',
+      quantity: 100,
+      unit: 'g',
+      note: null,
+      createdAt: CREATED_AT,
+      nutrition: {
+        energy_kcal: 156,
+        protein_g: 2.5,
+        fat_g: 0.3,
+        carb_g: 37.1,
+      },
+      isEstimated: false,
+    })
+    expect(updated).toEqual([{ id: 'ml_1', foodMasterId: 'fm_rice' }])
+  })
+
+  it('updates multiple fields together and forwards only the provided ones', async () => {
+    const { service, updated } = buildService([RICE], [EXISTING_RICE_LOG])
+
+    const result = (
+      await service.update({
+        id: 'ml_1',
+        mealType: 'snack',
+        unit: '杯',
+        note: 'まとめて訂正',
+      })
+    )._unsafeUnwrap()
+
+    expect(result).toEqual({
+      id: 'ml_1',
+      foodMasterId: 'fm_rice',
+      eatenAt: EATEN_AT,
+      mealType: 'snack',
+      quantity: 100,
+      unit: '杯',
+      note: 'まとめて訂正',
+      createdAt: CREATED_AT,
+      nutrition: {
+        energy_kcal: 15600,
+        protein_g: 250,
+        fat_g: 30,
+        carb_g: 3710,
+      },
+      isEstimated: false,
+    })
+    expect(updated).toEqual([
+      { id: 'ml_1', mealType: 'snack', unit: '杯', note: 'まとめて訂正' },
+    ])
+  })
+
+  it('rejects a change to a nonexistent food_master_id with FoodMasterNotFoundError', async () => {
+    const { service, updated } = buildService([RICE], [EXISTING_RICE_LOG])
+
+    const error = (
+      await service.update({ id: 'ml_1', foodMasterId: 'fm_missing' })
+    )._unsafeUnwrapErr()
+
+    expect(error).toBeInstanceOf(FoodMasterNotFoundError)
+    expect(
+      error instanceof FoodMasterNotFoundError ? error.foodMasterId : undefined,
+    ).toBe('fm_missing')
+    expect(updated).toEqual([])
+  })
+
+  it('returns MealLogNotFoundError when the meal_log id does not exist', async () => {
+    const { service, updated } = buildService([RICE], [])
+
+    const error = (
+      await service.update({ id: 'ml_missing', quantity: 100 })
+    )._unsafeUnwrapErr()
+
+    expect(error).toBeInstanceOf(MealLogNotFoundError)
+    expect(error instanceof MealLogNotFoundError ? error.id : undefined).toBe(
+      'ml_missing',
+    )
+    expect(updated).toEqual([])
+  })
+
+  it('rejects an eaten_at strictly in the future with FutureEatenAtError', async () => {
+    const { service, updated } = buildService([RICE], [EXISTING_RICE_LOG])
+    const future = new Date(NOW.getTime() + 1)
+
+    const error = (
+      await service.update({ id: 'ml_1', eatenAt: future })
+    )._unsafeUnwrapErr()
+
+    expect(error).toBeInstanceOf(FutureEatenAtError)
+    expect(
+      error instanceof FutureEatenAtError ? error.eatenAt : undefined,
+    ).toEqual(future)
+    expect(updated).toEqual([])
+  })
+
+  it('allows eaten_at exactly equal to now', async () => {
+    const { service, updated } = buildService([RICE], [EXISTING_RICE_LOG])
+
+    const result = (
+      await service.update({ id: 'ml_1', eatenAt: NOW })
+    )._unsafeUnwrap()
+
+    expect(result.eatenAt).toEqual(NOW)
+    expect(updated).toEqual([{ id: 'ml_1', eatenAt: NOW }])
+  })
+
+  it.each([0, -1, Number.NaN, Number.POSITIVE_INFINITY])(
+    'rejects non-positive / non-finite quantity %p with InvalidQuantityError',
+    async (quantity) => {
+      const { service, updated } = buildService([RICE], [EXISTING_RICE_LOG])
+
+      const error = (
+        await service.update({ id: 'ml_1', quantity })
+      )._unsafeUnwrapErr()
+
+      expect(error).toBeInstanceOf(InvalidQuantityError)
+      expect(
+        error instanceof InvalidQuantityError ? error.quantity : undefined,
+      ).toEqual(quantity)
+      expect(updated).toEqual([])
+    },
+  )
+})
+
 describe('MealLogService.getById', () => {
   it('returns null when the log does not exist', async () => {
     const { service } = buildService([RICE])
@@ -467,6 +746,7 @@ describe('MealLogService.getById', () => {
     const repository: MealLogRepository = {
       findFoodMaster: () => errAsync(new DomainError('unused', 'unused')),
       insertMealLog: () => errAsync(new DomainError('unused', 'unused')),
+      updateMealLog: () => errAsync(new DomainError('unused', 'unused')),
       findMealLogById: (id) =>
         okAsync({
           log: {
