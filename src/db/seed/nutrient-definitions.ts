@@ -82,8 +82,8 @@ export const upsertNutrientDefinitions = async (
     code: d.code,
     display_name: d.displayName,
     unit: d.unit,
-    is_major: d.isMajor,
-    sort_order: d.sortOrder,
+    is_major: d.isMajor ?? false,
+    sort_order: d.sortOrder ?? 0,
   }))
   await sql`
     INSERT INTO nutrient_definitions ${sql(rows)}

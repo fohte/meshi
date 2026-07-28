@@ -21,8 +21,7 @@ export interface CreateMeshiDomainAgentOptions {
 // count. A worst-case item needs up to 4 tool calls in sequence
 // (search_food_master, web_search, register_food_master, record_meal_log),
 // i.e. 8 ticks; MAX_MEAL_ITEMS_PER_TURN covers a full day's meals with
-// headroom beyond the 12-item request that exhausted LangGraph's default
-// limit of 25 (GraphRecursionError, 2026-07-28). +2 covers the final
+// headroom beyond LangGraph's default limit of 25. +2 covers the final
 // meshi_agent_response turn.
 const MAX_MEAL_ITEMS_PER_TURN = 25
 const MAX_TOOL_CALLS_PER_ITEM = 4

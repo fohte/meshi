@@ -373,7 +373,7 @@ describe('runAgentTurn', () => {
     )
   })
 
-  it('passes the converted user message content and thread_id to the domain agent', async () => {
+  it('passes the converted user message content, thread_id, and recursion limit to the domain agent', async () => {
     const contextId = `ctx-${randomUUID()}`
     const taskId = `task-${randomUUID()}`
     const userMessage = buildUserMessage(taskId, contextId)

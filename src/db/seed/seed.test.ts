@@ -209,6 +209,12 @@ describeIfDb('loadFoodComposition', () => {
 })
 
 describe('NUTRIENT_CODES', () => {
+  // NUTRIENT_CODES (the zod enum every LLM tool schema exposes) and
+  // NUTRIENT_DEFINITION_SEEDS (what actually gets written to
+  // nutrient_definitions) must never diverge — a code the LLM is allowed to
+  // send has to be one the DB will accept, and vice versa. Both are derived
+  // from the same major/minor arrays today, but this pins that invariant
+  // independent of how either is implemented.
   it('matches the codes in NUTRIENT_DEFINITION_SEEDS exactly, in the same order', () => {
     expect(NUTRIENT_CODES).toEqual(NUTRIENT_DEFINITION_SEEDS.map((d) => d.code))
   })
