@@ -4,6 +4,7 @@ import type { AgentCard, Message, Task } from '@a2a-js/sdk'
 import type { Client } from '@a2a-js/sdk/client'
 import { ClientFactory, JsonRpcTransportFactory } from '@a2a-js/sdk/client'
 import { DefaultRequestHandler } from '@a2a-js/sdk/server'
+import { AIMessage } from '@langchain/core/messages'
 import type { PostgresSaver } from '@langchain/langgraph-checkpoint-postgres'
 import { fakeModel } from 'langchain'
 import { okAsync } from 'neverthrow'
@@ -27,6 +28,7 @@ import { createMealLogService } from '#domain/meal-log/meal-log-service'
 import { createUserProfileService } from '#domain/user-profile/user-profile-service'
 import { createMeshiCheckpointer } from '#llm/agent/checkpointer'
 import { createMeshiDomainAgent } from '#llm/agent/domain-agent'
+import { REQUEST_USER_INPUT_TOOL_NAME } from '#llm/agent/request-user-input-tool'
 import {
   createDomainToolsRegistry,
   type DomainToolsRegistry,
@@ -213,13 +215,7 @@ describeIfDb('A2A integration', () => {
           id: 'call_2',
         },
       ])
-      .respondWithTools([
-        {
-          name: 'meshi_agent_response',
-          args: { status: 'completed', message: '白米 200g を記録しました。' },
-          id: 'call_3',
-        },
-      ])
+      .respond(new AIMessage('白米 200g を記録しました。'))
 
     const registry = buildRegistry(domainTx)
     const contextId = `ctx-${randomUUID()}`
@@ -316,16 +312,19 @@ describeIfDb('A2A integration', () => {
       .respondWithTools([
         { name: 'search_food_master', args: { query: 'salmon' }, id: 'call_2' },
       ])
-      .respondWithTools([
-        {
-          name: 'meshi_agent_response',
-          args: {
-            status: 'input_required',
-            message: '白米は記録しました。salmon はどのメニューですか?',
-          },
-          id: 'call_3',
-        },
-      ])
+      .respond(
+        new AIMessage({
+          content: '白米は記録しました。salmon はどのメニューですか?',
+          tool_calls: [
+            {
+              name: REQUEST_USER_INPUT_TOOL_NAME,
+              args: {},
+              id: 'call_3',
+              type: 'tool_call',
+            },
+          ],
+        }),
+      )
 
     const registry = buildRegistry(domainTx)
     const contextId = `ctx-${randomUUID()}`
@@ -407,13 +406,19 @@ describeIfDb('A2A integration', () => {
       .respondWithTools([
         { name: 'search_food_master', args: { query: 'salmon' }, id: 'call_1' },
       ])
-      .respondWithTools([
-        {
-          name: 'meshi_agent_response',
-          args: { status: 'input_required', message: 'どのメニューですか?' },
-          id: 'call_2',
-        },
-      ])
+      .respond(
+        new AIMessage({
+          content: 'どのメニューですか?',
+          tool_calls: [
+            {
+              name: REQUEST_USER_INPUT_TOOL_NAME,
+              args: {},
+              id: 'call_2',
+              type: 'tool_call',
+            },
+          ],
+        }),
+      )
       .respondWithTools([
         {
           name: 'record_meal_log',
@@ -426,13 +431,7 @@ describeIfDb('A2A integration', () => {
           id: 'call_3',
         },
       ])
-      .respondWithTools([
-        {
-          name: 'meshi_agent_response',
-          args: { status: 'completed', message: '記録しました。' },
-          id: 'call_4',
-        },
-      ])
+      .respond(new AIMessage('記録しました。'))
 
     const contextId = `ctx-${randomUUID()}`
     const taskStoreTx = getTaskStoreTx()
@@ -592,16 +591,7 @@ describeIfDb('A2A integration', () => {
           id: 'call_1',
         },
       ])
-      .respondWithTools([
-        {
-          name: 'meshi_agent_response',
-          args: {
-            status: 'completed',
-            message: '2026-06-12 の食事履歴をお伝えしました。',
-          },
-          id: 'call_2',
-        },
-      ])
+      .respond(new AIMessage('2026-06-12 の食事履歴をお伝えしました。'))
 
     const registry = buildRegistry(domainTx)
     const contextId = `ctx-${randomUUID()}`

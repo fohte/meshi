@@ -1,8 +1,8 @@
 import type { BaseChatModel } from '@langchain/core/language_models/chat_models'
 import type { BaseCheckpointSaver } from '@langchain/langgraph'
-import { createAgent, toolStrategy } from 'langchain'
+import { createAgent } from 'langchain'
 
-import { meshiAgentResponseSchema } from '#llm/agent/response-schema'
+import { createRequestUserInputTool } from '#llm/agent/request-user-input-tool'
 import { MESHI_AGENT_SYSTEM_PROMPT } from '#llm/agent/system-prompt'
 import { toLangChainTools } from '#llm/agent/tools'
 import type { DomainToolsRegistry } from '#llm/domain-tools/registry'
@@ -21,8 +21,8 @@ export interface CreateMeshiDomainAgentOptions {
 // count. A worst-case item needs up to 4 tool calls in sequence
 // (search_food_master, web_search, register_food_master, record_meal_log),
 // i.e. 8 ticks; MAX_MEAL_ITEMS_PER_TURN covers a full day's meals with
-// headroom beyond LangGraph's default limit of 25. +2 covers the final
-// meshi_agent_response turn.
+// headroom beyond LangGraph's default limit of 25. +2 covers the agent's
+// final plain-text turn plus an optional request_user_input tool call.
 const MAX_MEAL_ITEMS_PER_TURN = 25
 const MAX_TOOL_CALLS_PER_ITEM = 4
 const TICKS_PER_TOOL_CALL = 2
@@ -34,11 +34,22 @@ export const MESHI_AGENT_RECURSION_LIMIT =
 
 export const createMeshiDomainAgent = (
   options: CreateMeshiDomainAgentOptions,
-) =>
-  createAgent({
+) => {
+  // Built as its own binding rather than inline in the createAgent() call
+  // below: createAgent's `tools` parameter is a `const`-inferred generic,
+  // and inlining this array literal there makes TS infer an overly-specific
+  // tuple type from the two different tool() instantiations (domain tools
+  // built from a JSON Schema vs. this one built from a zod schema), which
+  // fails every createAgent() overload. A pre-computed binding's type is
+  // fixed before it reaches that generic, sidestepping the inference.
+  const tools = [
+    ...toLangChainTools(options.registry.list()),
+    createRequestUserInputTool(),
+  ]
+  return createAgent({
     model: options.model,
-    tools: [...toLangChainTools(options.registry.list())],
+    tools,
     checkpointer: options.checkpointer,
     systemPrompt: options.systemPrompt ?? MESHI_AGENT_SYSTEM_PROMPT,
-    responseFormat: toolStrategy(meshiAgentResponseSchema),
   })
+}

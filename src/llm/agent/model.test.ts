@@ -35,6 +35,18 @@ describe('createMeshiChatModel', () => {
     expect(model.callbacks).toEqual([expect.any(GenAiCallbackHandler)])
   })
 
+  it('asks the upstream model to split reasoning out of content', () => {
+    const model = createMeshiChatModel({
+      apiKey: 'test-key',
+      model: 'test-model',
+    })
+
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-type-assertion -- modelKwargs isn't part of ChatOpenAI's public type surface, but is read by its request-building internals.
+    const modelKwargs = (model as unknown as { modelKwargs?: unknown })
+      .modelKwargs
+    expect(modelKwargs).toEqual({ reasoning_split: true })
+  })
+
   it('routes the client fetch through the GenAiCallbackHandler', () => {
     const wrapFetchSpy = vi.spyOn(GenAiCallbackHandler.prototype, 'wrapFetch')
 

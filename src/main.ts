@@ -115,15 +115,17 @@ export const main = async (): Promise<void> => {
   const checkpointer = createMeshiCheckpointer(env.DATABASE_URL)
   const domainAgent = createMeshiDomainAgent({ model, registry, checkpointer })
 
+  const logger = createJsonStdoutLogger()
   const orchestrator = createDomainAgentOrchestrator({
     model,
     registry,
     formatter: createTemplateReplyFormatter(),
+    logger,
   })
   const toolDeps: MeshiToolDeps = {
     orchestrator,
     profileService: userProfileService,
-    logger: createJsonStdoutLogger(),
+    logger,
   }
 
   const agentCard = createMeshiAgentCard({ url: env.A2A_AGENT_URL })
@@ -132,7 +134,11 @@ export const main = async (): Promise<void> => {
   const pushNotificationSender = new DefaultPushNotificationSender(
     pushNotificationStore,
   )
-  const agentExecutor = createMeshiAgentExecutor({ agent: domainAgent, sql })
+  const agentExecutor = createMeshiAgentExecutor({
+    agent: domainAgent,
+    sql,
+    logger,
+  })
   const requestHandler = new DefaultRequestHandler(
     agentCard,
     taskStore,

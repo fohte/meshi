@@ -1,18 +1,21 @@
 import { randomUUID } from 'node:crypto'
 
+import { captureWithFingerprint } from '@fohte/service-kit/observability'
 import type { BaseChatModel } from '@langchain/core/language_models/chat_models'
 import { MemorySaver } from '@langchain/langgraph'
 import { ResultAsync } from 'neverthrow'
 
 import type { AgentContentBlock } from '#llm/agent/content-block'
 import {
+  AGENT_NO_USABLE_REPLY_EVENT,
+  AGENT_THINK_BLOCK_LEAKED_EVENT,
+  type AgentReply,
+  deriveAgentReply,
+} from '#llm/agent/derive-reply'
+import {
   createMeshiDomainAgent,
   MESHI_AGENT_RECURSION_LIMIT,
 } from '#llm/agent/domain-agent'
-import {
-  type MeshiAgentResponse,
-  meshiAgentResponseSchema,
-} from '#llm/agent/response-schema'
 import type { DomainToolsRegistry } from '#llm/domain-tools/registry'
 import {
   type QueryMealHistoryOutput,
@@ -39,11 +42,13 @@ import type {
   RecordFromImageInput,
   RecordFromTextInput,
 } from '#llm/orchestrator/types'
+import { createNullLogger, type Logger } from '#logger'
 
 export interface DomainAgentOrchestratorOptions {
   readonly model: BaseChatModel
   readonly registry: DomainToolsRegistry
   readonly formatter?: ReplyFormatter
+  readonly logger?: Logger
 }
 
 interface RecordedInvocation {
@@ -180,29 +185,21 @@ const recordedAfterLastSearch = (
     .some((inv) => inv.name === 'record_meal_log' && inv.value !== null)
 }
 
-// The agent's own reported failure has no equivalent in OrchestratorErrorKind
-// (fixed by the MCP wire contract); item_conversation_failed is the closest
-// existing bucket for "the internal agent conversation did not produce a
-// usable result".
+// A domain agent turn that produced no usable reply has no equivalent in
+// OrchestratorErrorKind (fixed by the MCP wire contract);
+// item_conversation_failed is the closest existing bucket for "the internal
+// agent conversation did not produce a usable result".
 const AGENT_ERROR_KIND = 'item_conversation_failed'
 const INVALID_RESPONSE_MESSAGE = 'The agent did not return a valid response.'
 
 const AGENT_INVOKE_FAILED_PREFIX = 'meshi: domain agent turn failed:'
+const ORCHESTRATOR_INVOKE_FAILED_FINGERPRINT =
+  'llm.orchestrator.agent-invoke-failed'
+const ORCHESTRATOR_NO_USABLE_REPLY_FINGERPRINT =
+  'llm.orchestrator.no-usable-reply'
 
 const errorMessage = (e: unknown): string =>
   e instanceof Error ? e.message : String(e)
-
-const buildAgentError = (
-  response: MeshiAgentResponse | null,
-): OrchestratorError | null => {
-  if (response === null) {
-    return { kind: AGENT_ERROR_KIND, message: INVALID_RESPONSE_MESSAGE }
-  }
-  if (response.status === 'error') {
-    return { kind: AGENT_ERROR_KIND, message: response.message }
-  }
-  return null
-}
 
 const formatMeta = (
   occurredAt: Date | undefined,
@@ -231,12 +228,14 @@ export const createDomainAgentOrchestrator = (
   options: DomainAgentOrchestratorOptions,
 ): ConversationOrchestrator => {
   const formatter = options.formatter ?? createPassthroughReplyFormatter()
+  const logger = options.logger ?? createNullLogger()
 
   const runTurn = async (
     content: ReadonlyArray<AgentContentBlock>,
   ): Promise<{
     readonly invocations: ReadonlyArray<RecordedInvocation>
-    readonly response: MeshiAgentResponse | null
+    readonly reply: AgentReply | null
+    readonly error: OrchestratorError | null
   }> => {
     const invocations: RecordedInvocation[] = []
     const agent = createMeshiDomainAgent({
@@ -251,7 +250,7 @@ export const createDomainAgentOrchestrator = (
     // invocations already recorded before the crash — a food recorded
     // earlier in the same multi-item turn is a real DB write and belongs in
     // the result even if a later item's tool call blew up.
-    const response = await ResultAsync.fromPromise(
+    const invokeResult = await ResultAsync.fromPromise(
       agent.invoke(
         { messages: [{ role: 'user', content: [...content] }] },
         {
@@ -259,37 +258,58 @@ export const createDomainAgentOrchestrator = (
           recursionLimit: MESHI_AGENT_RECURSION_LIMIT,
         },
       ),
-      (cause): MeshiAgentResponse => ({
-        status: 'error',
-        message: `${AGENT_INVOKE_FAILED_PREFIX} ${errorMessage(cause)}`,
-      }),
-    ).match(
-      (result) => {
-        const parsed = meshiAgentResponseSchema.safeParse(
-          result.structuredResponse,
-        )
-        return parsed.success ? parsed.data : null
-      },
-      (errorResponse) => errorResponse,
+      (cause) => cause,
     )
-    return { invocations, response }
+    return invokeResult.match(
+      (result) => {
+        const reply = deriveAgentReply(result.messages, () => {
+          logger.log(AGENT_THINK_BLOCK_LEAKED_EVENT, {})
+        })
+        if (reply === null) {
+          logger.log(AGENT_NO_USABLE_REPLY_EVENT, {})
+          captureWithFingerprint(
+            new Error('domain agent turn produced no usable reply'),
+            ORCHESTRATOR_NO_USABLE_REPLY_FINGERPRINT,
+          )
+          return {
+            invocations,
+            reply: null,
+            error: {
+              kind: AGENT_ERROR_KIND,
+              message: INVALID_RESPONSE_MESSAGE,
+            },
+          }
+        }
+        return { invocations, reply, error: null }
+      },
+      (cause) => {
+        captureWithFingerprint(cause, ORCHESTRATOR_INVOKE_FAILED_FINGERPRINT)
+        return {
+          invocations,
+          reply: null,
+          error: {
+            kind: AGENT_ERROR_KIND,
+            message: `${AGENT_INVOKE_FAILED_PREFIX} ${errorMessage(cause)}`,
+          },
+        }
+      },
+    )
   }
 
   const runRecordTurn = async (
     content: ReadonlyArray<AgentContentBlock>,
   ): Promise<MealRecordResult> => {
-    const { invocations, response } = await runTurn(content)
+    const { invocations, reply, error } = await runTurn(content)
     const recorded = collectRecorded(invocations)
     const candidates = recordedAfterLastSearch(invocations)
       ? []
       : collectLastSearchCandidates(invocations)
     const hasEstimatedValues = recorded.some((r) => r.isEstimated)
-    const error = buildAgentError(response)
     const summaryText = formatter.formatMealRecord({
       recorded,
       candidates,
       hasEstimatedValues,
-      finalText: response?.message ?? '',
+      finalText: reply?.text ?? '',
       error,
     })
     return { recorded, candidates, hasEstimatedValues, summaryText, error }
@@ -327,14 +347,13 @@ export const createDomainAgentOrchestrator = (
       ]
         .filter((s): s is string => s !== null)
         .join('\n')
-      const { invocations, response } = await runTurn(
+      const { invocations, reply, error } = await runTurn(
         textContent(body, undefined, input.timezone),
       )
       const aggregate = collectLastAggregate(invocations)
-      const error = buildAgentError(response)
       const summaryText = formatter.formatMealHistory({
         aggregate,
-        finalText: response?.message ?? '',
+        finalText: reply?.text ?? '',
         error,
       })
       return {
@@ -346,12 +365,11 @@ export const createDomainAgentOrchestrator = (
     },
     async recommendMeal(input: RecommendInput): Promise<RecommendResult> {
       const body = input.conditions ?? 'No additional conditions.'
-      const { response } = await runTurn(
+      const { reply, error } = await runTurn(
         textContent(body, undefined, input.timezone),
       )
-      const error = buildAgentError(response)
       const summaryText = formatter.formatRecommend({
-        finalText: response?.message ?? '',
+        finalText: reply?.text ?? '',
         error,
       })
       return { summaryText, error }
