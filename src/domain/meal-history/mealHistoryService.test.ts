@@ -93,6 +93,7 @@ describeIfDb('MealHistoryService.query', () => {
         {
           id: 'log-1',
           foodMasterId: 'rice',
+          foodName: 'rice',
           eatenAt: new Date('2026-06-01T03:00:00Z'),
           mealType: 'lunch',
           quantity: 200,
@@ -102,6 +103,7 @@ describeIfDb('MealHistoryService.query', () => {
         {
           id: 'log-2',
           foodMasterId: 'egg',
+          foodName: 'egg',
           eatenAt: new Date('2026-06-01T12:00:00Z'),
           mealType: 'dinner',
           quantity: 50,
@@ -159,6 +161,7 @@ describeIfDb('MealHistoryService.query', () => {
         {
           id: 'log-1',
           foodMasterId: 'egg',
+          foodName: 'egg',
           eatenAt: new Date('2026-06-01T03:00:00Z'),
           mealType: 'lunch',
           quantity: 2,
@@ -219,6 +222,7 @@ describeIfDb('MealHistoryService.query', () => {
         {
           id: 'log-2',
           foodMasterId: 'egg',
+          foodName: 'egg',
           eatenAt: new Date('2026-06-01T12:00:00Z'),
           mealType: 'dinner',
           quantity: 50,
@@ -267,6 +271,7 @@ describeIfDb('MealHistoryService.query', () => {
         {
           id: 'log-1',
           foodMasterId: 'spinach',
+          foodName: 'spinach',
           eatenAt: new Date('2026-06-01T03:00:00Z'),
           mealType: 'lunch',
           quantity: 100,
@@ -310,6 +315,7 @@ describeIfDb('MealHistoryService.query', () => {
         {
           id: 'log-1',
           foodMasterId: 'rice',
+          foodName: 'rice',
           eatenAt: new Date('2026-06-01T03:00:00Z'),
           mealType: 'lunch',
           quantity: 100,
@@ -376,6 +382,7 @@ describeIfDb('MealHistoryService.query', () => {
         {
           id: 'log-1',
           foodMasterId: 'rice',
+          foodName: 'rice',
           eatenAt: new Date('2026-06-01T03:00:00Z'),
           mealType: 'lunch',
           quantity: 100,
@@ -385,6 +392,7 @@ describeIfDb('MealHistoryService.query', () => {
         {
           id: 'log-2',
           foodMasterId: 'mystery_stew',
+          foodName: 'mystery stew',
           eatenAt: new Date('2026-06-01T12:00:00Z'),
           mealType: 'dinner',
           quantity: 250,
@@ -421,6 +429,7 @@ describeIfDb('MealHistoryService.query', () => {
     {
       id: 'log-1',
       foodMasterId: 'rice',
+      foodName: 'rice',
       eatenAt: new Date('2026-06-01T15:30:00Z'),
       mealType: 'snack',
       quantity: 100,
@@ -561,6 +570,7 @@ describeIfDb(
               {
                 id: 'probe_log_1',
                 foodMasterId: 'probe_rice',
+                foodName: 'rice',
                 eatenAt: new Date('2026-06-01T03:00:00Z'),
                 mealType: 'lunch',
                 quantity: 200,

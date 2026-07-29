@@ -1,0 +1,107 @@
+.list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.skeletonStack {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.empty {
+  border: var(--border-width) solid var(--color-border);
+  padding: 32px;
+  text-align: center;
+  font-size: 13px;
+  color: var(--color-muted);
+}
+
+.card {
+  cursor: pointer;
+  border: var(--border-width) solid var(--color-border);
+  padding: 14px 16px;
+  display: flex;
+  gap: 14px;
+  align-items: flex-start;
+  color: inherit;
+  text-decoration: none;
+  transition: border-color 0.15s;
+}
+
+.card:hover {
+  border-color: var(--color-muted);
+}
+
+.cardDate {
+  flex: none;
+  width: 64px;
+}
+
+.cardDay {
+  display: block;
+  font-family: var(--font-mono);
+  font-size: 15px;
+  font-weight: 700;
+}
+
+.cardDow {
+  display: block;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--color-muted);
+}
+
+.cardMain {
+  flex: 1;
+  min-width: 0;
+}
+
+.cardSummary {
+  display: block;
+  font-size: 13px;
+  color: var(--color-text-secondary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.cardMeta {
+  display: block;
+  font-size: 12px;
+  color: var(--color-muted);
+  margin-top: 4px;
+  font-family: var(--font-mono);
+}
+
+.cardStats {
+  flex: none;
+  text-align: right;
+}
+
+.cardKcal {
+  display: block;
+  font-family: var(--font-mono);
+  font-size: 15px;
+}
+
+.cardPct {
+  display: block;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--color-muted);
+}
+
+.cardPct[data-over] {
+  color: var(--color-accent);
+}
+
+.loadingMore {
+  padding: 18px;
+  text-align: center;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--color-muted);
+  border: var(--border-width) solid var(--color-border);
+}
