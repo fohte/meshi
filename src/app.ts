@@ -10,6 +10,7 @@ import { mountA2aRoutes } from '#a2a/hono-bridge'
 import { mountApiRoutes } from '#api/index'
 import type { Sql } from '#db/index'
 import { pingDb } from '#db/index'
+import type { DayDetailService } from '#domain/day-detail/types'
 import type { MealHistoryService } from '#domain/meal-history/types'
 import type { NutrientDefinitionRepository } from '#domain/nutrient-definition/types'
 import type { UserProfileService } from '#domain/user-profile/user-profile-service'
@@ -24,6 +25,7 @@ export interface AppDeps {
   agentCard: AgentCard
   requestHandler: DefaultRequestHandler
   mealHistoryService: MealHistoryService
+  dayDetailService: DayDetailService
   nutrientDefinitionRepository: NutrientDefinitionRepository
   userProfileService: UserProfileService
   bearerToken?: string
@@ -52,6 +54,7 @@ export const createApp = (deps: AppDeps): Hono => {
 
   mountApiRoutes(app, {
     mealHistoryService: deps.mealHistoryService,
+    dayDetailService: deps.dayDetailService,
     nutrientDefinitionRepository: deps.nutrientDefinitionRepository,
     userProfileService: deps.userProfileService,
   })

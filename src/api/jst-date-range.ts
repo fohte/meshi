@@ -45,3 +45,16 @@ export const jstDateRangeQuerySchema = z.object({
 })
 
 export type JstDateRangeQuery = z.infer<typeof jstDateRangeQuerySchema>
+
+const DAY_MS = 24 * 60 * 60 * 1000
+
+// Parses a single YYYY-MM-DD path param (e.g. GET /api/days/:date) into the
+// [from, to) UTC instant range covering that Asia/Tokyo calendar day.
+export const jstDayBoundaryQuerySchema = z
+  .object({ date: jstCalendarDate })
+  .transform(({ date }) => ({
+    from: date,
+    to: new Date(date.getTime() + DAY_MS),
+  }))
+
+export type JstDayBoundaryQuery = z.infer<typeof jstDayBoundaryQuerySchema>

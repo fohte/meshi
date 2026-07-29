@@ -15,6 +15,10 @@ export const createStubApiDeps = (): ApiDeps => ({
         hasEstimatedValues: false,
       }),
   },
+  dayDetailService: {
+    query: () =>
+      okAsync({ totals: {}, hasEstimatedValues: false, entries: [] }),
+  },
   nutrientDefinitionRepository: { list: () => okAsync([]) },
   userProfileService: {
     get: () => okAsync(DEFAULT_USER_PROFILE),
