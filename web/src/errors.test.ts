@@ -10,6 +10,10 @@ describe('BoundaryError', () => {
 
     const wrapped = new TaskStorePersistenceError('failed to save', original)
 
+    // Per-field assertions, not a single toEqual object: `wrapped` is a full
+    // Error instance (own `stack` etc. would break a literal-object equality
+    // check), and fohte/no-inline-object-in-expect forbids constructing a
+    // partial-field object as the expect() target.
     expect(wrapped.name).toBe('TaskStorePersistenceError')
     expect(wrapped.message).toBe('failed to save')
     expect(wrapped.cause).toBe(original)

@@ -1,6 +1,7 @@
 import { NavLink } from 'react-router'
 
 import { NAV_ITEMS } from '#shell/nav-items'
+import { navLinkClassName } from '#shell/nav-link-class-name'
 import styles from '#shell/Sidebar.module.css'
 
 export const Sidebar = (): React.JSX.Element => (
@@ -16,11 +17,7 @@ export const Sidebar = (): React.JSX.Element => (
           key={item.path}
           to={item.path}
           end={item.path === '/'}
-          className={({ isActive }) =>
-            [styles.navItem, isActive ? styles.navItemActive : '']
-              .filter(Boolean)
-              .join(' ')
-          }
+          className={navLinkClassName(styles.navItem, styles.navItemActive)}
         >
           <span className={styles.navItemHash}>#</span>
           {item.label}

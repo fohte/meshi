@@ -37,8 +37,10 @@ FROM base AS runtime
 ENV NODE_ENV=production
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
 COPY web/package.json ./web/package.json
+# --filter meshi: the server only serves web/dist's already-built static
+# files, so web's own dependencies (react, vite, ...) don't belong here.
 RUN --mount=type=cache,id=pnpm-store,target=/pnpm/store \
-    pnpm install --frozen-lockfile --prod
+    pnpm install --frozen-lockfile --prod --filter meshi
 COPY --from=builder /app/dist ./dist
 # Served by Hono's serveStatic (src/app.ts) from the same relative path.
 COPY --from=web-builder /app/web/dist ./web/dist

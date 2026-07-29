@@ -18,8 +18,7 @@ export default defineConfig({
   },
   server: {
     proxy: {
-      // The backend API is served from src/app.ts under /api (added in a
-      // later PR); this proxy lets `vite dev` talk to it without CORS setup.
+      // Lets `vite dev` call the backend's /api routes without CORS setup.
       '/api': 'http://localhost:8080',
     },
   },

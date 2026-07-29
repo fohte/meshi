@@ -1,6 +1,5 @@
 /*
- * Design tokens extracted from the Claude Design prototype
- * (design-prototype/Meshi.dc.html, see docs/web-frontend-page-design.md).
+ * Design tokens (colors, fonts, border) for the web frontend.
  */
 :root {
   --color-bg: #0a0a0a;

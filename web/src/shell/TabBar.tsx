@@ -1,6 +1,7 @@
 import { NavLink } from 'react-router'
 
 import { NAV_ITEMS } from '#shell/nav-items'
+import { navLinkClassName } from '#shell/nav-link-class-name'
 import styles from '#shell/TabBar.module.css'
 
 export const TabBar = (): React.JSX.Element => (
@@ -14,11 +15,7 @@ export const TabBar = (): React.JSX.Element => (
           key={item.path}
           to={item.path}
           end={item.path === '/'}
-          className={({ isActive }) =>
-            [styles.tabItem, isActive ? styles.tabItemActive : '']
-              .filter(Boolean)
-              .join(' ')
-          }
+          className={navLinkClassName(styles.tabItem, styles.tabItemActive)}
         >
           <span className={styles.tabItemHash}>#</span>
           <span className={styles.tabItemLabel}>{item.label}</span>

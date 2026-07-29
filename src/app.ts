@@ -1,3 +1,5 @@
+import { existsSync } from 'node:fs'
+
 import type { AgentCard } from '@a2a-js/sdk'
 import type { DefaultRequestHandler } from '@a2a-js/sdk/server'
 import { serveStatic } from '@hono/node-server/serve-static'
@@ -43,8 +45,13 @@ export const createApp = (deps: AppDeps): Hono => {
 
   // SPA static assets, then an index.html fallback for client-side routes
   // (e.g. /history). Registered last so they never shadow the routes above.
-  app.use('*', serveStatic({ root: WEB_DIST_ROOT }))
-  app.get('*', serveStatic({ root: WEB_DIST_ROOT, path: 'index.html' }))
+  // Guarded on existence: @hono/node-server's serveStatic logs a
+  // console.error at construction time when root is missing (e.g. `pnpm dev`
+  // without having run `pnpm --filter web run build` yet).
+  if (existsSync(WEB_DIST_ROOT)) {
+    app.use('*', serveStatic({ root: WEB_DIST_ROOT }))
+    app.get('*', serveStatic({ root: WEB_DIST_ROOT, path: 'index.html' }))
+  }
 
   return app
 }
