@@ -8,9 +8,10 @@ import type {
 } from '@a2a-js/sdk/server'
 import { captureWithFingerprint } from '@fohte/service-kit/observability'
 import type { CallbackHandlerMethods } from '@langchain/core/callbacks/base'
+import { HumanMessage } from '@langchain/core/messages'
 
 import { withAdvisoryLock } from '#a2a/advisory-lock'
-import { type AgentContentBlock, toAgentContent } from '#a2a/message-content'
+import { toAgentContent } from '#a2a/message-content'
 import type { Sql } from '#db/index'
 import { parseJson } from '#lib/json'
 import {
@@ -43,7 +44,15 @@ export type { AgentInvokeMessage } from '#llm/agent/derive-reply'
 export interface MeshiDomainAgentLike {
   invoke(
     input: {
-      messages: Array<{ role: 'user'; content: AgentContentBlock[] }>
+      // A real HumanMessage (built via the contentBlocks field, not a plain
+      // { role, content } literal) is required for @langchain/openai to
+      // recognize these as standard v1 content blocks: constructing it that
+      // way sets response_metadata.output_version = 'v1', which is what the
+      // Chat Completions converter keys off of to route an image block
+      // through standard-block conversion (image -> image_url) instead of
+      // treating it as unrecognized provider-native content and dropping
+      // it. See runAgentTurn below.
+      messages: HumanMessage[]
     },
     config: {
       configurable: { thread_id: string }
@@ -284,10 +293,9 @@ export const runAgentTurn = async (
     const result = await agent.invoke(
       {
         messages: [
-          {
-            role: 'user',
-            content: toAgentContent(requestContext.userMessage),
-          },
+          new HumanMessage({
+            contentBlocks: toAgentContent(requestContext.userMessage),
+          }),
         ],
       },
       {
