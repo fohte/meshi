@@ -3,18 +3,25 @@ import { ResultAsync } from 'neverthrow'
 import { z } from 'zod'
 
 import { jsonBadRequest, jsonServerError } from '#api/errors'
+import { NUTRIENT_CODES } from '#db/seed/nutrient-definitions'
 import type {
   UserProfile,
   UserProfilePatch,
 } from '#domain/user-profile/user-profile'
 import type { UserProfileService } from '#domain/user-profile/user-profile-service'
 
+// Mirrors the validation in src/llm/domain-tools/tools/update-user-profile.ts,
+// the other UserProfilePatch producer: non-empty tags, and dailyTargets keys
+// restricted to known nutrient codes.
 const userProfilePatchSchema = z.object({
-  likes: z.array(z.string()).optional(),
-  dislikes: z.array(z.string()).optional(),
-  allergies: z.array(z.string()).optional(),
-  constraints: z.array(z.string()).optional(),
-  dailyTargets: z.record(z.string(), z.number()).nullable().optional(),
+  likes: z.array(z.string().min(1)).optional(),
+  dislikes: z.array(z.string().min(1)).optional(),
+  allergies: z.array(z.string().min(1)).optional(),
+  constraints: z.array(z.string().min(1)).optional(),
+  dailyTargets: z
+    .partialRecord(z.enum(NUTRIENT_CODES), z.number())
+    .nullable()
+    .optional(),
 })
 
 const toProfileResponse = (profile: UserProfile) => ({

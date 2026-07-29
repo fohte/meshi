@@ -18,6 +18,18 @@ import styles from '#pages/SettingsPage.module.css'
 const PROFILE_QUERY_KEY = ['profile']
 const NUTRIENT_DEFINITIONS_QUERY_KEY = ['nutrient-definitions']
 
+interface TagFieldSpec {
+  key: 'likes' | 'dislikes' | 'allergies' | 'constraints'
+  label: string
+}
+
+const TAG_FIELDS: ReadonlyArray<TagFieldSpec> = [
+  { key: 'likes', label: '好きな食べ物' },
+  { key: 'dislikes', label: '嫌いな食べ物' },
+  { key: 'allergies', label: 'アレルギー' },
+  { key: 'constraints', label: '制約' },
+]
+
 export const SettingsPage = (): React.JSX.Element => {
   const profileQuery = useQuery({
     queryKey: PROFILE_QUERY_KEY,
@@ -33,6 +45,9 @@ export const SettingsPage = (): React.JSX.Element => {
     mutationFn: (patch: UserProfilePatch) => toPromise(patchUserProfile(patch)),
     onSuccess: (profile: UserProfile) => {
       queryClient.setQueryData(PROFILE_QUERY_KEY, profile)
+    },
+    onError: (error) => {
+      console.error('failed to update profile:', error)
     },
   })
 
@@ -75,62 +90,30 @@ export const SettingsPage = (): React.JSX.Element => {
       <section className={styles.section}>
         <SectionHeading label="プロフィール" />
         <div className={styles.fieldList}>
-          <TagField
-            label="好きな食べ物"
-            tags={profile.likes}
-            onAdd={(tag) => {
-              patchMutation.mutate({ likes: [...profile.likes, tag] })
-            }}
-            onRemove={(tag) => {
-              patchMutation.mutate({
-                likes: profile.likes.filter((t) => t !== tag),
-              })
-            }}
-            disabled={patchMutation.isPending}
-          />
-          <TagField
-            label="嫌いな食べ物"
-            tags={profile.dislikes}
-            onAdd={(tag) => {
-              patchMutation.mutate({ dislikes: [...profile.dislikes, tag] })
-            }}
-            onRemove={(tag) => {
-              patchMutation.mutate({
-                dislikes: profile.dislikes.filter((t) => t !== tag),
-              })
-            }}
-            disabled={patchMutation.isPending}
-          />
-          <TagField
-            label="アレルギー"
-            tags={profile.allergies}
-            onAdd={(tag) => {
-              patchMutation.mutate({ allergies: [...profile.allergies, tag] })
-            }}
-            onRemove={(tag) => {
-              patchMutation.mutate({
-                allergies: profile.allergies.filter((t) => t !== tag),
-              })
-            }}
-            disabled={patchMutation.isPending}
-          />
-          <TagField
-            label="制約"
-            tags={profile.constraints}
-            onAdd={(tag) => {
-              patchMutation.mutate({
-                constraints: [...profile.constraints, tag],
-              })
-            }}
-            onRemove={(tag) => {
-              patchMutation.mutate({
-                constraints: profile.constraints.filter((t) => t !== tag),
-              })
-            }}
-            disabled={patchMutation.isPending}
-          />
+          {TAG_FIELDS.map(({ key, label }) => (
+            <TagField
+              key={key}
+              label={label}
+              tags={profile[key]}
+              onAdd={(tag) => {
+                patchMutation.mutate({ [key]: [...profile[key], tag] })
+              }}
+              onRemove={(tag) => {
+                patchMutation.mutate({
+                  [key]: profile[key].filter((t) => t !== tag),
+                })
+              }}
+              disabled={patchMutation.isPending}
+            />
+          ))}
         </div>
       </section>
+
+      {patchMutation.isError ? (
+        <p className={styles.status}>
+          保存に失敗しました。もう一度お試しください。
+        </p>
+      ) : null}
 
       <section>
         <SectionHeading label="栄養目標 (1 日あたり)" />

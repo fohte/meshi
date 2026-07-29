@@ -1,10 +1,13 @@
 import { Hono } from 'hono'
 import { errAsync, okAsync } from 'neverthrow'
 import { describe, expect, it } from 'vitest'
+import { z } from 'zod'
 
 import { mountProfileRoutes } from '#api/profile-routes'
 import { UserProfileRepositoryError } from '#domain/user-profile/errors'
 import type { UserProfileService } from '#domain/user-profile/user-profile-service'
+
+const errorResponseSchema = z.object({ error: z.string() })
 
 const buildApp = (userProfileService: UserProfileService): Hono => {
   const app = new Hono()
@@ -70,7 +73,7 @@ describe('GET /api/profile', () => {
     })
   })
 
-  it('returns 500 when the service fails', async () => {
+  it('returns 500 when the get fails', async () => {
     const app = buildApp({
       get: () => errAsync(new UserProfileRepositoryError('boom')),
       update: noopUpdate,
@@ -94,17 +97,10 @@ describe('PATCH /api/profile', () => {
   it('forwards only the fields present in the body to the service', async () => {
     let capturedPatch: unknown
     const app = buildApp({
-      get: () =>
-        okAsync({ likes: [], dislikes: [], allergies: [], constraints: [] }),
+      get: () => okAsync(DEFAULT_PROFILE),
       update: (patch) => {
         capturedPatch = patch
-        return okAsync({
-          likes: ['ramen'],
-          dislikes: [],
-          allergies: [],
-          constraints: [],
-          dailyTargets: { energy_kcal: 2000 },
-        })
+        return okAsync(DEFAULT_PROFILE)
       },
     })
 
@@ -112,16 +108,9 @@ describe('PATCH /api/profile', () => {
       patchRequest({ likes: ['ramen'], dailyTargets: { energy_kcal: 2000 } }),
     )
 
+    expect(res.status).toBe(200)
     expect(capturedPatch).toEqual({
       likes: ['ramen'],
-      dailyTargets: { energy_kcal: 2000 },
-    })
-    expect(res.status).toBe(200)
-    expect(await res.json()).toEqual({
-      likes: ['ramen'],
-      dislikes: [],
-      allergies: [],
-      constraints: [],
       dailyTargets: { energy_kcal: 2000 },
     })
   })
@@ -129,16 +118,10 @@ describe('PATCH /api/profile', () => {
   it('forwards a null dailyTargets to clear it', async () => {
     let capturedPatch: unknown
     const app = buildApp({
-      get: () =>
-        okAsync({ likes: [], dislikes: [], allergies: [], constraints: [] }),
+      get: () => okAsync(DEFAULT_PROFILE),
       update: (patch) => {
         capturedPatch = patch
-        return okAsync({
-          likes: [],
-          dislikes: [],
-          allergies: [],
-          constraints: [],
-        })
+        return okAsync(DEFAULT_PROFILE)
       },
     })
 
@@ -146,6 +129,30 @@ describe('PATCH /api/profile', () => {
 
     expect(capturedPatch).toEqual({ dailyTargets: null })
     expect(res.status).toBe(200)
+  })
+
+  it('returns the updated profile from the service', async () => {
+    const app = buildApp({
+      get: () => okAsync(DEFAULT_PROFILE),
+      update: () =>
+        okAsync({
+          likes: ['ramen'],
+          dislikes: [],
+          allergies: [],
+          constraints: [],
+          dailyTargets: { energy_kcal: 2000 },
+        }),
+    })
+
+    const res = await app.request(patchRequest({ likes: ['ramen'] }))
+
+    expect(await res.json()).toEqual({
+      likes: ['ramen'],
+      dislikes: [],
+      allergies: [],
+      constraints: [],
+      dailyTargets: { energy_kcal: 2000 },
+    })
   })
 
   it('returns 400 when the body is not valid JSON', async () => {
@@ -174,13 +181,14 @@ describe('PATCH /api/profile', () => {
 
     const res = await app.request(patchRequest({ likes: 'not-an-array' }))
 
+    // The exact wording is zod's own error message, not this route's
+    // contract — only the status code and the shape (a string `error`
+    // field) are pinned here.
     expect(res.status).toBe(400)
-    expect(await res.json()).toEqual({
-      error: 'Invalid input: expected array, received string',
-    })
+    expect(errorResponseSchema.safeParse(await res.json()).success).toBe(true)
   })
 
-  it('returns 500 when the service fails', async () => {
+  it('returns 500 when the update fails', async () => {
     const app = buildApp({
       get: () => okAsync(DEFAULT_PROFILE),
       update: () => errAsync(new UserProfileRepositoryError('boom')),

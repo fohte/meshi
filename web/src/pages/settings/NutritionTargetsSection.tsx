@@ -18,8 +18,9 @@ export const NutritionTargetsSection = ({
   disabled = false,
 }: NutritionTargetsSectionProps): React.JSX.Element => {
   // Extra rows the user opened via "+ 栄養素を追加" for a nutrient that has
-  // no saved target yet; once a value is committed the row also matches
-  // `hasTarget` below, so this only needs to track the not-yet-saved case.
+  // no saved target yet; once a value is committed the row is also matched
+  // by the `dailyTargets?.[def.code] !== undefined` check below, so this
+  // only needs to track the not-yet-saved case.
   const [addedCodes, setAddedCodes] = useState<ReadonlySet<string>>(new Set())
   const [isPickerOpen, setIsPickerOpen] = useState(false)
 
