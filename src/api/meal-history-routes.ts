@@ -41,6 +41,7 @@ export const mountMealHistoryRoutes = (
           entries: aggregate.entries.map((entry) => ({
             id: entry.id,
             foodMasterId: entry.foodMasterId,
+            foodName: entry.foodName,
             eatenAt: entry.eatenAt.toISOString(),
             mealType: entry.mealType,
             quantity: entry.quantity,

@@ -20,6 +20,7 @@ export interface QueryMealHistoryInput {
 export interface MealLogEntry {
   readonly id: string
   readonly foodMasterId: string
+  readonly foodName: string
   readonly eatenAt: Date
   readonly mealType: MealType
   readonly quantity: number

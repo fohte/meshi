@@ -51,6 +51,7 @@ const aggregateRowSchema = z.object({
 const entryRowSchema = z.object({
   id: z.string(),
   food_master_id: z.string(),
+  food_name: z.string(),
   eaten_at: isoTimestamp,
   meal_type: z.enum(MEAL_TYPES),
   quantity: numericString,
@@ -115,6 +116,7 @@ export const createMealHistoryService = (sql: Sql): MealHistoryService => {
             SELECT
               ml.id AS id,
               ml.food_master_id AS food_master_id,
+              fm.name AS food_name,
               to_char(ml.eaten_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"')
                 AS eaten_at,
               ml.meal_type AS meal_type,
@@ -164,6 +166,7 @@ export const createMealHistoryService = (sql: Sql): MealHistoryService => {
         const entries: MealLogEntry[] = entryParsed.data.map((row) => ({
           id: row.id,
           foodMasterId: row.food_master_id,
+          foodName: row.food_name,
           eatenAt: row.eaten_at,
           mealType: row.meal_type,
           quantity: row.quantity,

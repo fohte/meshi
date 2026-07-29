@@ -62,6 +62,7 @@ describe('GET /api/meal-history', () => {
             {
               id: 'log-1',
               foodMasterId: 'rice',
+              foodName: 'rice',
               eatenAt: new Date('2026-07-29T03:00:00Z'),
               mealType: 'breakfast',
               quantity: 100,
@@ -86,6 +87,7 @@ describe('GET /api/meal-history', () => {
         {
           id: 'log-1',
           foodMasterId: 'rice',
+          foodName: 'rice',
           eatenAt: '2026-07-29T03:00:00.000Z',
           mealType: 'breakfast',
           quantity: 100,
