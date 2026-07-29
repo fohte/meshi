@@ -1147,6 +1147,73 @@ describeIfDb('createMeshiAgentExecutor', () => {
     ])
   })
 
+  it('publishes an immediate status-update with progress text when the agent starts update_meal_log', async () => {
+    const contextId = `ctx-${randomUUID()}`
+    const taskId = `task-${randomUUID()}`
+    const userMessage = buildUserMessage(taskId, contextId)
+    const agent: MeshiDomainAgentLike = {
+      invoke: vi
+        .fn()
+        .mockImplementation((_input: unknown, config: InvokeConfig) => {
+          fireHandleToolStart(config.callbacks, 'update_meal_log')
+          return buildCompletedInvokeResult('Updated your meal.')
+        }),
+    }
+    const executor = createMeshiAgentExecutor({
+      agent,
+      sql: getTestSql(),
+      heartbeatIntervalMs: 1_000_000,
+    })
+    const { bus, published } = buildEventBus()
+
+    await executor.execute(
+      new RequestContext(userMessage, taskId, contextId),
+      bus,
+    )
+
+    const progressMessage = buildExpectedAgentMessage(
+      taskId,
+      contextId,
+      'Updating your meal record...',
+    )
+    const agentMessage = buildExpectedAgentMessage(
+      taskId,
+      contextId,
+      'Updated your meal.',
+    )
+    expect(published.map(normalizeEvent)).toEqual([
+      {
+        kind: 'task',
+        id: taskId,
+        contextId,
+        status: { state: 'working', timestamp: NORMALIZED },
+        history: [userMessage],
+      },
+      {
+        kind: 'status-update',
+        taskId,
+        contextId,
+        status: {
+          state: 'working',
+          timestamp: NORMALIZED,
+          message: progressMessage,
+        },
+        final: false,
+      },
+      {
+        kind: 'task',
+        id: taskId,
+        contextId,
+        status: {
+          state: 'completed',
+          timestamp: NORMALIZED,
+          message: agentMessage,
+        },
+        history: [userMessage, agentMessage],
+      },
+    ])
+  })
+
   it('does not publish a progress status-update for a tool name with no mapped progress text', async () => {
     const contextId = `ctx-${randomUUID()}`
     const taskId = `task-${randomUUID()}`
