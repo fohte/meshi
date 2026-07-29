@@ -18,7 +18,20 @@ describe('buildCalendarCells', () => {
       2000,
     )
 
-    expect(cells.slice(0, 8)).toEqual([
+    // Days 6-31 all fall after "today" (2026-07-05), so they're uniformly
+    // future/no-data cells — built here rather than the calendar's own
+    // future-cell logic, so the assertion below stays a literal, not a
+    // second invocation of the code under test.
+    const futureDays = Array.from({ length: 26 }, (_, i) => ({
+      date: `2026-07-${String(i + 6).padStart(2, '0')}`,
+      day: i + 6,
+      kcal: null,
+      isToday: false,
+      isFuture: true,
+      achievement: 'none',
+    }))
+
+    expect(cells).toEqual([
       {
         date: null,
         day: null,
@@ -83,9 +96,8 @@ describe('buildCalendarCells', () => {
         isFuture: false,
         achievement: 'none',
       },
+      ...futureDays,
     ])
-    // 3 leading blanks + 31 days in July.
-    expect(cells).toHaveLength(34)
   })
 
   it('treats dates after today as future with a null kcal', () => {
@@ -115,8 +127,13 @@ describe('buildCalendarCells', () => {
       undefined,
     )
 
-    expect(cells.find((c) => c.date === '2026-07-01')?.achievement).toBe(
-      'onTarget',
-    )
+    expect(cells.find((c) => c.date === '2026-07-01')).toEqual({
+      date: '2026-07-01',
+      day: 1,
+      kcal: 5000,
+      isToday: true,
+      isFuture: false,
+      achievement: 'onTarget',
+    })
   })
 })

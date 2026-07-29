@@ -74,6 +74,17 @@ describe('buildListCards', () => {
       2200,
     )
 
-    expect(cards[0]?.summary).toBe('記録なし')
+    expect(cards).toEqual([
+      {
+        date: '2026-07-29',
+        dayText: '7/29',
+        dowText: '水',
+        summary: '記録なし',
+        metaText: '0 品 · 塩分 0.0 g',
+        kcalText: '0 kcal',
+        pctText: '0%',
+        isOverTarget: false,
+      },
+    ])
   })
 })

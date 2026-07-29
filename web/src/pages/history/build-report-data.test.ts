@@ -178,17 +178,70 @@ describe('buildReportData', () => {
       null,
     )
 
-    expect(result.targetLinePct).toBeNull()
-    expect(result.days).toEqual([
-      {
-        date: '2026-07-29',
-        kcal: 500,
-        heightPct: 100,
-        hasData: true,
-        isOverTarget: false,
-        label: '水',
-      },
-    ])
+    expect(result).toEqual({
+      rangeText: '7月29日 – 7月29日',
+      days: [
+        {
+          date: '2026-07-29',
+          kcal: 500,
+          heightPct: 100,
+          hasData: true,
+          isOverTarget: false,
+          label: '水',
+        },
+      ],
+      targetLinePct: null,
+      avgRows: [
+        {
+          code: 'energy_kcal',
+          label: 'エネルギー',
+          unit: 'kcal',
+          value: 500,
+          target: null,
+          pct: 0,
+          over: false,
+        },
+        {
+          code: 'protein_g',
+          label: 'たんぱく質',
+          unit: 'g',
+          value: 0,
+          target: null,
+          pct: 0,
+          over: false,
+        },
+      ],
+      tableRows: [
+        {
+          code: 'energy_kcal',
+          label: 'エネルギー',
+          unit: 'kcal',
+          value: 500,
+          target: null,
+          pct: 0,
+          over: false,
+        },
+        {
+          code: 'protein_g',
+          label: 'たんぱく質',
+          unit: 'g',
+          value: 0,
+          target: null,
+          pct: 0,
+          over: false,
+        },
+        {
+          code: 'iron_mg',
+          label: '鉄',
+          unit: 'mg',
+          value: 0,
+          target: null,
+          pct: 0,
+          over: false,
+        },
+      ],
+      daysWithDataCount: 1,
+    })
   })
 
   it('labels a month period every 5th day of month and blanks the rest', () => {
@@ -200,6 +253,85 @@ describe('buildReportData', () => {
       null,
     )
 
-    expect(result.days.map((d) => d.label)).toEqual(['', '', '5'])
+    expect(result).toEqual({
+      rangeText: '7月1日 – 7月5日',
+      days: [
+        {
+          date: '2026-07-01',
+          kcal: 0,
+          heightPct: 0,
+          hasData: false,
+          isOverTarget: false,
+          label: '',
+        },
+        {
+          date: '2026-07-02',
+          kcal: 0,
+          heightPct: 0,
+          hasData: false,
+          isOverTarget: false,
+          label: '',
+        },
+        {
+          date: '2026-07-05',
+          kcal: 0,
+          heightPct: 0,
+          hasData: false,
+          isOverTarget: false,
+          label: '5',
+        },
+      ],
+      targetLinePct: null,
+      avgRows: [
+        {
+          code: 'energy_kcal',
+          label: 'エネルギー',
+          unit: 'kcal',
+          value: 0,
+          target: null,
+          pct: 0,
+          over: false,
+        },
+        {
+          code: 'protein_g',
+          label: 'たんぱく質',
+          unit: 'g',
+          value: 0,
+          target: null,
+          pct: 0,
+          over: false,
+        },
+      ],
+      tableRows: [
+        {
+          code: 'energy_kcal',
+          label: 'エネルギー',
+          unit: 'kcal',
+          value: 0,
+          target: null,
+          pct: 0,
+          over: false,
+        },
+        {
+          code: 'protein_g',
+          label: 'たんぱく質',
+          unit: 'g',
+          value: 0,
+          target: null,
+          pct: 0,
+          over: false,
+        },
+        {
+          code: 'iron_mg',
+          label: '鉄',
+          unit: 'mg',
+          value: 0,
+          target: null,
+          pct: 0,
+          over: false,
+        },
+      ],
+      daysWithDataCount: 0,
+    })
   })
 })
