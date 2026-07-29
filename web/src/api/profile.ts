@@ -16,6 +16,8 @@ const userProfileSchema = z.object({
 
 export type UserProfile = z.infer<typeof userProfileSchema>
 
+export const PROFILE_QUERY_KEY = ['profile']
+
 // Mirrors the server's UserProfilePatch semantics: an omitted key keeps the
 // current value, and dailyTargets: null clears it (see
 // src/domain/user-profile/user-profile.ts).

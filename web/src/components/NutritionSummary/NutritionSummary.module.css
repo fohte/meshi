@@ -1,0 +1,225 @@
+.card {
+  border: var(--border-width) solid var(--color-border);
+  padding: 20px;
+}
+
+.header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  margin-bottom: 16px;
+}
+
+.eyebrow {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--color-muted);
+  letter-spacing: 0.06em;
+}
+
+.estimateNote {
+  font-size: 12px;
+  color: var(--color-muted);
+}
+
+.estimateMark {
+  font-family: var(--font-mono);
+}
+
+.energyRow {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+
+.energyValue {
+  font-family: var(--font-mono);
+  font-size: 40px;
+  font-weight: 700;
+  line-height: 1;
+  letter-spacing: -0.02em;
+}
+
+.energyTarget {
+  font-family: var(--font-mono);
+  font-size: 14px;
+  color: var(--color-muted);
+}
+
+.energyPct {
+  margin-left: auto;
+  font-family: var(--font-mono);
+  font-size: 13px;
+}
+
+.energyPct[data-over] {
+  color: var(--color-accent);
+}
+
+.track {
+  height: 8px;
+  background: var(--color-track);
+  position: relative;
+}
+
+.bar {
+  height: 8px;
+  background: var(--color-text);
+}
+
+.bar[data-over] {
+  background: var(--color-accent);
+}
+
+.pfcLabel {
+  margin-top: 18px;
+  margin-bottom: 7px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--color-muted);
+  letter-spacing: 0.06em;
+}
+
+.pfcBar {
+  height: 14px;
+  display: flex;
+  position: relative;
+  background: var(--color-track);
+}
+
+.pfcSegment {
+  height: 100%;
+}
+
+.pfcMark {
+  position: absolute;
+  top: -3px;
+  bottom: -3px;
+  width: 1px;
+  background: var(--color-accent);
+}
+
+.pfcLegend {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  flex-wrap: wrap;
+  margin-top: 8px;
+  font-size: 12px;
+  color: var(--color-text-secondary);
+}
+
+.pfcLegendItem {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+
+.pfcSwatch {
+  width: 8px;
+  height: 8px;
+  flex: none;
+}
+
+.pfcLegendValue {
+  font-family: var(--font-mono);
+  color: var(--color-text);
+}
+
+.pfcLegendTarget {
+  font-family: var(--font-mono);
+  color: var(--color-muted);
+}
+
+.pfcHint {
+  color: var(--color-muted);
+}
+
+.majorRows {
+  display: flex;
+  flex-direction: column;
+  gap: 11px;
+  margin-top: 20px;
+}
+
+.majorRowHead {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  font-size: 13px;
+  margin-bottom: 4px;
+}
+
+.majorRowLabel {
+  color: var(--color-text-secondary);
+}
+
+.majorRowValue {
+  margin-left: auto;
+  font-family: var(--font-mono);
+}
+
+.majorRowTarget {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--color-muted);
+  width: 90px;
+  text-align: right;
+}
+
+.setTargetLink {
+  margin-top: 16px;
+  padding-top: 14px;
+  border-top: var(--border-width) solid var(--color-border);
+  font-size: 13px;
+  color: var(--color-text-secondary);
+}
+
+.toggle {
+  all: unset;
+  cursor: pointer;
+  margin-top: 16px;
+  padding-top: 14px;
+  border-top: var(--border-width) solid var(--color-border);
+  display: block;
+  width: 100%;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--color-muted);
+}
+
+.toggle:hover {
+  color: var(--color-text);
+}
+
+.allTable {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 14px;
+  font-family: var(--font-mono);
+  font-size: 12px;
+}
+
+.allTable th,
+.allTable td {
+  padding: 6px 8px;
+  border: var(--border-width) solid var(--color-border);
+  text-align: right;
+}
+
+.allTable th:first-child,
+.allTable td:first-child {
+  text-align: left;
+  font-family: var(--font-sans);
+}
+
+.allTable thead th {
+  background: var(--color-surface);
+  font-weight: 500;
+  color: var(--color-text-secondary);
+}
+
+.allTable tbody td:last-child {
+  color: var(--color-muted);
+}

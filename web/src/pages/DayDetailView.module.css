@@ -1,0 +1,92 @@
+.header {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 28px;
+}
+
+.crumb {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--color-muted);
+  letter-spacing: 0.04em;
+  margin-bottom: 4px;
+}
+
+.title {
+  margin: 0;
+  font-family: var(--font-mono);
+  font-size: 24px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+
+.titleMark {
+  color: var(--color-accent);
+}
+
+.sub {
+  font-size: 13px;
+  color: var(--color-text-secondary);
+  margin-top: 4px;
+}
+
+.nav {
+  display: flex;
+  gap: 6px;
+  flex: none;
+}
+
+.navButton {
+  padding: 6px 11px;
+  border: var(--border-width) solid var(--color-border);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--color-text-secondary);
+  transition: border-color 0.15s;
+}
+
+.navButton:hover {
+  border-color: var(--color-muted);
+  text-decoration: none;
+}
+
+.content {
+  display: flex;
+  flex-direction: column;
+  gap: 28px;
+}
+
+.skeletonStack {
+  display: flex;
+  flex-direction: column;
+  gap: 28px;
+}
+
+.emptyState {
+  border: var(--border-width) solid var(--color-border);
+  padding: 56px 20px;
+  text-align: center;
+}
+
+.emptyText {
+  font-family: var(--font-mono);
+  font-size: 13px;
+  color: var(--color-muted);
+  margin-bottom: 18px;
+}
+
+.emptyCreateButton {
+  all: unset;
+  cursor: pointer;
+  padding: 10px 20px;
+  border: var(--border-width) solid var(--color-border);
+  font-family: var(--font-mono);
+  font-size: 13px;
+  transition: border-color 0.15s;
+}
+
+.emptyCreateButton:hover {
+  border-color: var(--color-muted);
+}

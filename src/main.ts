@@ -20,6 +20,7 @@ import { observability } from '#bootstrap'
 import { createSql, pingDb } from '#db/index'
 import { runMigrations } from '#db/migrations'
 import { seedNutrientDefinitions } from '#db/seed/index'
+import { createDayDetailService } from '#domain/day-detail/index'
 import { createFoodBrowseService } from '#domain/food-browse/index'
 import { createFoodDetailService } from '#domain/food-detail/index'
 import { createFoodMasterRepository } from '#domain/food-master/repository'
@@ -99,6 +100,7 @@ export const main = async (): Promise<void> => {
   )
   const foodMatcher = createDrizzleFoodMatcher(sql)
   const mealHistoryService = createMealHistoryService(sql)
+  const dayDetailService = createDayDetailService(sql, mealHistoryService)
   const foodBrowseService = createFoodBrowseService(sql, foodMatcher)
   const foodDetailService = createFoodDetailService(sql, foodMasterService)
   const nutrientDefinitionRepository =
@@ -166,6 +168,7 @@ export const main = async (): Promise<void> => {
     agentCard,
     requestHandler,
     mealHistoryService,
+    dayDetailService,
     nutrientDefinitionRepository,
     userProfileService,
     foodBrowseService,
