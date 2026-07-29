@@ -10,6 +10,7 @@ RUN npm install -g corepack@0.35.0 && npm cache clean --force && corepack enable
 
 FROM base AS deps
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
+COPY web/package.json ./web/package.json
 RUN --mount=type=cache,id=pnpm-store,target=/pnpm/store \
     pnpm install --frozen-lockfile
 
@@ -26,14 +27,23 @@ COPY tsconfig.json tsup.config.ts ./
 COPY src ./src
 RUN pnpm run build
 
+FROM deps AS web-builder
+COPY web ./web
+RUN pnpm --filter web run build
+
 # Built fresh from `base`, not `builder`, so the runtime image doesn't inherit
 # dev dependencies or source files left over from the build stage.
 FROM base AS runtime
 ENV NODE_ENV=production
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
+COPY web/package.json ./web/package.json
+# --filter meshi: the server only serves web/dist's already-built static
+# files, so web's own dependencies (react, vite, ...) don't belong here.
 RUN --mount=type=cache,id=pnpm-store,target=/pnpm/store \
-    pnpm install --frozen-lockfile --prod
+    pnpm install --frozen-lockfile --prod --filter meshi
 COPY --from=builder /app/dist ./dist
+# Served by Hono's serveStatic (src/app.ts) from the same relative path.
+COPY --from=web-builder /app/web/dist ./web/dist
 COPY drizzle ./drizzle
 COPY otel-register.mjs ./
 # runAsUser/runAsGroup 1000 (node user) is enforced by the infra Deployment's

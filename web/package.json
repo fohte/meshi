@@ -1,0 +1,39 @@
+{
+  "name": "web",
+  "private": true,
+  "type": "module",
+  "imports": {
+    "#*.css": "./src/*.css",
+    "#*": [
+      "./src/*.ts",
+      "./src/*.tsx"
+    ]
+  },
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "test": "conc pnpm:test:type pnpm:test:unit",
+    "test:type": "tsc --noEmit",
+    "test:unit": "vitest run",
+    "storybook": "storybook dev -p 6006",
+    "storybook:build": "storybook build"
+  },
+  "dependencies": {
+    "@tanstack/react-query": "5.101.4",
+    "neverthrow": "8.2.0",
+    "react": "19.2.8",
+    "react-dom": "19.2.8",
+    "react-router": "8.2.0"
+  },
+  "devDependencies": {
+    "@storybook/addon-docs": "10.4.6",
+    "@storybook/addon-themes": "10.4.6",
+    "@storybook/react-vite": "10.4.6",
+    "@types/react": "19.2.17",
+    "@types/react-dom": "19.2.3",
+    "@vitejs/plugin-react": "6.0.3",
+    "storybook": "10.4.6",
+    "vite": "8.1.5"
+  }
+}

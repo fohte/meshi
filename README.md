@@ -65,6 +65,16 @@ The MCP endpoint is served at `POST /mcp`; the A2A endpoint (agent card + JSON-R
 
 The `nutrient_definitions` master is seeded automatically on startup after migrations (idempotent). The MEXT food composition table (`food_compositions` + `food_composition_nutrients`) is loaded separately via the CLI below — it is not bundled and must be pointed at a JSON dataset.
 
+### Web frontend
+
+`web/` is a Vite + React SPA (see `docs/web-frontend-page-design.md` for the page design). In production, the backend server builds it and serves the static output itself — no separate deploy step.
+
+```sh
+pnpm --filter web run dev        # Vite dev server, proxies /api to the backend on :8080
+pnpm --filter web run build      # production build (web/dist), served by the backend in the runtime image
+pnpm --filter web run storybook  # component storybook
+```
+
 ### Seed / load
 
 ```sh

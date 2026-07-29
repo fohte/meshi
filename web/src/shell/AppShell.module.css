@@ -1,0 +1,23 @@
+.main {
+  flex: 1;
+  min-width: 0;
+  padding-bottom: 72px;
+}
+
+@media (width > 768px) {
+  .main {
+    padding-bottom: 0;
+  }
+}
+
+.content {
+  max-width: 720px;
+  margin: 0 auto;
+  padding: 20px 16px;
+}
+
+@media (width > 768px) {
+  .content {
+    padding: 32px 24px;
+  }
+}
