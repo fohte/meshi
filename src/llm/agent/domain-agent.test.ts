@@ -1,11 +1,13 @@
+import { AIMessage } from '@langchain/core/messages'
 import { MemorySaver } from '@langchain/langgraph'
 import { fakeModel } from 'langchain'
 import { describe, expect, it } from 'vitest'
 
 import { createMeshiDomainAgent } from '#llm/agent/domain-agent'
+import { REQUEST_USER_INPUT_TOOL_NAME } from '#llm/agent/request-user-input-tool'
 import type { DomainToolsRegistry } from '#llm/domain-tools/registry'
 import type { DomainTool } from '#llm/domain-tools/types'
-import { err, ok } from '#llm/domain-tools/types'
+import { ok } from '#llm/domain-tools/types'
 
 const stubRegistry = (
   tools: ReadonlyArray<DomainTool>,
@@ -31,7 +33,7 @@ const recordMealLogTool = (execute: DomainTool['execute']): DomainTool => ({
 })
 
 describe('createMeshiDomainAgent', () => {
-  it('produces a schema-conformant structuredResponse after calling a domain tool', async () => {
+  it('runs a domain tool call and returns the reply text as the final AI message', async () => {
     const registry = stubRegistry([
       recordMealLogTool(() =>
         Promise.resolve(ok({ meal_log_id: 'm1', is_estimated: false })),
@@ -45,13 +47,7 @@ describe('createMeshiDomainAgent', () => {
           id: 'call_1',
         },
       ])
-      .respondWithTools([
-        {
-          name: 'meshi_agent_response',
-          args: { status: 'completed', message: 'Recorded your meal.' },
-          id: 'call_2',
-        },
-      ])
+      .respond(new AIMessage('Recorded your meal.'))
 
     const agent = createMeshiDomainAgent({
       model,
@@ -63,38 +59,24 @@ describe('createMeshiDomainAgent', () => {
       { configurable: { thread_id: 'thread-1' } },
     )
 
-    expect(result.structuredResponse).toEqual({
-      status: 'completed',
-      message: 'Recorded your meal.',
-    })
+    expect(result.messages.at(-1)?.text).toBe('Recorded your meal.')
   })
 
-  it('reports status error when a domain tool call fails', async () => {
-    const registry = stubRegistry([
-      recordMealLogTool(() =>
-        Promise.resolve(
-          err({
-            code: 'food_master_not_found',
-            message: 'unknown food_master_id',
-          }),
-        ),
-      ),
-    ])
-    const model = fakeModel()
-      .respondWithTools([
-        {
-          name: 'record_meal_log',
-          args: { food_master_id: 'fm_missing' },
-          id: 'call_1',
-        },
-      ])
-      .respondWithTools([
-        {
-          name: 'meshi_agent_response',
-          args: { status: 'error', message: 'That food could not be found.' },
-          id: 'call_2',
-        },
-      ])
+  it('ends the turn right after calling request_user_input, without a further model turn', async () => {
+    const registry = stubRegistry([])
+    const model = fakeModel().respond(
+      new AIMessage({
+        content: 'Which food did you mean?',
+        tool_calls: [
+          {
+            name: REQUEST_USER_INPUT_TOOL_NAME,
+            args: {},
+            id: 'call_1',
+            type: 'tool_call',
+          },
+        ],
+      }),
+    )
 
     const agent = createMeshiDomainAgent({
       model,
@@ -102,13 +84,17 @@ describe('createMeshiDomainAgent', () => {
       checkpointer: new MemorySaver(),
     })
     const result = await agent.invoke(
-      { messages: [{ role: 'user', content: 'I ate something unknown' }] },
+      { messages: [{ role: 'user', content: 'salmon' }] },
       { configurable: { thread_id: 'thread-2' } },
     )
 
-    expect(result.structuredResponse).toEqual({
-      status: 'error',
-      message: 'That food could not be found.',
-    })
+    // Split across expect() calls rather than one combined literal: each
+    // checks a genuinely distinct value (call count, message-type sequence,
+    // reply text) rather than fragmenting a single structured output.
+    expect(model.callCount).toBe(1)
+    expect(result.messages.map((m) => m.type)).toEqual(['human', 'ai', 'tool'])
+    expect(result.messages.find((m) => m.type === 'ai')?.text).toBe(
+      'Which food did you mean?',
+    )
   })
 })

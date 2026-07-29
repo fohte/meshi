@@ -13,6 +13,8 @@ import type {
 import { createMeshiAgentExecutor, runAgentTurn } from '#a2a/agent-executor'
 import type { Sql } from '#db/index'
 import { MESHI_AGENT_RECURSION_LIMIT } from '#llm/agent/domain-agent'
+import { REQUEST_USER_INPUT_TOOL_NAME } from '#llm/agent/request-user-input-tool'
+import type { Logger } from '#logger'
 import { describeIfDb, getTestSql } from '#test/db'
 
 vi.mock('@fohte/service-kit/observability', () => ({
@@ -136,18 +138,39 @@ const normalizeEvent = (event: AgentExecutionEvent): AgentExecutionEvent => {
   return event
 }
 
+const buildInvokeMessage = (
+  type: string,
+  overrides: {
+    name?: string
+    content?: unknown
+    text?: string
+    toolCalls?: ReadonlyArray<{ name: string }>
+  } = {},
+): AgentInvokeMessage => ({
+  getType: () => type,
+  ...(overrides.name !== undefined ? { name: overrides.name } : {}),
+  content: overrides.content ?? '',
+  text: overrides.text ?? '',
+  ...(overrides.toolCalls !== undefined
+    ? { tool_calls: overrides.toolCalls }
+    : {}),
+})
+
+const buildCompletedInvokeResult = (
+  text: string,
+): { messages: AgentInvokeMessage[] } => ({
+  messages: [buildInvokeMessage('human'), buildInvokeMessage('ai', { text })],
+})
+
 describe('runAgentTurn', () => {
-  it('maps a completed structured response to a completed task', async () => {
+  it('maps a plain-text reply with no tool call to a completed task', async () => {
     const contextId = `ctx-${randomUUID()}`
     const taskId = `task-${randomUUID()}`
     const userMessage = buildUserMessage(taskId, contextId)
     const agent: MeshiDomainAgentLike = {
-      invoke: vi.fn().mockResolvedValue({
-        structuredResponse: {
-          status: 'completed',
-          message: 'Recorded your meal.',
-        },
-      }),
+      invoke: vi
+        .fn()
+        .mockResolvedValue(buildCompletedInvokeResult('Recorded your meal.')),
     }
 
     const task = await runAgentTurn(
@@ -173,17 +196,20 @@ describe('runAgentTurn', () => {
     })
   })
 
-  it('maps an input_required structured response to an input-required task', async () => {
+  it('maps a reply that calls request_user_input to an input-required task', async () => {
     const contextId = `ctx-${randomUUID()}`
     const taskId = `task-${randomUUID()}`
     const existingTask = buildExistingTask(taskId, contextId)
     const userMessage = buildUserMessage(taskId, contextId, 'more info')
     const agent: MeshiDomainAgentLike = {
       invoke: vi.fn().mockResolvedValue({
-        structuredResponse: {
-          status: 'input_required',
-          message: 'Which food did you mean?',
-        },
+        messages: [
+          buildInvokeMessage('human'),
+          buildInvokeMessage('ai', {
+            text: 'Which food did you mean?',
+            toolCalls: [{ name: REQUEST_USER_INPUT_TOOL_NAME }],
+          }),
+        ],
       }),
     }
 
@@ -210,46 +236,14 @@ describe('runAgentTurn', () => {
     })
   })
 
-  it('maps an error structured response to a failed task without an error_kind', async () => {
-    const contextId = `ctx-${randomUUID()}`
-    const taskId = `task-${randomUUID()}`
-    const userMessage = buildUserMessage(taskId, contextId)
-    const agent: MeshiDomainAgentLike = {
-      invoke: vi.fn().mockResolvedValue({
-        structuredResponse: {
-          status: 'error',
-          message: 'That food could not be found.',
-        },
-      }),
-    }
-
-    const task = await runAgentTurn(
-      agent,
-      new RequestContext(userMessage, taskId, contextId),
-    )
-
-    const agentMessage = buildExpectedAgentMessage(
-      taskId,
-      contextId,
-      'That food could not be found.',
-    )
-    expect(normalizeEvent(task)).toEqual({
-      kind: 'task',
-      id: taskId,
-      contextId,
-      status: { state: 'failed', timestamp: NORMALIZED, message: agentMessage },
-      history: [userMessage, agentMessage],
-    })
-  })
-
-  it('falls back to a failed task when the structured response does not match the expected schema', async () => {
+  it('falls back to a failed task when the agent produces no usable AI message text', async () => {
     const contextId = `ctx-${randomUUID()}`
     const taskId = `task-${randomUUID()}`
     const userMessage = buildUserMessage(taskId, contextId)
     const agent: MeshiDomainAgentLike = {
       invoke: vi
         .fn()
-        .mockResolvedValue({ structuredResponse: { unexpected: true } }),
+        .mockResolvedValue({ messages: [buildInvokeMessage('human')] }),
     }
 
     const task = await runAgentTurn(
@@ -269,6 +263,124 @@ describe('runAgentTurn', () => {
       status: { state: 'failed', timestamp: NORMALIZED, message: agentMessage },
       history: [userMessage, agentMessage],
     })
+  })
+
+  it('logs a warn event when the agent produces no usable reply', async () => {
+    const contextId = `ctx-${randomUUID()}`
+    const taskId = `task-${randomUUID()}`
+    const userMessage = buildUserMessage(taskId, contextId)
+    const agent: MeshiDomainAgentLike = {
+      invoke: vi
+        .fn()
+        .mockResolvedValue({ messages: [buildInvokeMessage('human')] }),
+    }
+    const logs: Array<{
+      event: string
+      payload: Readonly<Record<string, unknown>> | undefined
+    }> = []
+    const logger: Logger = {
+      log: (event, payload) => logs.push({ event, payload }),
+    }
+
+    await runAgentTurn(
+      agent,
+      new RequestContext(userMessage, taskId, contextId),
+      logger,
+    )
+
+    expect(logs).toEqual([
+      { event: 'meshi.agent_no_usable_reply', payload: { taskId, contextId } },
+    ])
+  })
+
+  it('reports to Sentry when the agent produces no usable reply', async () => {
+    const contextId = `ctx-${randomUUID()}`
+    const taskId = `task-${randomUUID()}`
+    const userMessage = buildUserMessage(taskId, contextId)
+    const agent: MeshiDomainAgentLike = {
+      invoke: vi
+        .fn()
+        .mockResolvedValue({ messages: [buildInvokeMessage('human')] }),
+    }
+
+    await runAgentTurn(
+      agent,
+      new RequestContext(userMessage, taskId, contextId),
+    )
+
+    expect(captureWithFingerprint).toHaveBeenCalledExactlyOnceWith(
+      expect.any(Error),
+      'a2a.agent-executor.no-usable-reply',
+      { extras: { taskId, contextId } },
+    )
+  })
+
+  it('strips a leaked think block from the task message', async () => {
+    const contextId = `ctx-${randomUUID()}`
+    const taskId = `task-${randomUUID()}`
+    const userMessage = buildUserMessage(taskId, contextId)
+    const agent: MeshiDomainAgentLike = {
+      invoke: vi
+        .fn()
+        .mockResolvedValue(
+          buildCompletedInvokeResult('<think>reasoning</think>final answer'),
+        ),
+    }
+
+    const task = await runAgentTurn(
+      agent,
+      new RequestContext(userMessage, taskId, contextId),
+    )
+
+    const agentMessage = buildExpectedAgentMessage(
+      taskId,
+      contextId,
+      'final answer',
+    )
+    expect(normalizeEvent(task)).toEqual({
+      kind: 'task',
+      id: taskId,
+      contextId,
+      status: {
+        state: 'completed',
+        timestamp: NORMALIZED,
+        message: agentMessage,
+      },
+      history: [userMessage, agentMessage],
+    })
+  })
+
+  it('logs a warn event when a think block leaks into the reply', async () => {
+    const contextId = `ctx-${randomUUID()}`
+    const taskId = `task-${randomUUID()}`
+    const userMessage = buildUserMessage(taskId, contextId)
+    const agent: MeshiDomainAgentLike = {
+      invoke: vi
+        .fn()
+        .mockResolvedValue(
+          buildCompletedInvokeResult('<think>reasoning</think>final answer'),
+        ),
+    }
+    const logs: Array<{
+      event: string
+      payload: Readonly<Record<string, unknown>> | undefined
+    }> = []
+    const logger: Logger = {
+      log: (event, payload) => logs.push({ event, payload }),
+    }
+
+    await runAgentTurn(
+      agent,
+      new RequestContext(userMessage, taskId, contextId),
+      logger,
+    )
+
+    expect(logs).toEqual([
+      {
+        event: 'meshi.agent_think_block_leaked',
+        payload: { taskId, contextId },
+      },
+    ])
   })
 
   it('tags a usage-limit failure with error_kind on the failed task', async () => {
@@ -377,9 +489,7 @@ describe('runAgentTurn', () => {
     const contextId = `ctx-${randomUUID()}`
     const taskId = `task-${randomUUID()}`
     const userMessage = buildUserMessage(taskId, contextId)
-    const invoke = vi.fn().mockResolvedValue({
-      structuredResponse: { status: 'completed', message: 'ok' },
-    })
+    const invoke = vi.fn().mockResolvedValue(buildCompletedInvokeResult('ok'))
     const agent: MeshiDomainAgentLike = { invoke }
 
     await runAgentTurn(
@@ -410,9 +520,7 @@ describe('runAgentTurn', () => {
     })
     const userMessage = buildUserMessage(taskId, contextId, 'more info')
     const agent: MeshiDomainAgentLike = {
-      invoke: vi.fn().mockResolvedValue({
-        structuredResponse: { status: 'completed', message: 'ok' },
-      }),
+      invoke: vi.fn().mockResolvedValue(buildCompletedInvokeResult('ok')),
     }
 
     const task = await runAgentTurn(
@@ -431,15 +539,6 @@ describe('runAgentTurn', () => {
     ])
     expect(task.artifacts).toEqual(existingTask.artifacts)
   })
-})
-
-const buildInvokeMessage = (
-  type: string,
-  overrides: { name?: string; content?: unknown } = {},
-): AgentInvokeMessage => ({
-  getType: () => type,
-  ...(overrides.name !== undefined ? { name: overrides.name } : {}),
-  content: overrides.content ?? '',
 })
 
 const QUERY_MEAL_HISTORY_OUTPUT = {
@@ -466,10 +565,6 @@ describe('runAgentTurn meal history itemization', () => {
     const userMessage = buildUserMessage(taskId, contextId, '最近の食事は?')
     const agent: MeshiDomainAgentLike = {
       invoke: vi.fn().mockResolvedValue({
-        structuredResponse: {
-          status: 'completed',
-          message: '直近の食事履歴をお伝えしました。',
-        },
         messages: [
           buildInvokeMessage('human'),
           buildInvokeMessage('ai'),
@@ -477,7 +572,9 @@ describe('runAgentTurn meal history itemization', () => {
             name: 'query_meal_history',
             content: JSON.stringify(QUERY_MEAL_HISTORY_OUTPUT),
           }),
-          buildInvokeMessage('ai'),
+          buildInvokeMessage('ai', {
+            text: '直近の食事履歴をお伝えしました。',
+          }),
         ],
       }),
     }
@@ -516,7 +613,6 @@ describe('runAgentTurn meal history itemization', () => {
     const userMessage = buildUserMessage(taskId, contextId, '白米を記録して')
     const agent: MeshiDomainAgentLike = {
       invoke: vi.fn().mockResolvedValue({
-        structuredResponse: { status: 'completed', message: '記録しました。' },
         messages: [
           // An earlier turn's query_meal_history exchange, still present in
           // the checkpointer-accumulated thread history.
@@ -532,7 +628,7 @@ describe('runAgentTurn meal history itemization', () => {
             name: 'record_meal_log',
             content: '{}',
           }),
-          buildInvokeMessage('ai'),
+          buildInvokeMessage('ai', { text: '記録しました。' }),
         ],
       }),
     }
@@ -566,10 +662,6 @@ describe('runAgentTurn meal history itemization', () => {
     const userMessage = buildUserMessage(taskId, contextId, '最近の食事は?')
     const agent: MeshiDomainAgentLike = {
       invoke: vi.fn().mockResolvedValue({
-        structuredResponse: {
-          status: 'completed',
-          message: '履歴の取得に失敗しました。',
-        },
         messages: [
           buildInvokeMessage('human'),
           buildInvokeMessage('tool', {
@@ -578,7 +670,7 @@ describe('runAgentTurn meal history itemization', () => {
               error: { code: 'internal_error', message: 'db unavailable' },
             }),
           }),
-          buildInvokeMessage('ai'),
+          buildInvokeMessage('ai', { text: '履歴の取得に失敗しました。' }),
         ],
       }),
     }
@@ -612,17 +704,13 @@ describe('runAgentTurn meal history itemization', () => {
     const userMessage = buildUserMessage(taskId, contextId, '最近の食事は?')
     const agent: MeshiDomainAgentLike = {
       invoke: vi.fn().mockResolvedValue({
-        structuredResponse: {
-          status: 'completed',
-          message: '履歴の取得に失敗しました。',
-        },
         messages: [
           buildInvokeMessage('human'),
           buildInvokeMessage('tool', {
             name: 'query_meal_history',
             content: 'not json{',
           }),
-          buildInvokeMessage('ai'),
+          buildInvokeMessage('ai', { text: '履歴の取得に失敗しました。' }),
         ],
       }),
     }
@@ -656,10 +744,6 @@ describe('runAgentTurn meal history itemization', () => {
     const userMessage = buildUserMessage(taskId, contextId, '最近の食事は?')
     const agent: MeshiDomainAgentLike = {
       invoke: vi.fn().mockResolvedValue({
-        structuredResponse: {
-          status: 'completed',
-          message: '該当する記録はありませんでした。',
-        },
         messages: [
           buildInvokeMessage('human'),
           buildInvokeMessage('tool', {
@@ -671,7 +755,9 @@ describe('runAgentTurn meal history itemization', () => {
               has_estimated_values: false,
             }),
           }),
-          buildInvokeMessage('ai'),
+          buildInvokeMessage('ai', {
+            text: '該当する記録はありませんでした。',
+          }),
         ],
       }),
     }
@@ -730,12 +816,9 @@ describeIfDb('createMeshiAgentExecutor', () => {
     const taskId = `task-${randomUUID()}`
     const userMessage = buildUserMessage(taskId, contextId)
     const agent: MeshiDomainAgentLike = {
-      invoke: vi.fn().mockResolvedValue({
-        structuredResponse: {
-          status: 'completed',
-          message: 'Recorded your meal.',
-        },
-      }),
+      invoke: vi
+        .fn()
+        .mockResolvedValue(buildCompletedInvokeResult('Recorded your meal.')),
     }
     const executor = createMeshiAgentExecutor({
       agent,
@@ -784,10 +867,13 @@ describeIfDb('createMeshiAgentExecutor', () => {
     const userMessage = buildUserMessage(taskId, contextId, 'more info')
     const agent: MeshiDomainAgentLike = {
       invoke: vi.fn().mockResolvedValue({
-        structuredResponse: {
-          status: 'input_required',
-          message: 'Which food did you mean?',
-        },
+        messages: [
+          buildInvokeMessage('human'),
+          buildInvokeMessage('ai', {
+            text: 'Which food did you mean?',
+            toolCalls: [{ name: REQUEST_USER_INPUT_TOOL_NAME }],
+          }),
+        ],
       }),
     }
     const executor = createMeshiAgentExecutor({
@@ -839,7 +925,7 @@ describeIfDb('createMeshiAgentExecutor', () => {
         maxConcurrent = Math.max(maxConcurrent, concurrent)
         await new Promise((resolve) => setTimeout(resolve, 50))
         concurrent -= 1
-        return { structuredResponse: { status: 'completed', message: 'ok' } }
+        return buildCompletedInvokeResult('ok')
       }),
     }
     const executor = createMeshiAgentExecutor({
@@ -879,9 +965,9 @@ describeIfDb('createMeshiAgentExecutor', () => {
 // directly.
 const buildPendingAgent = (): {
   agent: MeshiDomainAgentLike
-  resolveInvoke: (value: { structuredResponse: unknown }) => void
+  resolveInvoke: (value: { messages: AgentInvokeMessage[] }) => void
 } => {
-  let resolve: ((value: { structuredResponse: unknown }) => void) | undefined
+  let resolve: ((value: { messages: AgentInvokeMessage[] }) => void) | undefined
   const agent: MeshiDomainAgentLike = {
     invoke: vi.fn().mockImplementation(
       () =>
@@ -942,9 +1028,7 @@ describe('createMeshiAgentExecutor heartbeat', () => {
     await vi.advanceTimersByTimeAsync(1_000)
     await vi.advanceTimersByTimeAsync(1_000)
     await vi.advanceTimersByTimeAsync(1_000)
-    resolveInvoke({
-      structuredResponse: { status: 'completed', message: 'ok' },
-    })
+    resolveInvoke(buildCompletedInvokeResult('ok'))
     await executing
 
     const heartbeats = published.filter(
@@ -975,9 +1059,7 @@ describe('createMeshiAgentExecutor heartbeat', () => {
     )
 
     await vi.advanceTimersByTimeAsync(1_000)
-    resolveInvoke({
-      structuredResponse: { status: 'completed', message: 'ok' },
-    })
+    resolveInvoke(buildCompletedInvokeResult('ok'))
     await expect(executing).resolves.toBeUndefined()
 
     expect(published.map((event) => event.kind)).toEqual(['task', 'task'])
@@ -1004,9 +1086,7 @@ describe('createMeshiAgentExecutor heartbeat', () => {
     )
 
     await vi.advanceTimersByTimeAsync(1_000)
-    resolveInvoke({
-      structuredResponse: { status: 'completed', message: 'ok' },
-    })
+    resolveInvoke(buildCompletedInvokeResult('ok'))
     await executing
 
     expect(captureWithFingerprint).toHaveBeenCalledExactlyOnceWith(

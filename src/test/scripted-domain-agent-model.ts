@@ -1,4 +1,7 @@
+import { AIMessage } from '@langchain/core/messages'
 import { fakeModel } from 'langchain'
+
+import { REQUEST_USER_INPUT_TOOL_NAME } from '#llm/agent/request-user-input-tool'
 
 export interface ScriptedToolCall {
   readonly name: string
@@ -6,7 +9,7 @@ export interface ScriptedToolCall {
 }
 
 export interface ScriptedFinalResponse {
-  readonly status: 'completed' | 'input_required' | 'error'
+  readonly status: 'completed' | 'input_required'
   readonly message: string
 }
 
@@ -17,9 +20,11 @@ const nextScriptedCallId = (): string => {
 }
 
 // Chains one fakeModel().respondWithTools() round per scripted tool call,
-// followed by a final round calling the toolStrategy-synthesized
-// meshi_agent_response tool — this is what createMeshiDomainAgent's ReAct
-// loop actually drives the model through for one agent turn. `final` is
+// followed by a final AIMessage carrying `final.message` as its text — this
+// is what createMeshiDomainAgent's ReAct loop drives the model through for
+// one agent turn. `input_required` is scripted by attaching a
+// request_user_input tool call to that same final message, mirroring how
+// the real model is asked to signal it (see system-prompt.ts). `final` is
 // omitted for callers that never invoke the domain agent at all, so the
 // model is built but never called.
 export const scriptedDomainAgentModel = (
@@ -33,7 +38,21 @@ export const scriptedDomainAgentModel = (
     ])
   }
   if (final === undefined) return model
-  return model.respondWithTools([
-    { name: 'meshi_agent_response', args: final, id: nextScriptedCallId() },
-  ])
+  return model.respond(
+    new AIMessage({
+      content: final.message,
+      ...(final.status === 'input_required'
+        ? {
+            tool_calls: [
+              {
+                name: REQUEST_USER_INPUT_TOOL_NAME,
+                args: {},
+                id: nextScriptedCallId(),
+                type: 'tool_call',
+              },
+            ],
+          }
+        : {}),
+    }),
+  )
 }

@@ -7,8 +7,12 @@ import { Hono } from 'hono'
 import { ResultAsync } from 'neverthrow'
 
 import { mountA2aRoutes } from '#a2a/hono-bridge'
+import { mountApiRoutes } from '#api/index'
 import type { Sql } from '#db/index'
 import { pingDb } from '#db/index'
+import type { MealHistoryService } from '#domain/meal-history/types'
+import type { NutrientDefinitionRepository } from '#domain/nutrient-definition/types'
+import type { UserProfileService } from '#domain/user-profile/user-profile-service'
 
 // Relative to process.cwd(): the Docker runtime image's WORKDIR (/app) and
 // `pnpm dev`/`pnpm start` both run from the repo root, where the web
@@ -19,6 +23,9 @@ export interface AppDeps {
   sql: Sql
   agentCard: AgentCard
   requestHandler: DefaultRequestHandler
+  mealHistoryService: MealHistoryService
+  nutrientDefinitionRepository: NutrientDefinitionRepository
+  userProfileService: UserProfileService
   bearerToken?: string
 }
 
@@ -41,6 +48,12 @@ export const createApp = (deps: AppDeps): Hono => {
     ...(deps.bearerToken === undefined
       ? {}
       : { bearerToken: deps.bearerToken }),
+  })
+
+  mountApiRoutes(app, {
+    mealHistoryService: deps.mealHistoryService,
+    nutrientDefinitionRepository: deps.nutrientDefinitionRepository,
+    userProfileService: deps.userProfileService,
   })
 
   // SPA static assets, then an index.html fallback for client-side routes

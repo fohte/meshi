@@ -39,5 +39,11 @@ export const createMeshiChatModel = (
       fetch: genAiCallbackHandler.wrapFetch(fetch),
     },
     callbacks: [genAiCallbackHandler],
+    // Asks the upstream reasoning model to move chain-of-thought out of
+    // `content` into a separate field, so it never reaches the reply text.
+    // Whether the gateway forwards this to the underlying provider is
+    // unconfirmed, so stripThinkBlocks (see derive-reply.ts) is the actual
+    // guarantee against a <think> leak.
+    modelKwargs: { reasoning_split: true },
   })
 }
