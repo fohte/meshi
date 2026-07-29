@@ -199,6 +199,15 @@ export const createDrizzleMealLogRepository = (sql: Sql): MealLogRepository => {
           new MealLogPersistenceError('failed to update meal_log', caughtErr),
       ).andThen((result) => result),
 
+    deleteMealLog: (id: string): ResultAsync<boolean, DomainError> =>
+      ResultAsync.fromPromise(
+        db.delete(mealLogs).where(eq(mealLogs.id, id)).returning({
+          id: mealLogs.id,
+        }),
+        (caughtErr) =>
+          new MealLogPersistenceError('failed to delete meal_log', caughtErr),
+      ).map((deleted) => deleted.length > 0),
+
     findMealLogById: (
       id: string,
     ): ResultAsync<FoundMealLog | null, DomainError> =>

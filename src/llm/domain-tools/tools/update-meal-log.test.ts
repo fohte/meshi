@@ -46,6 +46,13 @@ const setup = (
       return okAsync(result)
     },
     getById: () => okAsync(null),
+    delete: () =>
+      errAsync(
+        new DomainError(
+          'mealLogService.delete not stubbed',
+          'test/not_stubbed',
+        ),
+      ),
     ...override,
   }
   return { tool: createUpdateMealLogTool(service), calls }

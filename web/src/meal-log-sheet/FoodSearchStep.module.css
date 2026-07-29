@@ -1,0 +1,119 @@
+.searchBox {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  border: var(--border-width) solid var(--color-border);
+  padding: 9px 12px;
+  margin-bottom: 14px;
+}
+
+.searchInput {
+  all: unset;
+  flex: 1;
+  min-width: 0;
+  font-size: 14px;
+  color: var(--color-text);
+}
+
+.section {
+  margin-bottom: 16px;
+}
+
+.sectionTitle {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--color-muted);
+  letter-spacing: 0.05em;
+  margin-bottom: 7px;
+}
+
+.sectionHint {
+  font-size: 12px;
+  color: var(--color-muted-2);
+  line-height: 1.6;
+  margin: -3px 0 8px;
+}
+
+.list {
+  border: var(--border-width) solid var(--color-border);
+  border-bottom: 0;
+}
+
+.row {
+  all: unset;
+  cursor: pointer;
+  width: 100%;
+  box-sizing: border-box;
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  padding: 10px 12px;
+  border-bottom: var(--border-width) solid var(--color-border);
+  transition: background 0.15s;
+}
+
+.row:hover {
+  background: var(--color-surface);
+}
+
+.row:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.rowMain {
+  flex: 1;
+  min-width: 0;
+}
+
+.rowName {
+  font-size: 14px;
+}
+
+.rowEstMark {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--color-muted);
+}
+
+.rowMeta {
+  display: block;
+  font-size: 11px;
+  color: var(--color-muted-2);
+  margin-top: 2px;
+}
+
+.rowKcal {
+  flex: none;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--color-text-secondary);
+}
+
+.empty {
+  border: var(--border-width) solid var(--color-border);
+  padding: 14px 12px;
+  font-size: 12px;
+  color: var(--color-muted);
+}
+
+.noResult {
+  border: var(--border-width) solid var(--color-border);
+  padding: 20px;
+  font-size: 13px;
+  color: var(--color-text-secondary);
+  line-height: 1.7;
+}
+
+.noResultHint {
+  color: var(--color-muted);
+  font-size: 12px;
+}
+
+.errorMessage {
+  border: var(--border-width) solid var(--color-accent);
+  padding: 12px;
+  font-size: 12px;
+  color: var(--color-accent);
+  margin-top: 8px;
+}

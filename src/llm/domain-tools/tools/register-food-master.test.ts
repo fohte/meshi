@@ -39,6 +39,13 @@ const setup = (
       return okAsync(sampleMaster('fm_new', input))
     },
     getById: () => okAsync(null),
+    registerFromComposition: () =>
+      errAsync(
+        new FoodMasterDomainError(
+          'persistence_failed',
+          'foodMasterService.registerFromComposition not stubbed',
+        ),
+      ),
     ...override,
   }
   return { tool: createRegisterFoodMasterTool(service), calls }

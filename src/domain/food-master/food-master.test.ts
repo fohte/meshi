@@ -8,6 +8,7 @@ import {
 } from '#domain/food-master/index'
 import { captureDomainError } from '#test/capture-domain-error'
 import { describeIfDb, setupTx } from '#test/db'
+import { seedFoodComposition } from '#test/seed'
 
 interface IdCounter {
   next(): number
@@ -395,4 +396,60 @@ describeIfDb('FoodMasterService + Repository', () => {
       })
     },
   )
+
+  it('registers a food_master from a food_compositions row', async () => {
+    const tx = getTx()
+    await seedFoodComposition(tx, { code: '01088', name: 'そば ゆで' })
+    await tx`
+      INSERT INTO food_composition_nutrients (food_composition_code, nutrient_code, value)
+      VALUES ('01088', 'energy_kcal', '130'), ('01088', 'protein_g', '4.8')
+    `
+
+    const registered = (
+      await service.registerFromComposition('01088')
+    )._unsafeUnwrap()
+
+    expect(normalize(registered)).toEqual({
+      id: 'fm_test_0001',
+      name: 'そば ゆで',
+      aliases: [],
+      isEstimated: true,
+      source: 'composition_table_estimate',
+      sourceUrl: null,
+      nutrition: { energy_kcal: 130, protein_g: 4.8 },
+      units: [],
+      createdAt: '<date>',
+    })
+
+    const fetched = (await service.getById('fm_test_0001'))._unsafeUnwrap()
+    expect(fetched === null ? null : normalize(fetched)).toEqual(
+      normalize(registered),
+    )
+  })
+
+  it('rejects registerFromComposition for an unknown composition code', async () => {
+    const captured = await captureDomainError(
+      service.registerFromComposition('99999'),
+    )
+
+    expect(captured).toEqual({
+      code: 'composition_not_found',
+      details: { compositionCode: '99999' },
+    })
+  })
+
+  it('rejects registerFromComposition when the name already exists', async () => {
+    const tx = getTx()
+    await seedFoodComposition(tx, { code: '01088', name: baseInput.name })
+    ;(await service.register(baseInput))._unsafeUnwrap()
+
+    const captured = await captureDomainError(
+      service.registerFromComposition('01088'),
+    )
+
+    expect(captured).toEqual({
+      code: 'duplicate_name',
+      details: { name: baseInput.name },
+    })
+  })
 })

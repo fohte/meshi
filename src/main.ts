@@ -173,6 +173,8 @@ export const main = async (): Promise<void> => {
     userProfileService,
     foodBrowseService,
     foodDetailService,
+    mealLogService,
+    foodMasterService,
     ...(env.A2A_BEARER_TOKEN === undefined
       ? {}
       : { bearerToken: env.A2A_BEARER_TOKEN }),

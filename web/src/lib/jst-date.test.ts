@@ -1,8 +1,10 @@
 import { describe, expect, it } from 'vitest'
 
 import {
+  formatJstDate,
   formatJstMonthDay,
   formatJstTime,
+  jstWallClockToIsoInstant,
   shiftDateString,
   weekdayLabelJa,
 } from '#lib/jst-date'
@@ -41,5 +43,23 @@ describe('shiftDateString', () => {
 describe('formatJstMonthDay', () => {
   it('formats without zero-padding', () => {
     expect(formatJstMonthDay('2026-07-05')).toBe('7月5日')
+  })
+})
+
+describe('formatJstDate', () => {
+  it('formats a UTC instant as its JST calendar date', () => {
+    expect(formatJstDate('2026-07-28T23:05:00.000Z')).toBe('2026-07-29')
+  })
+
+  it('rolls over the JST date past midnight UTC', () => {
+    expect(formatJstDate('2026-07-29T15:30:00.000Z')).toBe('2026-07-30')
+  })
+})
+
+describe('jstWallClockToIsoInstant', () => {
+  it('converts a JST date + time back to a UTC instant', () => {
+    expect(jstWallClockToIsoInstant('2026-07-29', '08:05')).toBe(
+      '2026-07-28T23:05:00.000Z',
+    )
   })
 })

@@ -254,4 +254,35 @@ describeIfDb('createDrizzleMealLogRepository', () => {
 
     expect(error).toBeInstanceOf(MealLogPersistenceError)
   })
+
+  it('deleteMealLog removes the row and returns true', async () => {
+    const tx = getTx()
+    await seedFoodMaster(tx, {
+      id: 'fm_rice',
+      name: '白米',
+      isEstimated: false,
+      source: 'user_input',
+    })
+    const repo = createDrizzleMealLogRepository(tx)
+    await repo.insertMealLog({
+      id: 'ml_delete',
+      foodMasterId: 'fm_rice',
+      eatenAt: new Date('2026-06-15T03:30:00.000Z'),
+      mealType: 'breakfast',
+      quantity: 150,
+      unit: 'g',
+      amountGrams: 150,
+      note: null,
+    })
+
+    expect((await repo.deleteMealLog('ml_delete'))._unsafeUnwrap()).toBe(true)
+    expect((await repo.findMealLogById('ml_delete'))._unsafeUnwrap()).toBeNull()
+  })
+
+  it('deleteMealLog returns false when the id does not exist', async () => {
+    const tx = getTx()
+    const repo = createDrizzleMealLogRepository(tx)
+
+    expect((await repo.deleteMealLog('ml_missing'))._unsafeUnwrap()).toBe(false)
+  })
 })

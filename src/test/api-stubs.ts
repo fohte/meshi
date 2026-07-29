@@ -1,6 +1,8 @@
-import { okAsync } from 'neverthrow'
+import { errAsync, okAsync } from 'neverthrow'
 
 import type { ApiDeps } from '#api/index'
+import { FoodMasterDomainError } from '#domain/food-master/errors'
+import { MealLogPersistenceError } from '#domain/meal-log/errors'
 import { DEFAULT_USER_PROFILE } from '#domain/user-profile/user-profile'
 
 // createApp's /api deps have their own dedicated route tests; callers that
@@ -31,5 +33,37 @@ export const createStubApiDeps = (): ApiDeps => ({
   },
   foodDetailService: {
     getById: () => okAsync(null),
+  },
+  mealLogService: {
+    record: () =>
+      errAsync(
+        new MealLogPersistenceError('mealLogService.record not stubbed'),
+      ),
+    update: () =>
+      errAsync(
+        new MealLogPersistenceError('mealLogService.update not stubbed'),
+      ),
+    getById: () => okAsync(null),
+    delete: () =>
+      errAsync(
+        new MealLogPersistenceError('mealLogService.delete not stubbed'),
+      ),
+  },
+  foodMasterService: {
+    register: () =>
+      errAsync(
+        new FoodMasterDomainError(
+          'persistence_failed',
+          'foodMasterService.register not stubbed',
+        ),
+      ),
+    getById: () => okAsync(null),
+    registerFromComposition: () =>
+      errAsync(
+        new FoodMasterDomainError(
+          'persistence_failed',
+          'foodMasterService.registerFromComposition not stubbed',
+        ),
+      ),
   },
 })

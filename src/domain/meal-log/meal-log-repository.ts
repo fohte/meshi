@@ -44,4 +44,7 @@ export interface MealLogRepository {
   insertMealLog(input: InsertMealLogInput): ResultAsync<MealLogRow, DomainError>
   updateMealLog(input: UpdateMealLogPatch): ResultAsync<MealLogRow, DomainError>
   findMealLogById(id: string): ResultAsync<FoundMealLog | null, DomainError>
+  // Resolves to false when no row matched `id`, rather than an error — the
+  // service layer decides whether a no-op delete is a MealLogNotFoundError.
+  deleteMealLog(id: string): ResultAsync<boolean, DomainError>
 }

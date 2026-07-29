@@ -13,6 +13,7 @@ export type FoodMasterErrorCode =
   | 'implausible_grams_per_unit'
   | 'duplicate_name'
   | 'duplicate_alias'
+  | 'composition_not_found'
   | 'persistence_failed'
 
 export class FoodMasterDomainError extends CodedDomainError<FoodMasterErrorCode> {

@@ -58,6 +58,13 @@ const stubDeps = (override: Partial<DomainToolsDeps> = {}): DomainToolsDeps => {
         ),
       ),
     getById: () => okAsync(null),
+    delete: () =>
+      errAsync(
+        new DomainError(
+          'mealLogService.delete not stubbed',
+          'test/not_stubbed',
+        ),
+      ),
   }
   const foodMasterService: FoodMasterService = {
     register: () =>
@@ -68,6 +75,13 @@ const stubDeps = (override: Partial<DomainToolsDeps> = {}): DomainToolsDeps => {
         ),
       ),
     getById: () => okAsync(null),
+    registerFromComposition: () =>
+      errAsync(
+        new FoodMasterDomainError(
+          'persistence_failed',
+          'foodMasterService.registerFromComposition not stubbed',
+        ),
+      ),
   }
   const foodMasterUnitService: FoodMasterUnitService = {
     register: (input) =>
