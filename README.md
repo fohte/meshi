@@ -61,7 +61,7 @@ OPENCODE_API_KEY=dev MESHI_LLM_MODEL=... WEB_SEARCH_API_KEY=dev A2A_AGENT_URL=ht
 
 It's published to a random host port; find it with `docker compose port app 8080`.
 
-The MCP endpoint is served at `POST /mcp`; the A2A endpoint (agent card + JSON-RPC) is served at `GET /.well-known/agent-card.json` / `POST /a2a`; `GET /health` reports DB connectivity. `GET /api/meal-history` (`?from=YYYY-MM-DD&to=YYYY-MM-DD`, half-open, Asia/Tokyo calendar dates), `GET /api/nutrient-definitions`, and `GET /api/profile` serve read-only JSON for the web frontend.
+The MCP endpoint is served at `POST /mcp`; the A2A endpoint (agent card + JSON-RPC) is served at `GET /.well-known/agent-card.json` / `POST /a2a`; `GET /health` reports DB connectivity. `GET /api/meal-history` (`?from=YYYY-MM-DD&to=YYYY-MM-DD`, half-open, Asia/Tokyo calendar dates), `GET /api/nutrient-definitions`, `GET /api/profile`, `GET /api/foods/search` (`?q=`, `?limit=`, fuzzy name match ranked by eating history), `GET /api/foods/suggestions` (`?limit=`, recently/frequently eaten foods), and `GET /api/foods/:id` serve read-only JSON for the web frontend.
 
 The `nutrient_definitions` master is seeded automatically on startup after migrations (idempotent). The MEXT food composition table (`food_compositions` + `food_composition_nutrients`) is loaded separately via the CLI below — it is not bundled and must be pointed at a JSON dataset.
 

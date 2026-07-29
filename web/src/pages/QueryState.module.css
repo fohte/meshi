@@ -1,0 +1,35 @@
+.skeleton {
+  border: var(--border-width) solid var(--color-border);
+  padding: 32px;
+  text-align: center;
+  font-family: var(--font-mono);
+  font-size: 13px;
+  color: var(--color-muted);
+}
+
+.error {
+  border: var(--border-width) solid var(--color-border);
+  padding: 32px 20px;
+  text-align: center;
+}
+
+.errorMessage {
+  margin: 0 0 14px;
+  font-size: 13px;
+  color: var(--color-muted);
+}
+
+.retryButton {
+  all: unset;
+  cursor: pointer;
+  padding: 8px 18px;
+  border: var(--border-width) solid var(--color-border);
+  font-family: var(--font-mono);
+  font-size: 13px;
+  color: var(--color-text);
+  transition: border-color 0.15s;
+}
+
+.retryButton:hover {
+  border-color: var(--color-muted);
+}

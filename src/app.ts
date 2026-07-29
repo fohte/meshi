@@ -10,6 +10,8 @@ import { mountA2aRoutes } from '#a2a/hono-bridge'
 import { mountApiRoutes } from '#api/index'
 import type { Sql } from '#db/index'
 import { pingDb } from '#db/index'
+import type { FoodBrowseService } from '#domain/food-browse/types'
+import type { FoodDetailService } from '#domain/food-detail/types'
 import type { MealHistoryService } from '#domain/meal-history/types'
 import type { NutrientDefinitionRepository } from '#domain/nutrient-definition/types'
 import type { UserProfileService } from '#domain/user-profile/user-profile-service'
@@ -26,6 +28,8 @@ export interface AppDeps {
   mealHistoryService: MealHistoryService
   nutrientDefinitionRepository: NutrientDefinitionRepository
   userProfileService: UserProfileService
+  foodBrowseService: FoodBrowseService
+  foodDetailService: FoodDetailService
   bearerToken?: string
 }
 
@@ -54,6 +58,8 @@ export const createApp = (deps: AppDeps): Hono => {
     mealHistoryService: deps.mealHistoryService,
     nutrientDefinitionRepository: deps.nutrientDefinitionRepository,
     userProfileService: deps.userProfileService,
+    foodBrowseService: deps.foodBrowseService,
+    foodDetailService: deps.foodDetailService,
   })
 
   // SPA static assets, then an index.html fallback for client-side routes
