@@ -35,6 +35,15 @@ describe('createMeshiChatModel', () => {
     expect(model.callbacks).toEqual([expect.any(GenAiCallbackHandler)])
   })
 
+  it('asks the upstream model to split reasoning out of content', () => {
+    const model = createMeshiChatModel({
+      apiKey: 'test-key',
+      model: 'test-model',
+    })
+
+    expect(model.modelKwargs).toEqual({ reasoning_split: true })
+  })
+
   it('routes the client fetch through the GenAiCallbackHandler', () => {
     const wrapFetchSpy = vi.spyOn(GenAiCallbackHandler.prototype, 'wrapFetch')
 

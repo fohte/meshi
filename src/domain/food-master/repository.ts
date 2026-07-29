@@ -11,6 +11,10 @@ import type {
   NutritionMap,
   RegisterFoodMasterInput,
 } from '#domain/food-master/types'
+import {
+  hasDuplicateAfterTrim,
+  isInvalidSourceCombination,
+} from '#domain/food-master/validation'
 
 export interface FoodMasterRepository {
   register(
@@ -89,7 +93,7 @@ const normalizeAndValidate = (
       new FoodMasterDomainError('empty_name', 'name must not be empty'),
     )
   }
-  if (input.isEstimated && input.source === 'web_search') {
+  if (isInvalidSourceCombination(input.source, input.isEstimated)) {
     return err(
       new FoodMasterDomainError(
         'invalid_source_combination',
@@ -118,7 +122,7 @@ const normalizeAndValidate = (
       ),
     )
   }
-  if (new Set(aliases).size !== aliases.length) {
+  if (hasDuplicateAfterTrim(aliases)) {
     return err(
       new FoodMasterDomainError(
         'duplicate_alias_in_input',

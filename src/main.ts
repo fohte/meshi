@@ -26,6 +26,7 @@ import { createDrizzleFoodMatcher } from '#domain/food-matcher/index'
 import { createMealHistoryService } from '#domain/meal-history/index'
 import { createDrizzleMealLogRepository } from '#domain/meal-log/drizzle-meal-log-repository'
 import { createMealLogService } from '#domain/meal-log/meal-log-service'
+import { createDrizzleNutrientDefinitionRepository } from '#domain/nutrient-definition/index'
 import { createUserProfileService } from '#domain/user-profile/user-profile-service'
 import { EnvError, loadEnv } from '#env'
 import {
@@ -91,6 +92,8 @@ export const main = async (): Promise<void> => {
   )
   const foodMatcher = createDrizzleFoodMatcher(sql)
   const mealHistoryService = createMealHistoryService(sql)
+  const nutrientDefinitionRepository =
+    createDrizzleNutrientDefinitionRepository(sql)
   const userProfileService = createUserProfileService(
     createDrizzleUserProfileRepository(sql),
   )
@@ -115,15 +118,17 @@ export const main = async (): Promise<void> => {
   const checkpointer = createMeshiCheckpointer(env.DATABASE_URL)
   const domainAgent = createMeshiDomainAgent({ model, registry, checkpointer })
 
+  const logger = createJsonStdoutLogger()
   const orchestrator = createDomainAgentOrchestrator({
     model,
     registry,
     formatter: createTemplateReplyFormatter(),
+    logger,
   })
   const toolDeps: MeshiToolDeps = {
     orchestrator,
     profileService: userProfileService,
-    logger: createJsonStdoutLogger(),
+    logger,
   }
 
   const agentCard = createMeshiAgentCard({ url: env.A2A_AGENT_URL })
@@ -132,7 +137,11 @@ export const main = async (): Promise<void> => {
   const pushNotificationSender = new DefaultPushNotificationSender(
     pushNotificationStore,
   )
-  const agentExecutor = createMeshiAgentExecutor({ agent: domainAgent, sql })
+  const agentExecutor = createMeshiAgentExecutor({
+    agent: domainAgent,
+    sql,
+    logger,
+  })
   const requestHandler = new DefaultRequestHandler(
     agentCard,
     taskStore,
@@ -146,6 +155,9 @@ export const main = async (): Promise<void> => {
     sql,
     agentCard,
     requestHandler,
+    mealHistoryService,
+    nutrientDefinitionRepository,
+    userProfileService,
     ...(env.A2A_BEARER_TOKEN === undefined
       ? {}
       : { bearerToken: env.A2A_BEARER_TOKEN }),

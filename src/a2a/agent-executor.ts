@@ -13,11 +13,17 @@ import { withAdvisoryLock } from '#a2a/advisory-lock'
 import { type AgentContentBlock, toAgentContent } from '#a2a/message-content'
 import type { Sql } from '#db/index'
 import { parseJson } from '#lib/json'
-import { MESHI_AGENT_RECURSION_LIMIT } from '#llm/agent/domain-agent'
 import {
-  type MeshiAgentResponse,
-  meshiAgentResponseSchema,
-} from '#llm/agent/response-schema'
+  AGENT_NO_USABLE_REPLY_EVENT,
+  AGENT_THINK_BLOCK_LEAKED_EVENT,
+  type AgentInvokeMessage,
+  type AgentReplyStatus,
+  buildNoUsableReplyError,
+  deriveAgentReply,
+  findTurnMessages,
+  NO_USABLE_REPLY_MESSAGE,
+} from '#llm/agent/derive-reply'
+import { MESHI_AGENT_RECURSION_LIMIT } from '#llm/agent/domain-agent'
 import {
   type QueryMealHistoryOutput,
   queryMealHistoryOutputSchema,
@@ -25,15 +31,9 @@ import {
 } from '#llm/domain-tools/tools/query-meal-history'
 import type { DomainToolName } from '#llm/domain-tools/types'
 import { formatMealHistoryEntries } from '#llm/orchestrator/reply-formatter'
+import { createNullLogger, type Logger } from '#logger'
 
-// The minimal surface of a LangChain BaseMessage this module reads back out
-// of agent.invoke()'s result — just enough to walk the tool-call history,
-// not the full message class hierarchy.
-export interface AgentInvokeMessage {
-  readonly getType: () => string
-  readonly name?: string
-  readonly content: unknown
-}
+export type { AgentInvokeMessage } from '#llm/agent/derive-reply'
 
 // The minimal surface createMeshiDomainAgent's return value (a langchain
 // ReactAgent instance) needs to satisfy. Kept narrow — rather than
@@ -55,13 +55,13 @@ export interface MeshiDomainAgentLike {
       callbacks?: CallbackHandlerMethods[]
     },
   ): Promise<{
-    structuredResponse?: unknown
     // With a checkpointer, this is the thread's full accumulated message
     // history, not just this call's new messages (see LangChain's
-    // short-term-memory docs) — extractLatestMealHistoryOutput below scopes
-    // its search to messages after the last human turn to avoid picking up
-    // a stale tool result from an earlier turn on the same thread.
-    messages?: ReadonlyArray<AgentInvokeMessage>
+    // short-term-memory docs) — deriveAgentReply and
+    // extractLatestMealHistoryOutput below scope their search to messages
+    // after the last human turn to avoid picking up a stale reply or tool
+    // result from an earlier turn on the same thread.
+    readonly messages: ReadonlyArray<AgentInvokeMessage>
   }>
 }
 
@@ -73,18 +73,16 @@ export interface MeshiAgentExecutorOptions {
   // pool's normal round-robin connections can't guarantee.
   readonly sql: Sql
   readonly heartbeatIntervalMs?: number
+  readonly logger?: Logger
 }
 
 const DEFAULT_HEARTBEAT_INTERVAL_MS = 30_000
 const USAGE_LIMIT_ERROR_KIND = 'usage_limit'
+const NO_USABLE_REPLY_FINGERPRINT = 'a2a.agent-executor.no-usable-reply'
 
-const STATUS_TO_TASK_STATE: Record<MeshiAgentResponse['status'], TaskState> = {
+const STATUS_TO_TASK_STATE: Record<AgentReplyStatus, TaskState> = {
   completed: 'completed',
   input_required: 'input-required',
-  // Deliberately not input-required: silently downgrading an
-  // agent-reported error to a follow-up question would hide the failure
-  // from the user instead of surfacing it.
-  error: 'failed',
 }
 
 // LangChain's AsyncCaller (async_caller.ts) classifies a 429 into 'wait'
@@ -203,12 +201,9 @@ const QUERY_MEAL_HISTORY_TOOL_NAME = 'query_meal_history'
 const extractLatestMealHistoryOutput = (
   messages: ReadonlyArray<AgentInvokeMessage> | undefined,
 ): QueryMealHistoryOutput | null => {
-  if (messages === undefined) return null
-  const turnStart = messages.findLastIndex((m) => m.getType() === 'human')
-  if (turnStart === -1) return null
-
-  for (let i = messages.length - 1; i > turnStart; i -= 1) {
-    const message = messages[i]
+  const turnMessages = findTurnMessages(messages)
+  for (let i = turnMessages.length - 1; i >= 0; i -= 1) {
+    const message = turnMessages[i]
     if (
       message === undefined ||
       message.getType() !== 'tool' ||
@@ -268,8 +263,8 @@ const buildFinalTask = (
 }
 
 // Runs one agent turn and maps its outcome onto a terminal Task: the
-// structured status on success, or a failed task (tagged with error_kind
-// for a usage-limit failure) if the agent throws. Pure aside from
+// derived reply's status on success, or a failed task (tagged with
+// error_kind for a usage-limit failure) if the agent throws. Pure aside from
 // agent.invoke — no event publishing or locking — so status mapping can be
 // tested without a database.
 export const runAgentTurn = async (
@@ -280,6 +275,7 @@ export const runAgentTurn = async (
   // about progress (most of this file's own tests) don't need to build a
   // fake callbacks array in the invoke assertion below.
   onToolStart?: (toolName: string) => void,
+  logger: Logger = createNullLogger(),
 ): Promise<Task> => {
   // eslint-disable-next-line no-restricted-syntax -- boundary between LangGraph's throw-based agent.invoke() and this module's Task mapping; the catch below turns any thrown error into a failed Task instead of propagating it
   try {
@@ -305,21 +301,37 @@ export const runAgentTurn = async (
           : {}),
       },
     )
-    const parsed = meshiAgentResponseSchema.safeParse(result.structuredResponse)
-    return parsed.success
-      ? buildFinalTask(
-          requestContext,
-          STATUS_TO_TASK_STATE[parsed.data.status],
-          withItemizedMealHistory(
-            parsed.data.message,
-            extractLatestMealHistoryOutput(result.messages),
-          ),
-        )
-      : buildFinalTask(
-          requestContext,
-          'failed',
-          'The agent did not return a valid response.',
-        )
+    const reply = deriveAgentReply(result.messages, () => {
+      logger.log(AGENT_THINK_BLOCK_LEAKED_EVENT, {
+        taskId: requestContext.taskId,
+        contextId: requestContext.contextId,
+      })
+    })
+    if (reply === null) {
+      logger.log(AGENT_NO_USABLE_REPLY_EVENT, {
+        taskId: requestContext.taskId,
+        contextId: requestContext.contextId,
+      })
+      captureWithFingerprint(
+        buildNoUsableReplyError(),
+        NO_USABLE_REPLY_FINGERPRINT,
+        {
+          extras: {
+            taskId: requestContext.taskId,
+            contextId: requestContext.contextId,
+          },
+        },
+      )
+      return buildFinalTask(requestContext, 'failed', NO_USABLE_REPLY_MESSAGE)
+    }
+    return buildFinalTask(
+      requestContext,
+      STATUS_TO_TASK_STATE[reply.status],
+      withItemizedMealHistory(
+        reply.text,
+        extractLatestMealHistoryOutput(result.messages),
+      ),
+    )
   } catch (err) {
     console.error('a2a agent execution failed:', err)
     captureWithFingerprint(err, 'a2a.agent-executor.turn-failed', {
@@ -347,6 +359,7 @@ export const createMeshiAgentExecutor = (
 ): AgentExecutor => {
   const heartbeatIntervalMs =
     options.heartbeatIntervalMs ?? DEFAULT_HEARTBEAT_INTERVAL_MS
+  const logger = options.logger ?? createNullLogger()
 
   return {
     async execute(requestContext, eventBus) {
@@ -418,7 +431,12 @@ export const createMeshiAgentExecutor = (
         // eslint-disable-next-line no-restricted-syntax -- runAgentTurn() already converts its own failures into a Task rather than throwing; this try/finally only guarantees clearInterval(heartbeat) runs
         try {
           eventBus.publish(
-            await runAgentTurn(options.agent, requestContext, onToolStart),
+            await runAgentTurn(
+              options.agent,
+              requestContext,
+              onToolStart,
+              logger,
+            ),
           )
         } finally {
           clearInterval(heartbeat)

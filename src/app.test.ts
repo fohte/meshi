@@ -8,6 +8,7 @@ import { describe, expect, it } from 'vitest'
 import { createApp } from '#app'
 import type { Sql } from '#db/index'
 import { createMcpServer, MCP_SERVER_NAME, MCP_SERVER_VERSION } from '#mcp'
+import { createStubApiDeps } from '#test/api-stubs'
 import { createStubMcpDeps } from '#test/mcp-stubs'
 
 const fakeSql = (
@@ -53,6 +54,7 @@ describe('createApp', () => {
       sql,
       agentCard,
       requestHandler: buildRequestHandler(agentCard),
+      ...createStubApiDeps(),
     }).request('/health')
     expect(res.status).toBe(200)
     expect(await res.json()).toEqual({ status: 'ok' })
@@ -67,6 +69,7 @@ describe('createApp', () => {
       sql,
       agentCard,
       requestHandler: buildRequestHandler(agentCard),
+      ...createStubApiDeps(),
     }).request('/health')
     expect(res.status).toBe(503)
     expect(await res.json()).toEqual({
@@ -83,9 +86,24 @@ describe('createApp', () => {
       sql,
       agentCard,
       requestHandler: buildRequestHandler(agentCard),
+      ...createStubApiDeps(),
     }).request('/.well-known/agent-card.json')
     expect(res.status).toBe(200)
     expect(await res.json()).toEqual(agentCard)
+  })
+
+  it('mounts the /api routes', async () => {
+    const sql = fakeSql(() => Promise.resolve([]))
+    const agentCard = buildAgentCard()
+
+    const res = await createApp({
+      sql,
+      agentCard,
+      requestHandler: buildRequestHandler(agentCard),
+      ...createStubApiDeps(),
+    }).request('/api/nutrient-definitions')
+    expect(res.status).toBe(200)
+    expect(await res.json()).toEqual([])
   })
 })
 

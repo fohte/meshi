@@ -338,6 +338,90 @@ describeIfDb('MealHistoryService.query', () => {
       hasEstimatedValues: true,
     })
   })
+
+  // 2026-06-01T15:30:00Z is 2026-06-02T00:30 in Asia/Tokyo, so the single
+  // seeded entry below belongs to a different calendar day depending on
+  // which zone these two tests bucket it by.
+  const seedTimeZoneBucketingFixture = async (
+    tx: postgres.Sql,
+  ): Promise<void> => {
+    await seedNutrientDefinitions(tx)
+    await seedFoodMaster(tx, {
+      id: 'rice',
+      name: 'rice',
+      source: 'user_input',
+      nutrients: { energy_kcal: 156, protein_g: 2.5 },
+    })
+    await seedMealLog(tx, {
+      id: 'log-1',
+      foodMasterId: 'rice',
+      eatenAt: new Date('2026-06-01T15:30:00Z'),
+      quantity: 100,
+    })
+  }
+
+  const timeZoneBucketingExpectedEntries = [
+    {
+      id: 'log-1',
+      foodMasterId: 'rice',
+      eatenAt: new Date('2026-06-01T15:30:00Z'),
+      mealType: 'snack',
+      quantity: 100,
+      unit: 'g',
+      note: null,
+    },
+  ]
+
+  it('buckets perDay entries by UTC when timeZone is omitted', async () => {
+    const tx = getTx()
+    await seedTimeZoneBucketingFixture(tx)
+
+    const service = createMealHistoryService(tx)
+    const result = (
+      await service.query({
+        periodFrom: new Date('2026-06-01T00:00:00Z'),
+        periodTo: new Date('2026-06-03T00:00:00Z'),
+      })
+    )._unsafeUnwrap()
+
+    expect(result).toEqual({
+      totals: { energy_kcal: 156, protein_g: 2.5 },
+      perDay: [
+        {
+          date: '2026-06-01',
+          totals: { energy_kcal: 156, protein_g: 2.5 },
+        },
+      ],
+      entries: timeZoneBucketingExpectedEntries,
+      hasEstimatedValues: false,
+    })
+  })
+
+  it('buckets perDay entries by the given IANA timeZone', async () => {
+    const tx = getTx()
+    await seedTimeZoneBucketingFixture(tx)
+
+    const service = createMealHistoryService(tx)
+    const result = (
+      await service.query({
+        periodFrom: new Date('2026-06-01T00:00:00Z'),
+        periodTo: new Date('2026-06-03T00:00:00Z'),
+        timeZone: 'Asia/Tokyo',
+      })
+    )._unsafeUnwrap()
+
+    expect(result).toEqual({
+      totals: { energy_kcal: 156, protein_g: 2.5 },
+      perDay: [
+        {
+          date: '2026-06-02',
+          totals: { energy_kcal: 156, protein_g: 2.5 },
+        },
+      ],
+      entries: timeZoneBucketingExpectedEntries,
+      hasEstimatedValues: false,
+    })
+  })
 })
 
 // Reproduces main.ts's production wiring, where createMealHistoryService

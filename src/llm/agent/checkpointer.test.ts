@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto'
 
-import { HumanMessage } from '@langchain/core/messages'
+import { AIMessage, HumanMessage } from '@langchain/core/messages'
 import { fakeModel } from 'langchain'
 import { expect, it } from 'vitest'
 
@@ -37,13 +37,7 @@ describeIfDb('createMeshiCheckpointer', () => {
       const checkpointer1 = createMeshiCheckpointer(TEST_DATABASE_URL)
       try {
         const agent1 = createMeshiDomainAgent({
-          model: fakeModel().respondWithTools([
-            {
-              name: 'meshi_agent_response',
-              args: { status: 'completed', message: 'first turn done' },
-              id: 'call_1',
-            },
-          ]),
+          model: fakeModel().respond(new AIMessage('first turn done')),
           registry: emptyRegistry,
           checkpointer: checkpointer1,
         })
@@ -58,13 +52,7 @@ describeIfDb('createMeshiCheckpointer', () => {
       const checkpointer2 = createMeshiCheckpointer(TEST_DATABASE_URL)
       try {
         const agent2 = createMeshiDomainAgent({
-          model: fakeModel().respondWithTools([
-            {
-              name: 'meshi_agent_response',
-              args: { status: 'completed', message: 'second turn done' },
-              id: 'call_2',
-            },
-          ]),
+          model: fakeModel().respond(new AIMessage('second turn done')),
           registry: emptyRegistry,
           checkpointer: checkpointer2,
         })
