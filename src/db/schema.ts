@@ -147,6 +147,10 @@ export const mealLogs = pgTable(
     mealType: mealTypeEnum('meal_type').notNull(),
     quantity: numeric('quantity').notNull(),
     unit: text('unit').notNull(),
+    // The resolved mass this quantity+unit was converted to at record time
+    // (see resolveAmountGrams), the sole basis for every downstream nutrition
+    // calculation. quantity/unit stay for display only.
+    amountGrams: numeric('amount_grams').notNull(),
     note: text('note'),
     createdAt: timestamp('created_at', { withTimezone: true, mode: 'date' })
       .notNull()
@@ -166,6 +170,37 @@ export const mealLogs = pgTable(
       table.eatenAt.desc(),
     ),
     check('meal_logs_quantity_positive', sql`${table.quantity} > 0`),
+    check('meal_logs_amount_grams_positive', sql`${table.amountGrams} > 0`),
+  ],
+)
+
+// Per-food serving definitions: how many grams one <unit> of a given
+// food_master weighs (e.g. rice's 杯=150g, lemonade's ml=1.04g). g/kg/mg are
+// mass units already and are resolved by a fixed factor without a row here;
+// every other unit (including ml — density varies per food) requires one.
+export const foodMasterUnits = pgTable(
+  'food_master_units',
+  {
+    foodMasterId: text('food_master_id').notNull(),
+    unit: text('unit').notNull(),
+    gramsPerUnit: numeric('grams_per_unit').notNull(),
+  },
+  (table) => [
+    primaryKey({
+      name: 'food_master_units_pkey',
+      columns: [table.foodMasterId, table.unit],
+    }),
+    foreignKey({
+      name: 'food_master_units_food_master_id_fk',
+      columns: [table.foodMasterId],
+      foreignColumns: [foodMasters.id],
+    })
+      .onUpdate('cascade')
+      .onDelete('cascade'),
+    check(
+      'food_master_units_grams_per_unit_positive',
+      sql`${table.gramsPerUnit} > 0`,
+    ),
   ],
 )
 

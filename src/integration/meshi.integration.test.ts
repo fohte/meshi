@@ -15,6 +15,10 @@ import {
   createFoodMasterRepository,
   createFoodMasterService,
 } from '#domain/food-master/index'
+import {
+  createFoodMasterUnitRepository,
+  createFoodMasterUnitService,
+} from '#domain/food-master-unit/index'
 import { createDrizzleFoodMatcher } from '#domain/food-matcher/index'
 import { createMealHistoryService } from '#domain/meal-history/index'
 import { createDrizzleMealLogRepository } from '#domain/meal-log/drizzle-meal-log-repository'
@@ -149,6 +153,9 @@ const startHarness = async (opts: HarnessOptions): Promise<Harness> => {
     wrapInTransaction: false,
   })
   const foodMasterService = createFoodMasterService(foodMasterRepository)
+  const foodMasterUnitService = createFoodMasterUnitService(
+    createFoodMasterUnitRepository(tx),
+  )
   const foodMatcher = createDrizzleFoodMatcher(tx)
   const mealHistoryService = createMealHistoryService(tx)
   const userProfileService = createUserProfileService(
@@ -165,6 +172,7 @@ const startHarness = async (opts: HarnessOptions): Promise<Harness> => {
   const registry = createDomainToolsRegistry({
     mealLogService,
     foodMasterService,
+    foodMasterUnitService,
     foodMatcher,
     mealHistoryService,
     userProfileService,
@@ -236,14 +244,15 @@ const seedMealLog = async (
 ): Promise<void> => {
   const eatenAt = new Date(args.eatenAt)
   await tx`
-    INSERT INTO meal_logs (id, food_master_id, eaten_at, meal_type, quantity, unit)
+    INSERT INTO meal_logs (id, food_master_id, eaten_at, meal_type, quantity, unit, amount_grams)
     VALUES (
       ${args.id},
       ${args.foodMasterId},
       ${eatenAt},
       ${inferMealType(eatenAt)},
       ${String(args.quantity)},
-      ${args.unit}
+      ${args.unit},
+      ${String(args.quantity)}
     )
   `
 }

@@ -147,6 +147,7 @@ const TOOL_PROGRESS_MESSAGES: Record<DomainToolName, string> = {
   search_food_master: 'Looking up the food in the food database...',
   web_search: 'Searching the web for food information...',
   register_food_master: 'Registering a new food entry...',
+  register_food_master_unit: 'Registering a unit for a food entry...',
   record_meal_log: 'Recording your meal...',
   update_meal_log: 'Updating your meal record...',
   query_meal_history: 'Looking up your meal history...',

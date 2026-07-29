@@ -21,6 +21,10 @@ import {
   createFoodMasterRepository,
   createFoodMasterService,
 } from '#domain/food-master/index'
+import {
+  createFoodMasterUnitRepository,
+  createFoodMasterUnitService,
+} from '#domain/food-master-unit/index'
 import { createDrizzleFoodMatcher } from '#domain/food-matcher/index'
 import { createMealHistoryService } from '#domain/meal-history/index'
 import { createDrizzleMealLogRepository } from '#domain/meal-log/drizzle-meal-log-repository'
@@ -73,6 +77,9 @@ const buildRegistry = (tx: Sql): DomainToolsRegistry => {
   return createDomainToolsRegistry({
     mealLogService,
     foodMasterService: createFoodMasterService(foodMasterRepository),
+    foodMasterUnitService: createFoodMasterUnitService(
+      createFoodMasterUnitRepository(tx),
+    ),
     foodMatcher: createDrizzleFoodMatcher(tx),
     mealHistoryService: createMealHistoryService(tx),
     userProfileService: createUserProfileService(
