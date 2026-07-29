@@ -75,6 +75,7 @@ export const createMealHistoryService = (sql: Sql): MealHistoryService => {
       // connection (see the comment in src/a2a/postgres-task-store.ts).
       const periodFrom = asText(input.periodFrom.toISOString())
       const periodTo = asText(input.periodTo.toISOString())
+      const dayBoundaryTimeZone = asText(input.timeZone ?? 'UTC')
 
       return ResultAsync.fromPromise(
         (async () => {
@@ -82,7 +83,7 @@ export const createMealHistoryService = (sql: Sql): MealHistoryService => {
             ? []
             : await sql`
                 SELECT
-                  to_char(date_trunc('day', ml.eaten_at AT TIME ZONE 'UTC'), 'YYYY-MM-DD')
+                  to_char(date_trunc('day', ml.eaten_at AT TIME ZONE ${dayBoundaryTimeZone}), 'YYYY-MM-DD')
                     AS day,
                   fmn.nutrient_code AS nutrient_code,
                   SUM(fmn.value * ml.quantity / ${PER_100G_BASE}) AS value

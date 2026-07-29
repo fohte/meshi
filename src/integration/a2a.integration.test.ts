@@ -33,6 +33,7 @@ import {
   createDomainToolsRegistry,
   type DomainToolsRegistry,
 } from '#llm/domain-tools/index'
+import { createStubApiDeps } from '#test/api-stubs'
 import {
   describeIfDb,
   getTestSql,
@@ -109,7 +110,12 @@ const buildHarness = async (opts: {
     createPostgresTaskStore(opts.taskStoreTx),
     agentExecutor,
   )
-  const app = createApp({ sql: getTestSql(), agentCard, requestHandler })
+  const app = createApp({
+    sql: getTestSql(),
+    agentCard,
+    requestHandler,
+    ...createStubApiDeps(),
+  })
   const factory = new ClientFactory({
     transports: [
       new JsonRpcTransportFactory({
