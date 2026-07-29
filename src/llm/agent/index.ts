@@ -12,9 +12,5 @@ export {
   createMeshiChatModel,
   type CreateMeshiChatModelOptions,
 } from '#llm/agent/model'
-export {
-  type MeshiAgentResponse,
-  meshiAgentResponseSchema,
-} from '#llm/agent/response-schema'
 export { MESHI_AGENT_SYSTEM_PROMPT } from '#llm/agent/system-prompt'
 export { toLangChainTool, toLangChainTools } from '#llm/agent/tools'

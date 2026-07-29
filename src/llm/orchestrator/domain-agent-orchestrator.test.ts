@@ -1,11 +1,19 @@
-import { describe, expect, it } from 'vitest'
+import { captureWithFingerprint } from '@fohte/service-kit/observability'
+import { AIMessage } from '@langchain/core/messages'
+import { fakeModel } from 'langchain'
+import { describe, expect, it, vi } from 'vitest'
 
 import type { DomainToolsRegistry } from '#llm/domain-tools/registry'
 import type { DomainTool, DomainToolName } from '#llm/domain-tools/types'
 import { err, ok } from '#llm/domain-tools/types'
 import { createDomainAgentOrchestrator } from '#llm/orchestrator/domain-agent-orchestrator'
 import type { MealRecordResult } from '#llm/orchestrator/types'
+import type { Logger } from '#logger'
 import { scriptedDomainAgentModel } from '#test/scripted-domain-agent-model'
+
+vi.mock('@fohte/service-kit/observability', () => ({
+  captureWithFingerprint: vi.fn(),
+}))
 
 const stubRegistry = (
   tools: ReadonlyArray<DomainTool>,
@@ -217,7 +225,11 @@ describe('createDomainAgentOrchestrator', () => {
       })
     })
 
-    it('maps an error status to an item_conversation_failed OrchestratorError', async () => {
+    // The agent has no way to self-report an error status: a domain tool
+    // failure only surfaces as an OrchestratorError via the "no usable
+    // reply" guard (see below) or a thrown agent.invoke(), never because the
+    // model narrated a failure in its own reply text.
+    it('treats a narrated tool failure as completed, since the agent has no way to self-report an error', async () => {
       const registry = stubRegistry([
         stubTool('record_meal_log', () =>
           Promise.resolve(
@@ -228,7 +240,7 @@ describe('createDomainAgentOrchestrator', () => {
       const orchestrator = createDomainAgentOrchestrator({
         model: scriptedDomainAgentModel(
           [{ name: 'record_meal_log', args: { food_master_id: 'fm_missing' } }],
-          { status: 'error', message: 'That food could not be found.' },
+          { status: 'completed', message: 'That food could not be found.' },
         ),
         registry,
       })
@@ -240,11 +252,125 @@ describe('createDomainAgentOrchestrator', () => {
         candidates: [],
         hasEstimatedValues: false,
         summaryText: 'That food could not be found.',
+        error: null,
+      })
+    })
+
+    it('surfaces an item_conversation_failed OrchestratorError when the agent produces no usable reply', async () => {
+      const registry = stubRegistry([])
+      const orchestrator = createDomainAgentOrchestrator({
+        model: fakeModel().respond(new AIMessage('')),
+        registry,
+      })
+
+      const result = await orchestrator.recordFromText({ text: 'hello' })
+
+      expect(result).toEqual({
+        recorded: [],
+        candidates: [],
+        hasEstimatedValues: false,
+        summaryText: 'The agent did not return a valid response.',
         error: {
           kind: 'item_conversation_failed',
-          message: 'That food could not be found.',
+          message: 'The agent did not return a valid response.',
         },
       })
+    })
+
+    it('logs a warn event when the agent produces no usable reply', async () => {
+      const registry = stubRegistry([])
+      const logs: Array<{
+        event: string
+        payload: Readonly<Record<string, unknown>> | undefined
+      }> = []
+      const logger: Logger = {
+        log: (event, payload) => logs.push({ event, payload }),
+      }
+      const orchestrator = createDomainAgentOrchestrator({
+        model: fakeModel().respond(new AIMessage('')),
+        registry,
+        logger,
+      })
+
+      await orchestrator.recordFromText({ text: 'hello' })
+
+      expect(logs).toEqual([
+        { event: 'meshi.agent_no_usable_reply', payload: {} },
+      ])
+    })
+
+    it('reports to Sentry when the agent produces no usable reply', async () => {
+      const registry = stubRegistry([])
+      const orchestrator = createDomainAgentOrchestrator({
+        model: fakeModel().respond(new AIMessage('')),
+        registry,
+      })
+
+      await orchestrator.recordFromText({ text: 'hello' })
+
+      expect(captureWithFingerprint).toHaveBeenCalledExactlyOnceWith(
+        expect.any(Error),
+        'llm.orchestrator.no-usable-reply',
+      )
+    })
+
+    it('strips a leaked think block from the reply summary text', async () => {
+      const registry = stubRegistry([])
+      const orchestrator = createDomainAgentOrchestrator({
+        model: fakeModel().respond(
+          new AIMessage('<think>reasoning</think>final answer'),
+        ),
+        registry,
+      })
+
+      const result = await orchestrator.recordFromText({ text: 'hello' })
+
+      expect(result).toEqual({
+        recorded: [],
+        candidates: [],
+        hasEstimatedValues: false,
+        summaryText: 'final answer',
+        error: null,
+      })
+    })
+
+    it('logs a warn event when a think block leaks into the reply', async () => {
+      const registry = stubRegistry([])
+      const logs: Array<{
+        event: string
+        payload: Readonly<Record<string, unknown>> | undefined
+      }> = []
+      const logger: Logger = {
+        log: (event, payload) => logs.push({ event, payload }),
+      }
+      const orchestrator = createDomainAgentOrchestrator({
+        model: fakeModel().respond(
+          new AIMessage('<think>reasoning</think>final answer'),
+        ),
+        registry,
+        logger,
+      })
+
+      await orchestrator.recordFromText({ text: 'hello' })
+
+      expect(logs).toEqual([
+        { event: 'meshi.agent_think_block_leaked', payload: {} },
+      ])
+    })
+
+    it('reports to Sentry when agent.invoke() rejects', async () => {
+      const registry = stubRegistry([])
+      const orchestrator = createDomainAgentOrchestrator({
+        model: fakeModel().alwaysThrow(new Error('transport failure')),
+        registry,
+      })
+
+      await orchestrator.recordFromText({ text: 'hello' })
+
+      expect(captureWithFingerprint).toHaveBeenCalledExactlyOnceWith(
+        expect.any(Error),
+        'llm.orchestrator.agent-invoke-failed',
+      )
     })
 
     it('keeps invocations already recorded before agent.invoke() rejects', async () => {
