@@ -28,6 +28,20 @@ export class InvalidQuantityError extends DomainError {
   }
 }
 
+export class ImplausibleQuantityError extends DomainError {
+  constructor(
+    public readonly quantity: number,
+    public readonly unit: string,
+    public readonly scaleMultiplier: number,
+  ) {
+    super(
+      `quantity ${String(quantity)} ${unit} scales food_master's per-100g nutrition by ${String(scaleMultiplier)}x, which is outside the plausible range for a single meal log entry`,
+      'meal_log/implausible_quantity',
+    )
+    this.name = 'ImplausibleQuantityError'
+  }
+}
+
 export class FoodMasterNotFoundError extends DomainError {
   constructor(public readonly foodMasterId: string) {
     super(

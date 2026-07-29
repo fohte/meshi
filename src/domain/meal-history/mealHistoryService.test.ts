@@ -264,6 +264,124 @@ describeIfDb('MealHistoryService.query', () => {
     })
   })
 
+  it('scales non-gram continuous units (ml, kg) in the aggregate the same way as a single record', async () => {
+    const tx = getTx()
+    await seedNutrientDefinitions(tx)
+    await seedFoodMaster(tx, {
+      id: 'lemonade',
+      name: 'lemonade',
+      source: 'user_input',
+      nutrients: { energy_kcal: 20, protein_g: 0 },
+    })
+    await seedMealLog(tx, {
+      id: 'log-1',
+      foodMasterId: 'lemonade',
+      eatenAt: new Date('2026-06-01T03:00:00Z'),
+      quantity: 600,
+      unit: 'ml',
+    })
+    await seedMealLog(tx, {
+      id: 'log-2',
+      foodMasterId: 'lemonade',
+      eatenAt: new Date('2026-06-01T12:00:00Z'),
+      quantity: 0.6,
+      unit: 'kg',
+    })
+
+    const service = createMealHistoryService(tx)
+    const result = (
+      await service.query({
+        periodFrom: new Date('2026-06-01T00:00:00Z'),
+        periodTo: new Date('2026-06-02T00:00:00Z'),
+      })
+    )._unsafeUnwrap()
+
+    // Both entries scale to the same 600 ml / 0.6 kg ≈ ×6 multiplier as a
+    // single record (see meal-log-service.test.ts), so the day total is
+    // 2 * (20 * 6), not a unit-blind quantity/100 sum.
+    expect(result).toEqual({
+      totals: { energy_kcal: 240, protein_g: 0 },
+      perDay: [
+        {
+          date: '2026-06-01',
+          totals: { energy_kcal: 240, protein_g: 0 },
+        },
+      ],
+      entries: [
+        {
+          id: 'log-1',
+          foodMasterId: 'lemonade',
+          eatenAt: new Date('2026-06-01T03:00:00Z'),
+          mealType: 'lunch',
+          quantity: 600,
+          unit: 'ml',
+          note: null,
+        },
+        {
+          id: 'log-2',
+          foodMasterId: 'lemonade',
+          eatenAt: new Date('2026-06-01T12:00:00Z'),
+          mealType: 'dinner',
+          quantity: 0.6,
+          unit: 'kg',
+          note: null,
+        },
+      ],
+      hasEstimatedValues: false,
+    })
+  })
+
+  it('scales a discrete unit (個) in the aggregate the same way as a single record', async () => {
+    const tx = getTx()
+    await seedNutrientDefinitions(tx)
+    await seedFoodMaster(tx, {
+      id: 'lemonade',
+      name: 'lemonade',
+      source: 'user_input',
+      nutrients: { energy_kcal: 20, protein_g: 0 },
+    })
+    await seedMealLog(tx, {
+      id: 'log-1',
+      foodMasterId: 'lemonade',
+      eatenAt: new Date('2026-06-01T03:00:00Z'),
+      quantity: 2,
+      unit: '個',
+    })
+
+    const service = createMealHistoryService(tx)
+    const result = (
+      await service.query({
+        periodFrom: new Date('2026-06-01T00:00:00Z'),
+        periodTo: new Date('2026-06-02T00:00:00Z'),
+      })
+    )._unsafeUnwrap()
+
+    // '個' isn't in GRAMS_PER_UNIT, so quantity multiplies the per-100g
+    // values directly (no /100), matching meal-log-service.ts's
+    // resolveScaleMultiplier: 20 * 2 = 40, not 20 * 2 / 100 = 0.4.
+    expect(result).toEqual({
+      totals: { energy_kcal: 40, protein_g: 0 },
+      perDay: [
+        {
+          date: '2026-06-01',
+          totals: { energy_kcal: 40, protein_g: 0 },
+        },
+      ],
+      entries: [
+        {
+          id: 'log-1',
+          foodMasterId: 'lemonade',
+          eatenAt: new Date('2026-06-01T03:00:00Z'),
+          mealType: 'lunch',
+          quantity: 2,
+          unit: '個',
+          note: null,
+        },
+      ],
+      hasEstimatedValues: false,
+    })
+  })
+
   it('sets hasEstimatedValues=true when any matching meal references an estimated food', async () => {
     const tx = getTx()
     await seedNutrientDefinitions(tx)

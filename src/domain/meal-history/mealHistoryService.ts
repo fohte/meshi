@@ -11,8 +11,24 @@ import type {
 } from '#domain/meal-history/types'
 import { MealHistoryQueryError } from '#domain/meal-history/types'
 import { MEAL_TYPES } from '#domain/meal-log/types'
+import { GRAMS_PER_UNIT, PER_100G_BASE } from '#domain/meal-log/unit-scale'
 
-const PER_100G_BASE = 100
+// Built once from GRAMS_PER_UNIT's fixed, developer-defined entries — never
+// from request input — so splicing the literal values via sql.unsafe() below
+// carries no injection risk. Binding these as two parallel array parameters
+// to unnest() instead throws `ERR_INVALID_ARG_TYPE` on a connection a
+// drizzle() instance has constructed against (see the timestamp/jsonb
+// corruption this same driver causes, documented in the comment on
+// src/a2a/postgres-task-store.ts) — unlike the two independent `= ANY(...)`
+// array parameters already bound further down in this same query, which are
+// unaffected; the crash is specific to passing multiple arrays to a single
+// unnest() call.
+const unitScaleCase = [...GRAMS_PER_UNIT]
+  .map(
+    ([unit, gramsPerUnit]) =>
+      `WHEN lower(trim(ml.unit)) = '${unit.replace(/'/g, "''")}' THEN ml.quantity * ${String(gramsPerUnit)} / ${String(PER_100G_BASE)}`,
+  )
+  .join(' ')
 
 const numericString = z.union([
   z.number().refine(Number.isFinite),
@@ -85,7 +101,9 @@ export const createMealHistoryService = (sql: Sql): MealHistoryService => {
                   to_char(date_trunc('day', ml.eaten_at AT TIME ZONE 'UTC'), 'YYYY-MM-DD')
                     AS day,
                   fmn.nutrient_code AS nutrient_code,
-                  SUM(fmn.value * ml.quantity / ${PER_100G_BASE}) AS value
+                  SUM(
+                    fmn.value * (CASE ${sql.unsafe(unitScaleCase)} ELSE ml.quantity END)
+                  ) AS value
                 FROM meal_logs ml
                 INNER JOIN food_master_nutrients fmn
                   ON fmn.food_master_id = ml.food_master_id

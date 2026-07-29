@@ -3,6 +3,7 @@ import { errAsync, type ResultAsync } from 'neverthrow'
 import {
   type DomainError,
   FutureEatenAtError,
+  ImplausibleQuantityError,
   InvalidQuantityError,
 } from '#domain/meal-log/errors'
 import { inferMealType } from '#domain/meal-log/infer-meal-type'
@@ -14,6 +15,7 @@ import type {
   NutritionMap,
   RecordMealLogInput,
 } from '#domain/meal-log/types'
+import { resolveScaleMultiplier } from '#domain/meal-log/unit-scale'
 
 export interface MealLogService {
   record(input: RecordMealLogInput): ResultAsync<MealLogResult, DomainError>
@@ -35,6 +37,16 @@ export const createMealLogService = (
     }
     if (!Number.isFinite(input.quantity) || input.quantity <= 0) {
       return errAsync(new InvalidQuantityError(input.quantity))
+    }
+    const scaleMultiplier = resolveScaleMultiplier(input.quantity, input.unit)
+    if (scaleMultiplier > MAX_SCALE_MULTIPLIER) {
+      return errAsync(
+        new ImplausibleQuantityError(
+          input.quantity,
+          input.unit,
+          scaleMultiplier,
+        ),
+      )
     }
     return deps.repository.findFoodMaster(input.foodMasterId).andThen((food) =>
       deps.repository
@@ -61,22 +73,25 @@ export const createMealLogService = (
 
 const buildResult = (log: MealLogRow, food: FoodMasterRef): MealLogResult => ({
   ...log,
-  nutrition: scaleNutrition(food.nutritionPer100g, log.quantity, log.unit),
+  nutrition: scaleNutrition(
+    food.nutritionPer100g,
+    resolveScaleMultiplier(log.quantity, log.unit),
+  ),
   isEstimated: food.isEstimated,
 })
 
-// food_master nutrient values are stored per 100g. When the meal log is in grams we
-// scale linearly; for non-gram units (杯, 個, etc.) we treat the per-100g values as
-// per-1-serving so quantity becomes a direct multiplier.
+// A single meal log entry scaling the per-100g reference by more than this is
+// far outside what a real serving/quantity plausibly represents (e.g. 10kg/10L
+// of one food, or 100 servings) and more likely means the unit was
+// misinterpreted. Applied uniformly to every unit — including discrete serving
+// units, not just the ones in GRAMS_PER_UNIT — since a unit the LLM invents
+// that isn't recognized here would otherwise scale unchecked.
+const MAX_SCALE_MULTIPLIER = 100
+
 const scaleNutrition = (
   per100g: NutritionMap,
-  quantity: number,
-  unit: string,
+  multiplier: number,
 ): NutritionMap => {
-  // Inputs come from LLM-driven free text so accept 'G' / ' g ' as the gram unit
-  // — otherwise we'd silently scale by ×100 instead of ×(quantity/100).
-  const multiplier =
-    unit.trim().toLowerCase() === 'g' ? quantity / 100 : quantity
   const out: Record<string, number> = {}
   for (const [key, value] of Object.entries(per100g)) {
     out[key] = value * multiplier

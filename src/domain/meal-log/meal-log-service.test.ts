@@ -5,6 +5,7 @@ import {
   DomainError,
   FoodMasterNotFoundError,
   FutureEatenAtError,
+  ImplausibleQuantityError,
   InvalidQuantityError,
 } from '#domain/meal-log/errors'
 import type {
@@ -90,6 +91,16 @@ const CAFE_LATTE: FoodMasterRef = {
     protein_g: 3.2,
     fat_g: 3.4,
     carb_g: 4.6,
+  },
+}
+
+const ZERO_SUGAR_LEMONADE: FoodMasterRef = {
+  id: 'fm_lemonade',
+  name: 'ミニッツメイド ゼロシュガー レモネード',
+  isEstimated: false,
+  nutritionPer100g: {
+    carb_g: 0.5,
+    salt_g: 0.25,
   },
 }
 
@@ -228,6 +239,123 @@ describe('MealLogService.record', () => {
         protein_g: 1.6,
         fat_g: 1.7,
         carb_g: 2.3,
+      },
+      isEstimated: false,
+    })
+  })
+
+  it('treats ml as a continuous unit and scales it like grams (1 ml ≈ 1 g)', async () => {
+    const { service } = buildService([ZERO_SUGAR_LEMONADE])
+
+    const result = (
+      await service.record({
+        foodMasterId: 'fm_lemonade',
+        eatenAt: EATEN_AT,
+        quantity: 600,
+        unit: 'ml',
+      })
+    )._unsafeUnwrap()
+
+    expect(result).toEqual({
+      id: 'ml_1',
+      foodMasterId: 'fm_lemonade',
+      eatenAt: EATEN_AT,
+      mealType: 'dinner',
+      quantity: 600,
+      unit: 'ml',
+      note: null,
+      createdAt: CREATED_AT,
+      nutrition: {
+        carb_g: 3,
+        salt_g: 1.5,
+      },
+      isEstimated: false,
+    })
+  })
+
+  it.each([
+    ['kg', 0.6],
+    ['mg', 600_000],
+    ['l', 0.6],
+    ['cc', 600],
+  ])(
+    'scales unit %p as a gram-equivalent continuous unit',
+    async (unit, quantity) => {
+      const { service } = buildService([ZERO_SUGAR_LEMONADE])
+
+      const result = (
+        await service.record({
+          foodMasterId: 'fm_lemonade',
+          eatenAt: EATEN_AT,
+          quantity,
+          unit,
+        })
+      )._unsafeUnwrap()
+
+      expect(result).toEqual({
+        id: 'ml_1',
+        foodMasterId: 'fm_lemonade',
+        eatenAt: EATEN_AT,
+        mealType: 'dinner',
+        quantity,
+        unit,
+        note: null,
+        createdAt: CREATED_AT,
+        nutrition: { carb_g: 3, salt_g: 1.5 },
+        isEstimated: false,
+      })
+    },
+  )
+
+  it('rejects a quantity that scales per-100g nutrition beyond the plausible range with ImplausibleQuantityError', async () => {
+    const { service, inserted } = buildService([ZERO_SUGAR_LEMONADE])
+
+    const error = (
+      await service.record({
+        foodMasterId: 'fm_lemonade',
+        eatenAt: EATEN_AT,
+        quantity: 101,
+        unit: '個',
+      })
+    )._unsafeUnwrapErr()
+
+    expect(error).toBeInstanceOf(ImplausibleQuantityError)
+    expect(
+      error instanceof ImplausibleQuantityError
+        ? {
+            quantity: error.quantity,
+            unit: error.unit,
+            scaleMultiplier: error.scaleMultiplier,
+          }
+        : undefined,
+    ).toEqual({ quantity: 101, unit: '個', scaleMultiplier: 101 })
+    expect(inserted).toEqual([])
+  })
+
+  it('allows a quantity exactly at the plausibility boundary', async () => {
+    const { service } = buildService([ZERO_SUGAR_LEMONADE])
+
+    const result = (
+      await service.record({
+        foodMasterId: 'fm_lemonade',
+        eatenAt: EATEN_AT,
+        quantity: 100,
+        unit: '個',
+      })
+    )._unsafeUnwrap()
+
+    expect(result).toEqual({
+      id: 'ml_1',
+      foodMasterId: 'fm_lemonade',
+      eatenAt: EATEN_AT,
+      mealType: 'dinner',
+      quantity: 100,
+      unit: '個',
+      note: null,
+      createdAt: CREATED_AT,
+      nutrition: {
+        carb_g: 50,
+        salt_g: 25,
       },
       isEstimated: false,
     })

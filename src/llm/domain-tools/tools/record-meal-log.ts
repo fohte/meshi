@@ -17,7 +17,12 @@ const inputSchema = z.object({
   eaten_at_iso: z.iso.datetime({ offset: true }),
   meal_type: z.enum(MEAL_TYPES).optional(),
   quantity: z.number().positive(),
-  unit: z.string().min(1),
+  unit: z
+    .string()
+    .min(1)
+    .describe(
+      "Unit for quantity. Continuous mass/volume units (g, kg, mg, ml, l, cc) scale food_master's per-100g nutrition linearly — e.g. 600 'ml' scales ×6, not ×600. Any other unit (e.g. 杯, 個, 枚) is treated as one whole serving: quantity multiplies the per-100g values directly, so only use it when one unit is roughly a single 100g-equivalent portion.",
+    ),
   note: z.string().optional(),
 })
 
