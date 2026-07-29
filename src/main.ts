@@ -21,6 +21,8 @@ import { createSql, pingDb } from '#db/index'
 import { runMigrations } from '#db/migrations'
 import { seedNutrientDefinitions } from '#db/seed/index'
 import { createDayDetailService } from '#domain/day-detail/index'
+import { createFoodBrowseService } from '#domain/food-browse/index'
+import { createFoodDetailService } from '#domain/food-detail/index'
 import { createFoodMasterRepository } from '#domain/food-master/repository'
 import { createFoodMasterService } from '#domain/food-master/service'
 import { createFoodMasterUnitRepository } from '#domain/food-master-unit/repository'
@@ -99,6 +101,8 @@ export const main = async (): Promise<void> => {
   const foodMatcher = createDrizzleFoodMatcher(sql)
   const mealHistoryService = createMealHistoryService(sql)
   const dayDetailService = createDayDetailService(sql, mealHistoryService)
+  const foodBrowseService = createFoodBrowseService(sql, foodMatcher)
+  const foodDetailService = createFoodDetailService(sql, foodMasterService)
   const nutrientDefinitionRepository =
     createDrizzleNutrientDefinitionRepository(sql)
   const userProfileService = createUserProfileService(
@@ -167,6 +171,8 @@ export const main = async (): Promise<void> => {
     dayDetailService,
     nutrientDefinitionRepository,
     userProfileService,
+    foodBrowseService,
+    foodDetailService,
     ...(env.A2A_BEARER_TOKEN === undefined
       ? {}
       : { bearerToken: env.A2A_BEARER_TOKEN }),

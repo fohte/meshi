@@ -1,10 +1,13 @@
 import type { Hono } from 'hono'
 
 import { mountDayDetailRoutes } from '#api/day-detail-routes'
+import { mountFoodRoutes } from '#api/food-routes'
 import { mountMealHistoryRoutes } from '#api/meal-history-routes'
 import { mountNutrientDefinitionRoutes } from '#api/nutrient-definition-routes'
 import { mountProfileRoutes } from '#api/profile-routes'
 import type { DayDetailService } from '#domain/day-detail/types'
+import type { FoodBrowseService } from '#domain/food-browse/types'
+import type { FoodDetailService } from '#domain/food-detail/types'
 import type { MealHistoryService } from '#domain/meal-history/types'
 import type { NutrientDefinitionRepository } from '#domain/nutrient-definition/types'
 import type { UserProfileService } from '#domain/user-profile/user-profile-service'
@@ -14,6 +17,8 @@ export interface ApiDeps {
   dayDetailService: DayDetailService
   nutrientDefinitionRepository: NutrientDefinitionRepository
   userProfileService: UserProfileService
+  foodBrowseService: FoodBrowseService
+  foodDetailService: FoodDetailService
 }
 
 export const mountApiRoutes = (app: Hono, deps: ApiDeps): void => {
@@ -21,4 +26,8 @@ export const mountApiRoutes = (app: Hono, deps: ApiDeps): void => {
   mountDayDetailRoutes(app, deps.dayDetailService)
   mountNutrientDefinitionRoutes(app, deps.nutrientDefinitionRepository)
   mountProfileRoutes(app, deps.userProfileService)
+  mountFoodRoutes(app, {
+    foodBrowseService: deps.foodBrowseService,
+    foodDetailService: deps.foodDetailService,
+  })
 }

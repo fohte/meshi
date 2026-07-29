@@ -1,0 +1,139 @@
+.heading {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin: 0 0 18px;
+  font-family: var(--font-mono);
+  font-size: 24px;
+  font-weight: 700;
+}
+
+.hash {
+  color: var(--color-accent);
+}
+
+.searchBox {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  border: var(--border-width) solid var(--color-border);
+  padding: 9px 12px;
+  margin-bottom: 24px;
+}
+
+.searchPrompt {
+  font-family: var(--font-mono);
+  font-size: 13px;
+  color: var(--color-accent);
+}
+
+.searchInput {
+  all: unset;
+  flex: 1;
+  min-width: 0;
+  font-size: 14px;
+  color: var(--color-text);
+}
+
+.clearButton {
+  all: unset;
+  cursor: pointer;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--color-muted);
+}
+
+.section {
+  margin-bottom: 28px;
+}
+
+.sectionHeader {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+
+.sectionMarker {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--color-accent);
+}
+
+.sectionTitle {
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.sectionCount {
+  margin-left: auto;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--color-muted);
+}
+
+.list {
+  border: var(--border-width) solid var(--color-border);
+  border-bottom: 0;
+}
+
+.row {
+  all: unset;
+  cursor: pointer;
+  width: 100%;
+  box-sizing: border-box;
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  padding: 12px 14px;
+  border-bottom: var(--border-width) solid var(--color-border);
+  transition: background 0.15s;
+}
+
+.row:hover {
+  background: #141414;
+}
+
+.rowMain {
+  flex: 1;
+  min-width: 0;
+}
+
+.rowName {
+  font-size: 14px;
+}
+
+.rowEstMark {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--color-muted);
+  margin-left: 6px;
+}
+
+.rowMeta {
+  display: block;
+  font-size: 12px;
+  color: var(--color-muted);
+  margin-top: 3px;
+}
+
+.rowKcal {
+  flex: none;
+  font-family: var(--font-mono);
+  font-size: 13px;
+  text-align: right;
+}
+
+.rowKcalCaption {
+  display: block;
+  font-size: 11px;
+  color: var(--color-muted);
+}
+
+.empty {
+  border: var(--border-width) solid var(--color-border);
+  padding: 32px;
+  text-align: center;
+  font-size: 13px;
+  color: var(--color-muted);
+}

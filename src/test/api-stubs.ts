@@ -24,4 +24,12 @@ export const createStubApiDeps = (): ApiDeps => ({
     get: () => okAsync(DEFAULT_USER_PROFILE),
     update: () => okAsync(DEFAULT_USER_PROFILE),
   },
+  foodBrowseService: {
+    search: () => okAsync([]),
+    listRecent: () => okAsync([]),
+    listFrequent: () => okAsync([]),
+  },
+  foodDetailService: {
+    getById: () => okAsync(null),
+  },
 })
