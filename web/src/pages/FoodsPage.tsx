@@ -8,7 +8,7 @@ import {
   fetchFoodSuggestions,
   SOURCE_LABELS,
 } from '#api/foods'
-import { toQueryFn } from '#api/to-query-fn'
+import { toPromise } from '#api/to-promise'
 import styles from '#pages/FoodsPage.module.css'
 import { QueryState } from '#pages/QueryState'
 
@@ -32,7 +32,7 @@ const useDebouncedValue = (value: string, delayMs: number): string => {
 const useFoodSearch = (query: string) =>
   useQuery<ReadonlyArray<FoodListItem>>({
     queryKey: ['foods', 'search', query],
-    queryFn: toQueryFn(() => fetchFoodSearch(query, SEARCH_LIMIT)),
+    queryFn: () => toPromise(fetchFoodSearch(query, SEARCH_LIMIT)),
     enabled: query !== '',
   })
 
@@ -42,7 +42,7 @@ const useFoodSuggestions = (enabled: boolean) =>
     frequent: ReadonlyArray<FoodListItem>
   }>({
     queryKey: ['foods', 'suggestions'],
-    queryFn: toQueryFn(() => fetchFoodSuggestions(SUGGESTION_LIMIT)),
+    queryFn: () => toPromise(fetchFoodSuggestions(SUGGESTION_LIMIT)),
     enabled,
   })
 

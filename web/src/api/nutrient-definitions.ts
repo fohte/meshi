@@ -1,25 +1,22 @@
 import type { ResultAsync } from 'neverthrow'
 import { z } from 'zod'
 
-import type { ApiRequestError, ApiResponseShapeError } from '#api/errors'
-import { fetchJson } from '#api/fetch-json'
-
-const nutrientUnitSchema = z.enum(['kcal', 'g', 'mg', 'µg'])
+import type { ApiRequestError } from '#api/errors'
+import { requestJson } from '#api/request'
 
 const nutrientDefinitionSchema = z.object({
   code: z.string(),
   displayName: z.string(),
-  unit: nutrientUnitSchema,
+  unit: z.string(),
   isMajor: z.boolean(),
   sortOrder: z.number(),
 })
 
 export type NutrientDefinition = z.infer<typeof nutrientDefinitionSchema>
 
-const nutrientDefinitionsResponseSchema = z.array(nutrientDefinitionSchema)
-
-// Ordered isMajor desc, then sortOrder asc (see the server-side repository).
+// Ordered by isMajor desc, then sortOrder asc (see
+// src/domain/nutrient-definition/types.ts), so the major 6 always come first.
 export const fetchNutrientDefinitions = (): ResultAsync<
   ReadonlyArray<NutrientDefinition>,
-  ApiRequestError | ApiResponseShapeError
-> => fetchJson('/api/nutrient-definitions', nutrientDefinitionsResponseSchema)
+  ApiRequestError
+> => requestJson('/api/nutrient-definitions', z.array(nutrientDefinitionSchema))

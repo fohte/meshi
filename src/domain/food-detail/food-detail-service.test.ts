@@ -82,8 +82,12 @@ describeIfDb('createFoodDetailService', () => {
       foodMasterId: 'fm_bread',
       eatenAt: newerEatenAt,
       mealType: 'snack',
-      quantity: 30,
-      unit: 'g',
+      // Non-gram unit: amountGrams (the resolved basis for nutrition) is
+      // distinct from quantity (display-only), so this also pins that the
+      // service surfaces amountGrams rather than aliasing it to quantity.
+      quantity: 1,
+      unit: '個',
+      amountGrams: 45,
     })
     const foodMasterService = createFoodMasterService(
       createFoodMasterRepository(tx),
@@ -105,13 +109,15 @@ describeIfDb('createFoodDetailService', () => {
           id: 'ml_newer',
           eatenAt: newerEatenAt,
           mealType: 'snack',
-          quantity: 30,
-          unit: 'g',
+          amountGrams: 45,
+          quantity: 1,
+          unit: '個',
         },
         {
           id: 'ml_older',
           eatenAt: olderEatenAt,
           mealType: 'breakfast',
+          amountGrams: 60,
           quantity: 60,
           unit: 'g',
         },

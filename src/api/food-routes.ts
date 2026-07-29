@@ -115,6 +115,7 @@ export const mountFoodRoutes = (
             id: entry.id,
             eatenAt: entry.eatenAt.toISOString(),
             mealType: entry.mealType,
+            amountGrams: entry.amountGrams,
             quantity: entry.quantity,
             unit: entry.unit,
           })),

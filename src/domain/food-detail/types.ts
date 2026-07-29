@@ -12,6 +12,10 @@ export interface FoodEatHistoryEntry {
   readonly id: string
   readonly eatenAt: Date
   readonly mealType: MealType
+  // The resolved gram amount this entry's quantity+unit was converted to at
+  // record time — the basis for this entry's kcal (see
+  // src/db/schema.ts's meal_logs.amount_grams). quantity/unit are display-only.
+  readonly amountGrams: number
   readonly quantity: number
   readonly unit: string
 }

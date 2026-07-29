@@ -1,9 +1,8 @@
-import { err, ok, ResultAsync } from 'neverthrow'
+import { errAsync, ok, ResultAsync } from 'neverthrow'
 import { z } from 'zod'
 
-import type { ApiResponseShapeError } from '#api/errors'
 import { ApiRequestError } from '#api/errors'
-import { fetchJson, parseJsonResponse } from '#api/fetch-json'
+import { requestJson } from '#api/request'
 import { BoundaryError } from '#errors'
 
 const foodSourceSchema = z.enum([
@@ -68,6 +67,10 @@ const foodEatHistoryEntrySchema = z.object({
   id: z.string(),
   eatenAt: isoDateTime,
   mealType: mealTypeSchema,
+  // The resolved gram amount this entry's quantity+unit was converted to at
+  // record time — the basis for this entry's kcal, not `quantity` (which is
+  // for display only; see src/db/schema.ts's meal_logs.amount_grams).
+  amountGrams: z.number(),
   quantity: z.number(),
   unit: z.string(),
 })
@@ -91,47 +94,67 @@ export class FoodNotFoundError extends BoundaryError {}
 export const fetchFoodSearch = (
   query: string,
   limit: number,
-): ResultAsync<
-  ReadonlyArray<FoodListItem>,
-  ApiRequestError | ApiResponseShapeError
-> =>
-  fetchJson(
+): ResultAsync<ReadonlyArray<FoodListItem>, ApiRequestError> =>
+  requestJson(
     `/api/foods/search?${new URLSearchParams({ q: query, limit: String(limit) }).toString()}`,
     searchResponseSchema,
   ).map((body) => body.items)
 
 export const fetchFoodSuggestions = (
   limit: number,
-): ResultAsync<FoodSuggestions, ApiRequestError | ApiResponseShapeError> =>
-  fetchJson(
+): ResultAsync<FoodSuggestions, ApiRequestError> =>
+  requestJson(
     `/api/foods/suggestions?${new URLSearchParams({ limit: String(limit) }).toString()}`,
     suggestionsResponseSchema,
   )
 
+// requestJson can't be reused wholesale here: a 404 is a normal, meaningful
+// outcome (the food doesn't exist) rather than the generic ApiRequestError
+// requestJson maps every non-2xx status to.
 export const fetchFoodDetail = (
   id: string,
-): ResultAsync<
-  FoodDetail,
-  ApiRequestError | ApiResponseShapeError | FoodNotFoundError
-> => {
-  const url = `/api/foods/${encodeURIComponent(id)}`
+): ResultAsync<FoodDetail, ApiRequestError | FoodNotFoundError> => {
+  const path = `/api/foods/${encodeURIComponent(id)}`
   return ResultAsync.fromPromise(
-    fetch(url),
-    (caughtErr) => new ApiRequestError(`request to ${url} failed`, caughtErr),
+    fetch(path),
+    (cause) => new ApiRequestError(`request to ${path} failed`, cause),
   )
     .andThen((res) => {
       if (res.status === 404) {
-        return err(new FoodNotFoundError(`food not found: ${id}`, res.status))
+        return errAsync(
+          new FoodNotFoundError(`food not found: ${id}`, res.status),
+        )
       }
       if (!res.ok) {
-        return err(
+        return errAsync(
           new ApiRequestError(
-            `request to ${url} failed with status ${String(res.status)}`,
-            res.status,
+            `${path} responded with ${String(res.status)}`,
+            undefined,
           ),
         )
       }
       return ok(res)
     })
-    .andThen((res) => parseJsonResponse(res, url, foodDetailSchema))
+    .andThen((res) =>
+      ResultAsync.fromPromise(
+        res.json() as Promise<unknown>,
+        (cause) =>
+          new ApiRequestError(
+            `failed to parse ${path} response as JSON`,
+            cause,
+          ),
+      ),
+    )
+    .andThen((body) => {
+      const parsed = foodDetailSchema.safeParse(body)
+      if (!parsed.success) {
+        return errAsync(
+          new ApiRequestError(
+            `${path} response did not match the expected schema`,
+            parsed.error,
+          ),
+        )
+      }
+      return ok(parsed.data)
+    })
 }

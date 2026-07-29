@@ -6,7 +6,7 @@ import type { FoodDetail, MealType } from '#api/foods'
 import { fetchFoodDetail, FoodNotFoundError, SOURCE_LABELS } from '#api/foods'
 import type { NutrientDefinition } from '#api/nutrient-definitions'
 import { fetchNutrientDefinitions } from '#api/nutrient-definitions'
-import { toQueryFn } from '#api/to-query-fn'
+import { toPromise } from '#api/to-promise'
 import styles from '#pages/FoodDetailPage.module.css'
 import { QueryState } from '#pages/QueryState'
 
@@ -34,7 +34,7 @@ const formatDate = (date: Date): string =>
 const useFoodDetail = (id: string | undefined) =>
   useQuery<FoodDetail>({
     queryKey: ['foods', 'detail', id],
-    queryFn: toQueryFn(() => fetchFoodDetail(id ?? '')),
+    queryFn: () => toPromise(fetchFoodDetail(id ?? '')),
     enabled: id !== undefined,
     retry: (failureCount, retryError) =>
       !(retryError instanceof FoodNotFoundError) && failureCount < 3,
@@ -43,7 +43,7 @@ const useFoodDetail = (id: string | undefined) =>
 const useNutrientDefinitions = () =>
   useQuery<ReadonlyArray<NutrientDefinition>>({
     queryKey: ['nutrient-definitions'],
-    queryFn: toQueryFn(() => fetchNutrientDefinitions()),
+    queryFn: () => toPromise(fetchNutrientDefinitions()),
   })
 
 interface NutrientRowProps {
@@ -172,7 +172,7 @@ const FoodDetailContent = ({
               const kcal =
                 energyKcalPer100g === undefined
                   ? null
-                  : (energyKcalPer100g * entry.quantity) / 100
+                  : (energyKcalPer100g * entry.amountGrams) / 100
               return (
                 <div key={entry.id} className={styles.historyRow}>
                   <span className={styles.historyDate}>

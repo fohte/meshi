@@ -113,6 +113,63 @@ describeIfDb('MealHistoryService.query', () => {
     })
   })
 
+  it('aggregates by amount_grams, not quantity, for a non-gram-unit meal log', async () => {
+    const tx = getTx()
+    await seedNutrientDefinitions(tx)
+    await seedFoodMaster(tx, {
+      id: 'egg',
+      name: 'egg',
+      source: 'user_input',
+      nutrients: { energy_kcal: 151, protein_g: 12.3 },
+    })
+    // 2 個 at 55g/個 resolves to 110g (×1.1), not ×2 — quantity alone would
+    // give the wrong total if the aggregate query read it directly.
+    await seedMealLog(tx, {
+      id: 'log-1',
+      foodMasterId: 'egg',
+      eatenAt: new Date('2026-06-01T03:00:00Z'),
+      quantity: 2,
+      unit: '個',
+      amountGrams: 110,
+    })
+
+    const service = createMealHistoryService(tx)
+    const result = (
+      await service.query({
+        periodFrom: new Date('2026-06-01T00:00:00Z'),
+        periodTo: new Date('2026-06-02T00:00:00Z'),
+      })
+    )._unsafeUnwrap()
+
+    // Matches the aggregate SQL's own operation order (value * amount_grams
+    // / 100) so this doesn't drift from a floating-point rounding artifact
+    // of computing it as value * 1.1 in JS instead.
+    expect(result).toEqual({
+      totals: { energy_kcal: (151 * 110) / 100, protein_g: (12.3 * 110) / 100 },
+      perDay: [
+        {
+          date: '2026-06-01',
+          totals: {
+            energy_kcal: (151 * 110) / 100,
+            protein_g: (12.3 * 110) / 100,
+          },
+        },
+      ],
+      entries: [
+        {
+          id: 'log-1',
+          foodMasterId: 'egg',
+          eatenAt: new Date('2026-06-01T03:00:00Z'),
+          mealType: 'lunch',
+          quantity: 2,
+          unit: '個',
+          note: null,
+        },
+      ],
+      hasEstimatedValues: false,
+    })
+  })
+
   it('filters entries and aggregation by foodFilter', async () => {
     const tx = getTx()
     await seedNutrientDefinitions(tx)
@@ -480,8 +537,8 @@ describeIfDb(
           // `Date`, which fails against this corrupted pool the same way a
           // raw `Date` bind anywhere in this file would.
           await tx`
-            INSERT INTO meal_logs (id, food_master_id, eaten_at, meal_type, quantity, unit)
-            VALUES ('probe_log_1', 'probe_rice', '2026-06-01T03:00:00Z'::timestamptz, 'lunch', 200, 'g')
+            INSERT INTO meal_logs (id, food_master_id, eaten_at, meal_type, quantity, unit, amount_grams)
+            VALUES ('probe_log_1', 'probe_rice', '2026-06-01T03:00:00Z'::timestamptz, 'lunch', 200, 'g', 200)
           `
 
           const service = createMealHistoryService(tx)

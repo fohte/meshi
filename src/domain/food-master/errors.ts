@@ -1,3 +1,5 @@
+import { CodedDomainError } from '#domain/errors'
+
 export type FoodMasterErrorCode =
   | 'empty_name'
   | 'empty_alias'
@@ -5,23 +7,22 @@ export type FoodMasterErrorCode =
   | 'invalid_source_combination'
   | 'unknown_nutrient_code'
   | 'negative_nutrient_value'
+  | 'empty_unit'
+  | 'reserved_unit'
+  | 'duplicate_unit_in_input'
+  | 'implausible_grams_per_unit'
   | 'duplicate_name'
   | 'duplicate_alias'
   | 'persistence_failed'
 
-export class FoodMasterDomainError extends Error {
-  readonly code: FoodMasterErrorCode
-  readonly details: Readonly<Record<string, unknown>>
-
+export class FoodMasterDomainError extends CodedDomainError<FoodMasterErrorCode> {
   constructor(
     code: FoodMasterErrorCode,
     message: string,
     details: Readonly<Record<string, unknown>> = {},
     cause?: unknown,
   ) {
-    super(message, cause === undefined ? undefined : { cause })
+    super(code, message, details, cause)
     this.name = 'FoodMasterDomainError'
-    this.code = code
-    this.details = details
   }
 }

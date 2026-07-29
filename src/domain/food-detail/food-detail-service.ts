@@ -28,6 +28,7 @@ const loadHistory = async (
     id: row.id,
     eatenAt: row.eatenAt,
     mealType: row.mealType,
+    amountGrams: Number(row.amountGrams),
     quantity: Number(row.quantity),
     unit: row.unit,
   }))

@@ -1,0 +1,67 @@
+.label {
+  font-size: 13px;
+  color: #a1a1aa;
+  margin-bottom: 7px;
+}
+
+.tagRow {
+  display: flex;
+  gap: 7px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 13px;
+  border: var(--border-width) solid var(--color-border);
+  padding: 3px 5px 3px 9px;
+}
+
+.removeButton {
+  all: unset;
+  cursor: pointer;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--color-muted);
+  padding: 0 3px;
+}
+
+.removeButton:hover {
+  color: var(--color-accent);
+}
+
+.removeButton:disabled {
+  cursor: default;
+  opacity: 0.5;
+}
+
+.addButton {
+  all: unset;
+  cursor: pointer;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--color-muted);
+  padding: 4px 8px;
+  border: var(--border-width) dashed var(--color-border);
+}
+
+.addButton:hover {
+  color: var(--color-text);
+}
+
+.addButton:disabled {
+  cursor: default;
+  opacity: 0.5;
+}
+
+.draftInput {
+  all: unset;
+  min-width: 88px;
+  font-size: 13px;
+  color: var(--color-text);
+  border: var(--border-width) solid var(--color-accent);
+  padding: 3px 9px;
+}

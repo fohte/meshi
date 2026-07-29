@@ -9,6 +9,10 @@ export interface FoodMasterRef {
   readonly name: string
   readonly isEstimated: boolean
   readonly nutritionPer100g: NutritionMap
+  // Food-specific serving definitions (food_master_units), keyed by
+  // normalized (trimmed, lowercased) unit. g/kg/mg resolve without needing
+  // an entry here — see resolveAmountGrams.
+  readonly units: Readonly<Record<string, number>>
 }
 
 export interface MealLogRow {
@@ -18,6 +22,9 @@ export interface MealLogRow {
   readonly mealType: MealType
   readonly quantity: number
   readonly unit: string
+  // The resolved mass this quantity+unit was converted to at record time —
+  // the sole basis for this row's nutrition. See resolveAmountGrams.
+  readonly amountGrams: number
   readonly note: string | null
   readonly createdAt: Date
 }

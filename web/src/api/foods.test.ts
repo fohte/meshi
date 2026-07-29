@@ -27,7 +27,10 @@ describe('fetchFoodSearch', () => {
 
     await fetchFoodSearch('rice', 10)
 
-    expect(fetchMock).toHaveBeenCalledWith('/api/foods/search?q=rice&limit=10')
+    expect(fetchMock).toHaveBeenCalledWith(
+      '/api/foods/search?q=rice&limit=10',
+      undefined,
+    )
   })
 
   it('resolves with the response items', async () => {
@@ -54,7 +57,10 @@ describe('fetchFoodSuggestions', () => {
 
     await fetchFoodSuggestions(5)
 
-    expect(fetchMock).toHaveBeenCalledWith('/api/foods/suggestions?limit=5')
+    expect(fetchMock).toHaveBeenCalledWith(
+      '/api/foods/suggestions?limit=5',
+      undefined,
+    )
   })
 })
 
@@ -74,6 +80,7 @@ describe('fetchFoodDetail', () => {
           id: 'ml_1',
           eatenAt: '2026-07-29T03:00:00.000Z',
           mealType: 'breakfast',
+          amountGrams: 100,
           quantity: 100,
           unit: 'g',
         },
@@ -96,6 +103,7 @@ describe('fetchFoodDetail', () => {
           id: 'ml_1',
           eatenAt: new Date('2026-07-29T03:00:00.000Z'),
           mealType: 'breakfast',
+          amountGrams: 100,
           quantity: 100,
           unit: 'g',
         },
