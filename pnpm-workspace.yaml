@@ -1,3 +1,6 @@
+packages:
+  - 'web'
+
 allowBuilds:
   # required by vitest's transformer
   esbuild: true

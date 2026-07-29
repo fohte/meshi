@@ -38,6 +38,16 @@ export interface RecordMealLogInput {
   readonly note?: string
 }
 
+export interface UpdateMealLogInput {
+  readonly id: string
+  readonly foodMasterId?: string
+  readonly eatenAt?: Date
+  readonly mealType?: MealType
+  readonly quantity?: number
+  readonly unit?: string
+  readonly note?: string
+}
+
 export interface MealLogResult extends MealLogRow {
   readonly nutrition: NutritionMap
   readonly isEstimated: boolean

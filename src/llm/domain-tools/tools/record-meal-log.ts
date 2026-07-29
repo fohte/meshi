@@ -1,9 +1,9 @@
 import { z } from 'zod'
 
-import type { DomainError } from '#domain/meal-log/errors'
 import type { MealLogService } from '#domain/meal-log/meal-log-service'
 import { MEAL_TYPES } from '#domain/meal-log/types'
 import { parseToolInput } from '#llm/domain-tools/parse'
+import { toToolError } from '#llm/domain-tools/to-tool-error'
 import {
   type DomainTool,
   err,
@@ -58,9 +58,4 @@ export const createRecordMealLogTool = (
       is_estimated: result.value.isEstimated,
     })
   },
-})
-
-const toToolError = (e: DomainError): ToolError => ({
-  code: e.code,
-  message: e.message,
 })

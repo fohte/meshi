@@ -50,6 +50,13 @@ const stubDeps = (override: Partial<DomainToolsDeps> = {}): DomainToolsDeps => {
           'test/not_stubbed',
         ),
       ),
+    update: () =>
+      errAsync(
+        new DomainError(
+          'mealLogService.update not stubbed',
+          'test/not_stubbed',
+        ),
+      ),
     getById: () => okAsync(null),
   }
   const foodMasterService: FoodMasterService = {
@@ -119,6 +126,7 @@ describe('createDomainToolsRegistry', () => {
 
     const expectedNames = [
       'record_meal_log',
+      'update_meal_log',
       'search_food_master',
       'register_food_master',
       'register_food_master_unit',

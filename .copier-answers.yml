@@ -6,7 +6,10 @@ is_public: true
 is_web_app: true
 project_name: meshi
 repo_language: en
-subpackages: []
+subpackages:
+  - name: web
+    storybook: true
+    type: node
 type: node
 use_release_please: false
 use_storybook: false

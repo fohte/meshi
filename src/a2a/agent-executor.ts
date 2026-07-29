@@ -7,6 +7,7 @@ import type {
   RequestContext,
 } from '@a2a-js/sdk/server'
 import { captureWithFingerprint } from '@fohte/service-kit/observability'
+import type { CallbackHandlerMethods } from '@langchain/core/callbacks/base'
 
 import { withAdvisoryLock } from '#a2a/advisory-lock'
 import { type AgentContentBlock, toAgentContent } from '#a2a/message-content'
@@ -28,6 +29,7 @@ import {
   queryMealHistoryOutputSchema,
   toMealHistoryEntryFields,
 } from '#llm/domain-tools/tools/query-meal-history'
+import type { DomainToolName } from '#llm/domain-tools/types'
 import { formatMealHistoryEntries } from '#llm/orchestrator/reply-formatter'
 import { createNullLogger, type Logger } from '#logger'
 
@@ -43,7 +45,15 @@ export interface MeshiDomainAgentLike {
     input: {
       messages: Array<{ role: 'user'; content: AgentContentBlock[] }>
     },
-    config: { configurable: { thread_id: string }; recursionLimit?: number },
+    config: {
+      configurable: { thread_id: string }
+      recursionLimit?: number
+      // Reports each tool call the agent starts via LangChain's standard
+      // tool-lifecycle callback (see buildProgressCallbacks below) — how
+      // this executor learns what step to surface on TaskStatus.message
+      // while the turn is still running, rather than only at its end.
+      callbacks?: CallbackHandlerMethods[]
+    },
   ): Promise<{
     // With a checkpointer, this is the thread's full accumulated message
     // history, not just this call's new messages (see LangChain's
@@ -89,19 +99,100 @@ const isUsageLimitError = (error: unknown): boolean =>
 const errorMessage = (error: unknown): string =>
   error instanceof Error ? error.message : String(error)
 
+const buildAgentMessage = (
+  taskId: string,
+  contextId: string,
+  text: string,
+): Message => ({
+  kind: 'message',
+  role: 'agent',
+  messageId: randomUUID(),
+  parts: [{ kind: 'text', text }],
+  taskId,
+  contextId,
+})
+
+// `message` carries the human-readable step currently in progress (see
+// TOOL_PROGRESS_MESSAGES below) — omitted while nothing is known yet (the
+// initial seed and the very first heartbeat before any tool has started).
 const publishWorkingUpdate = (
   eventBus: ExecutionEventBus,
   taskId: string,
   contextId: string,
+  message?: string,
 ): void => {
   eventBus.publish({
     kind: 'status-update',
     taskId,
     contextId,
-    status: { state: 'working', timestamp: new Date().toISOString() },
+    status: {
+      state: 'working',
+      timestamp: new Date().toISOString(),
+      ...(message !== undefined
+        ? { message: buildAgentMessage(taskId, contextId, message) }
+        : {}),
+    },
     final: false,
   })
 }
+
+// Human-readable step text shown on TaskStatus.message while each domain
+// tool (src/llm/domain-tools/tools/*.ts) is running. Keyed by DomainToolName
+// so a tool rename fails this table to compile instead of silently going
+// unmapped. meshi_agent_response (the synthetic structured-output tool from
+// response-schema.ts, not a DomainTool) is deliberately not listed here: it
+// reports the turn's outcome, not an in-progress step, and buildFinalTask
+// publishes that outcome directly once it returns.
+const TOOL_PROGRESS_MESSAGES: Record<DomainToolName, string> = {
+  search_food_master: 'Looking up the food in the food database...',
+  web_search: 'Searching the web for food information...',
+  register_food_master: 'Registering a new food entry...',
+  register_food_master_unit: 'Registering a unit for a food entry...',
+  record_meal_log: 'Recording your meal...',
+  update_meal_log: 'Updating your meal log...',
+  query_meal_history: 'Looking up your meal history...',
+  get_user_profile: 'Reading your profile...',
+  update_user_profile: 'Updating your profile...',
+}
+
+// Wraps onToolStart as the single LangChain callback handler passed into
+// agent.invoke()'s config — the mechanism this executor relies on to learn
+// which tool the agent is currently running (see MeshiDomainAgentLike
+// above). LangChain's own CallbackManager already isolates each handler (a
+// thrown error here is caught and only console.warn'd — see
+// CallbackManager.handleToolStart in @langchain/core's callbacks/manager.js
+// — it never reaches back into BaseTool.invoke), so the try/catch below
+// isn't guarding the tool call. It exists so a failure here is reported
+// through this project's own captureWithFingerprint pipeline with
+// taskId/contextId context, the same as every other failure path in this
+// file, instead of silently falling back to LangChain's generic warning.
+const buildProgressCallbacks = (
+  onToolStart: (toolName: string) => void,
+  extras: { taskId: string; contextId: string },
+): CallbackHandlerMethods[] => [
+  {
+    handleToolStart: (
+      _tool,
+      _input,
+      _runId,
+      _parentRunId,
+      _tags,
+      _metadata,
+      runName,
+    ) => {
+      if (runName === undefined) return
+      // eslint-disable-next-line no-restricted-syntax -- see comment above; not a safety boundary, just routing this failure through captureWithFingerprint instead of LangChain's own console.warn
+      try {
+        onToolStart(runName)
+      } catch (err) {
+        console.error('failed to report a2a tool-start progress:', err)
+        captureWithFingerprint(err, 'a2a.agent-executor.progress-failed', {
+          extras,
+        })
+      }
+    },
+  },
+]
 
 const QUERY_MEAL_HISTORY_TOOL_NAME = 'query_meal_history'
 
@@ -144,19 +235,6 @@ const withItemizedMealHistory = (
   return `${message}\n\n${formatMealHistoryEntries(output.entries.map(toMealHistoryEntryFields))}`
 }
 
-const buildAgentMessage = (
-  taskId: string,
-  contextId: string,
-  text: string,
-): Message => ({
-  kind: 'message',
-  role: 'agent',
-  messageId: randomUUID(),
-  parts: [{ kind: 'text', text }],
-  taskId,
-  contextId,
-})
-
 // Always a full Task event (never a status-update) so it can carry
 // metadata.error_kind: ResultManager only copies a status-update event's
 // `status` onto the stored task, not its `metadata`. The tradeoff is that a
@@ -194,6 +272,11 @@ const buildFinalTask = (
 export const runAgentTurn = async (
   agent: MeshiDomainAgentLike,
   requestContext: RequestContext,
+  // Called with each tool's name as the agent starts running it — omitted
+  // entirely (rather than passed as a no-op) so callers that don't care
+  // about progress (most of this file's own tests) don't need to build a
+  // fake callbacks array in the invoke assertion below.
+  onToolStart?: (toolName: string) => void,
   logger: Logger = createNullLogger(),
 ): Promise<Task> => {
   // eslint-disable-next-line no-restricted-syntax -- boundary between LangGraph's throw-based agent.invoke() and this module's Task mapping; the catch below turns any thrown error into a failed Task instead of propagating it
@@ -210,6 +293,14 @@ export const runAgentTurn = async (
       {
         configurable: { thread_id: requestContext.contextId },
         recursionLimit: MESHI_AGENT_RECURSION_LIMIT,
+        ...(onToolStart !== undefined
+          ? {
+              callbacks: buildProgressCallbacks(onToolStart, {
+                taskId: requestContext.taskId,
+                contextId: requestContext.contextId,
+              }),
+            }
+          : {}),
       },
     )
     const reply = deriveAgentReply(result.messages, () => {
@@ -298,6 +389,27 @@ export const createMeshiAgentExecutor = (
           publishWorkingUpdate(eventBus, taskId, contextId)
         }
 
+        // Updated as each tool call starts (see TOOL_PROGRESS_MESSAGES) and
+        // read by both the immediate publish below and every subsequent
+        // heartbeat tick, so a heartbeat firing between two tool calls still
+        // republishes the most recently known step rather than reverting to
+        // no message. Tracks only the single most recently started tool, not
+        // a set of in-flight calls: if the model's tool_calls for a turn run
+        // concurrently (LangGraph's ToolNode dispatches multiple tool_calls
+        // from one AI message in parallel), a slower earlier-started tool's
+        // text can be overwritten by a faster, later-started one until the
+        // next tool call or the turn's final response. Accepted for now —
+        // this only affects which in-progress step is shown, never the
+        // actual final result.
+        let latestProgressMessage: string | undefined
+        const onToolStart = (toolName: string): void => {
+          if (!(toolName in TOOL_PROGRESS_MESSAGES)) return
+          // eslint-disable-next-line @typescript-eslint/no-unsafe-type-assertion -- the `in` check above proves toolName is one of TOOL_PROGRESS_MESSAGES's DomainToolName keys; Record<K, V> has no index signature for a plain string, so TS can't narrow this on its own
+          const message = TOOL_PROGRESS_MESSAGES[toolName as DomainToolName]
+          latestProgressMessage = message
+          publishWorkingUpdate(eventBus, taskId, contextId, message)
+        }
+
         // A setInterval callback runs outside execute()'s own call stack, so
         // a throw here can't be caught by the try/finally below it — left
         // unguarded, it would surface as an unhandled exception instead of
@@ -305,7 +417,12 @@ export const createMeshiAgentExecutor = (
         const heartbeat = setInterval(() => {
           // eslint-disable-next-line no-restricted-syntax -- runs outside execute()'s call stack (see the comment above), so a throw here can't reach the try/finally below and must be swallowed locally
           try {
-            publishWorkingUpdate(eventBus, taskId, contextId)
+            publishWorkingUpdate(
+              eventBus,
+              taskId,
+              contextId,
+              latestProgressMessage,
+            )
           } catch (err) {
             console.error('failed to publish a2a heartbeat update:', err)
             captureWithFingerprint(err, 'a2a.agent-executor.heartbeat-failed', {
@@ -316,7 +433,12 @@ export const createMeshiAgentExecutor = (
         // eslint-disable-next-line no-restricted-syntax -- runAgentTurn() already converts its own failures into a Task rather than throwing; this try/finally only guarantees clearInterval(heartbeat) runs
         try {
           eventBus.publish(
-            await runAgentTurn(options.agent, requestContext, logger),
+            await runAgentTurn(
+              options.agent,
+              requestContext,
+              onToolStart,
+              logger,
+            ),
           )
         } finally {
           clearInterval(heartbeat)

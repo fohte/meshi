@@ -2,6 +2,7 @@ import { errAsync, okAsync } from 'neverthrow'
 import { describe, expect, it } from 'vitest'
 
 import {
+  DomainError,
   FoodMasterNotFoundError,
   FutureEatenAtError,
 } from '#domain/meal-log/errors'
@@ -36,6 +37,13 @@ const setup = (
       }
       return okAsync(result)
     },
+    update: () =>
+      errAsync(
+        new DomainError(
+          'mealLogService.update not stubbed',
+          'test/not_stubbed',
+        ),
+      ),
     getById: () => okAsync(null),
     ...override,
   }

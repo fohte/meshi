@@ -38,6 +38,13 @@ export class FoodMasterNotFoundError extends DomainError {
   }
 }
 
+export class MealLogNotFoundError extends DomainError {
+  constructor(public readonly id: string) {
+    super(`meal_log not found: ${id}`, 'meal_log/not_found')
+    this.name = 'MealLogNotFoundError'
+  }
+}
+
 export class MealLogPersistenceError extends DomainError {
   constructor(message: string, cause?: unknown) {
     super(message, 'meal_log/persistence_failed')

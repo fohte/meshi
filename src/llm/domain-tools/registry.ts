@@ -16,6 +16,7 @@ import { createRecordMealLogTool } from '#llm/domain-tools/tools/record-meal-log
 import { createRegisterFoodMasterTool } from '#llm/domain-tools/tools/register-food-master'
 import { createRegisterFoodMasterUnitTool } from '#llm/domain-tools/tools/register-food-master-unit'
 import { createSearchFoodMasterTool } from '#llm/domain-tools/tools/search-food-master'
+import { createUpdateMealLogTool } from '#llm/domain-tools/tools/update-meal-log'
 import { createUpdateUserProfileTool } from '#llm/domain-tools/tools/update-user-profile'
 import { createWebSearchTool } from '#llm/domain-tools/tools/web-search'
 import type { DomainTool, ToolError } from '#llm/domain-tools/types'
@@ -76,6 +77,7 @@ export const createDomainToolsRegistry = (
 ): DomainToolsRegistry => {
   const tools: ReadonlyArray<DomainTool> = [
     createRecordMealLogTool(deps.mealLogService),
+    createUpdateMealLogTool(deps.mealLogService),
     createSearchFoodMasterTool(deps.foodMatcher),
     createRegisterFoodMasterTool(deps.foodMasterService),
     createRegisterFoodMasterUnitTool(deps.foodMasterUnitService),

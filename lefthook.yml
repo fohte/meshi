@@ -57,6 +57,10 @@ pre-commit:
           esac
         done
 
+    # lefthook's default glob uses gobwas/glob without a delimiter, so
+    # '*.{js,ts,...}' also matches nested paths (e.g. frontend/src/foo.ts).
+    # A single root-level eslint covers every workspace package, and running
+    # per-package eslint in parallel would race on --fix / stage_fixed writes.
     eslint:
       glob: '*.{js,ts,jsx,tsx,mjs,cjs}'
       run: pnpm exec eslint {staged_files}

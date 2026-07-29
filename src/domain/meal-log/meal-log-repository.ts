@@ -18,6 +18,22 @@ export interface InsertMealLogInput {
   readonly note: string | null
 }
 
+// Distinct from the service-facing UpdateMealLogInput (types.ts): the
+// service resolves quantity/unit (+ a possibly-changed food_master_id) to
+// amountGrams before reaching the repository, so this patch carries that
+// resolved value alongside whichever display fields changed — mirroring the
+// InsertMealLogInput vs RecordMealLogInput split above.
+export interface UpdateMealLogPatch {
+  readonly id: string
+  readonly foodMasterId?: string
+  readonly eatenAt?: Date
+  readonly mealType?: MealType
+  readonly quantity?: number
+  readonly unit?: string
+  readonly amountGrams?: number
+  readonly note?: string
+}
+
 export interface FoundMealLog {
   readonly log: MealLogRow
   readonly food: FoodMasterRef
@@ -26,5 +42,6 @@ export interface FoundMealLog {
 export interface MealLogRepository {
   findFoodMaster(foodMasterId: string): ResultAsync<FoodMasterRef, DomainError>
   insertMealLog(input: InsertMealLogInput): ResultAsync<MealLogRow, DomainError>
+  updateMealLog(input: UpdateMealLogPatch): ResultAsync<MealLogRow, DomainError>
   findMealLogById(id: string): ResultAsync<FoundMealLog | null, DomainError>
 }
