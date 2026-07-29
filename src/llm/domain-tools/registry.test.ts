@@ -121,7 +121,7 @@ const stubDeps = (override: Partial<DomainToolsDeps> = {}): DomainToolsDeps => {
 }
 
 describe('createDomainToolsRegistry', () => {
-  it('registers all eight internal tools and exposes them via toLlmSchemas in the same order', () => {
+  it('registers all nine internal tools and exposes them via toLlmSchemas in the same order', () => {
     const registry = createDomainToolsRegistry(stubDeps())
 
     const expectedNames = [

@@ -11,6 +11,7 @@ import type {
 } from '#domain/food-master-unit/types'
 import {
   isImplausibleGramsPerUnit,
+  isReservedUnit,
   normalizeUnit,
 } from '#domain/food-master-unit/validation'
 
@@ -65,6 +66,15 @@ export const createFoodMasterUnitRepository = (
           new FoodMasterUnitDomainError(
             'empty_unit',
             'unit must not be empty string',
+          ),
+        )
+      }
+      if (isReservedUnit(unit)) {
+        return errAsync(
+          new FoodMasterUnitDomainError(
+            'reserved_unit',
+            `unit is resolved by a fixed rule and can't be overridden per food: ${unit}`,
+            { unit },
           ),
         )
       }

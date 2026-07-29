@@ -87,12 +87,16 @@ const loadFoodMaster = (
         return err(new FoodMasterNotFoundError(foodMasterId))
       }
 
+      const [nutritionPer100g, units] = await Promise.all([
+        loadNutrition(db, foodMasterId),
+        loadUnits(db, foodMasterId),
+      ])
       return ok({
         id: master.id,
         name: master.name,
         isEstimated: master.isEstimated,
-        nutritionPer100g: await loadNutrition(db, foodMasterId),
-        units: await loadUnits(db, foodMasterId),
+        nutritionPer100g,
+        units,
       })
     })(),
     (caughtErr) =>
@@ -219,12 +223,16 @@ export const createDrizzleMealLogRepository = (sql: Sql): MealLogRepository => {
           const row = rows[0]
           if (row === undefined) return null
 
+          const [nutritionPer100g, units] = await Promise.all([
+            loadNutrition(db, row.food.id),
+            loadUnits(db, row.food.id),
+          ])
           return {
             log: toRow(row.log),
             food: {
               ...row.food,
-              nutritionPer100g: await loadNutrition(db, row.food.id),
-              units: await loadUnits(db, row.food.id),
+              nutritionPer100g,
+              units,
             },
           }
         })(),

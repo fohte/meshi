@@ -1,13 +1,12 @@
-import type { ResultAsync } from 'neverthrow'
 import { beforeEach, expect, it } from 'vitest'
 
 import {
   createFoodMasterRepository,
   createFoodMasterService,
-  type FoodMasterDomainError,
   type FoodMasterService,
   type RegisterFoodMasterInput,
 } from '#domain/food-master/index'
+import { captureDomainError } from '#test/capture-domain-error'
 import { describeIfDb, setupTx } from '#test/db'
 
 interface IdCounter {
@@ -18,16 +17,6 @@ const createCountingIdGenerator = (
   counter: IdCounter,
 ): ((prefix: string) => string) => {
   return (prefix) => `${prefix}_test_${String(counter.next()).padStart(4, '0')}`
-}
-
-const captureDomainError = async (
-  resultAsync: ResultAsync<unknown, FoodMasterDomainError>,
-): Promise<{ code: string; details: Readonly<Record<string, unknown>> }> => {
-  const result = await resultAsync
-  if (result.isOk()) {
-    throw new Error('expected FoodMasterDomainError but got Ok')
-  }
-  return { code: result.error.code, details: result.error.details }
 }
 
 const baseInput: RegisterFoodMasterInput = {
@@ -370,6 +359,24 @@ describeIfDb('FoodMasterService + Repository', () => {
       details: { units: ['個', '個'] },
     })
   })
+
+  it.each(['g', 'KG', ' mg ', 'l', 'CC'])(
+    'rejects the reserved unit %p, which resolveAmountGrams would never look up per-food',
+    async (unit) => {
+      const captured = await captureDomainError(
+        service.register({
+          ...baseInput,
+          name: 'egg',
+          units: [{ unit, gramsPerUnit: 55 }],
+        }),
+      )
+
+      expect(captured).toEqual({
+        code: 'reserved_unit',
+        details: { unit: unit.trim().toLowerCase() },
+      })
+    },
+  )
 
   it.each([0, -1, Number.NaN, Number.POSITIVE_INFINITY, 20_000])(
     'rejects an implausible grams_per_unit %p',

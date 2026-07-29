@@ -1,7 +1,7 @@
 import { z } from 'zod'
 
 import type { FoodMasterUnitService } from '#domain/food-master-unit/service'
-import { parseToolInput } from '#llm/domain-tools/parse'
+import { NON_BLANK, parseToolInput } from '#llm/domain-tools/parse'
 import {
   type DomainTool,
   err,
@@ -11,7 +11,7 @@ import {
 
 const inputSchema = z.object({
   food_master_id: z.string().min(1),
-  unit: z.string().min(1),
+  unit: z.string().min(1).regex(NON_BLANK),
   grams_per_unit: z.number().positive(),
 })
 

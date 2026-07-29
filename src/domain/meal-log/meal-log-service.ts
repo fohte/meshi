@@ -1,4 +1,11 @@
-import { errAsync, okAsync, type ResultAsync } from 'neverthrow'
+import {
+  err,
+  errAsync,
+  ok,
+  okAsync,
+  type Result,
+  type ResultAsync,
+} from 'neverthrow'
 
 import {
   type DomainError,
@@ -23,6 +30,20 @@ import type {
 // it rather than silently recording it (e.g. a unit mixup inflating the
 // gram amount by orders of magnitude).
 const MAX_PLAUSIBLE_AMOUNT_GRAMS = 10_000
+
+// Shared by record() and update(): resolves quantity+unit to grams and
+// rejects an implausible result, so both call sites apply the same
+// resolution + plausibility rule.
+const resolveAndCheckAmountGrams = (
+  quantity: number,
+  unit: string,
+  units: Readonly<Record<string, number>>,
+): Result<number, DomainError> =>
+  resolveAmountGrams(quantity, unit, units).andThen((amountGrams) =>
+    amountGrams > MAX_PLAUSIBLE_AMOUNT_GRAMS
+      ? err(new ImplausibleQuantityError(amountGrams))
+      : ok(amountGrams),
+  )
 
 export interface MealLogService {
   record(input: RecordMealLogInput): ResultAsync<MealLogResult, DomainError>
@@ -49,16 +70,13 @@ export const createMealLogService = (
     return deps.repository
       .findFoodMaster(input.foodMasterId)
       .andThen((food) => {
-        const resolved = resolveAmountGrams(
+        const resolved = resolveAndCheckAmountGrams(
           input.quantity,
           input.unit,
           food.units,
         )
         if (resolved.isErr()) return errAsync(resolved.error)
         const amountGrams = resolved.value
-        if (amountGrams > MAX_PLAUSIBLE_AMOUNT_GRAMS) {
-          return errAsync(new ImplausibleQuantityError(amountGrams))
-        }
         return deps.repository
           .insertMealLog({
             id: deps.idGenerator(),
@@ -119,16 +137,13 @@ export const createMealLogService = (
           newFoodMasterId !== undefined
         let amountGrams: number | undefined
         if (needsResolve) {
-          const resolved = resolveAmountGrams(
+          const resolved = resolveAndCheckAmountGrams(
             input.quantity ?? found.log.quantity,
             input.unit ?? found.log.unit,
             food.units,
           )
           if (resolved.isErr()) return errAsync(resolved.error)
           amountGrams = resolved.value
-          if (amountGrams > MAX_PLAUSIBLE_AMOUNT_GRAMS) {
-            return errAsync(new ImplausibleQuantityError(amountGrams))
-          }
         }
         return deps.repository
           .updateMealLog({

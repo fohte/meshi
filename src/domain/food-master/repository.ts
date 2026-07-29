@@ -19,6 +19,7 @@ import {
 } from '#domain/food-master/validation'
 import {
   isImplausibleGramsPerUnit,
+  isReservedUnit,
   normalizeUnit,
 } from '#domain/food-master-unit/validation'
 
@@ -110,6 +111,16 @@ const normalizeAndValidate = (
   if (units.some((u) => u.unit === '')) {
     return err(
       new FoodMasterDomainError('empty_unit', 'unit must not be empty string'),
+    )
+  }
+  const reservedUnit = units.find((u) => isReservedUnit(u.unit))
+  if (reservedUnit !== undefined) {
+    return err(
+      new FoodMasterDomainError(
+        'reserved_unit',
+        `unit is resolved by a fixed rule and can't be overridden per food: ${reservedUnit.unit}`,
+        { unit: reservedUnit.unit },
+      ),
     )
   }
   if (hasDuplicateAfterTrim(units.map((u) => u.unit))) {

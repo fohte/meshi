@@ -37,7 +37,7 @@ describe('register_food_master_unit tool', () => {
       type: 'object',
       properties: {
         food_master_id: { type: 'string', minLength: 1 },
-        unit: { type: 'string', minLength: 1 },
+        unit: { type: 'string', minLength: 1, pattern: '\\S' },
         grams_per_unit: { type: 'number', exclusiveMinimum: 0 },
       },
       required: ['food_master_id', 'unit', 'grams_per_unit'],
@@ -60,6 +60,26 @@ describe('register_food_master_unit tool', () => {
     expect(calls).toEqual([
       { foodMasterId: 'fm_egg', unit: '個', gramsPerUnit: 55 },
     ])
+  })
+
+  it('returns invalid_input for a whitespace-only unit', async () => {
+    const { tool, calls } = setup()
+
+    const result = await tool.execute({
+      food_master_id: 'fm_egg',
+      unit: '   ',
+      grams_per_unit: 55,
+    })
+
+    expect(normalizeResult(result)).toEqual({
+      ok: false,
+      error: {
+        code: 'invalid_input',
+        message: '<dynamic>',
+        details: { issues: { count: 1 } },
+      },
+    })
+    expect(calls).toEqual([])
   })
 
   it('returns invalid_input for a non-positive grams_per_unit', async () => {

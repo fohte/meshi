@@ -8,12 +8,14 @@ CREATE TABLE "food_master_units" (
 --> statement-breakpoint
 ALTER TABLE "food_master_units" ADD CONSTRAINT "food_master_units_food_master_id_fk" FOREIGN KEY ("food_master_id") REFERENCES "public"."food_masters"("id") ON DELETE cascade ON UPDATE cascade;--> statement-breakpoint
 ALTER TABLE "meal_logs" ADD COLUMN "amount_grams" numeric;--> statement-breakpoint
--- Backfill from the pre-existing (food-agnostic) scaling rule that this
--- migration replaces: mass units converted by a fixed factor, volume units
--- (ml/cc/l) assumed water's 1 mL ≈ 1 g, and every other (discrete) unit
--- assumed 1 unit ≈ 100 g. This is only a best-effort approximation for rows
--- recorded before food_master_units existed — new rows resolve through it
--- instead (see resolveAmountGrams).
+-- Best-effort approximation of amount_grams for rows recorded before
+-- food_master_units existed: mass units (g/kg/mg) get an exact conversion,
+-- ml/cc/l assume water's 1 mL ≈ 1 g, and any other (discrete, e.g. 個/杯)
+-- unit assumes 1 unit ≈ 100 g. This does not reproduce the nutrition value
+-- these rows actually showed at the time — the code being replaced scaled
+-- every non-'g' unit by quantity directly, with no unit-specific factor —
+-- it applies the new mass-aware interpretation to old rows instead. New
+-- rows resolve through food_master_units (see resolveAmountGrams).
 UPDATE "meal_logs" SET "amount_grams" = "quantity" * CASE lower(trim("unit"))
   WHEN 'g' THEN 1
   WHEN 'kg' THEN 1000

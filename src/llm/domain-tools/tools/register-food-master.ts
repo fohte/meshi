@@ -6,17 +6,13 @@ import {
   hasDuplicateAfterTrim,
   isInvalidSourceCombination,
 } from '#domain/food-master/validation'
-import { parseToolInput } from '#llm/domain-tools/parse'
+import { NON_BLANK, parseToolInput } from '#llm/domain-tools/parse'
 import {
   type DomainTool,
   err,
   type Result,
   type ToolError,
 } from '#llm/domain-tools/types'
-
-// Rejects both the empty string and whitespace-only strings, matching the
-// trim-then-check-empty rule in normalizeAndValidate (repository.ts).
-const NON_BLANK = /\S/
 
 // Anthropic's and OpenAI's tool-calling APIs reject oneOf/anyOf/allOf at the
 // root of a tool's input schema, so the source/is_estimated combination rule
