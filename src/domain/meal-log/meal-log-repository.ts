@@ -14,6 +14,7 @@ export interface InsertMealLogInput {
   readonly mealType: MealType
   readonly quantity: number
   readonly unit: string
+  readonly amountGrams: number
   readonly note: string | null
 }
 

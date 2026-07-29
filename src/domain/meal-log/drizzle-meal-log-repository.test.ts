@@ -4,7 +4,7 @@ import { createDrizzleMealLogRepository } from '#domain/meal-log/drizzle-meal-lo
 import { FoodMasterNotFoundError } from '#domain/meal-log/errors'
 import type { MealLogRow } from '#domain/meal-log/types'
 import { describeIfDb, setupDrizzleTx } from '#test/db'
-import { seedFoodMaster } from '#test/seed'
+import { seedFoodMaster, seedFoodMasterUnit } from '#test/seed'
 
 const CREATED_AT_PLACEHOLDER = new Date('2000-01-01T00:00:00.000Z')
 
@@ -37,6 +37,11 @@ describeIfDb('createDrizzleMealLogRepository', () => {
       source: 'user_input',
       nutrients: { protein_g: 2.5, carb_g: 37.1 },
     })
+    await seedFoodMasterUnit(tx, {
+      foodMasterId: 'fm_rice',
+      unit: '杯',
+      gramsPerUnit: 150,
+    })
     const repo = createDrizzleMealLogRepository(tx)
 
     const inserted = (
@@ -47,6 +52,7 @@ describeIfDb('createDrizzleMealLogRepository', () => {
         mealType: 'breakfast',
         quantity: 150,
         unit: 'g',
+        amountGrams: 150,
         note: 'breakfast',
       })
     )._unsafeUnwrap()
@@ -59,6 +65,7 @@ describeIfDb('createDrizzleMealLogRepository', () => {
       mealType: 'breakfast',
       quantity: 150,
       unit: 'g',
+      amountGrams: 150,
       note: 'breakfast',
       createdAt: CREATED_AT_PLACEHOLDER,
     }
@@ -78,6 +85,7 @@ describeIfDb('createDrizzleMealLogRepository', () => {
           protein_g: 2.5,
           carb_g: 37.1,
         },
+        units: { 杯: 150 },
       },
     })
   })

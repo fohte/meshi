@@ -86,7 +86,7 @@ export const createMealHistoryService = (sql: Sql): MealHistoryService => {
                   to_char(date_trunc('day', ml.eaten_at AT TIME ZONE ${dayBoundaryTimeZone}), 'YYYY-MM-DD')
                     AS day,
                   fmn.nutrient_code AS nutrient_code,
-                  SUM(fmn.value * ml.quantity / ${PER_100G_BASE}) AS value
+                  SUM(fmn.value * ml.amount_grams / ${PER_100G_BASE}) AS value
                 FROM meal_logs ml
                 INNER JOIN food_master_nutrients fmn
                   ON fmn.food_master_id = ml.food_master_id

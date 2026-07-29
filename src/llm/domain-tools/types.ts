@@ -12,6 +12,7 @@ export type DomainToolName =
   | 'record_meal_log'
   | 'search_food_master'
   | 'register_food_master'
+  | 'register_food_master_unit'
   | 'query_meal_history'
   | 'get_user_profile'
   | 'update_user_profile'

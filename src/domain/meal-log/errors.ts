@@ -45,3 +45,28 @@ export class MealLogPersistenceError extends DomainError {
     if (cause !== undefined) this.cause = cause
   }
 }
+
+export class UnknownUnitError extends DomainError {
+  constructor(
+    public readonly unit: string,
+    public readonly knownUnits: ReadonlyArray<string>,
+  ) {
+    super(
+      knownUnits.length > 0
+        ? `unit not defined for this food_master: ${unit} (known units: ${knownUnits.join(', ')})`
+        : `unit not defined for this food_master: ${unit} (no units are registered yet)`,
+      'meal_log/unknown_unit',
+    )
+    this.name = 'UnknownUnitError'
+  }
+}
+
+export class ImplausibleQuantityError extends DomainError {
+  constructor(public readonly amountGrams: number) {
+    super(
+      `resolved amount is implausible for a single meal: ${String(amountGrams)}g`,
+      'meal_log/implausible_quantity',
+    )
+    this.name = 'ImplausibleQuantityError'
+  }
+}

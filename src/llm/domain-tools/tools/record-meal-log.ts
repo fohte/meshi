@@ -32,7 +32,7 @@ export const createRecordMealLogTool = (
 ): DomainTool => ({
   name: 'record_meal_log',
   description:
-    'Persist a meal log entry for a known food_master. Returns the assigned meal_log_id and the scaled nutrition for the recorded quantity. Pass meal_type when the user names it (e.g. breakfast/lunch/dinner/snack); when omitted, it defaults to a time-of-day estimate derived from eaten_at_iso.',
+    'Persist a meal log entry for a known food_master. Returns the assigned meal_log_id and the scaled nutrition for the recorded quantity. Pass meal_type when the user names it (e.g. breakfast/lunch/dinner/snack); when omitted, it defaults to a time-of-day estimate derived from eaten_at_iso. unit=g/kg/mg always works; any other unit (個/杯/ml/...) must already be defined for this food_master or this call fails with meal_log/unknown_unit — call register_food_master_unit with a plausible grams_per_unit for that unit, then retry.',
   inputSchema: z.toJSONSchema(inputSchema, { io: 'input' }),
   async execute(
     input: unknown,

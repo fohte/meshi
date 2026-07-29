@@ -5,6 +5,7 @@ import type {
 } from '#adapters/llm/types'
 import type { WebSearchClient } from '#adapters/web-search/web-search-client'
 import type { FoodMasterService } from '#domain/food-master/service'
+import type { FoodMasterUnitService } from '#domain/food-master-unit/service'
 import type { FoodMatcher } from '#domain/food-matcher/food-matcher'
 import type { MealHistoryService } from '#domain/meal-history/types'
 import type { MealLogService } from '#domain/meal-log/meal-log-service'
@@ -13,6 +14,7 @@ import { createGetUserProfileTool } from '#llm/domain-tools/tools/get-user-profi
 import { createQueryMealHistoryTool } from '#llm/domain-tools/tools/query-meal-history'
 import { createRecordMealLogTool } from '#llm/domain-tools/tools/record-meal-log'
 import { createRegisterFoodMasterTool } from '#llm/domain-tools/tools/register-food-master'
+import { createRegisterFoodMasterUnitTool } from '#llm/domain-tools/tools/register-food-master-unit'
 import { createSearchFoodMasterTool } from '#llm/domain-tools/tools/search-food-master'
 import { createUpdateUserProfileTool } from '#llm/domain-tools/tools/update-user-profile'
 import { createWebSearchTool } from '#llm/domain-tools/tools/web-search'
@@ -55,6 +57,7 @@ const encodeError = (error: ToolError): LlmToolExecutionResult => {
 export interface DomainToolsDeps {
   readonly mealLogService: MealLogService
   readonly foodMasterService: FoodMasterService
+  readonly foodMasterUnitService: FoodMasterUnitService
   readonly foodMatcher: FoodMatcher
   readonly mealHistoryService: MealHistoryService
   readonly userProfileService: UserProfileService
@@ -75,6 +78,7 @@ export const createDomainToolsRegistry = (
     createRecordMealLogTool(deps.mealLogService),
     createSearchFoodMasterTool(deps.foodMatcher),
     createRegisterFoodMasterTool(deps.foodMasterService),
+    createRegisterFoodMasterUnitTool(deps.foodMasterUnitService),
     createQueryMealHistoryTool(deps.mealHistoryService),
     createGetUserProfileTool(deps.userProfileService),
     createUpdateUserProfileTool(deps.userProfileService),

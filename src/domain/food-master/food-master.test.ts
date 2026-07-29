@@ -93,6 +93,7 @@ describeIfDb('FoodMasterService + Repository', () => {
       source: 'web_search',
       sourceUrl: 'https://example.com/rice',
       nutrition: { energy_kcal: 168, protein_g: 2.5, iron_mg: 0.1 },
+      units: [],
       createdAt: '<date>',
     })
 
@@ -120,6 +121,7 @@ describeIfDb('FoodMasterService + Repository', () => {
       source: 'composition_table_estimate',
       sourceUrl: null,
       nutrition: { energy_kcal: 250 },
+      units: [],
       createdAt: '<date>',
     })
   })
@@ -164,6 +166,7 @@ describeIfDb('FoodMasterService + Repository', () => {
       source: 'web_search',
       sourceUrl: null,
       nutrition: { energy_kcal: 67 },
+      units: [],
       createdAt: '<date>',
     })
   })
@@ -304,4 +307,85 @@ describeIfDb('FoodMasterService + Repository', () => {
       (await service.getById('fm_does_not_exist'))._unsafeUnwrap(),
     ).toEqual(null)
   })
+
+  it('registers unit definitions and round-trips them through getById, normalized to lowercase', async () => {
+    const registered = (
+      await service.register({
+        ...baseInput,
+        name: 'egg',
+        units: [
+          { unit: '個', gramsPerUnit: 55 },
+          { unit: 'ML', gramsPerUnit: 1.03 },
+        ],
+      })
+    )._unsafeUnwrap()
+
+    expect(normalize(registered)).toEqual({
+      id: 'fm_test_0001',
+      name: 'egg',
+      aliases: [],
+      isEstimated: false,
+      source: 'user_input',
+      sourceUrl: null,
+      nutrition: baseInput.nutrition,
+      units: [
+        { unit: '個', gramsPerUnit: 55 },
+        { unit: 'ml', gramsPerUnit: 1.03 },
+      ],
+      createdAt: '<date>',
+    })
+
+    const fetched = (await service.getById('fm_test_0001'))._unsafeUnwrap()
+    expect(fetched === null ? null : normalize(fetched)).toEqual(
+      normalize(registered),
+    )
+  })
+
+  it('rejects an empty unit string', async () => {
+    const captured = await captureDomainError(
+      service.register({
+        ...baseInput,
+        name: 'egg',
+        units: [{ unit: '  ', gramsPerUnit: 55 }],
+      }),
+    )
+
+    expect(captured).toEqual({ code: 'empty_unit', details: {} })
+  })
+
+  it('rejects units that duplicate each other after normalization', async () => {
+    const captured = await captureDomainError(
+      service.register({
+        ...baseInput,
+        name: 'egg',
+        units: [
+          { unit: '個', gramsPerUnit: 55 },
+          { unit: ' 個 ', gramsPerUnit: 60 },
+        ],
+      }),
+    )
+
+    expect(captured).toEqual({
+      code: 'duplicate_unit_in_input',
+      details: { units: ['個', '個'] },
+    })
+  })
+
+  it.each([0, -1, Number.NaN, Number.POSITIVE_INFINITY, 20_000])(
+    'rejects an implausible grams_per_unit %p',
+    async (gramsPerUnit) => {
+      const captured = await captureDomainError(
+        service.register({
+          ...baseInput,
+          name: 'egg',
+          units: [{ unit: '個', gramsPerUnit }],
+        }),
+      )
+
+      expect(captured).toEqual({
+        code: 'implausible_grams_per_unit',
+        details: { unit: '個', gramsPerUnit },
+      })
+    },
+  )
 })

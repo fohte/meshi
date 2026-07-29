@@ -22,6 +22,11 @@ const NON_BLANK = /\S/
 // root of a tool's input schema, so the source/is_estimated combination rule
 // is enforced with .refine() and spelled out in the description below rather
 // than the JSON Schema.
+const unitDefinitionInput = z.object({
+  unit: z.string().min(1).regex(NON_BLANK),
+  grams_per_unit: z.number().positive(),
+})
+
 const inputSchema = z
   .object({
     name: z.string().min(1).regex(NON_BLANK),
@@ -33,6 +38,7 @@ const inputSchema = z
     source: z.enum(['web_search', 'composition_table_estimate', 'user_input']),
     is_estimated: z.boolean(),
     source_url: z.url().optional(),
+    units: z.array(unitDefinitionInput).optional(),
   })
   .refine((v) => !isInvalidSourceCombination(v.source, v.is_estimated), {
     message: "is_estimated=true must not be combined with source='web_search'",
@@ -52,7 +58,7 @@ export const createRegisterFoodMasterTool = (
 ): DomainTool => ({
   name: 'register_food_master',
   description:
-    'Register a new food_master row with per-100g nutrition values. source=web_search requires is_estimated=false (pair it with source_url for confirmed values); composition_table_estimate and user_input allow is_estimated to be true or false.',
+    "Register a new food_master row with per-100g nutrition values. source=web_search requires is_estimated=false (pair it with source_url for confirmed values); composition_table_estimate and user_input allow is_estimated to be true or false. Pass units for every non-mass unit (個/杯/ml/...) this food might later be recorded with — record_meal_log rejects a unit it can't resolve to grams, so add every unit the user is likely to use (g/kg/mg need no entry). If a unit is missing later, use register_food_master_unit to add it instead of re-registering the food.",
   inputSchema: z.toJSONSchema(inputSchema, { io: 'input' }),
   async execute(
     input: unknown,
@@ -71,6 +77,14 @@ export const createRegisterFoodMasterTool = (
         ...(parsed.value.source_url === undefined
           ? {}
           : { sourceUrl: parsed.value.source_url }),
+        ...(parsed.value.units === undefined
+          ? {}
+          : {
+              units: parsed.value.units.map((u) => ({
+                unit: u.unit,
+                gramsPerUnit: u.grams_per_unit,
+              })),
+            }),
       })
       .map((master) => ({ food_master_id: master.id }))
       .mapErr((e): ToolError => ({
