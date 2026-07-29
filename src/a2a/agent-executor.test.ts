@@ -133,7 +133,16 @@ const normalizeEvent = (event: AgentExecutionEvent): AgentExecutionEvent => {
     }
   }
   if (event.kind === 'status-update') {
-    return { ...event, status: { ...event.status, timestamp: NORMALIZED } }
+    return {
+      ...event,
+      status: {
+        ...event.status,
+        timestamp: NORMALIZED,
+        ...(event.status.message !== undefined
+          ? { message: { ...event.status.message, messageId: NORMALIZED } }
+          : {}),
+      },
+    }
   }
   return event
 }
@@ -285,6 +294,7 @@ describe('runAgentTurn', () => {
     await runAgentTurn(
       agent,
       new RequestContext(userMessage, taskId, contextId),
+      undefined,
       logger,
     )
 
@@ -372,6 +382,7 @@ describe('runAgentTurn', () => {
     await runAgentTurn(
       agent,
       new RequestContext(userMessage, taskId, contextId),
+      undefined,
       logger,
     )
 
@@ -538,6 +549,117 @@ describe('runAgentTurn', () => {
       task.status.message,
     ])
     expect(task.artifacts).toEqual(existingTask.artifacts)
+  })
+})
+
+type InvokeConfig = Parameters<MeshiDomainAgentLike['invoke']>[1]
+
+// Test-only stand-in for the arguments LangChain's BaseTool.invoke passes to
+// handleToolStart (see buildProgressCallbacks in agent-executor.ts) — this
+// file only cares about the tool-name (7th) argument, so the rest are inert
+// placeholders.
+const fireHandleToolStart = (
+  callbacks: InvokeConfig['callbacks'],
+  toolName: string,
+): void => {
+  callbacks?.[0]?.handleToolStart?.(
+    { lc: 1, type: 'not_implemented', id: [] },
+    '{}',
+    'run-1',
+    undefined,
+    undefined,
+    undefined,
+    toolName,
+  )
+}
+
+describe('runAgentTurn progress callbacks', () => {
+  it('invokes onToolStart with the name of each tool the domain agent starts', async () => {
+    const contextId = `ctx-${randomUUID()}`
+    const taskId = `task-${randomUUID()}`
+    const userMessage = buildUserMessage(taskId, contextId)
+    const invoke = vi
+      .fn()
+      .mockImplementation((_input: unknown, config: InvokeConfig) => {
+        fireHandleToolStart(config.callbacks, 'search_food_master')
+        return buildCompletedInvokeResult('ok')
+      })
+    const agent: MeshiDomainAgentLike = { invoke }
+    const onToolStart = vi.fn()
+
+    await runAgentTurn(
+      agent,
+      new RequestContext(userMessage, taskId, contextId),
+      onToolStart,
+    )
+
+    expect(onToolStart).toHaveBeenCalledExactlyOnceWith('search_food_master')
+  })
+
+  it('does not let an onToolStart failure abort the turn', async () => {
+    const contextId = `ctx-${randomUUID()}`
+    const taskId = `task-${randomUUID()}`
+    const userMessage = buildUserMessage(taskId, contextId)
+    const invoke = vi
+      .fn()
+      .mockImplementation((_input: unknown, config: InvokeConfig) => {
+        fireHandleToolStart(config.callbacks, 'search_food_master')
+        return buildCompletedInvokeResult('ok')
+      })
+    const agent: MeshiDomainAgentLike = { invoke }
+    const onToolStart = vi.fn().mockImplementation(() => {
+      throw new Error('publish failed')
+    })
+    vi.spyOn(console, 'error').mockImplementation(() => {})
+
+    const task = await runAgentTurn(
+      agent,
+      new RequestContext(userMessage, taskId, contextId),
+      onToolStart,
+    )
+
+    const agentMessage = buildExpectedAgentMessage(taskId, contextId, 'ok')
+    expect(normalizeEvent(task)).toEqual({
+      kind: 'task',
+      id: taskId,
+      contextId,
+      status: {
+        state: 'completed',
+        timestamp: NORMALIZED,
+        message: agentMessage,
+      },
+      history: [userMessage, agentMessage],
+    })
+  })
+
+  it('reports an onToolStart failure to Sentry', async () => {
+    const contextId = `ctx-${randomUUID()}`
+    const taskId = `task-${randomUUID()}`
+    const userMessage = buildUserMessage(taskId, contextId)
+    const invoke = vi
+      .fn()
+      .mockImplementation((_input: unknown, config: InvokeConfig) => {
+        fireHandleToolStart(config.callbacks, 'search_food_master')
+        return buildCompletedInvokeResult('ok')
+      })
+    const agent: MeshiDomainAgentLike = { invoke }
+    const progressError = new Error('publish failed')
+    const onToolStart = vi.fn().mockImplementation(() => {
+      throw progressError
+    })
+    vi.spyOn(console, 'error').mockImplementation(() => {})
+
+    await runAgentTurn(
+      agent,
+      new RequestContext(userMessage, taskId, contextId),
+      onToolStart,
+    )
+
+    expect(captureWithFingerprint).toHaveBeenCalledExactlyOnceWith(
+      progressError,
+      'a2a.agent-executor.progress-failed',
+      { extras: { taskId, contextId } },
+    )
   })
 })
 
@@ -957,21 +1079,124 @@ describeIfDb('createMeshiAgentExecutor', () => {
 
     expect(maxConcurrent).toBe(1)
   })
+
+  it('publishes an immediate status-update with progress text when the agent starts a mapped tool', async () => {
+    const contextId = `ctx-${randomUUID()}`
+    const taskId = `task-${randomUUID()}`
+    const userMessage = buildUserMessage(taskId, contextId)
+    const agent: MeshiDomainAgentLike = {
+      invoke: vi
+        .fn()
+        .mockImplementation((_input: unknown, config: InvokeConfig) => {
+          fireHandleToolStart(config.callbacks, 'search_food_master')
+          return buildCompletedInvokeResult('Recorded your meal.')
+        }),
+    }
+    const executor = createMeshiAgentExecutor({
+      agent,
+      sql: getTestSql(),
+      heartbeatIntervalMs: 1_000_000,
+    })
+    const { bus, published } = buildEventBus()
+
+    await executor.execute(
+      new RequestContext(userMessage, taskId, contextId),
+      bus,
+    )
+
+    const progressMessage = buildExpectedAgentMessage(
+      taskId,
+      contextId,
+      'Looking up the food in the food database...',
+    )
+    const agentMessage = buildExpectedAgentMessage(
+      taskId,
+      contextId,
+      'Recorded your meal.',
+    )
+    expect(published.map(normalizeEvent)).toEqual([
+      {
+        kind: 'task',
+        id: taskId,
+        contextId,
+        status: { state: 'working', timestamp: NORMALIZED },
+        history: [userMessage],
+      },
+      {
+        kind: 'status-update',
+        taskId,
+        contextId,
+        status: {
+          state: 'working',
+          timestamp: NORMALIZED,
+          message: progressMessage,
+        },
+        final: false,
+      },
+      {
+        kind: 'task',
+        id: taskId,
+        contextId,
+        status: {
+          state: 'completed',
+          timestamp: NORMALIZED,
+          message: agentMessage,
+        },
+        history: [userMessage, agentMessage],
+      },
+    ])
+  })
+
+  it('does not publish a progress status-update for a tool name with no mapped progress text', async () => {
+    const contextId = `ctx-${randomUUID()}`
+    const taskId = `task-${randomUUID()}`
+    const userMessage = buildUserMessage(taskId, contextId)
+    const agent: MeshiDomainAgentLike = {
+      invoke: vi
+        .fn()
+        .mockImplementation((_input: unknown, config: InvokeConfig) => {
+          // meshi_agent_response is the synthetic structured-output tool
+          // (see response-schema.ts) — it reports the turn's outcome, not
+          // an in-progress step, so it's deliberately unmapped.
+          fireHandleToolStart(config.callbacks, 'meshi_agent_response')
+          return buildCompletedInvokeResult('ok')
+        }),
+    }
+    const executor = createMeshiAgentExecutor({
+      agent,
+      sql: getTestSql(),
+      heartbeatIntervalMs: 1_000_000,
+    })
+    const { bus, published } = buildEventBus()
+
+    await executor.execute(
+      new RequestContext(userMessage, taskId, contextId),
+      bus,
+    )
+
+    expect(published.map((event) => event.kind)).toEqual(['task', 'task'])
+  })
 })
 
 // The agent's invoke() Promise executor only runs once execute() actually
 // calls invoke() (not when this factory runs), so resolveInvoke defers to
 // whichever `resolve` that later call captures rather than being returned
-// directly.
-const buildPendingAgent = (): {
+// directly. onInvoke, when given, runs synchronously inside that same
+// Promise executor — the same point in the call stack LangChain itself
+// would fire handleToolStart from — letting a test simulate a tool call
+// starting before invoke() resolves.
+const buildPendingAgent = (
+  onInvoke?: (config: InvokeConfig) => void,
+): {
   agent: MeshiDomainAgentLike
   resolveInvoke: (value: { messages: AgentInvokeMessage[] }) => void
 } => {
   let resolve: ((value: { messages: AgentInvokeMessage[] }) => void) | undefined
   const agent: MeshiDomainAgentLike = {
     invoke: vi.fn().mockImplementation(
-      () =>
+      (_input: unknown, config: InvokeConfig) =>
         new Promise((res) => {
+          onInvoke?.(config)
           resolve = res
         }),
     ),
@@ -1035,6 +1260,67 @@ describe('createMeshiAgentExecutor heartbeat', () => {
       (event) => event.kind === 'status-update',
     )
     expect(heartbeats).toHaveLength(3)
+  })
+
+  it('carries the latest tool-start progress text forward into later heartbeats', async () => {
+    vi.useFakeTimers()
+    const contextId = `ctx-${randomUUID()}`
+    const taskId = `task-${randomUUID()}`
+    const userMessage = buildUserMessage(taskId, contextId)
+    const { agent, resolveInvoke } = buildPendingAgent((config) => {
+      fireHandleToolStart(config.callbacks, 'search_food_master')
+    })
+    const executor = createMeshiAgentExecutor({
+      agent,
+      sql: buildFakeSql(),
+      heartbeatIntervalMs: 1_000,
+    })
+    const { bus, published } = buildEventBus()
+
+    const executing = executor.execute(
+      new RequestContext(userMessage, taskId, contextId),
+      bus,
+    )
+
+    await vi.advanceTimersByTimeAsync(1_000)
+    resolveInvoke(buildCompletedInvokeResult('ok'))
+    await executing
+
+    const progressMessage = buildExpectedAgentMessage(
+      taskId,
+      contextId,
+      'Looking up the food in the food database...',
+    )
+    // The first status-update is the immediate publish fired when
+    // search_food_master started; the second is the 1s heartbeat tick,
+    // carrying that same progress text forward instead of dropping it.
+    const statusUpdates = published.filter(
+      (event) => event.kind === 'status-update',
+    )
+    expect(statusUpdates.map(normalizeEvent)).toEqual([
+      {
+        kind: 'status-update',
+        taskId,
+        contextId,
+        status: {
+          state: 'working',
+          timestamp: NORMALIZED,
+          message: progressMessage,
+        },
+        final: false,
+      },
+      {
+        kind: 'status-update',
+        taskId,
+        contextId,
+        status: {
+          state: 'working',
+          timestamp: NORMALIZED,
+          message: progressMessage,
+        },
+        final: false,
+      },
+    ])
   })
 
   it('does not let a heartbeat publish failure abort the execution', async () => {
