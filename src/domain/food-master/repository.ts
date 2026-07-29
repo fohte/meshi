@@ -2,11 +2,13 @@ import { err, errAsync, ok, type Result, ResultAsync } from 'neverthrow'
 import type postgres from 'postgres'
 
 import type { Sql } from '#db/index'
+import { getConstraintName, isUniqueViolation } from '#db/pg-error'
 import { FoodMasterDomainError } from '#domain/food-master/errors'
 import { defaultIdGenerator, type IdGenerator } from '#domain/food-master/id'
 import type {
   FoodMaster,
   FoodMasterId,
+  FoodMasterUnitDefinition,
   FoodSource,
   NutritionMap,
   RegisterFoodMasterInput,
@@ -15,6 +17,11 @@ import {
   hasDuplicateAfterTrim,
   isInvalidSourceCombination,
 } from '#domain/food-master/validation'
+import {
+  isImplausibleGramsPerUnit,
+  isReservedUnit,
+  normalizeUnit,
+} from '#domain/food-master-unit/validation'
 
 export interface FoodMasterRepository {
   register(
@@ -34,43 +41,8 @@ export interface CreateRepositoryOptions {
   readonly wrapInTransaction?: boolean
 }
 
-const PG_UNIQUE_VIOLATION = '23505'
-
 const FOOD_MASTERS_NAME_CONSTRAINT = 'food_masters_name_key'
 const FOOD_MASTER_ALIASES_ALIAS_CONSTRAINT = 'food_master_aliases_alias_key'
-
-interface PgErrorShape {
-  readonly code?: string
-  readonly constraint_name?: string
-}
-
-const findPostgresError = (err: unknown): PgErrorShape | undefined => {
-  let current: unknown = err
-  while (typeof current === 'object' && current !== null) {
-    if ('code' in current && typeof current.code === 'string') {
-      const shape: PgErrorShape = { code: current.code }
-      if (
-        'constraint_name' in current &&
-        typeof current.constraint_name === 'string'
-      ) {
-        return { ...shape, constraint_name: current.constraint_name }
-      }
-      return shape
-    }
-    if ('cause' in current) {
-      current = current.cause
-      continue
-    }
-    return undefined
-  }
-  return undefined
-}
-
-const isUniqueViolation = (err: unknown): boolean =>
-  findPostgresError(err)?.code === PG_UNIQUE_VIOLATION
-
-const getConstraintName = (err: unknown): string | undefined =>
-  findPostgresError(err)?.constraint_name
 
 const errorMessage = (e: unknown): string =>
   e instanceof Error ? e.message : String(e)
@@ -82,6 +54,7 @@ interface NormalizedInput {
   readonly source: FoodSource
   readonly isEstimated: boolean
   readonly sourceUrl: string | null
+  readonly units: ReadonlyArray<FoodMasterUnitDefinition>
 }
 
 const normalizeAndValidate = (
@@ -131,6 +104,45 @@ const normalizeAndValidate = (
       ),
     )
   }
+  const units = (input.units ?? []).map((u) => ({
+    unit: normalizeUnit(u.unit),
+    gramsPerUnit: u.gramsPerUnit,
+  }))
+  if (units.some((u) => u.unit === '')) {
+    return err(
+      new FoodMasterDomainError('empty_unit', 'unit must not be empty string'),
+    )
+  }
+  const reservedUnit = units.find((u) => isReservedUnit(u.unit))
+  if (reservedUnit !== undefined) {
+    return err(
+      new FoodMasterDomainError(
+        'reserved_unit',
+        `unit is resolved by a fixed rule and can't be overridden per food: ${reservedUnit.unit}`,
+        { unit: reservedUnit.unit },
+      ),
+    )
+  }
+  if (hasDuplicateAfterTrim(units.map((u) => u.unit))) {
+    return err(
+      new FoodMasterDomainError(
+        'duplicate_unit_in_input',
+        'units must not contain duplicates within the same input',
+        { units: units.map((u) => u.unit) },
+      ),
+    )
+  }
+  for (const u of units) {
+    if (isImplausibleGramsPerUnit(u.gramsPerUnit)) {
+      return err(
+        new FoodMasterDomainError(
+          'implausible_grams_per_unit',
+          `grams_per_unit must be a plausible positive mass (unit=${u.unit}, gramsPerUnit=${String(u.gramsPerUnit)})`,
+          { unit: u.unit, gramsPerUnit: u.gramsPerUnit },
+        ),
+      )
+    }
+  }
   return ok({
     name,
     aliases,
@@ -138,6 +150,7 @@ const normalizeAndValidate = (
     source: input.source,
     isEstimated: input.isEstimated,
     sourceUrl: input.sourceUrl ?? null,
+    units,
   })
 }
 
@@ -276,6 +289,15 @@ export const createFoodMasterRepository = (
       await tx`INSERT INTO food_master_nutrients ${tx(nutrientRows, 'food_master_id', 'nutrient_code', 'value')}`
     }
 
+    if (normalized.units.length > 0) {
+      const unitRows = normalized.units.map((u) => ({
+        food_master_id: id,
+        unit: u.unit,
+        grams_per_unit: String(u.gramsPerUnit),
+      }))
+      await tx`INSERT INTO food_master_units ${tx(unitRows, 'food_master_id', 'unit', 'grams_per_unit')}`
+    }
+
     return ok({
       id: inserted.id,
       name: inserted.name,
@@ -284,6 +306,7 @@ export const createFoodMasterRepository = (
       source: inserted.source,
       sourceUrl: inserted.source_url,
       nutrition: normalized.nutrition,
+      units: normalized.units,
       createdAt: inserted.created_at,
     })
   }
@@ -322,13 +345,18 @@ export const createFoodMasterRepository = (
         const row = rows[0]
         if (row === undefined) return null
 
-        const [aliasRows, nutrientRows] = await Promise.all([
+        const [aliasRows, nutrientRows, unitRows] = await Promise.all([
           sql<{ alias: string }[]>`
             SELECT alias FROM food_master_aliases WHERE food_master_id = ${id}
           `,
           sql<{ nutrient_code: string; value: string }[]>`
             SELECT nutrient_code, value
             FROM food_master_nutrients
+            WHERE food_master_id = ${id}
+          `,
+          sql<{ unit: string; grams_per_unit: string }[]>`
+            SELECT unit, grams_per_unit
+            FROM food_master_units
             WHERE food_master_id = ${id}
           `,
         ])
@@ -341,6 +369,10 @@ export const createFoodMasterRepository = (
           source: row.source,
           sourceUrl: row.source_url,
           nutrition: toNutritionMap(nutrientRows),
+          units: unitRows.map((r) => ({
+            unit: r.unit,
+            gramsPerUnit: Number(r.grams_per_unit),
+          })),
           createdAt: row.created_at,
         }
       })(),

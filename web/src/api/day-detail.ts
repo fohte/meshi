@@ -1,9 +1,8 @@
-import type { UseQueryResult } from '@tanstack/react-query'
+import type { ResultAsync } from 'neverthrow'
 import { z } from 'zod'
 
-import type { ApiRequestError } from '#api/fetch-json'
-import { fetchJson } from '#api/fetch-json'
-import { useResultQuery } from '#api/use-result-query'
+import type { ApiRequestError } from '#api/errors'
+import { requestJson } from '#api/request'
 
 export const MEAL_TYPES = ['breakfast', 'lunch', 'dinner', 'snack'] as const
 export type MealType = (typeof MEAL_TYPES)[number]
@@ -32,9 +31,7 @@ const dayDetailSchema = z.object({
 
 export type DayDetail = z.infer<typeof dayDetailSchema>
 
-export const useDayDetail = (
+export const fetchDayDetail = (
   date: string,
-): UseQueryResult<DayDetail, ApiRequestError> =>
-  useResultQuery(['day-detail', date], () =>
-    fetchJson(`/api/days/${date}`, dayDetailSchema),
-  )
+): ResultAsync<DayDetail, ApiRequestError> =>
+  requestJson(`/api/days/${date}`, dayDetailSchema)

@@ -96,6 +96,62 @@ describeIfDb('DayDetailService.query', () => {
     })
   })
 
+  it('computes per-item kcal from amount_grams, not the display quantity', async () => {
+    const tx = getTx()
+    await seedNutrientDefinition(tx, {
+      code: 'energy_kcal',
+      displayName: 'energy',
+      unit: 'kcal',
+      isMajor: true,
+      sortOrder: 1,
+    })
+    await seedFoodMaster(tx, {
+      id: 'egg',
+      name: 'たまご',
+      source: 'user_input',
+      nutrients: { energy_kcal: 151 },
+    })
+    // 2 個 at 55g/個 resolves to 110g — quantity alone (2) would give the
+    // wrong kcal if this read quantity directly instead of amount_grams.
+    await seedMealLog(tx, {
+      id: 'log-1',
+      foodMasterId: 'egg',
+      eatenAt: new Date('2026-06-01T00:00:00Z'),
+      quantity: 2,
+      unit: '個',
+      amountGrams: 110,
+    })
+
+    const mealHistoryService = createMealHistoryService(tx)
+    const service = createDayDetailService(tx, mealHistoryService)
+
+    const result = (
+      await service.query({
+        periodFrom: new Date('2026-06-01T00:00:00Z'),
+        periodTo: new Date('2026-06-02T00:00:00Z'),
+      })
+    )._unsafeUnwrap()
+
+    expect(result).toEqual({
+      totals: { energy_kcal: (151 * 110) / 100 },
+      hasEstimatedValues: false,
+      entries: [
+        {
+          id: 'log-1',
+          foodMasterId: 'egg',
+          foodName: 'たまご',
+          eatenAt: new Date('2026-06-01T00:00:00Z'),
+          mealType: 'breakfast',
+          quantity: 2,
+          unit: '個',
+          note: null,
+          kcal: (151 * 110) / 100,
+          isEstimated: false,
+        },
+      ],
+    })
+  })
+
   it('returns empty totals and entries when nothing was eaten in the period', async () => {
     const tx = getTx()
     const mealHistoryService = createMealHistoryService(tx)

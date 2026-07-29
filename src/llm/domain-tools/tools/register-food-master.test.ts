@@ -22,6 +22,7 @@ const sampleMaster = (
   source: input.source,
   sourceUrl: input.sourceUrl ?? null,
   nutrition: input.nutrition,
+  units: input.units ?? [],
   createdAt: new Date('2026-06-18T00:00:00.000Z'),
 })
 
@@ -66,6 +67,17 @@ describe('register_food_master tool', () => {
         },
         is_estimated: { type: 'boolean' },
         source_url: { type: 'string', format: 'uri' },
+        units: {
+          type: 'array',
+          items: {
+            type: 'object',
+            properties: {
+              unit: nameField,
+              grams_per_unit: { type: 'number', exclusiveMinimum: 0 },
+            },
+            required: ['unit', 'grams_per_unit'],
+          },
+        },
       },
       required: ['name', 'nutrition_per_100g', 'source', 'is_estimated'],
     })
@@ -95,6 +107,28 @@ describe('register_food_master tool', () => {
         source: 'web_search',
         isEstimated: false,
         sourceUrl: 'https://example.test/banana',
+      },
+    ])
+  })
+
+  it('bridges units to gramsPerUnit-shaped input for FoodMasterService.register', async () => {
+    const { tool, calls } = setup()
+
+    await tool.execute({
+      name: '卵',
+      nutrition_per_100g: { energy_kcal: 151 },
+      source: 'user_input',
+      is_estimated: false,
+      units: [{ unit: '個', grams_per_unit: 55 }],
+    })
+
+    expect(calls).toEqual([
+      {
+        name: '卵',
+        nutrition: { energy_kcal: 151 },
+        source: 'user_input',
+        isEstimated: false,
+        units: [{ unit: '個', gramsPerUnit: 55 }],
       },
     ])
   })
@@ -165,6 +199,16 @@ describe('register_food_master tool', () => {
         nutrition_per_100g: { energy_kcal: 1 },
         source: 'user_input',
         is_estimated: false,
+      },
+    },
+    {
+      label: 'a non-positive grams_per_unit',
+      input: {
+        name: 'X',
+        nutrition_per_100g: { energy_kcal: 1 },
+        source: 'user_input',
+        is_estimated: false,
+        units: [{ unit: '個', grams_per_unit: 0 }],
       },
     },
   ])('rejects $label with invalid_input', async ({ input }) => {

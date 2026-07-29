@@ -5,20 +5,19 @@ import {
   DomainError,
   FoodMasterNotFoundError,
   FutureEatenAtError,
+  ImplausibleQuantityError,
   InvalidQuantityError,
   MealLogNotFoundError,
+  UnknownUnitError,
 } from '#domain/meal-log/errors'
 import type {
   FoundMealLog,
   InsertMealLogInput,
   MealLogRepository,
+  UpdateMealLogPatch,
 } from '#domain/meal-log/meal-log-repository'
 import { createMealLogService } from '#domain/meal-log/meal-log-service'
-import type {
-  FoodMasterRef,
-  MealLogRow,
-  UpdateMealLogInput,
-} from '#domain/meal-log/types'
+import type { FoodMasterRef, MealLogRow } from '#domain/meal-log/types'
 
 const NOW = new Date('2026-06-16T12:00:00.000Z')
 const CREATED_AT = new Date('2026-06-16T12:00:00.500Z')
@@ -34,14 +33,14 @@ const createFakeRepository = (
 ): {
   repository: MealLogRepository
   inserted: InsertMealLogInput[]
-  updated: UpdateMealLogInput[]
+  updated: UpdateMealLogPatch[]
 } => {
   const foodMasterById = new Map(options.foodMasters.map((f) => [f.id, f]))
   const logs = new Map(
     (options.existingLogs ?? []).map((found) => [found.log.id, found]),
   )
   const inserted: InsertMealLogInput[] = []
-  const updated: UpdateMealLogInput[] = []
+  const updated: UpdateMealLogPatch[] = []
   const repository: MealLogRepository = {
     findFoodMaster: (id) => {
       const food = foodMasterById.get(id)
@@ -59,6 +58,7 @@ const createFakeRepository = (
         mealType: input.mealType,
         quantity: input.quantity,
         unit: input.unit,
+        amountGrams: input.amountGrams,
         note: input.note,
         createdAt: CREATED_AT,
       }
@@ -81,6 +81,9 @@ const createFakeRepository = (
         ...(input.mealType === undefined ? {} : { mealType: input.mealType }),
         ...(input.quantity === undefined ? {} : { quantity: input.quantity }),
         ...(input.unit === undefined ? {} : { unit: input.unit }),
+        ...(input.amountGrams === undefined
+          ? {}
+          : { amountGrams: input.amountGrams }),
         ...(input.note === undefined ? {} : { note: input.note }),
       }
       logs.set(input.id, { log: merged, food: existing.food })
@@ -101,6 +104,7 @@ const RICE: FoodMasterRef = {
     fat_g: 0.3,
     carb_g: 37.1,
   },
+  units: {},
 }
 
 const KARAAGE_GUESS: FoodMasterRef = {
@@ -113,8 +117,11 @@ const KARAAGE_GUESS: FoodMasterRef = {
     fat_g: 18.1,
     carb_g: 7.9,
   },
+  units: {},
 }
 
+// 1 杯 (cup) of latte is defined as 200g so the ×0.5 serving test below
+// resolves to a whole-number amountGrams.
 const CAFE_LATTE: FoodMasterRef = {
   id: 'fm_latte',
   name: 'カフェラテ',
@@ -125,6 +132,7 @@ const CAFE_LATTE: FoodMasterRef = {
     fat_g: 3.4,
     carb_g: 4.6,
   },
+  units: { 杯: 200 },
 }
 
 const EXISTING_RICE_LOG: FoundMealLog = {
@@ -135,6 +143,7 @@ const EXISTING_RICE_LOG: FoundMealLog = {
     mealType: 'dinner',
     quantity: 100,
     unit: 'g',
+    amountGrams: 100,
     note: null,
     createdAt: CREATED_AT,
   },
@@ -179,6 +188,7 @@ describe('MealLogService.record', () => {
       mealType: 'dinner',
       quantity: 100,
       unit: 'g',
+      amountGrams: 100,
       note: null,
       createdAt: CREATED_AT,
       nutrition: {
@@ -197,6 +207,7 @@ describe('MealLogService.record', () => {
         mealType: 'dinner',
         quantity: 100,
         unit: 'g',
+        amountGrams: 100,
         note: null,
       },
     ])
@@ -221,6 +232,7 @@ describe('MealLogService.record', () => {
       mealType: 'dinner',
       quantity: 200,
       unit: 'g',
+      amountGrams: 200,
       note: null,
       createdAt: CREATED_AT,
       nutrition: {
@@ -256,7 +268,7 @@ describe('MealLogService.record', () => {
     },
   )
 
-  it('treats non-gram units as per-serving so 0.5 杯 multiplies by 0.5', async () => {
+  it('resolves 0.5 杯 via the food-specific unit definition (1 杯 = 200g)', async () => {
     const { service } = buildService([CAFE_LATTE])
 
     const result = (
@@ -275,13 +287,14 @@ describe('MealLogService.record', () => {
       mealType: 'dinner',
       quantity: 0.5,
       unit: '杯',
+      amountGrams: 100,
       note: null,
       createdAt: CREATED_AT,
       nutrition: {
-        energy_kcal: 30,
-        protein_g: 1.6,
-        fat_g: 1.7,
-        carb_g: 2.3,
+        energy_kcal: 60,
+        protein_g: 3.2,
+        fat_g: 3.4,
+        carb_g: 4.6,
       },
       isEstimated: false,
     })
@@ -314,6 +327,7 @@ describe('MealLogService.record', () => {
       mealType: 'dinner',
       quantity: 100,
       unit: 'g',
+      amountGrams: 100,
       note: null,
       createdAt: CREATED_AT,
       nutrition: {
@@ -331,6 +345,7 @@ describe('MealLogService.record', () => {
       mealType: 'dinner',
       quantity: 100,
       unit: 'g',
+      amountGrams: 100,
       note: null,
       createdAt: CREATED_AT,
       nutrition: {
@@ -382,6 +397,7 @@ describe('MealLogService.record', () => {
       mealType: 'dinner',
       quantity: 100,
       unit: 'g',
+      amountGrams: 100,
       note: null,
       createdAt: CREATED_AT,
       nutrition: {
@@ -455,6 +471,7 @@ describe('MealLogService.record', () => {
       mealType: 'snack',
       quantity: 100,
       unit: 'g',
+      amountGrams: 100,
       note: null,
       createdAt: CREATED_AT,
       nutrition: {
@@ -473,6 +490,7 @@ describe('MealLogService.record', () => {
         mealType: 'snack',
         quantity: 100,
         unit: 'g',
+        amountGrams: 100,
         note: null,
       },
     ])
@@ -498,6 +516,7 @@ describe('MealLogService.record', () => {
       mealType: 'breakfast',
       quantity: 100,
       unit: 'g',
+      amountGrams: 100,
       note: null,
       createdAt: CREATED_AT,
       nutrition: {
@@ -508,6 +527,49 @@ describe('MealLogService.record', () => {
       },
       isEstimated: false,
     })
+  })
+
+  it('rejects a unit undefined for the food_master with UnknownUnitError', async () => {
+    const { service, inserted } = buildService([CAFE_LATTE])
+
+    const error = (
+      await service.record({
+        foodMasterId: 'fm_latte',
+        eatenAt: EATEN_AT,
+        quantity: 1,
+        unit: '個',
+      })
+    )._unsafeUnwrapErr()
+
+    expect(error).toBeInstanceOf(UnknownUnitError)
+    expect(error).toEqual(new UnknownUnitError('個', ['杯']))
+    expect(inserted).toEqual([])
+  })
+
+  it('rejects a resolved amount over 10kg with ImplausibleQuantityError', async () => {
+    const HUGE_POT: FoodMasterRef = {
+      id: 'fm_huge_pot',
+      name: '寸胴鍋',
+      isEstimated: false,
+      nutritionPer100g: { energy_kcal: 80 },
+      units: { 鍋: 20000 },
+    }
+    const { service, inserted } = buildService([HUGE_POT])
+
+    const error = (
+      await service.record({
+        foodMasterId: 'fm_huge_pot',
+        eatenAt: EATEN_AT,
+        quantity: 1,
+        unit: '鍋',
+      })
+    )._unsafeUnwrapErr()
+
+    expect(error).toBeInstanceOf(ImplausibleQuantityError)
+    expect(
+      error instanceof ImplausibleQuantityError ? error.amountGrams : undefined,
+    ).toBe(20000)
+    expect(inserted).toEqual([])
   })
 })
 
@@ -527,6 +589,7 @@ describe('MealLogService.update', () => {
       mealType: 'dinner',
       quantity: 100,
       unit: 'g',
+      amountGrams: 100,
       note: null,
       createdAt: CREATED_AT,
       nutrition: {
@@ -557,6 +620,7 @@ describe('MealLogService.update', () => {
       mealType: 'dinner',
       quantity: 200,
       unit: 'g',
+      amountGrams: 200,
       note: null,
       createdAt: CREATED_AT,
       nutrition: {
@@ -567,7 +631,7 @@ describe('MealLogService.update', () => {
       },
       isEstimated: false,
     })
-    expect(updated).toEqual([{ id: 'ml_1', quantity: 200 }])
+    expect(updated).toEqual([{ id: 'ml_1', quantity: 200, amountGrams: 200 }])
   })
 
   it('changes food_master_id and recomputes nutrition against the new food', async () => {
@@ -587,6 +651,7 @@ describe('MealLogService.update', () => {
       mealType: 'dinner',
       quantity: 100,
       unit: 'g',
+      amountGrams: 100,
       note: null,
       createdAt: CREATED_AT,
       nutrition: {
@@ -597,7 +662,9 @@ describe('MealLogService.update', () => {
       },
       isEstimated: true,
     })
-    expect(updated).toEqual([{ id: 'ml_1', foodMasterId: 'fm_karaage' }])
+    expect(updated).toEqual([
+      { id: 'ml_1', foodMasterId: 'fm_karaage', amountGrams: 100 },
+    ])
   })
 
   it('does not re-fetch food_master when foodMasterId equals the current value', async () => {
@@ -617,6 +684,7 @@ describe('MealLogService.update', () => {
       mealType: 'dinner',
       quantity: 100,
       unit: 'g',
+      amountGrams: 100,
       note: null,
       createdAt: CREATED_AT,
       nutrition: {
@@ -630,13 +698,22 @@ describe('MealLogService.update', () => {
     expect(updated).toEqual([{ id: 'ml_1', foodMasterId: 'fm_rice' }])
   })
 
-  it('updates multiple fields together and forwards only the provided ones', async () => {
-    const { service, updated } = buildService([RICE], [EXISTING_RICE_LOG])
+  it('updates multiple fields together, recomputing amountGrams for the changed unit', async () => {
+    // RICE with a food-specific 杯 definition — EXISTING_RICE_LOG is 100g,
+    // which as a bare RICE fixture has no 杯 unit; give this test's food its
+    // own units so resolving the new unit doesn't hit UnknownUnitError.
+    const riceWithCupUnit: FoodMasterRef = { ...RICE, units: { 杯: 150 } }
+    const existingLog: FoundMealLog = {
+      log: EXISTING_RICE_LOG.log,
+      food: riceWithCupUnit,
+    }
+    const { service, updated } = buildService([RICE], [existingLog])
 
     const result = (
       await service.update({
         id: 'ml_1',
         mealType: 'snack',
+        quantity: 1,
         unit: '杯',
         note: 'まとめて訂正',
       })
@@ -647,20 +724,28 @@ describe('MealLogService.update', () => {
       foodMasterId: 'fm_rice',
       eatenAt: EATEN_AT,
       mealType: 'snack',
-      quantity: 100,
+      quantity: 1,
       unit: '杯',
+      amountGrams: 150,
       note: 'まとめて訂正',
       createdAt: CREATED_AT,
       nutrition: {
-        energy_kcal: 15600,
-        protein_g: 250,
-        fat_g: 30,
-        carb_g: 3710,
+        energy_kcal: 156 * 1.5,
+        protein_g: 2.5 * 1.5,
+        fat_g: 0.3 * 1.5,
+        carb_g: 37.1 * 1.5,
       },
       isEstimated: false,
     })
     expect(updated).toEqual([
-      { id: 'ml_1', mealType: 'snack', unit: '杯', note: 'まとめて訂正' },
+      {
+        id: 'ml_1',
+        mealType: 'snack',
+        quantity: 1,
+        unit: '杯',
+        amountGrams: 150,
+        note: 'まとめて訂正',
+      },
     ])
   })
 
@@ -734,6 +819,43 @@ describe('MealLogService.update', () => {
       expect(updated).toEqual([])
     },
   )
+
+  it('rejects a unit change undefined for the food_master with UnknownUnitError', async () => {
+    const { service, updated } = buildService([RICE], [EXISTING_RICE_LOG])
+
+    const error = (
+      await service.update({ id: 'ml_1', unit: '個' })
+    )._unsafeUnwrapErr()
+
+    expect(error).toBeInstanceOf(UnknownUnitError)
+    expect(error).toEqual(new UnknownUnitError('個', []))
+    expect(updated).toEqual([])
+  })
+
+  it('rejects a resolved amount over 10kg with ImplausibleQuantityError', async () => {
+    const hugePot: FoodMasterRef = {
+      id: 'fm_huge_pot',
+      name: '寸胴鍋',
+      isEstimated: false,
+      nutritionPer100g: { energy_kcal: 80 },
+      units: { 鍋: 20000 },
+    }
+    const existingLog: FoundMealLog = {
+      log: { ...EXISTING_RICE_LOG.log, foodMasterId: 'fm_huge_pot' },
+      food: hugePot,
+    }
+    const { service, updated } = buildService([], [existingLog])
+
+    const error = (
+      await service.update({ id: 'ml_1', quantity: 1, unit: '鍋' })
+    )._unsafeUnwrapErr()
+
+    expect(error).toBeInstanceOf(ImplausibleQuantityError)
+    expect(
+      error instanceof ImplausibleQuantityError ? error.amountGrams : undefined,
+    ).toBe(20000)
+    expect(updated).toEqual([])
+  })
 })
 
 describe('MealLogService.getById', () => {
@@ -756,6 +878,7 @@ describe('MealLogService.getById', () => {
             mealType: 'lunch',
             quantity: 200,
             unit: 'g',
+            amountGrams: 200,
             note: 'lunch',
             createdAt: CREATED_AT,
           },
@@ -775,6 +898,7 @@ describe('MealLogService.getById', () => {
       mealType: 'lunch',
       quantity: 200,
       unit: 'g',
+      amountGrams: 200,
       note: 'lunch',
       createdAt: CREATED_AT,
       nutrition: {

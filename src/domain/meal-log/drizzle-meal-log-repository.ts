@@ -3,7 +3,12 @@ import { drizzle } from 'drizzle-orm/postgres-js'
 import { err, ok, type Result, ResultAsync } from 'neverthrow'
 
 import type { Sql } from '#db/index'
-import { foodMasterNutrients, foodMasters, mealLogs } from '#db/schema'
+import {
+  foodMasterNutrients,
+  foodMasters,
+  foodMasterUnits,
+  mealLogs,
+} from '#db/schema'
 import type { DomainError } from '#domain/meal-log/errors'
 import {
   FoodMasterNotFoundError,
@@ -13,12 +18,12 @@ import type {
   FoundMealLog,
   InsertMealLogInput,
   MealLogRepository,
+  UpdateMealLogPatch,
 } from '#domain/meal-log/meal-log-repository'
 import type {
   FoodMasterRef,
   MealLogRow,
   MealType,
-  UpdateMealLogInput,
 } from '#domain/meal-log/types'
 
 type Db = ReturnType<typeof drizzle>
@@ -42,6 +47,25 @@ const loadNutrition = async (
   return nutrition
 }
 
+const loadUnits = async (
+  db: Db,
+  foodMasterId: string,
+): Promise<Record<string, number>> => {
+  const rows = await db
+    .select({
+      unit: foodMasterUnits.unit,
+      gramsPerUnit: foodMasterUnits.gramsPerUnit,
+    })
+    .from(foodMasterUnits)
+    .where(eq(foodMasterUnits.foodMasterId, foodMasterId))
+
+  const units: Record<string, number> = {}
+  for (const row of rows) {
+    units[row.unit] = Number(row.gramsPerUnit)
+  }
+  return units
+}
+
 const loadFoodMaster = (
   db: Db,
   foodMasterId: string,
@@ -63,11 +87,16 @@ const loadFoodMaster = (
         return err(new FoodMasterNotFoundError(foodMasterId))
       }
 
+      const [nutritionPer100g, units] = await Promise.all([
+        loadNutrition(db, foodMasterId),
+        loadUnits(db, foodMasterId),
+      ])
       return ok({
         id: master.id,
         name: master.name,
         isEstimated: master.isEstimated,
-        nutritionPer100g: await loadNutrition(db, foodMasterId),
+        nutritionPer100g,
+        units,
       })
     })(),
     (caughtErr) =>
@@ -81,6 +110,7 @@ const toRow = (row: {
   mealType: MealType
   quantity: string
   unit: string
+  amountGrams: string
   note: string | null
   createdAt: Date
 }): MealLogRow => ({
@@ -90,6 +120,7 @@ const toRow = (row: {
   mealType: row.mealType,
   quantity: Number(row.quantity),
   unit: row.unit,
+  amountGrams: Number(row.amountGrams),
   note: row.note,
   createdAt: row.createdAt,
 })
@@ -114,6 +145,7 @@ export const createDrizzleMealLogRepository = (sql: Sql): MealLogRepository => {
               mealType: input.mealType,
               quantity: input.quantity.toString(),
               unit: input.unit,
+              amountGrams: input.amountGrams.toString(),
               note: input.note,
             })
             .returning()
@@ -129,7 +161,7 @@ export const createDrizzleMealLogRepository = (sql: Sql): MealLogRepository => {
       ).andThen((result) => result),
 
     updateMealLog: (
-      input: UpdateMealLogInput,
+      input: UpdateMealLogPatch,
     ): ResultAsync<MealLogRow, DomainError> =>
       ResultAsync.fromPromise(
         (async (): Promise<Result<MealLogRow, DomainError>> => {
@@ -149,6 +181,9 @@ export const createDrizzleMealLogRepository = (sql: Sql): MealLogRepository => {
                 ? {}
                 : { quantity: input.quantity.toString() }),
               ...(input.unit === undefined ? {} : { unit: input.unit }),
+              ...(input.amountGrams === undefined
+                ? {}
+                : { amountGrams: input.amountGrams.toString() }),
               ...(input.note === undefined ? {} : { note: input.note }),
             })
             .where(eq(mealLogs.id, input.id))
@@ -188,11 +223,16 @@ export const createDrizzleMealLogRepository = (sql: Sql): MealLogRepository => {
           const row = rows[0]
           if (row === undefined) return null
 
+          const [nutritionPer100g, units] = await Promise.all([
+            loadNutrition(db, row.food.id),
+            loadUnits(db, row.food.id),
+          ])
           return {
             log: toRow(row.log),
             food: {
               ...row.food,
-              nutritionPer100g: await loadNutrition(db, row.food.id),
+              nutritionPer100g,
+              units,
             },
           }
         })(),

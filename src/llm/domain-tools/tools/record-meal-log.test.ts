@@ -29,6 +29,7 @@ const setup = (
         mealType: input.mealType ?? 'lunch',
         quantity: input.quantity,
         unit: input.unit,
+        amountGrams: input.quantity,
         note: input.note ?? null,
         createdAt: new Date('2026-06-18T00:00:00.000Z'),
         nutrition: { energy_kcal: 252 },

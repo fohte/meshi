@@ -1,10 +1,12 @@
+import { useQuery } from '@tanstack/react-query'
 import { Link } from 'react-router'
 
 import type { DayDetailEntry } from '#api/day-detail'
-import { useDayDetail } from '#api/day-detail'
+import { fetchDayDetail } from '#api/day-detail'
 import type { NutrientDefinition } from '#api/nutrient-definitions'
-import { useNutrientDefinitions } from '#api/nutrient-definitions'
-import { useProfile } from '#api/profile'
+import { fetchNutrientDefinitions } from '#api/nutrient-definitions'
+import { fetchUserProfile } from '#api/profile'
+import { toPromise } from '#api/to-promise'
 import { ErrorRetry } from '#components/ErrorRetry/ErrorRetry'
 import { buildMealTimelineGroups } from '#components/MealTimeline/build-meal-timeline-groups'
 import { MealTimeline } from '#components/MealTimeline/MealTimeline'
@@ -19,6 +21,9 @@ import {
 } from '#lib/jst-date'
 import styles from '#pages/DayDetailView.module.css'
 
+const NUTRIENT_DEFINITIONS_QUERY_KEY = ['nutrient-definitions']
+const PROFILE_QUERY_KEY = ['profile']
+
 export interface DayDetailViewProps {
   readonly date: string
   readonly variant: 'today' | 'day'
@@ -28,9 +33,19 @@ export const DayDetailView = ({
   date,
   variant,
 }: DayDetailViewProps): React.JSX.Element => {
-  const dayDetailQuery = useDayDetail(date)
-  const nutrientDefinitionsQuery = useNutrientDefinitions()
-  const profileQuery = useProfile()
+  const dayDetailQuery = useQuery({
+    queryKey: ['day-detail', date],
+    queryFn: () => toPromise(fetchDayDetail(date)),
+  })
+  const nutrientDefinitionsQuery = useQuery({
+    queryKey: NUTRIENT_DEFINITIONS_QUERY_KEY,
+    queryFn: () => toPromise(fetchNutrientDefinitions()),
+    staleTime: Infinity,
+  })
+  const profileQuery = useQuery({
+    queryKey: PROFILE_QUERY_KEY,
+    queryFn: () => toPromise(fetchUserProfile()),
+  })
 
   const isPending =
     dayDetailQuery.isPending ||

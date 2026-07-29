@@ -3,7 +3,7 @@ import { drizzle } from 'drizzle-orm/postgres-js'
 import { okAsync, ResultAsync } from 'neverthrow'
 
 import type { Sql } from '#db/index'
-import { foodMasterNutrients, foodMasters } from '#db/schema'
+import { foodMasterNutrients, foodMasters, mealLogs } from '#db/schema'
 import { NUTRIENT_CODES } from '#db/seed/nutrient-definitions'
 import type {
   DayDetail,
@@ -22,9 +22,11 @@ const PER_100G_BASE = 100
 type Db = ReturnType<typeof drizzle>
 
 // Composes on MealHistoryService for the day-boundary aggregation and adds
-// one batched food_masters lookup for the fields the day view needs per item
-// — food name and per-item kcal — so rendering the timeline never issues a
-// query per entry.
+// two batched lookups for the fields the day view needs per item — food
+// name/estimated flag, and each entry's resolved amount_grams (the same
+// basis MealHistoryService's own totals use, not quantity/unit — see
+// resolveAmountGrams) — so rendering the timeline never issues a query per
+// entry.
 export const createDayDetailService = (
   sql: Sql,
   mealHistoryService: MealHistoryService,
@@ -52,6 +54,7 @@ const enrichEntries = (
   db: Db,
   aggregate: MealHistoryAggregate,
 ): ResultAsync<DayDetail, DayDetailQueryError> => {
+  const entryIds = aggregate.entries.map((entry) => entry.id)
   const foodMasterIds = [
     ...new Set(aggregate.entries.map((entry) => entry.foodMasterId)),
   ]
@@ -65,27 +68,33 @@ const enrichEntries = (
   }
 
   return ResultAsync.fromPromise(
-    db
-      .select({
-        id: foodMasters.id,
-        name: foodMasters.name,
-        isEstimated: foodMasters.isEstimated,
-        kcalPer100: foodMasterNutrients.value,
-      })
-      .from(foodMasters)
-      .leftJoin(
-        foodMasterNutrients,
-        and(
-          eq(foodMasterNutrients.foodMasterId, foodMasters.id),
-          eq(foodMasterNutrients.nutrientCode, ENERGY_KCAL_CODE),
-        ),
-      )
-      .where(inArray(foodMasters.id, foodMasterIds)),
+    Promise.all([
+      db
+        .select({
+          id: foodMasters.id,
+          name: foodMasters.name,
+          isEstimated: foodMasters.isEstimated,
+          kcalPer100: foodMasterNutrients.value,
+        })
+        .from(foodMasters)
+        .leftJoin(
+          foodMasterNutrients,
+          and(
+            eq(foodMasterNutrients.foodMasterId, foodMasters.id),
+            eq(foodMasterNutrients.nutrientCode, ENERGY_KCAL_CODE),
+          ),
+        )
+        .where(inArray(foodMasters.id, foodMasterIds)),
+      db
+        .select({ id: mealLogs.id, amountGrams: mealLogs.amountGrams })
+        .from(mealLogs)
+        .where(inArray(mealLogs.id, entryIds)),
+    ]),
     (caughtErr) =>
-      new DayDetailQueryError('food master lookup failed', caughtErr),
-  ).map((rows) => {
-    const byId = new Map(
-      rows.map((row) => [
+      new DayDetailQueryError('day detail enrichment lookup failed', caughtErr),
+  ).map(([foodRows, mealLogRows]) => {
+    const foodById = new Map(
+      foodRows.map((row) => [
         row.id,
         {
           name: row.name,
@@ -94,9 +103,13 @@ const enrichEntries = (
         },
       ]),
     )
+    const amountGramsById = new Map(
+      mealLogRows.map((row) => [row.id, Number(row.amountGrams)]),
+    )
 
     const entries: DayDetailEntry[] = aggregate.entries.map((entry) => {
-      const food = byId.get(entry.foodMasterId)
+      const food = foodById.get(entry.foodMasterId)
+      const amountGrams = amountGramsById.get(entry.id) ?? 0
       return {
         id: entry.id,
         foodMasterId: entry.foodMasterId,
@@ -106,7 +119,7 @@ const enrichEntries = (
         quantity: entry.quantity,
         unit: entry.unit,
         note: entry.note,
-        kcal: ((food?.kcalPer100 ?? 0) * entry.quantity) / PER_100G_BASE,
+        kcal: ((food?.kcalPer100 ?? 0) * amountGrams) / PER_100G_BASE,
         isEstimated: food?.isEstimated ?? false,
       }
     })

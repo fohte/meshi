@@ -23,6 +23,8 @@ import { seedNutrientDefinitions } from '#db/seed/index'
 import { createDayDetailService } from '#domain/day-detail/index'
 import { createFoodMasterRepository } from '#domain/food-master/repository'
 import { createFoodMasterService } from '#domain/food-master/service'
+import { createFoodMasterUnitRepository } from '#domain/food-master-unit/repository'
+import { createFoodMasterUnitService } from '#domain/food-master-unit/service'
 import { createDrizzleFoodMatcher } from '#domain/food-matcher/index'
 import { createMealHistoryService } from '#domain/meal-history/index'
 import { createDrizzleMealLogRepository } from '#domain/meal-log/drizzle-meal-log-repository'
@@ -91,6 +93,9 @@ export const main = async (): Promise<void> => {
   const foodMasterService = createFoodMasterService(
     createFoodMasterRepository(sql),
   )
+  const foodMasterUnitService = createFoodMasterUnitService(
+    createFoodMasterUnitRepository(sql),
+  )
   const foodMatcher = createDrizzleFoodMatcher(sql)
   const mealHistoryService = createMealHistoryService(sql)
   const dayDetailService = createDayDetailService(sql, mealHistoryService)
@@ -105,6 +110,7 @@ export const main = async (): Promise<void> => {
   const registry = createDomainToolsRegistry({
     mealLogService,
     foodMasterService,
+    foodMasterUnitService,
     foodMatcher,
     mealHistoryService,
     userProfileService,

@@ -1,19 +1,40 @@
-import type { UseQueryResult } from '@tanstack/react-query'
+import type { ResultAsync } from 'neverthrow'
 import { z } from 'zod'
 
-import type { ApiRequestError } from '#api/fetch-json'
-import { fetchJson } from '#api/fetch-json'
-import { useResultQuery } from '#api/use-result-query'
+import type { ApiRequestError } from '#api/errors'
+import { requestJson } from '#api/request'
 
-const profileSchema = z.object({
+const nutritionTargetsSchema = z.record(z.string(), z.number())
+
+const userProfileSchema = z.object({
   likes: z.array(z.string()),
   dislikes: z.array(z.string()),
   allergies: z.array(z.string()),
   constraints: z.array(z.string()),
-  dailyTargets: z.record(z.string(), z.number()).nullable(),
+  dailyTargets: nutritionTargetsSchema.nullable(),
 })
 
-export type Profile = z.infer<typeof profileSchema>
+export type UserProfile = z.infer<typeof userProfileSchema>
 
-export const useProfile = (): UseQueryResult<Profile, ApiRequestError> =>
-  useResultQuery(['profile'], () => fetchJson('/api/profile', profileSchema))
+// Mirrors the server's UserProfilePatch semantics: an omitted key keeps the
+// current value, and dailyTargets: null clears it (see
+// src/domain/user-profile/user-profile.ts).
+export interface UserProfilePatch {
+  likes?: ReadonlyArray<string>
+  dislikes?: ReadonlyArray<string>
+  allergies?: ReadonlyArray<string>
+  constraints?: ReadonlyArray<string>
+  dailyTargets?: Record<string, number> | null
+}
+
+export const fetchUserProfile = (): ResultAsync<UserProfile, ApiRequestError> =>
+  requestJson('/api/profile', userProfileSchema)
+
+export const patchUserProfile = (
+  patch: UserProfilePatch,
+): ResultAsync<UserProfile, ApiRequestError> =>
+  requestJson('/api/profile', userProfileSchema, {
+    method: 'PATCH',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify(patch),
+  })

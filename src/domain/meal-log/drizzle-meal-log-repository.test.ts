@@ -7,7 +7,7 @@ import {
 } from '#domain/meal-log/errors'
 import type { MealLogRow } from '#domain/meal-log/types'
 import { describeIfDb, setupDrizzleTx } from '#test/db'
-import { seedFoodMaster } from '#test/seed'
+import { seedFoodMaster, seedFoodMasterUnit } from '#test/seed'
 
 const CREATED_AT_PLACEHOLDER = new Date('2000-01-01T00:00:00.000Z')
 
@@ -40,6 +40,11 @@ describeIfDb('createDrizzleMealLogRepository', () => {
       source: 'user_input',
       nutrients: { protein_g: 2.5, carb_g: 37.1 },
     })
+    await seedFoodMasterUnit(tx, {
+      foodMasterId: 'fm_rice',
+      unit: '杯',
+      gramsPerUnit: 150,
+    })
     const repo = createDrizzleMealLogRepository(tx)
 
     const inserted = (
@@ -50,6 +55,7 @@ describeIfDb('createDrizzleMealLogRepository', () => {
         mealType: 'breakfast',
         quantity: 150,
         unit: 'g',
+        amountGrams: 150,
         note: 'breakfast',
       })
     )._unsafeUnwrap()
@@ -62,6 +68,7 @@ describeIfDb('createDrizzleMealLogRepository', () => {
       mealType: 'breakfast',
       quantity: 150,
       unit: 'g',
+      amountGrams: 150,
       note: 'breakfast',
       createdAt: CREATED_AT_PLACEHOLDER,
     }
@@ -81,6 +88,7 @@ describeIfDb('createDrizzleMealLogRepository', () => {
           protein_g: 2.5,
           carb_g: 37.1,
         },
+        units: { 杯: 150 },
       },
     })
   })
@@ -110,9 +118,14 @@ describeIfDb('createDrizzleMealLogRepository', () => {
       mealType: 'breakfast',
       quantity: 150,
       unit: 'g',
+      amountGrams: 150,
       note: 'breakfast',
     })
 
+    // amountGrams is deliberately omitted from this patch — at the
+    // repository level (below MealLogService.update's resolution) it's
+    // just another optional field, and this test's whole point is that
+    // fields absent from the patch are left untouched.
     const updated = (
       await repo.updateMealLog({
         id: 'ml_patch',
@@ -128,7 +141,45 @@ describeIfDb('createDrizzleMealLogRepository', () => {
       mealType: 'breakfast',
       quantity: 200,
       unit: 'g',
+      amountGrams: 150,
       note: 'corrected quantity',
+      createdAt: CREATED_AT_PLACEHOLDER,
+    })
+  })
+
+  it('updateMealLog patches amountGrams when given one', async () => {
+    const tx = getTx()
+    await seedFoodMaster(tx, {
+      id: 'fm_rice',
+      name: '白米',
+      isEstimated: false,
+      source: 'user_input',
+    })
+    const repo = createDrizzleMealLogRepository(tx)
+    await repo.insertMealLog({
+      id: 'ml_patch_grams',
+      foodMasterId: 'fm_rice',
+      eatenAt: new Date('2026-06-15T03:30:00.000Z'),
+      mealType: 'breakfast',
+      quantity: 1,
+      unit: '杯',
+      amountGrams: 100,
+      note: null,
+    })
+
+    const updated = (
+      await repo.updateMealLog({ id: 'ml_patch_grams', amountGrams: 150 })
+    )._unsafeUnwrap()
+
+    expect(normalizeRow(updated)).toEqual({
+      id: 'ml_patch_grams',
+      foodMasterId: 'fm_rice',
+      eatenAt: new Date('2026-06-15T03:30:00.000Z'),
+      mealType: 'breakfast',
+      quantity: 1,
+      unit: '杯',
+      amountGrams: 150,
+      note: null,
       createdAt: CREATED_AT_PLACEHOLDER,
     })
   })
@@ -157,6 +208,7 @@ describeIfDb('createDrizzleMealLogRepository', () => {
       mealType: 'lunch',
       quantity: 100,
       unit: 'g',
+      amountGrams: 100,
       note: null,
     })
 
@@ -175,6 +227,7 @@ describeIfDb('createDrizzleMealLogRepository', () => {
         mealType: 'lunch',
         quantity: 100,
         unit: 'g',
+        amountGrams: 100,
         note: null,
         createdAt: CREATED_AT_PLACEHOLDER,
       },
@@ -186,6 +239,7 @@ describeIfDb('createDrizzleMealLogRepository', () => {
           protein_g: 24.2,
           carb_g: 7.9,
         },
+        units: {},
       },
     })
   })
