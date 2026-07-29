@@ -4,10 +4,13 @@
 :root {
   --color-bg: #0a0a0a;
   --color-text: #fafafa;
+  --color-text-secondary: #a1a1aa;
   --color-accent: #ef4444;
   --color-muted: #71717a;
   --color-muted-2: #52525b;
   --color-border: #2a2a2a;
+  --color-surface: #141414;
+  --color-track: #1f1f1f;
 
   --border-width: 1px;
 

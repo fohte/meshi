@@ -1,8 +1,6 @@
-import { PagePlaceholder } from '#pages/PagePlaceholder'
+import { todayJstDate } from '#lib/jst-date'
+import { DayDetailView } from '#pages/DayDetailView'
 
 export const TodayPage = (): React.JSX.Element => (
-  <PagePlaceholder
-    title="今日"
-    description="今日の食事と栄養バランス。実装予定。"
-  />
+  <DayDetailView date={todayJstDate()} variant="today" />
 )
