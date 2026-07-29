@@ -57,16 +57,17 @@ describe('postMealLog', () => {
 })
 
 describe('patchMealLog', () => {
-  it('patches /api/meal-logs/:id with a JSON body', async () => {
+  it('patches /api/meal-logs/:id with a JSON body and resolves with the result', async () => {
     const fetchMock = mockFetchOk(SAMPLE_JSON)
 
-    await patchMealLog('ml_1', { quantity: 200 })
+    const result = await patchMealLog('ml_1', { quantity: 200 })
 
     expect(fetchMock).toHaveBeenCalledWith('/api/meal-logs/ml_1', {
       method: 'PATCH',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ quantity: 200 }),
     })
+    expect(result._unsafeUnwrap()).toEqual(SAMPLE_JSON)
   })
 })
 

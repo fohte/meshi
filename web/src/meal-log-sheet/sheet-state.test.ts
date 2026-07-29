@@ -116,7 +116,10 @@ describe('buildEditState', () => {
   })
 
   it('defaults note to an empty string when null', () => {
-    expect(buildEditState({ ...ENTRY, note: null }).note).toBe('')
+    expect(buildEditState({ ...ENTRY, note: null })).toEqual({
+      ...buildEditState(ENTRY),
+      note: '',
+    })
   })
 })
 
@@ -183,7 +186,12 @@ describe('applyFoodSelection', () => {
 
 describe('backToSearch', () => {
   it('clears the selected food and returns to the search phase', () => {
-    const state = applyFoodSelection(buildCreateState(), RICE, false)
+    const state: SheetState = {
+      ...buildCreateState(),
+      selectedFood: RICE,
+      isNewFood: true,
+      phase: 'detail',
+    }
 
     expect(backToSearch(state)).toEqual({
       ...state,
@@ -220,6 +228,31 @@ describe('buildSavePayload', () => {
   it('returns null when no food is selected', () => {
     expect(buildSavePayload(buildCreateState())).toBeNull()
   })
+
+  it('returns null when date is empty', () => {
+    expect(
+      buildSavePayload({ ...buildCreateState(), selectedFood: RICE, date: '' }),
+    ).toBeNull()
+  })
+
+  it('returns null when time is empty', () => {
+    expect(
+      buildSavePayload({ ...buildCreateState(), selectedFood: RICE, time: '' }),
+    ).toBeNull()
+  })
+
+  it.each(['0', '-1', 'abc', ''])(
+    'returns null for a non-positive/non-numeric quantity %p',
+    (quantity) => {
+      expect(
+        buildSavePayload({
+          ...buildCreateState(),
+          selectedFood: RICE,
+          quantity,
+        }),
+      ).toBeNull()
+    },
+  )
 
   it('builds a payload with an inferred mealType and no note', () => {
     const state: SheetState = {

@@ -1,8 +1,7 @@
 import type { Context, Hono } from 'hono'
-import { ResultAsync } from 'neverthrow'
 import { z } from 'zod'
 
-import { jsonBadRequest, jsonServerError } from '#api/errors'
+import { jsonBadRequest, jsonServerError, parseJsonBody } from '#api/errors'
 import type { FoodMasterDomainError } from '#domain/food-master/errors'
 import type { FoodMasterService } from '#domain/food-master/service'
 import type { FoodMaster } from '#domain/food-master/types'
@@ -43,24 +42,11 @@ export const mountFoodMasterRoutes = (
   foodMasterService: FoodMasterService,
 ): void => {
   app.post('/api/food-masters/from-composition', async (c) => {
-    const bodyResult = await ResultAsync.fromPromise(
-      c.req.json(),
-      () => new Error('request body must be valid JSON'),
-    )
-    if (bodyResult.isErr()) {
-      return jsonBadRequest(c, bodyResult.error.message)
-    }
-
-    const parsed = registerFromCompositionBodySchema.safeParse(bodyResult.value)
-    if (!parsed.success) {
-      return jsonBadRequest(
-        c,
-        parsed.error.issues.map((issue) => issue.message).join('; '),
-      )
-    }
+    const parsed = await parseJsonBody(c, registerFromCompositionBodySchema)
+    if (parsed.isErr()) return parsed.error
 
     const result = await foodMasterService.registerFromComposition(
-      parsed.data.compositionCode,
+      parsed.value.compositionCode,
     )
     return result.match(
       (foodMaster) => c.json(toFoodMasterJson(foodMaster), 201),

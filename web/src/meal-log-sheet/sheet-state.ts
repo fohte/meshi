@@ -135,19 +135,25 @@ export const backToSearch = (state: SheetState): SheetState => ({
   isNewFood: false,
 })
 
-// Returns null when no food is selected yet — the save button is disabled
-// in that state, but the mutation's payload builder must still handle it
-// without throwing.
+// Returns null when the form isn't ready to submit (no food selected, an
+// empty date/time — the <input type="date"|"time"> controls allow clearing
+// to '', which `new Date(...)` in jstWallClockToIsoInstant would otherwise
+// throw a RangeError on — or a non-positive/non-numeric quantity). The sheet
+// disables its save button on the same condition, so this doubles as the
+// canSave check.
 export const buildSavePayload = (
   state: SheetState,
 ): RecordMealLogInput | null => {
   if (state.selectedFood === null) return null
+  if (state.date === '' || state.time === '') return null
+  const quantity = Number(state.quantity)
+  if (!Number.isFinite(quantity) || quantity <= 0) return null
   const note = state.note.trim()
   return {
     foodMasterId: state.selectedFood.foodMasterId,
     eatenAt: jstWallClockToIsoInstant(state.date, state.time),
     mealType: resolvedMealType(state),
-    quantity: Number(state.quantity),
+    quantity,
     unit: state.unit.trim(),
     ...(note === '' ? {} : { note }),
   }

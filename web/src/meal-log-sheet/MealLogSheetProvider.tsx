@@ -1,5 +1,5 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query'
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 
 import type { DayDetailEntry, MealType } from '#api/day-detail'
 import type { RegisteredFoodMaster } from '#api/food-masters'
@@ -30,6 +30,7 @@ export interface MealLogSheetProviderProps {
 
 interface SaveVariables {
   readonly continueCreating: boolean
+  readonly sheetId: number
 }
 
 const toSelectedFood = (foodMaster: RegisteredFoodMaster): SelectedFood => ({
@@ -45,6 +46,15 @@ export const MealLogSheetProvider = ({
   const queryClient = useQueryClient()
   const [sheet, setSheet] = useState<SheetState | null>(null)
   const [confirmingDelete, setConfirmingDelete] = useState(false)
+  // Identifies which open/edit "session" a mutation was started from. A
+  // mutation's onSuccess can fire after the sheet has since been closed or
+  // reopened for a different entry (the user cancels a slow delete and
+  // starts a new record before it resolves) — reset() only clears the
+  // mutation's own isPending/isError display state, it doesn't cancel the
+  // in-flight request or suppress its onSuccess. Comparing the id captured
+  // at mutate() time against the current ref stops a stale onSuccess from
+  // clobbering whatever sheet is open by then.
+  const sheetIdRef = useRef(0)
 
   const invalidateMealLogQueries = (): void => {
     void queryClient.invalidateQueries({ queryKey: ['day-detail'] })
@@ -52,9 +62,14 @@ export const MealLogSheetProvider = ({
   }
 
   const compositionMutation = useMutation({
-    mutationFn: (compositionCode: string) =>
-      toPromise(registerFoodMasterFromComposition(compositionCode)),
-    onSuccess: (foodMaster) => {
+    mutationFn: ({
+      compositionCode,
+    }: {
+      compositionCode: string
+      sheetId: number
+    }) => toPromise(registerFoodMasterFromComposition(compositionCode)),
+    onSuccess: (foodMaster, { sheetId }) => {
+      if (sheetId !== sheetIdRef.current) return
       const food = toSelectedFood(foodMaster)
       setSheet((prev) =>
         prev === null ? prev : applyFoodSelection(prev, food, true),
@@ -75,7 +90,8 @@ export const MealLogSheetProvider = ({
           : postMealLog(payload),
       )
     },
-    onSuccess: (_result, { continueCreating }) => {
+    onSuccess: (_result, { continueCreating, sheetId }) => {
+      if (sheetId !== sheetIdRef.current) return
       invalidateMealLogQueries()
       setSheet((prev) =>
         prev === null
@@ -88,8 +104,10 @@ export const MealLogSheetProvider = ({
   })
 
   const deleteMutation = useMutation({
-    mutationFn: (id: string) => toPromise(deleteMealLog(id)),
-    onSuccess: () => {
+    mutationFn: ({ id }: { id: string; sheetId: number }) =>
+      toPromise(deleteMealLog(id)),
+    onSuccess: (_result, { sheetId }) => {
+      if (sheetId !== sheetIdRef.current) return
       invalidateMealLogQueries()
       setConfirmingDelete(false)
       setSheet(null)
@@ -105,18 +123,21 @@ export const MealLogSheetProvider = ({
   const openCreate = (): void => {
     resetMutations()
     setConfirmingDelete(false)
+    sheetIdRef.current += 1
     setSheet(buildCreateState())
   }
 
   const openEdit = (entry: DayDetailEntry): void => {
     resetMutations()
     setConfirmingDelete(false)
+    sheetIdRef.current += 1
     setSheet(buildEditState(entry))
   }
 
   const close = (): void => {
     resetMutations()
     setConfirmingDelete(false)
+    sheetIdRef.current += 1
     setSheet(null)
   }
 
@@ -147,7 +168,10 @@ export const MealLogSheetProvider = ({
           )
         }}
         selectComposition={(compositionCode) => {
-          compositionMutation.mutate(compositionCode)
+          compositionMutation.mutate({
+            compositionCode,
+            sheetId: sheetIdRef.current,
+          })
         }}
         isRegisteringComposition={compositionMutation.isPending}
         compositionError={compositionMutation.isError}
@@ -173,10 +197,16 @@ export const MealLogSheetProvider = ({
           patchSheet({ note })
         }}
         save={() => {
-          saveMutation.mutate({ continueCreating: false })
+          saveMutation.mutate({
+            continueCreating: false,
+            sheetId: sheetIdRef.current,
+          })
         }}
         saveAndContinue={() => {
-          saveMutation.mutate({ continueCreating: true })
+          saveMutation.mutate({
+            continueCreating: true,
+            sheetId: sheetIdRef.current,
+          })
         }}
         isSaving={saveMutation.isPending}
         saveError={saveMutation.isError}
@@ -185,10 +215,16 @@ export const MealLogSheetProvider = ({
           setConfirmingDelete(true)
         }}
         cancelDelete={() => {
+          deleteMutation.reset()
           setConfirmingDelete(false)
         }}
         confirmDelete={() => {
-          if (sheet.mealLogId !== null) deleteMutation.mutate(sheet.mealLogId)
+          if (sheet.mealLogId !== null) {
+            deleteMutation.mutate({
+              id: sheet.mealLogId,
+              sheetId: sheetIdRef.current,
+            })
+          }
         }}
         isDeleting={deleteMutation.isPending}
         deleteError={deleteMutation.isError}

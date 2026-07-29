@@ -1,8 +1,7 @@
 import type { Context, Hono } from 'hono'
-import { ResultAsync } from 'neverthrow'
 import { z } from 'zod'
 
-import { jsonBadRequest, jsonServerError } from '#api/errors'
+import { jsonBadRequest, jsonServerError, parseJsonBody } from '#api/errors'
 import type { DomainError } from '#domain/meal-log/errors'
 import type { MealLogService } from '#domain/meal-log/meal-log-service'
 import type { MealLogResult } from '#domain/meal-log/types'
@@ -71,31 +70,18 @@ export const mountMealLogRoutes = (
   mealLogService: MealLogService,
 ): void => {
   app.post('/api/meal-logs', async (c) => {
-    const bodyResult = await ResultAsync.fromPromise(
-      c.req.json(),
-      () => new Error('request body must be valid JSON'),
-    )
-    if (bodyResult.isErr()) {
-      return jsonBadRequest(c, bodyResult.error.message)
-    }
-
-    const parsed = recordMealLogBodySchema.safeParse(bodyResult.value)
-    if (!parsed.success) {
-      return jsonBadRequest(
-        c,
-        parsed.error.issues.map((issue) => issue.message).join('; '),
-      )
-    }
+    const parsed = await parseJsonBody(c, recordMealLogBodySchema)
+    if (parsed.isErr()) return parsed.error
 
     const result = await mealLogService.record({
-      foodMasterId: parsed.data.foodMasterId,
-      eatenAt: new Date(parsed.data.eatenAt),
-      quantity: parsed.data.quantity,
-      unit: parsed.data.unit,
-      ...(parsed.data.mealType === undefined
+      foodMasterId: parsed.value.foodMasterId,
+      eatenAt: new Date(parsed.value.eatenAt),
+      quantity: parsed.value.quantity,
+      unit: parsed.value.unit,
+      ...(parsed.value.mealType === undefined
         ? {}
-        : { mealType: parsed.data.mealType }),
-      ...(parsed.data.note === undefined ? {} : { note: parsed.data.note }),
+        : { mealType: parsed.value.mealType }),
+      ...(parsed.value.note === undefined ? {} : { note: parsed.value.note }),
     })
     return result.match(
       (mealLog) => c.json(toMealLogJson(mealLog), 201),
@@ -104,38 +90,25 @@ export const mountMealLogRoutes = (
   })
 
   app.patch('/api/meal-logs/:id', async (c) => {
-    const bodyResult = await ResultAsync.fromPromise(
-      c.req.json(),
-      () => new Error('request body must be valid JSON'),
-    )
-    if (bodyResult.isErr()) {
-      return jsonBadRequest(c, bodyResult.error.message)
-    }
-
-    const parsed = updateMealLogBodySchema.safeParse(bodyResult.value)
-    if (!parsed.success) {
-      return jsonBadRequest(
-        c,
-        parsed.error.issues.map((issue) => issue.message).join('; '),
-      )
-    }
+    const parsed = await parseJsonBody(c, updateMealLogBodySchema)
+    if (parsed.isErr()) return parsed.error
 
     const result = await mealLogService.update({
       id: c.req.param('id'),
-      ...(parsed.data.foodMasterId === undefined
+      ...(parsed.value.foodMasterId === undefined
         ? {}
-        : { foodMasterId: parsed.data.foodMasterId }),
-      ...(parsed.data.eatenAt === undefined
+        : { foodMasterId: parsed.value.foodMasterId }),
+      ...(parsed.value.eatenAt === undefined
         ? {}
-        : { eatenAt: new Date(parsed.data.eatenAt) }),
-      ...(parsed.data.mealType === undefined
+        : { eatenAt: new Date(parsed.value.eatenAt) }),
+      ...(parsed.value.mealType === undefined
         ? {}
-        : { mealType: parsed.data.mealType }),
-      ...(parsed.data.quantity === undefined
+        : { mealType: parsed.value.mealType }),
+      ...(parsed.value.quantity === undefined
         ? {}
-        : { quantity: parsed.data.quantity }),
-      ...(parsed.data.unit === undefined ? {} : { unit: parsed.data.unit }),
-      ...(parsed.data.note === undefined ? {} : { note: parsed.data.note }),
+        : { quantity: parsed.value.quantity }),
+      ...(parsed.value.unit === undefined ? {} : { unit: parsed.value.unit }),
+      ...(parsed.value.note === undefined ? {} : { note: parsed.value.note }),
     })
     return result.match(
       (mealLog) => c.json(toMealLogJson(mealLog)),

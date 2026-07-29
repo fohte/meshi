@@ -3,7 +3,11 @@ import { DeleteConfirmDialog } from '#meal-log-sheet/DeleteConfirmDialog'
 import { FoodSearchStep } from '#meal-log-sheet/FoodSearchStep'
 import { MealLogDetailForm } from '#meal-log-sheet/MealLogDetailForm'
 import styles from '#meal-log-sheet/MealLogSheet.module.css'
-import type { SelectedFood, SheetState } from '#meal-log-sheet/sheet-state'
+import {
+  buildSavePayload,
+  type SelectedFood,
+  type SheetState,
+} from '#meal-log-sheet/sheet-state'
 
 export interface MealLogSheetProps {
   readonly state: SheetState
@@ -41,7 +45,7 @@ export const MealLogSheet = (props: MealLogSheetProps): React.JSX.Element => {
         ? '1 / 2 食品を選ぶ'
         : '2 / 2 詳細を入力'
       : ''
-  const canSave = state.selectedFood !== null && !props.isSaving
+  const canSave = buildSavePayload(state) !== null && !props.isSaving
   const showContinue = state.mode === 'create' && state.phase === 'detail'
 
   return (
