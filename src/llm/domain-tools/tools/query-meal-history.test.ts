@@ -17,6 +17,7 @@ const AGGREGATE: MealHistoryAggregate = {
     {
       id: 'ml_1',
       foodMasterId: 'fm_rice',
+      foodName: 'ごはん',
       eatenAt: new Date('2026-05-19T03:00:00.000Z'),
       mealType: 'lunch',
       quantity: 1,

@@ -39,13 +39,21 @@ export const formatJstTime = (isoDateTime: string): string => {
   return `${pad2(hours)}:${pad2(minutes)}`
 }
 
+// isoDateTime is a UTC ISO instant; returns the YYYY-MM-DD calendar date it
+// falls on in JST (e.g. to group meal-history entries by JST day).
+export const jstDateOf = (isoDateTime: string): string => {
+  const { year, month, day } = toJstParts(new Date(isoDateTime))
+  return `${String(year)}-${pad2(month)}-${pad2(day)}`
+}
+
 // dateOnly is a YYYY-MM-DD calendar date (already a JST date, not an
 // instant needing conversion), so this reads its fields directly rather
 // than going through toJstParts.
-export const weekdayLabelJa = (dateOnly: string): string => {
-  const weekday = new Date(`${dateOnly}T00:00:00Z`).getUTCDay()
-  return WEEKDAY_LABELS_JA[weekday] ?? ''
-}
+export const jstWeekdayIndex = (dateOnly: string): number =>
+  new Date(`${dateOnly}T00:00:00Z`).getUTCDay()
+
+export const weekdayLabelJa = (dateOnly: string): string =>
+  WEEKDAY_LABELS_JA[jstWeekdayIndex(dateOnly)] ?? ''
 
 // dateOnly may be an unvalidated route param (e.g. /days/:date typed by
 // hand), so an unparseable value is returned as-is rather than throwing —
@@ -57,10 +65,42 @@ export const shiftDateString = (dateOnly: string, days: number): string => {
   return d.toISOString().slice(0, 10)
 }
 
+// Returns `count` consecutive calendar dates starting at `start`, ascending.
+export const jstDateRange = (start: string, count: number): readonly string[] =>
+  Array.from({ length: count }, (_, i) => shiftDateString(start, i))
+
 export const formatJstMonthDay = (dateOnly: string): string => {
   const month = Number(dateOnly.slice(5, 7))
   const day = Number(dateOnly.slice(8, 10))
   return `${String(month)}月${String(day)}日`
+}
+
+export const formatJstYearMonth = (monthStart: string): string => {
+  const year = Number(monthStart.slice(0, 4))
+  const month = Number(monthStart.slice(5, 7))
+  return `${String(year)}年${String(month)}月`
+}
+
+// dateOnly may be any day within the month; returns that month's first day.
+export const startOfJstMonth = (dateOnly: string): string =>
+  `${dateOnly.slice(0, 7)}-01`
+
+// monthStart must be a month's first day (e.g. from startOfJstMonth).
+export const shiftMonthString = (
+  monthStart: string,
+  months: number,
+): string => {
+  const d = new Date(`${monthStart}T00:00:00Z`)
+  d.setUTCMonth(d.getUTCMonth() + months)
+  return d.toISOString().slice(0, 10)
+}
+
+// monthStart must be a month's first day (e.g. from startOfJstMonth).
+export const daysInJstMonth = (monthStart: string): number => {
+  const d = new Date(`${monthStart}T00:00:00Z`)
+  d.setUTCMonth(d.getUTCMonth() + 1)
+  d.setUTCDate(0)
+  return d.getUTCDate()
 }
 
 // isoDateTime is a UTC instant; returns its JST calendar date as YYYY-MM-DD

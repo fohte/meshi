@@ -4,6 +4,7 @@ import type { Message, Task } from '@a2a-js/sdk'
 import type { AgentExecutionEvent, ExecutionEventBus } from '@a2a-js/sdk/server'
 import { RequestContext } from '@a2a-js/sdk/server'
 import { captureWithFingerprint } from '@fohte/service-kit/observability'
+import { HumanMessage } from '@langchain/core/messages'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import type {
@@ -511,7 +512,9 @@ describe('runAgentTurn', () => {
     expect(invoke).toHaveBeenCalledWith(
       {
         messages: [
-          { role: 'user', content: [{ type: 'text', text: 'hello' }] },
+          new HumanMessage({
+            contentBlocks: [{ type: 'text', text: 'hello' }],
+          }),
         ],
       },
       {

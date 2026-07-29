@@ -5,7 +5,10 @@ import type { BaseChatModel } from '@langchain/core/language_models/chat_models'
 import { MemorySaver } from '@langchain/langgraph'
 import { ResultAsync } from 'neverthrow'
 
-import type { AgentContentBlock } from '#llm/agent/content-block'
+import {
+  type AgentContentBlock,
+  toHumanMessage,
+} from '#llm/agent/content-block'
 import {
   AGENT_NO_USABLE_REPLY_EVENT,
   AGENT_THINK_BLOCK_LEAKED_EVENT,
@@ -253,7 +256,7 @@ export const createDomainAgentOrchestrator = (
     // the result even if a later item's tool call blew up.
     const invokeResult = await ResultAsync.fromPromise(
       agent.invoke(
-        { messages: [{ role: 'user', content: [...content] }] },
+        { messages: [toHumanMessage(content)] },
         {
           configurable: { thread_id: randomUUID() },
           recursionLimit: MESHI_AGENT_RECURSION_LIMIT,

@@ -1,0 +1,41 @@
+.heading {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin: 0 0 20px;
+  font-family: var(--font-mono);
+  font-size: 24px;
+  font-weight: 700;
+}
+
+.hash {
+  color: var(--color-accent);
+}
+
+.tabs {
+  display: flex;
+  border-bottom: var(--border-width) solid var(--color-border);
+  margin-bottom: 24px;
+}
+
+.tab {
+  all: unset;
+  cursor: pointer;
+  padding: 9px 16px;
+  font-family: var(--font-mono);
+  font-size: 13px;
+  color: var(--color-muted);
+  border-bottom: 2px solid transparent;
+  margin-bottom: -1px;
+}
+
+.tab[data-active] {
+  color: var(--color-text);
+  border-bottom-color: var(--color-accent);
+}
+
+.skeletonStack {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}

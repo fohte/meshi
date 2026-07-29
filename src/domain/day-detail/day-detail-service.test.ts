@@ -54,6 +54,7 @@ describeIfDb('DayDetailService.query', () => {
             {
               id: 'log-1',
               foodMasterId: 'rice',
+              foodName: 'ごはん',
               eatenAt: new Date('2026-06-01T00:00:00Z'),
               mealType: 'breakfast',
               quantity: 200,
@@ -63,6 +64,7 @@ describeIfDb('DayDetailService.query', () => {
             {
               id: 'log-2',
               foodMasterId: 'mystery_stew',
+              foodName: 'なぞのシチュー',
               eatenAt: new Date('2026-06-01T09:00:00Z'),
               mealType: 'dinner',
               quantity: 50,
@@ -142,6 +144,7 @@ describeIfDb('DayDetailService.query', () => {
             {
               id: 'log-1',
               foodMasterId: 'egg',
+              foodName: 'たまご',
               eatenAt: new Date('2026-06-01T00:00:00Z'),
               mealType: 'breakfast',
               quantity: 2,
