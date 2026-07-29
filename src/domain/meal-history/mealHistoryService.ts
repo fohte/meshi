@@ -12,7 +12,10 @@ import type {
 import { MealHistoryQueryError } from '#domain/meal-history/types'
 import { MEAL_TYPES } from '#domain/meal-log/types'
 
-const PER_100G_BASE = 100
+// The shared basis every per-nutrient value in food_master_nutrients is
+// stored against; also used by DayDetailService when it computes an
+// individual entry's kcal from the same amount_grams this file aggregates.
+export const PER_100G_BASE = 100
 
 const numericString = z.union([
   z.number().refine(Number.isFinite),

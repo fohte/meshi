@@ -11,13 +11,13 @@ import type {
   DayDetailService,
 } from '#domain/day-detail/types'
 import { DayDetailQueryError } from '#domain/day-detail/types'
+import { PER_100G_BASE } from '#domain/meal-history/mealHistoryService'
 import type {
   MealHistoryAggregate,
   MealHistoryService,
 } from '#domain/meal-history/types'
 
 const ENERGY_KCAL_CODE = 'energy_kcal'
-const PER_100G_BASE = 100
 
 type Db = ReturnType<typeof drizzle>
 
@@ -27,6 +27,12 @@ type Db = ReturnType<typeof drizzle>
 // basis MealHistoryService's own totals use, not quantity/unit — see
 // resolveAmountGrams) — so rendering the timeline never issues a query per
 // entry.
+//
+// These two lookups run outside MealHistoryService's own query, so a
+// concurrent correction landing between them could in principle make a
+// day's totals and its entries' kcal disagree by one page load. Accepted:
+// meshi is single-user, the window is one HTTP request wide, and the next
+// load is self-correcting.
 export const createDayDetailService = (
   sql: Sql,
   mealHistoryService: MealHistoryService,

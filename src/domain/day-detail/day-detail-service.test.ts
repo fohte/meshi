@@ -1,43 +1,35 @@
+import { okAsync } from 'neverthrow'
 import { expect, it } from 'vitest'
 
 import { createDayDetailService } from '#domain/day-detail/day-detail-service'
-import { createMealHistoryService } from '#domain/meal-history/mealHistoryService'
+import type { MealHistoryService } from '#domain/meal-history/types'
 import { describeIfDb, setupDrizzleTx } from '#test/db'
-import { seedFoodMaster, seedMealLog, seedNutrientDefinition } from '#test/seed'
+import { seedFoodMaster, seedMealLog } from '#test/seed'
 
+// createDayDetailService's own job is enriching MealHistoryService's entries
+// with food_masters/meal_logs data it looks up itself (name, per-item kcal,
+// estimated flag) — its aggregation (totals/hasEstimatedValues) is entirely
+// MealHistoryService's responsibility and already covered by
+// mealHistoryService.test.ts, so these tests stub MealHistoryService rather
+// than composing the real implementation.
 describeIfDb('DayDetailService.query', () => {
   const getTx = setupDrizzleTx()
 
   it('enriches entries with food name, per-item kcal, and the estimated flag', async () => {
     const tx = getTx()
-    await seedNutrientDefinition(tx, {
-      code: 'energy_kcal',
-      displayName: 'energy',
-      unit: 'kcal',
-      isMajor: true,
-      sortOrder: 1,
-    })
-    await seedNutrientDefinition(tx, {
-      code: 'protein_g',
-      displayName: 'protein',
-      unit: 'g',
-      isMajor: true,
-      sortOrder: 2,
-    })
     await seedFoodMaster(tx, {
       id: 'rice',
       name: 'ごはん',
       source: 'user_input',
-      nutrients: { energy_kcal: 156, protein_g: 2.5 },
+      nutrients: { energy_kcal: 156 },
     })
     await seedFoodMaster(tx, {
       id: 'mystery_stew',
       name: 'なぞのシチュー',
       isEstimated: true,
       source: 'composition_table_estimate',
-      nutrients: { energy_kcal: 200, protein_g: 8 },
+      nutrients: { energy_kcal: 200 },
     })
-    // 00:00Z is 09:00 JST (breakfast); 09:00Z is 18:00 JST (dinner).
     await seedMealLog(tx, {
       id: 'log-1',
       foodMasterId: 'rice',
@@ -51,7 +43,35 @@ describeIfDb('DayDetailService.query', () => {
       quantity: 50,
     })
 
-    const mealHistoryService = createMealHistoryService(tx)
+    const stubTotals = { energy_kcal: 412 }
+    const mealHistoryService: MealHistoryService = {
+      query: () =>
+        okAsync({
+          totals: stubTotals,
+          perDay: [],
+          hasEstimatedValues: true,
+          entries: [
+            {
+              id: 'log-1',
+              foodMasterId: 'rice',
+              eatenAt: new Date('2026-06-01T00:00:00Z'),
+              mealType: 'breakfast',
+              quantity: 200,
+              unit: 'g',
+              note: null,
+            },
+            {
+              id: 'log-2',
+              foodMasterId: 'mystery_stew',
+              eatenAt: new Date('2026-06-01T09:00:00Z'),
+              mealType: 'dinner',
+              quantity: 50,
+              unit: 'g',
+              note: null,
+            },
+          ],
+        }),
+    }
     const service = createDayDetailService(tx, mealHistoryService)
 
     const result = (
@@ -62,10 +82,7 @@ describeIfDb('DayDetailService.query', () => {
     )._unsafeUnwrap()
 
     expect(result).toEqual({
-      totals: {
-        energy_kcal: 156 * 2 + 200 * 0.5,
-        protein_g: 2.5 * 2 + 8 * 0.5,
-      },
+      totals: stubTotals,
       hasEstimatedValues: true,
       entries: [
         {
@@ -98,13 +115,6 @@ describeIfDb('DayDetailService.query', () => {
 
   it('computes per-item kcal from amount_grams, not the display quantity', async () => {
     const tx = getTx()
-    await seedNutrientDefinition(tx, {
-      code: 'energy_kcal',
-      displayName: 'energy',
-      unit: 'kcal',
-      isMajor: true,
-      sortOrder: 1,
-    })
     await seedFoodMaster(tx, {
       id: 'egg',
       name: 'たまご',
@@ -122,7 +132,25 @@ describeIfDb('DayDetailService.query', () => {
       amountGrams: 110,
     })
 
-    const mealHistoryService = createMealHistoryService(tx)
+    const mealHistoryService: MealHistoryService = {
+      query: () =>
+        okAsync({
+          totals: {},
+          perDay: [],
+          hasEstimatedValues: false,
+          entries: [
+            {
+              id: 'log-1',
+              foodMasterId: 'egg',
+              eatenAt: new Date('2026-06-01T00:00:00Z'),
+              mealType: 'breakfast',
+              quantity: 2,
+              unit: '個',
+              note: null,
+            },
+          ],
+        }),
+    }
     const service = createDayDetailService(tx, mealHistoryService)
 
     const result = (
@@ -133,7 +161,7 @@ describeIfDb('DayDetailService.query', () => {
     )._unsafeUnwrap()
 
     expect(result).toEqual({
-      totals: { energy_kcal: (151 * 110) / 100 },
+      totals: {},
       hasEstimatedValues: false,
       entries: [
         {
@@ -154,7 +182,15 @@ describeIfDb('DayDetailService.query', () => {
 
   it('returns empty totals and entries when nothing was eaten in the period', async () => {
     const tx = getTx()
-    const mealHistoryService = createMealHistoryService(tx)
+    const mealHistoryService: MealHistoryService = {
+      query: () =>
+        okAsync({
+          totals: {},
+          perDay: [],
+          hasEstimatedValues: false,
+          entries: [],
+        }),
+    }
     const service = createDayDetailService(tx, mealHistoryService)
 
     const result = (
