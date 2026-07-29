@@ -1,0 +1,224 @@
+.nav {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 22px;
+}
+
+.periodTabs {
+  display: flex;
+  border: var(--border-width) solid var(--color-border);
+}
+
+.periodTab {
+  all: unset;
+  cursor: pointer;
+  padding: 5px 14px;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--color-text-secondary);
+}
+
+.periodTab[data-active] {
+  color: var(--color-text);
+  background: var(--color-surface);
+}
+
+.navButton {
+  all: unset;
+  cursor: pointer;
+  padding: 5px 10px;
+  border: var(--border-width) solid var(--color-border);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--color-text-secondary);
+}
+
+.navButton:disabled {
+  cursor: default;
+  color: var(--color-muted-2);
+}
+
+.range {
+  font-family: var(--font-mono);
+  font-size: 13px;
+}
+
+.skeletonStack {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.block {
+  margin-bottom: 30px;
+}
+
+.blockHead {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  margin-bottom: 14px;
+}
+
+.blockMark {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--color-accent);
+}
+
+.blockTitle {
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.blockNote {
+  margin-left: auto;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--color-muted);
+}
+
+.chart {
+  display: flex;
+  align-items: flex-end;
+  gap: 2px;
+  height: 150px;
+  position: relative;
+  border-bottom: var(--border-width) solid var(--color-border);
+}
+
+.chart[data-gap='week'] {
+  gap: 8px;
+}
+
+.targetLine {
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 1px;
+  background: var(--color-accent);
+}
+
+.barColumn {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  height: 100%;
+}
+
+.barFill[data-state='filled'] {
+  background: var(--color-text);
+}
+
+.barFill[data-state='over'] {
+  background: var(--color-accent);
+}
+
+.barFill[data-state='empty'] {
+  background: var(--color-track);
+}
+
+.chartLabels {
+  display: flex;
+  gap: 2px;
+  margin-top: 6px;
+}
+
+.chartLabels[data-gap='week'] {
+  gap: 8px;
+}
+
+.chartLabel {
+  flex: 1;
+  text-align: center;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--color-muted);
+}
+
+.chartHint {
+  margin-top: 10px;
+  font-size: 12px;
+  color: var(--color-muted);
+}
+
+.avgRows {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.avgRowHead {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  font-size: 13px;
+  margin-bottom: 4px;
+}
+
+.avgRowLabel {
+  color: var(--color-text-secondary);
+}
+
+.avgRowValue {
+  margin-left: auto;
+  font-family: var(--font-mono);
+}
+
+.avgRowTarget {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--color-muted);
+  width: 74px;
+  text-align: right;
+}
+
+.track {
+  height: 5px;
+  background: var(--color-track);
+}
+
+.trackFill {
+  height: 5px;
+  background: var(--color-text);
+}
+
+.trackFill[data-over] {
+  background: var(--color-accent);
+}
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  font-family: var(--font-mono);
+  font-size: 12px;
+}
+
+.table th,
+.table td {
+  padding: 6px 8px;
+  border: var(--border-width) solid var(--color-border);
+  text-align: right;
+}
+
+.table th:first-child,
+.table td:first-child {
+  text-align: left;
+  font-family: var(--font-sans);
+}
+
+.table thead th {
+  background: var(--color-surface);
+  font-weight: 500;
+  color: var(--color-text-secondary);
+}
+
+.table tbody td:last-child {
+  color: var(--color-muted);
+}
+
+.table tbody td[data-over] {
+  color: var(--color-accent);
+}
