@@ -23,6 +23,11 @@ import {
   normalizeUnit,
 } from '#domain/food-master-unit/validation'
 
+export interface FoodComposition {
+  readonly name: string
+  readonly nutrition: NutritionMap
+}
+
 export interface FoodMasterRepository {
   register(
     input: RegisterFoodMasterInput,
@@ -30,6 +35,9 @@ export interface FoodMasterRepository {
   findById(
     id: FoodMasterId,
   ): ResultAsync<FoodMaster | null, FoodMasterDomainError>
+  findComposition(
+    code: string,
+  ): ResultAsync<FoodComposition | null, FoodMasterDomainError>
 }
 
 export interface CreateRepositoryOptions {
@@ -385,5 +393,34 @@ export const createFoodMasterRepository = (
         ),
     )
 
-  return { register, findById }
+  const findComposition = (
+    code: string,
+  ): ResultAsync<FoodComposition | null, FoodMasterDomainError> =>
+    ResultAsync.fromPromise(
+      (async () => {
+        const rows = await sql<{ name: string }[]>`
+          SELECT name FROM food_compositions WHERE code = ${code}
+        `
+        const row = rows[0]
+        if (row === undefined) return null
+
+        const nutrientRows = await sql<
+          { nutrient_code: string; value: string }[]
+        >`
+          SELECT nutrient_code, value
+          FROM food_composition_nutrients
+          WHERE food_composition_code = ${code}
+        `
+        return { name: row.name, nutrition: toNutritionMap(nutrientRows) }
+      })(),
+      (caughtErr) =>
+        new FoodMasterDomainError(
+          'persistence_failed',
+          errorMessage(caughtErr),
+          {},
+          caughtErr,
+        ),
+    )
+
+  return { register, findById, findComposition }
 }

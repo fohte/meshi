@@ -5,7 +5,7 @@ import { ApiRequestError } from '#api/errors'
 import { requestJson } from '#api/request'
 import { BoundaryError } from '#errors'
 
-const foodSourceSchema = z.enum([
+export const foodSourceSchema = z.enum([
   'web_search',
   'composition_table_estimate',
   'user_input',

@@ -49,6 +49,7 @@ export interface MealLogService {
   record(input: RecordMealLogInput): ResultAsync<MealLogResult, DomainError>
   update(input: UpdateMealLogInput): ResultAsync<MealLogResult, DomainError>
   getById(id: string): ResultAsync<MealLogResult | null, DomainError>
+  delete(id: string): ResultAsync<void, DomainError>
 }
 
 export interface MealLogServiceDeps {
@@ -171,6 +172,13 @@ export const createMealLogService = (
       .findMealLogById(id)
       .map((found) =>
         found === null ? null : buildResult(found.log, found.food),
+      )
+  },
+  delete(id) {
+    return deps.repository
+      .deleteMealLog(id)
+      .andThen((deleted) =>
+        deleted ? okAsync(undefined) : errAsync(new MealLogNotFoundError(id)),
       )
   },
 })

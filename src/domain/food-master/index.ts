@@ -7,6 +7,7 @@ export { defaultIdGenerator } from '#domain/food-master/id'
 export {
   createFoodMasterRepository,
   type CreateRepositoryOptions,
+  type FoodComposition,
   type FoodMasterRepository,
 } from '#domain/food-master/repository'
 export {

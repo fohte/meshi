@@ -13,7 +13,9 @@ import { pingDb } from '#db/index'
 import type { DayDetailService } from '#domain/day-detail/types'
 import type { FoodBrowseService } from '#domain/food-browse/types'
 import type { FoodDetailService } from '#domain/food-detail/types'
+import type { FoodMasterService } from '#domain/food-master/service'
 import type { MealHistoryService } from '#domain/meal-history/types'
+import type { MealLogService } from '#domain/meal-log/meal-log-service'
 import type { NutrientDefinitionRepository } from '#domain/nutrient-definition/types'
 import type { UserProfileService } from '#domain/user-profile/user-profile-service'
 
@@ -32,6 +34,8 @@ export interface AppDeps {
   userProfileService: UserProfileService
   foodBrowseService: FoodBrowseService
   foodDetailService: FoodDetailService
+  mealLogService: MealLogService
+  foodMasterService: FoodMasterService
   bearerToken?: string
 }
 
@@ -63,6 +67,8 @@ export const createApp = (deps: AppDeps): Hono => {
     userProfileService: deps.userProfileService,
     foodBrowseService: deps.foodBrowseService,
     foodDetailService: deps.foodDetailService,
+    mealLogService: deps.mealLogService,
+    foodMasterService: deps.foodMasterService,
   })
 
   // SPA static assets, then an index.html fallback for client-side routes

@@ -1,0 +1,148 @@
+.form {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.newFoodNote {
+  border-left: 3px solid var(--color-accent);
+  background: var(--color-surface);
+  padding: 10px 12px;
+  font-size: 12px;
+  color: var(--color-text-secondary);
+  line-height: 1.7;
+}
+
+.selectedFood {
+  border: var(--border-width) solid var(--color-border);
+  padding: 12px;
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+}
+
+.selectedFoodName {
+  flex: 1;
+  min-width: 0;
+  font-size: 14px;
+}
+
+.estMark {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--color-muted);
+}
+
+.changeButton {
+  all: unset;
+  cursor: pointer;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--color-muted);
+}
+
+.changeButton:hover {
+  color: var(--color-text);
+}
+
+.field {
+  flex: 1;
+}
+
+.label {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--color-muted);
+  margin-bottom: 7px;
+}
+
+.hint {
+  color: var(--color-muted-2);
+}
+
+.quantityRow {
+  display: flex;
+  gap: 8px;
+}
+
+.quantityInput {
+  all: unset;
+  flex: 1;
+  box-sizing: border-box;
+  border: var(--border-width) solid var(--color-border);
+  padding: 9px 11px;
+  font-family: var(--font-mono);
+  font-size: 14px;
+  color: var(--color-text);
+}
+
+.unitInput {
+  all: unset;
+  width: 88px;
+  box-sizing: border-box;
+  border: var(--border-width) solid var(--color-border);
+  padding: 9px 11px;
+  font-family: var(--font-mono);
+  font-size: 14px;
+  color: var(--color-text);
+}
+
+.calcText {
+  font-size: 12px;
+  color: var(--color-muted);
+  margin-top: 6px;
+}
+
+.mealOptions {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  border: var(--border-width) solid var(--color-border);
+}
+
+.mealOption {
+  all: unset;
+  cursor: pointer;
+  box-sizing: border-box;
+  padding: 9px 0;
+  text-align: center;
+  font-size: 13px;
+  color: var(--color-text-secondary);
+}
+
+.mealOptionActive {
+  all: unset;
+  cursor: pointer;
+  box-sizing: border-box;
+  padding: 9px 0;
+  text-align: center;
+  font-size: 13px;
+  color: var(--color-bg);
+  background: var(--color-text);
+}
+
+.dateTimeRow {
+  display: flex;
+  gap: 8px;
+}
+
+.dateInput,
+.timeInput {
+  all: unset;
+  width: 100%;
+  box-sizing: border-box;
+  border: var(--border-width) solid var(--color-border);
+  padding: 9px 11px;
+  font-family: var(--font-mono);
+  font-size: 14px;
+  color: var(--color-text);
+}
+
+.noteInput {
+  all: unset;
+  width: 100%;
+  box-sizing: border-box;
+  border: var(--border-width) solid var(--color-border);
+  padding: 9px 11px;
+  font-size: 14px;
+  color: var(--color-text);
+}

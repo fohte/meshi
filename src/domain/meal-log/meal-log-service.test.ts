@@ -90,6 +90,10 @@ const createFakeRepository = (
       return okAsync(merged)
     },
     findMealLogById: (id) => okAsync(logs.get(id) ?? null),
+    deleteMealLog: (id) => {
+      const existed = logs.delete(id)
+      return okAsync(existed)
+    },
   }
   return { repository, inserted, updated }
 }
@@ -884,6 +888,7 @@ describe('MealLogService.getById', () => {
           },
           food: KARAAGE_GUESS,
         }),
+      deleteMealLog: () => errAsync(new DomainError('unused', 'unused')),
     }
     const service = createMealLogService({
       repository,
@@ -909,5 +914,22 @@ describe('MealLogService.getById', () => {
       },
       isEstimated: true,
     })
+  })
+})
+
+describe('MealLogService.delete', () => {
+  it('deletes an existing log', async () => {
+    const { service } = buildService([RICE], [EXISTING_RICE_LOG])
+    expect((await service.delete('ml_1')).isOk()).toBe(true)
+    expect((await service.getById('ml_1'))._unsafeUnwrap()).toBeNull()
+  })
+
+  it('returns a MealLogNotFoundError when the log does not exist', async () => {
+    const { service } = buildService([RICE])
+    const error = (await service.delete('ml_missing'))._unsafeUnwrapErr()
+    expect(error).toBeInstanceOf(MealLogNotFoundError)
+    expect(error instanceof MealLogNotFoundError ? error.id : undefined).toBe(
+      'ml_missing',
+    )
   })
 })

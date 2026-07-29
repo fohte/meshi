@@ -45,6 +45,13 @@ const setup = (
         ),
       ),
     getById: () => okAsync(null),
+    delete: () =>
+      errAsync(
+        new DomainError(
+          'mealLogService.delete not stubbed',
+          'test/not_stubbed',
+        ),
+      ),
     ...override,
   }
   return { tool: createRecordMealLogTool(service), calls }

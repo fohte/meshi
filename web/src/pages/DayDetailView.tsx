@@ -22,6 +22,7 @@ import {
   todayJstDate,
   weekdayLabelJa,
 } from '#lib/jst-date'
+import { useMealLogSheet } from '#meal-log-sheet/MealLogSheetContext'
 import styles from '#pages/DayDetailView.module.css'
 
 export interface DayDetailViewProps {
@@ -149,11 +150,17 @@ const DayDetailContent = ({
   targets,
   emptyText,
 }: DayDetailContentProps): React.JSX.Element => {
+  const { openCreate, openEdit } = useMealLogSheet()
+
   if (entries.length === 0) {
     return (
       <div className={styles.emptyState}>
         <div className={styles.emptyText}>{emptyText}</div>
-        <button type="button" className={styles.emptyCreateButton}>
+        <button
+          type="button"
+          className={styles.emptyCreateButton}
+          onClick={openCreate}
+        >
           + 記録する
         </button>
       </div>
@@ -166,7 +173,13 @@ const DayDetailContent = ({
         data={buildNutritionSummaryData(totals, definitions, targets)}
         hasEstimatedValues={hasEstimatedValues}
       />
-      <MealTimeline groups={buildMealTimelineGroups(entries)} />
+      <MealTimeline
+        groups={buildMealTimelineGroups(entries)}
+        onItemClick={(id) => {
+          const entry = entries.find((e) => e.id === id)
+          if (entry !== undefined) openEdit(entry)
+        }}
+      />
     </div>
   )
 }
