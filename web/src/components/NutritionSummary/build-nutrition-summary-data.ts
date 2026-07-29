@@ -57,11 +57,17 @@ export const buildNutritionSummaryData = (
 ): NutritionSummaryData => {
   const valueFor = (code: string): number => totals[code] ?? 0
   const targetFor = (code: string): number | null => targets?.[code] ?? null
+  // A target of 0 (or negative, though the settings form doesn't offer a way
+  // to enter one) can't drive a percentage — treat it the same as "no
+  // target" rather than showing NaN%/Infinity%.
+  const isUsableTarget = (target: number | null): target is number =>
+    target !== null && target > 0
 
   const toRow = (def: NutrientDefinition): NutrientRow => {
     const value = valueFor(def.code)
     const target = targetFor(def.code)
-    const pct = target === null ? 0 : (value / target) * 100
+    const usableTarget = isUsableTarget(target)
+    const pct = usableTarget ? (value / target) * 100 : 0
     return {
       code: def.code,
       label: def.displayName,
@@ -69,7 +75,7 @@ export const buildNutritionSummaryData = (
       value,
       target,
       pct,
-      over: target !== null && pct > OVER_TARGET_PCT,
+      over: usableTarget && pct > OVER_TARGET_PCT,
     }
   }
 
@@ -80,8 +86,10 @@ export const buildNutritionSummaryData = (
 
   const energyTarget = targetFor(ENERGY_CODE)
   const energyValue = valueFor(ENERGY_CODE)
-  const energyPct =
-    energyTarget === null ? null : (energyValue / energyTarget) * 100
+  const energyUsableTarget = isUsableTarget(energyTarget)
+  const energyPct = energyUsableTarget
+    ? (energyValue / energyTarget) * 100
+    : null
   const energy = {
     value: energyValue,
     target: energyTarget,

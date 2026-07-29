@@ -14,6 +14,8 @@ const nutrientDefinitionSchema = z.object({
 
 export type NutrientDefinition = z.infer<typeof nutrientDefinitionSchema>
 
+export const NUTRIENT_DEFINITIONS_QUERY_KEY = ['nutrient-definitions']
+
 // Ordered by isMajor desc, then sortOrder asc (see
 // src/domain/nutrient-definition/types.ts), so the major 6 always come first.
 export const fetchNutrientDefinitions = (): ResultAsync<

@@ -4,8 +4,11 @@ import { Link } from 'react-router'
 import type { DayDetailEntry } from '#api/day-detail'
 import { fetchDayDetail } from '#api/day-detail'
 import type { NutrientDefinition } from '#api/nutrient-definitions'
-import { fetchNutrientDefinitions } from '#api/nutrient-definitions'
-import { fetchUserProfile } from '#api/profile'
+import {
+  fetchNutrientDefinitions,
+  NUTRIENT_DEFINITIONS_QUERY_KEY,
+} from '#api/nutrient-definitions'
+import { fetchUserProfile, PROFILE_QUERY_KEY } from '#api/profile'
 import { toPromise } from '#api/to-promise'
 import { ErrorRetry } from '#components/ErrorRetry/ErrorRetry'
 import { buildMealTimelineGroups } from '#components/MealTimeline/build-meal-timeline-groups'
@@ -20,9 +23,6 @@ import {
   weekdayLabelJa,
 } from '#lib/jst-date'
 import styles from '#pages/DayDetailView.module.css'
-
-const NUTRIENT_DEFINITIONS_QUERY_KEY = ['nutrient-definitions']
-const PROFILE_QUERY_KEY = ['profile']
 
 export interface DayDetailViewProps {
   readonly date: string

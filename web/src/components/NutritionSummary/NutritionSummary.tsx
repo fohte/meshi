@@ -92,7 +92,7 @@ export const NutritionSummary = ({
 
       <div className={styles.majorRows}>
         {majorRows.map((row) => (
-          <div key={row.code} className={styles.majorRow}>
+          <div key={row.code}>
             <div className={styles.majorRowHead}>
               <span className={styles.majorRowLabel}>{row.label}</span>
               <span className={styles.majorRowValue}>

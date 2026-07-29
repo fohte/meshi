@@ -375,4 +375,105 @@ describe('buildNutritionSummaryData', () => {
 
     expect(result).toEqual(zeroTotalsNoTargetResult)
   })
+
+  it('treats a target of 0 as unusable instead of producing NaN/Infinity%', () => {
+    const totals = { energy_kcal: 1800, protein_g: 90 }
+    const targets = { energy_kcal: 0, protein_g: 0 }
+
+    const result = buildNutritionSummaryData(totals, DEFINITIONS, targets)
+
+    expect(result).toEqual({
+      energy: { value: 1800, target: 0, pct: null, over: false },
+      pfc: {
+        segments: [
+          {
+            label: 'たんぱく質',
+            color: 'var(--color-text)',
+            pct: 100,
+            targetPct: 20,
+          },
+          { label: '脂質', color: 'var(--color-muted)', pct: 0, targetPct: 25 },
+          { label: '炭水化物', color: '#3f3f46', pct: 0, targetPct: 55 },
+        ],
+        targetMarks: [20, 45],
+      },
+      majorRows: [
+        {
+          code: 'protein_g',
+          label: 'たんぱく質',
+          unit: 'g',
+          value: 90,
+          target: 0,
+          pct: 0,
+          over: false,
+        },
+        {
+          code: 'fat_g',
+          label: '脂質',
+          unit: 'g',
+          value: 0,
+          target: null,
+          pct: 0,
+          over: false,
+        },
+        {
+          code: 'carb_g',
+          label: '炭水化物',
+          unit: 'g',
+          value: 0,
+          target: null,
+          pct: 0,
+          over: false,
+        },
+      ],
+      allRows: [
+        {
+          code: 'energy_kcal',
+          label: 'エネルギー',
+          unit: 'kcal',
+          value: 1800,
+          target: 0,
+          pct: 0,
+          over: false,
+        },
+        {
+          code: 'protein_g',
+          label: 'たんぱく質',
+          unit: 'g',
+          value: 90,
+          target: 0,
+          pct: 0,
+          over: false,
+        },
+        {
+          code: 'fat_g',
+          label: '脂質',
+          unit: 'g',
+          value: 0,
+          target: null,
+          pct: 0,
+          over: false,
+        },
+        {
+          code: 'carb_g',
+          label: '炭水化物',
+          unit: 'g',
+          value: 0,
+          target: null,
+          pct: 0,
+          over: false,
+        },
+        {
+          code: 'iron_mg',
+          label: '鉄',
+          unit: 'mg',
+          value: 0,
+          target: null,
+          pct: 0,
+          over: false,
+        },
+      ],
+      hasAnyTarget: true,
+    })
+  })
 })

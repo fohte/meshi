@@ -10,7 +10,7 @@ export const MealTimeline = ({
 }: MealTimelineProps): React.JSX.Element => (
   <div className={styles.timeline}>
     {groups.map((group) => (
-      <section key={group.mealType} className={styles.group}>
+      <section key={group.mealType}>
         <div className={styles.groupHead}>
           <span className={styles.groupMark}>##</span>
           <span className={styles.groupLabel}>{group.label}</span>
@@ -22,7 +22,7 @@ export const MealTimeline = ({
               <span className={styles.itemTime}>{item.time}</span>
               <div className={styles.itemMain}>
                 <div className={styles.itemNameLine}>
-                  <span className={styles.itemName}>{item.name}</span>
+                  <span>{item.name}</span>
                   {item.isEstimated && (
                     <span className={styles.itemEstimateMark}> ~</span>
                   )}

@@ -47,8 +47,12 @@ export const weekdayLabelJa = (dateOnly: string): string => {
   return WEEKDAY_LABELS_JA[weekday] ?? ''
 }
 
+// dateOnly may be an unvalidated route param (e.g. /days/:date typed by
+// hand), so an unparseable value is returned as-is rather than throwing —
+// callers' subsequent API call then surfaces it as a normal 400 error state.
 export const shiftDateString = (dateOnly: string, days: number): string => {
   const d = new Date(`${dateOnly}T00:00:00Z`)
+  if (Number.isNaN(d.getTime())) return dateOnly
   d.setUTCDate(d.getUTCDate() + days)
   return d.toISOString().slice(0, 10)
 }

@@ -32,6 +32,10 @@ describe('shiftDateString', () => {
   it('shifts a calendar date backward across a month boundary', () => {
     expect(shiftDateString('2026-08-01', -1)).toBe('2026-07-31')
   })
+
+  it('returns an unparseable date unchanged instead of throwing', () => {
+    expect(shiftDateString('not-a-date', 1)).toBe('not-a-date')
+  })
 })
 
 describe('formatJstMonthDay', () => {
