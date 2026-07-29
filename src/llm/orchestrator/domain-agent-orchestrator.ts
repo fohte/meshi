@@ -2,11 +2,13 @@ import { randomUUID } from 'node:crypto'
 
 import { captureWithFingerprint } from '@fohte/service-kit/observability'
 import type { BaseChatModel } from '@langchain/core/language_models/chat_models'
-import { HumanMessage } from '@langchain/core/messages'
 import { MemorySaver } from '@langchain/langgraph'
 import { ResultAsync } from 'neverthrow'
 
-import type { AgentContentBlock } from '#llm/agent/content-block'
+import {
+  type AgentContentBlock,
+  toHumanMessage,
+} from '#llm/agent/content-block'
 import {
   AGENT_NO_USABLE_REPLY_EVENT,
   AGENT_THINK_BLOCK_LEAKED_EVENT,
@@ -254,11 +256,7 @@ export const createDomainAgentOrchestrator = (
     // the result even if a later item's tool call blew up.
     const invokeResult = await ResultAsync.fromPromise(
       agent.invoke(
-        // A HumanMessage built via contentBlocks (not a plain { role,
-        // content } literal) is required for @langchain/openai to recognize
-        // these as standard v1 content blocks — see the same comment on
-        // MeshiDomainAgentLike in agent-executor.ts.
-        { messages: [new HumanMessage({ contentBlocks: [...content] })] },
+        { messages: [toHumanMessage(content)] },
         {
           configurable: { thread_id: randomUUID() },
           recursionLimit: MESHI_AGENT_RECURSION_LIMIT,

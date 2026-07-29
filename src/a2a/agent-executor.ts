@@ -8,12 +8,13 @@ import type {
 } from '@a2a-js/sdk/server'
 import { captureWithFingerprint } from '@fohte/service-kit/observability'
 import type { CallbackHandlerMethods } from '@langchain/core/callbacks/base'
-import { HumanMessage } from '@langchain/core/messages'
+import type { HumanMessage } from '@langchain/core/messages'
 
 import { withAdvisoryLock } from '#a2a/advisory-lock'
 import { toAgentContent } from '#a2a/message-content'
 import type { Sql } from '#db/index'
 import { parseJson } from '#lib/json'
+import { toHumanMessage } from '#llm/agent/content-block'
 import {
   AGENT_NO_USABLE_REPLY_EVENT,
   AGENT_THINK_BLOCK_LEAKED_EVENT,
@@ -44,14 +45,10 @@ export type { AgentInvokeMessage } from '#llm/agent/derive-reply'
 export interface MeshiDomainAgentLike {
   invoke(
     input: {
-      // A real HumanMessage (built via the contentBlocks field, not a plain
+      // A real HumanMessage (built via toHumanMessage, not a plain
       // { role, content } literal) is required for @langchain/openai to
-      // recognize these as standard v1 content blocks: constructing it that
-      // way sets response_metadata.output_version = 'v1', which is what the
-      // Chat Completions converter keys off of to route an image block
-      // through standard-block conversion (image -> image_url) instead of
-      // treating it as unrecognized provider-native content and dropping
-      // it. See runAgentTurn below.
+      // recognize these as standard v1 content blocks — see the comment on
+      // toHumanMessage in content-block.ts.
       messages: HumanMessage[]
     },
     config: {
@@ -292,11 +289,7 @@ export const runAgentTurn = async (
   try {
     const result = await agent.invoke(
       {
-        messages: [
-          new HumanMessage({
-            contentBlocks: toAgentContent(requestContext.userMessage),
-          }),
-        ],
+        messages: [toHumanMessage(toAgentContent(requestContext.userMessage))],
       },
       {
         configurable: { thread_id: requestContext.contextId },
