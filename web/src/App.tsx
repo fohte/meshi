@@ -1,5 +1,6 @@
 import { Route, Routes } from 'react-router'
 
+import { FoodDetailPage } from '#pages/FoodDetailPage'
 import { FoodsPage } from '#pages/FoodsPage'
 import { HistoryPage } from '#pages/HistoryPage'
 import { SettingsPage } from '#pages/SettingsPage'
@@ -12,6 +13,7 @@ export const App = (): React.JSX.Element => (
       <Route index element={<TodayPage />} />
       <Route path="history" element={<HistoryPage />} />
       <Route path="foods" element={<FoodsPage />} />
+      <Route path="foods/:id" element={<FoodDetailPage />} />
       <Route path="settings" element={<SettingsPage />} />
     </Route>
   </Routes>

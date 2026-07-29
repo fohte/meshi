@@ -2,6 +2,7 @@ import type { JsonValue, Sql } from '#db/index'
 import type {
   a2aPushConfigs,
   foodCompositions,
+  foodMasterAliases,
   foodMasterNutrients,
   foodMasters,
   foodMasterUnits,
@@ -72,6 +73,16 @@ export const seedFoodMaster = async (
       value,
     })
   }
+}
+
+export const seedFoodMasterAlias = async (
+  sql: Sql,
+  values: typeof foodMasterAliases.$inferInsert,
+): Promise<void> => {
+  await sql`
+    INSERT INTO food_master_aliases (id, food_master_id, alias)
+    VALUES (${values.id}, ${values.foodMasterId}, ${values.alias})
+  `
 }
 
 export const seedMealLog = async (
