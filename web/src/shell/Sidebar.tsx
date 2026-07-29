@@ -1,0 +1,40 @@
+import { NavLink } from 'react-router'
+
+import { NAV_ITEMS } from '#shell/nav-items'
+import styles from '#shell/Sidebar.module.css'
+
+export const Sidebar = (): React.JSX.Element => (
+  <nav className={styles.sidebar}>
+    <div className={styles.logo}>
+      <span className={styles.logoMark}>&gt;</span>
+      <span className={styles.logoText}>meshi</span>
+    </div>
+
+    <div className={styles.nav}>
+      {NAV_ITEMS.map((item) => (
+        <NavLink
+          key={item.path}
+          to={item.path}
+          end={item.path === '/'}
+          className={({ isActive }) =>
+            [styles.navItem, isActive ? styles.navItemActive : '']
+              .filter(Boolean)
+              .join(' ')
+          }
+        >
+          <span className={styles.navItemHash}>#</span>
+          {item.label}
+        </NavLink>
+      ))}
+    </div>
+
+    <button type="button" className={styles.createButton}>
+      + 記録する
+    </button>
+
+    <div className={styles.footnote}>
+      <div>登録は Slack がメイン</div>
+      <div>web は閲覧と振り返り</div>
+    </div>
+  </nav>
+)

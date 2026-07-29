@@ -138,3 +138,12 @@ jobs:
 
       - name: Run tests
         run: pnpm run test
+
+      # generic-boilerplate's test.yml.jinja doesn't wire up subpackage
+      # testing for a `type: node` root (only for `type: rust` or `type: base`
+      # roots), so the web subpackage's build/test is added here by hand.
+      - name: Build web
+        run: pnpm --filter web run build
+
+      - name: Run tests (web)
+        run: pnpm --filter web run test

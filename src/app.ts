@@ -1,11 +1,17 @@
 import type { AgentCard } from '@a2a-js/sdk'
 import type { DefaultRequestHandler } from '@a2a-js/sdk/server'
+import { serveStatic } from '@hono/node-server/serve-static'
 import { Hono } from 'hono'
 import { ResultAsync } from 'neverthrow'
 
 import { mountA2aRoutes } from '#a2a/hono-bridge'
 import type { Sql } from '#db/index'
 import { pingDb } from '#db/index'
+
+// Relative to process.cwd(): the Docker runtime image's WORKDIR (/app) and
+// `pnpm dev`/`pnpm start` both run from the repo root, where the web
+// subpackage's Vite build output lands at web/dist.
+const WEB_DIST_ROOT = 'web/dist'
 
 export interface AppDeps {
   sql: Sql
@@ -34,6 +40,11 @@ export const createApp = (deps: AppDeps): Hono => {
       ? {}
       : { bearerToken: deps.bearerToken }),
   })
+
+  // SPA static assets, then an index.html fallback for client-side routes
+  // (e.g. /history). Registered last so they never shadow the routes above.
+  app.use('*', serveStatic({ root: WEB_DIST_ROOT }))
+  app.get('*', serveStatic({ root: WEB_DIST_ROOT, path: 'index.html' }))
 
   return app
 }
