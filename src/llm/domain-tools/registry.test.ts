@@ -49,6 +49,13 @@ const stubDeps = (override: Partial<DomainToolsDeps> = {}): DomainToolsDeps => {
           'test/not_stubbed',
         ),
       ),
+    update: () =>
+      errAsync(
+        new DomainError(
+          'mealLogService.update not stubbed',
+          'test/not_stubbed',
+        ),
+      ),
     getById: () => okAsync(null),
   }
   const foodMasterService: FoodMasterService = {
@@ -104,11 +111,12 @@ const stubDeps = (override: Partial<DomainToolsDeps> = {}): DomainToolsDeps => {
 }
 
 describe('createDomainToolsRegistry', () => {
-  it('registers all seven internal tools and exposes them via toLlmSchemas in the same order', () => {
+  it('registers all eight internal tools and exposes them via toLlmSchemas in the same order', () => {
     const registry = createDomainToolsRegistry(stubDeps())
 
     const expectedNames = [
       'record_meal_log',
+      'update_meal_log',
       'search_food_master',
       'register_food_master',
       'query_meal_history',

@@ -1,9 +1,10 @@
-import { errAsync, type ResultAsync } from 'neverthrow'
+import { errAsync, okAsync, type ResultAsync } from 'neverthrow'
 
 import {
   type DomainError,
   FutureEatenAtError,
   InvalidQuantityError,
+  MealLogNotFoundError,
 } from '#domain/meal-log/errors'
 import { inferMealType } from '#domain/meal-log/infer-meal-type'
 import type { MealLogRepository } from '#domain/meal-log/meal-log-repository'
@@ -13,10 +14,12 @@ import type {
   MealLogRow,
   NutritionMap,
   RecordMealLogInput,
+  UpdateMealLogInput,
 } from '#domain/meal-log/types'
 
 export interface MealLogService {
   record(input: RecordMealLogInput): ResultAsync<MealLogResult, DomainError>
+  update(input: UpdateMealLogInput): ResultAsync<MealLogResult, DomainError>
   getById(id: string): ResultAsync<MealLogResult | null, DomainError>
 }
 
@@ -49,6 +52,63 @@ export const createMealLogService = (
         })
         .map((log) => buildResult(log, food)),
     )
+  },
+  update(input) {
+    if (
+      input.eatenAt !== undefined &&
+      input.eatenAt.getTime() > deps.now().getTime()
+    ) {
+      return errAsync(new FutureEatenAtError(input.eatenAt))
+    }
+    if (
+      input.quantity !== undefined &&
+      (!Number.isFinite(input.quantity) || input.quantity <= 0)
+    ) {
+      return errAsync(new InvalidQuantityError(input.quantity))
+    }
+    return deps.repository.findMealLogById(input.id).andThen((found) => {
+      if (found === null) return errAsync(new MealLogNotFoundError(input.id))
+      // Skip the update round-trip when the patch carries no fields — an empty
+      // `.set({})` would reach the repository with nothing to assign.
+      if (
+        input.foodMasterId === undefined &&
+        input.eatenAt === undefined &&
+        input.mealType === undefined &&
+        input.quantity === undefined &&
+        input.unit === undefined &&
+        input.note === undefined
+      ) {
+        return okAsync(buildResult(found.log, found.food))
+      }
+      const newFoodMasterId =
+        input.foodMasterId !== undefined &&
+        input.foodMasterId !== found.log.foodMasterId
+          ? input.foodMasterId
+          : undefined
+      const foodRef =
+        newFoodMasterId === undefined
+          ? okAsync(found.food)
+          : deps.repository.findFoodMaster(newFoodMasterId)
+      return foodRef.andThen((food) =>
+        deps.repository
+          .updateMealLog({
+            id: input.id,
+            ...(input.foodMasterId === undefined
+              ? {}
+              : { foodMasterId: input.foodMasterId }),
+            ...(input.eatenAt === undefined ? {} : { eatenAt: input.eatenAt }),
+            ...(input.mealType === undefined
+              ? {}
+              : { mealType: input.mealType }),
+            ...(input.quantity === undefined
+              ? {}
+              : { quantity: input.quantity }),
+            ...(input.unit === undefined ? {} : { unit: input.unit }),
+            ...(input.note === undefined ? {} : { note: input.note }),
+          })
+          .map((log) => buildResult(log, food)),
+      )
+    })
   },
   getById(id) {
     return deps.repository
