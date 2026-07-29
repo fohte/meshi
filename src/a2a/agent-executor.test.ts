@@ -1080,72 +1080,86 @@ describeIfDb('createMeshiAgentExecutor', () => {
     expect(maxConcurrent).toBe(1)
   })
 
-  it('publishes an immediate status-update with progress text when the agent starts a mapped tool', async () => {
-    const contextId = `ctx-${randomUUID()}`
-    const taskId = `task-${randomUUID()}`
-    const userMessage = buildUserMessage(taskId, contextId)
-    const agent: MeshiDomainAgentLike = {
-      invoke: vi
-        .fn()
-        .mockImplementation((_input: unknown, config: InvokeConfig) => {
-          fireHandleToolStart(config.callbacks, 'search_food_master')
-          return buildCompletedInvokeResult('Recorded your meal.')
-        }),
-    }
-    const executor = createMeshiAgentExecutor({
-      agent,
-      sql: getTestSql(),
-      heartbeatIntervalMs: 1_000_000,
-    })
-    const { bus, published } = buildEventBus()
+  it.each([
+    {
+      toolName: 'search_food_master',
+      toolResultText: 'Recorded your meal.',
+      progressText: 'Looking up the food in the food database...',
+    },
+    {
+      toolName: 'update_meal_log',
+      toolResultText: 'Updated your meal.',
+      progressText: 'Updating your meal record...',
+    },
+  ])(
+    'publishes an immediate status-update with progress text when the agent starts $toolName',
+    async ({ toolName, toolResultText, progressText }) => {
+      const contextId = `ctx-${randomUUID()}`
+      const taskId = `task-${randomUUID()}`
+      const userMessage = buildUserMessage(taskId, contextId)
+      const agent: MeshiDomainAgentLike = {
+        invoke: vi
+          .fn()
+          .mockImplementation((_input: unknown, config: InvokeConfig) => {
+            fireHandleToolStart(config.callbacks, toolName)
+            return buildCompletedInvokeResult(toolResultText)
+          }),
+      }
+      const executor = createMeshiAgentExecutor({
+        agent,
+        sql: getTestSql(),
+        heartbeatIntervalMs: 1_000_000,
+      })
+      const { bus, published } = buildEventBus()
 
-    await executor.execute(
-      new RequestContext(userMessage, taskId, contextId),
-      bus,
-    )
+      await executor.execute(
+        new RequestContext(userMessage, taskId, contextId),
+        bus,
+      )
 
-    const progressMessage = buildExpectedAgentMessage(
-      taskId,
-      contextId,
-      'Looking up the food in the food database...',
-    )
-    const agentMessage = buildExpectedAgentMessage(
-      taskId,
-      contextId,
-      'Recorded your meal.',
-    )
-    expect(published.map(normalizeEvent)).toEqual([
-      {
-        kind: 'task',
-        id: taskId,
-        contextId,
-        status: { state: 'working', timestamp: NORMALIZED },
-        history: [userMessage],
-      },
-      {
-        kind: 'status-update',
+      const progressMessage = buildExpectedAgentMessage(
         taskId,
         contextId,
-        status: {
-          state: 'working',
-          timestamp: NORMALIZED,
-          message: progressMessage,
-        },
-        final: false,
-      },
-      {
-        kind: 'task',
-        id: taskId,
+        progressText,
+      )
+      const agentMessage = buildExpectedAgentMessage(
+        taskId,
         contextId,
-        status: {
-          state: 'completed',
-          timestamp: NORMALIZED,
-          message: agentMessage,
+        toolResultText,
+      )
+      expect(published.map(normalizeEvent)).toEqual([
+        {
+          kind: 'task',
+          id: taskId,
+          contextId,
+          status: { state: 'working', timestamp: NORMALIZED },
+          history: [userMessage],
         },
-        history: [userMessage, agentMessage],
-      },
-    ])
-  })
+        {
+          kind: 'status-update',
+          taskId,
+          contextId,
+          status: {
+            state: 'working',
+            timestamp: NORMALIZED,
+            message: progressMessage,
+          },
+          final: false,
+        },
+        {
+          kind: 'task',
+          id: taskId,
+          contextId,
+          status: {
+            state: 'completed',
+            timestamp: NORMALIZED,
+            message: agentMessage,
+          },
+          history: [userMessage, agentMessage],
+        },
+      ])
+    },
+  )
 
   it('does not publish a progress status-update for a tool name with no mapped progress text', async () => {
     const contextId = `ctx-${randomUUID()}`
