@@ -8,11 +8,13 @@ import type {
 } from '@a2a-js/sdk/server'
 import { captureWithFingerprint } from '@fohte/service-kit/observability'
 import type { CallbackHandlerMethods } from '@langchain/core/callbacks/base'
+import type { HumanMessage } from '@langchain/core/messages'
 
 import { withAdvisoryLock } from '#a2a/advisory-lock'
-import { type AgentContentBlock, toAgentContent } from '#a2a/message-content'
+import { toAgentContent } from '#a2a/message-content'
 import type { Sql } from '#db/index'
 import { parseJson } from '#lib/json'
+import { toHumanMessage } from '#llm/agent/content-block'
 import {
   AGENT_NO_USABLE_REPLY_EVENT,
   AGENT_THINK_BLOCK_LEAKED_EVENT,
@@ -43,7 +45,11 @@ export type { AgentInvokeMessage } from '#llm/agent/derive-reply'
 export interface MeshiDomainAgentLike {
   invoke(
     input: {
-      messages: Array<{ role: 'user'; content: AgentContentBlock[] }>
+      // A real HumanMessage (built via toHumanMessage, not a plain
+      // { role, content } literal) is required for @langchain/openai to
+      // recognize these as standard v1 content blocks — see the comment on
+      // toHumanMessage in content-block.ts.
+      messages: HumanMessage[]
     },
     config: {
       configurable: { thread_id: string }
@@ -283,12 +289,7 @@ export const runAgentTurn = async (
   try {
     const result = await agent.invoke(
       {
-        messages: [
-          {
-            role: 'user',
-            content: toAgentContent(requestContext.userMessage),
-          },
-        ],
+        messages: [toHumanMessage(toAgentContent(requestContext.userMessage))],
       },
       {
         configurable: { thread_id: requestContext.contextId },
