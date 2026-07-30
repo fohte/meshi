@@ -27,12 +27,10 @@ import styles from '#pages/DayDetailView.module.css'
 
 export interface DayDetailViewProps {
   readonly date: string
-  readonly variant: 'today' | 'day'
 }
 
 export const DayDetailView = ({
   date,
-  variant,
 }: DayDetailViewProps): React.JSX.Element => {
   const dayDetailQuery = useQuery({
     queryKey: ['day-detail', date],
@@ -66,12 +64,11 @@ export const DayDetailView = ({
   const today = todayJstDate()
   const prevDate = shiftDateString(date, -1)
   const nextDate = shiftDateString(date, 1)
-  const showNext = variant === 'day' && date < today
+  const showNext = date < today
   const weekday = weekdayLabelJa(date)
   const monthDay = formatJstMonthDay(date)
 
-  const crumb = variant === 'today' ? 'TODAY' : `${weekday}曜日`
-  const title = variant === 'today' ? `${monthDay} (${weekday})` : date
+  const crumb = `${weekday}曜日`
   const entryCount = dayDetailQuery.data?.entries.length ?? 0
 
   return (
@@ -80,12 +77,11 @@ export const DayDetailView = ({
         <div>
           <div className={styles.crumb}>{crumb}</div>
           <h1 className={styles.title}>
-            <span className={styles.titleMark}>#</span> {title}
+            <span className={styles.titleMark}>#</span> {date}
           </h1>
           {!isPending && !isError && (
             <div className={styles.sub}>
-              {variant === 'today' ? '今日の記録' : `${monthDay}の記録`} ·{' '}
-              {entryCount} 品
+              {monthDay}の記録 · {entryCount} 品
             </div>
           )}
         </div>
@@ -98,11 +94,9 @@ export const DayDetailView = ({
               翌日 →
             </Link>
           )}
-          {variant === 'day' && (
-            <Link className={styles.navButton} to="/history">
-              カレンダー
-            </Link>
-          )}
+          <Link className={styles.navButton} to="/history">
+            カレンダー
+          </Link>
         </nav>
       </header>
 
@@ -122,11 +116,6 @@ export const DayDetailView = ({
           hasEstimatedValues={dayDetailQuery.data.hasEstimatedValues}
           definitions={nutrientDefinitionsQuery.data}
           targets={profileQuery.data.dailyTargets}
-          emptyText={
-            variant === 'today'
-              ? '今日の記録はまだありません'
-              : 'この日の記録はありません'
-          }
         />
       )}
     </div>
@@ -139,7 +128,6 @@ interface DayDetailContentProps {
   readonly hasEstimatedValues: boolean
   readonly definitions: ReadonlyArray<NutrientDefinition>
   readonly targets: Readonly<Record<string, number>> | null
-  readonly emptyText: string
 }
 
 const DayDetailContent = ({
@@ -148,14 +136,13 @@ const DayDetailContent = ({
   hasEstimatedValues,
   definitions,
   targets,
-  emptyText,
 }: DayDetailContentProps): React.JSX.Element => {
   const { openCreate, openEdit } = useMealLogSheet()
 
   if (entries.length === 0) {
     return (
       <div className={styles.emptyState}>
-        <div className={styles.emptyText}>{emptyText}</div>
+        <div className={styles.emptyText}>この日の記録はありません</div>
         <button
           type="button"
           className={styles.emptyCreateButton}
