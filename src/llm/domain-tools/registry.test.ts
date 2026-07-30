@@ -9,7 +9,7 @@ import type { FoodMatcher } from '#domain/food-matcher/food-matcher'
 import type { MealHistoryService } from '#domain/meal-history/types'
 import { DomainError } from '#domain/meal-log/errors'
 import type { MealLogService } from '#domain/meal-log/meal-log-service'
-import { DomainError as MealSkipDomainError } from '#domain/meal-skip/errors'
+import { MealSkipDomainError } from '#domain/meal-skip/errors'
 import type { MealSkipService } from '#domain/meal-skip/meal-skip-service'
 import type { UserProfileService } from '#domain/user-profile/user-profile-service'
 import {
@@ -128,15 +128,15 @@ const stubDeps = (override: Partial<DomainToolsDeps> = {}): DomainToolsDeps => {
     record: () =>
       errAsync(
         new MealSkipDomainError(
+          'meal_skip/persistence_failed',
           'mealSkipService.record not stubbed',
-          'test/not_stubbed',
         ),
       ),
     cancel: () =>
       errAsync(
         new MealSkipDomainError(
+          'meal_skip/persistence_failed',
           'mealSkipService.cancel not stubbed',
-          'test/not_stubbed',
         ),
       ),
     findForDate: () => okAsync([]),

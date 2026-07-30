@@ -4,7 +4,7 @@ import { err, ok, type Result, ResultAsync } from 'neverthrow'
 
 import type { Sql } from '#db/index'
 import { mealSkips } from '#db/schema'
-import type { DomainError } from '#domain/meal-skip/errors'
+import type { MealSkipDomainError } from '#domain/meal-skip/errors'
 import { MealSkipPersistenceError } from '#domain/meal-skip/errors'
 import type {
   InsertMealSkipInput,
@@ -22,9 +22,9 @@ export const createDrizzleMealSkipRepository = (
   return {
     recordSkip: (
       input: InsertMealSkipInput,
-    ): ResultAsync<MealSkipRow, DomainError> =>
+    ): ResultAsync<MealSkipRow, MealSkipDomainError> =>
       ResultAsync.fromPromise(
-        (async (): Promise<Result<MealSkipRow, DomainError>> => {
+        (async (): Promise<Result<MealSkipRow, MealSkipDomainError>> => {
           const [row] = await db
             .insert(mealSkips)
             .values({
@@ -56,7 +56,7 @@ export const createDrizzleMealSkipRepository = (
     cancelSkip: (
       date: string,
       mealType: MealType,
-    ): ResultAsync<boolean, DomainError> =>
+    ): ResultAsync<boolean, MealSkipDomainError> =>
       ResultAsync.fromPromise(
         db
           .delete(mealSkips)
@@ -70,7 +70,7 @@ export const createDrizzleMealSkipRepository = (
 
     findSkipsForDate: (
       date: string,
-    ): ResultAsync<ReadonlyArray<MealSkipRow>, DomainError> =>
+    ): ResultAsync<ReadonlyArray<MealSkipRow>, MealSkipDomainError> =>
       ResultAsync.fromPromise(
         db.select().from(mealSkips).where(eq(mealSkips.date, date)),
         (caughtErr) =>

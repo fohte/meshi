@@ -1,9 +1,9 @@
 import { errAsync, okAsync, type ResultAsync } from 'neverthrow'
 
 import {
-  type DomainError,
   FutureMealSkipDateError,
   InvalidMealSkipDateError,
+  type MealSkipDomainError,
   MealSkipNotFoundError,
 } from '#domain/meal-skip/errors'
 import type { MealSkipRepository } from '#domain/meal-skip/meal-skip-repository'
@@ -21,11 +21,13 @@ export interface CancelMealSkipInput {
 }
 
 export interface MealSkipService {
-  record(input: RecordMealSkipInput): ResultAsync<MealSkipRow, DomainError>
-  cancel(input: CancelMealSkipInput): ResultAsync<void, DomainError>
+  record(
+    input: RecordMealSkipInput,
+  ): ResultAsync<MealSkipRow, MealSkipDomainError>
+  cancel(input: CancelMealSkipInput): ResultAsync<void, MealSkipDomainError>
   findForDate(
     date: string,
-  ): ResultAsync<ReadonlyArray<MealSkipRow>, DomainError>
+  ): ResultAsync<ReadonlyArray<MealSkipRow>, MealSkipDomainError>
 }
 
 export interface MealSkipServiceDeps {

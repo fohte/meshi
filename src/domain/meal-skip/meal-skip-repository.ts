@@ -1,6 +1,6 @@
 import type { ResultAsync } from 'neverthrow'
 
-import type { DomainError } from '#domain/meal-skip/errors'
+import type { MealSkipDomainError } from '#domain/meal-skip/errors'
 import type { MealSkipRow, MealType } from '#domain/meal-skip/types'
 
 export interface InsertMealSkipInput {
@@ -10,14 +10,16 @@ export interface InsertMealSkipInput {
 }
 
 export interface MealSkipRepository {
-  recordSkip(input: InsertMealSkipInput): ResultAsync<MealSkipRow, DomainError>
+  recordSkip(
+    input: InsertMealSkipInput,
+  ): ResultAsync<MealSkipRow, MealSkipDomainError>
   // Resolves to false when no row matched, rather than an error — the
   // service layer decides whether a no-op cancel is a MealSkipNotFoundError.
   cancelSkip(
     date: string,
     mealType: MealType,
-  ): ResultAsync<boolean, DomainError>
+  ): ResultAsync<boolean, MealSkipDomainError>
   findSkipsForDate(
     date: string,
-  ): ResultAsync<ReadonlyArray<MealSkipRow>, DomainError>
+  ): ResultAsync<ReadonlyArray<MealSkipRow>, MealSkipDomainError>
 }

@@ -18,7 +18,7 @@ const entry = (overrides: Partial<DayDetailEntry>): DayDetailEntry => ({
 })
 
 describe('buildMealTimelineGroups', () => {
-  it('always returns 4 groups in a fixed order, assigning eaten/skipped/unrecorded status', () => {
+  it('assigns status "eaten" with items and kcalText to a mealType with entries', () => {
     const entries = [
       entry({
         id: 'l1',
@@ -28,14 +28,92 @@ describe('buildMealTimelineGroups', () => {
         quantity: 150,
         kcal: 234,
       }),
-      entry({
-        id: 'l3',
-        eatenAt: '2026-07-29T03:30:00.000Z', // 12:30 JST lunch
+    ]
+
+    expect(buildMealTimelineGroups(entries, [])).toEqual([
+      {
+        mealType: 'breakfast',
+        label: '朝食',
+        status: 'eaten',
+        kcalText: '234 kcal',
+        items: [
+          {
+            id: 'l1',
+            time: '08:00',
+            name: '白米',
+            isEstimated: false,
+            quantityText: '150 g',
+            kcalText: '234 kcal',
+            note: null,
+          },
+        ],
+      },
+      {
         mealType: 'lunch',
-        foodName: 'うどん',
-        quantity: 1,
-        unit: '杯',
-        kcal: 300,
+        label: '昼食',
+        status: 'unrecorded',
+        kcalText: null,
+        items: [],
+      },
+      {
+        mealType: 'dinner',
+        label: '夕食',
+        status: 'unrecorded',
+        kcalText: null,
+        items: [],
+      },
+      {
+        mealType: 'snack',
+        label: '間食',
+        status: 'unrecorded',
+        kcalText: null,
+        items: [],
+      },
+    ])
+  })
+
+  it('assigns status "skipped" with no items to a mealType passed in skippedMealTypes', () => {
+    expect(buildMealTimelineGroups([], ['dinner'])).toEqual([
+      {
+        mealType: 'breakfast',
+        label: '朝食',
+        status: 'unrecorded',
+        kcalText: null,
+        items: [],
+      },
+      {
+        mealType: 'lunch',
+        label: '昼食',
+        status: 'unrecorded',
+        kcalText: null,
+        items: [],
+      },
+      {
+        mealType: 'dinner',
+        label: '夕食',
+        status: 'skipped',
+        kcalText: null,
+        items: [],
+      },
+      {
+        mealType: 'snack',
+        label: '間食',
+        status: 'unrecorded',
+        kcalText: null,
+        items: [],
+      },
+    ])
+  })
+
+  it('assigns status "unrecorded" to a mealType with neither an entry nor a skip', () => {
+    const entries = [
+      entry({
+        id: 'l1',
+        eatenAt: '2026-07-28T23:00:00.000Z', // 08:00 JST breakfast
+        mealType: 'breakfast',
+        foodName: '白米',
+        quantity: 150,
+        kcal: 234,
       }),
     ]
 
@@ -60,19 +138,9 @@ describe('buildMealTimelineGroups', () => {
       {
         mealType: 'lunch',
         label: '昼食',
-        status: 'eaten',
-        kcalText: '300 kcal',
-        items: [
-          {
-            id: 'l3',
-            time: '12:30',
-            name: 'うどん',
-            isEstimated: false,
-            quantityText: '1 杯',
-            kcalText: '300 kcal',
-            note: null,
-          },
-        ],
+        status: 'unrecorded',
+        kcalText: null,
+        items: [],
       },
       {
         mealType: 'dinner',

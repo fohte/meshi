@@ -2,8 +2,8 @@ import { z } from 'zod'
 
 import { MEAL_TYPES } from '#domain/meal-log/types'
 import type { MealSkipService } from '#domain/meal-skip/meal-skip-service'
-import { isValidJstCalendarDateString } from '#lib/jst-date'
 import { parseToolInput } from '#llm/domain-tools/parse'
+import { mealSkipInputSchema as inputSchema } from '#llm/domain-tools/tools/meal-skip-input-schema'
 import {
   type DomainTool,
   err,
@@ -11,13 +11,6 @@ import {
   type Result,
   type ToolError,
 } from '#llm/domain-tools/types'
-
-const inputSchema = z.object({
-  date: z.string().refine(isValidJstCalendarDateString, {
-    message: 'date must be a valid YYYY-MM-DD JST calendar date',
-  }),
-  meal_type: z.enum(MEAL_TYPES),
-})
 
 export interface RecordMealSkipOutput {
   readonly meal_skip_id: string

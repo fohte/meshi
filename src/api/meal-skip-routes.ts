@@ -1,9 +1,10 @@
 import type { Context, Hono } from 'hono'
+import { err, ok, type Result } from 'neverthrow'
 import { z } from 'zod'
 
 import { jsonBadRequest, jsonServerError } from '#api/errors'
 import { MEAL_TYPES } from '#domain/meal-log/types'
-import type { DomainError } from '#domain/meal-skip/errors'
+import type { MealSkipDomainError } from '#domain/meal-skip/errors'
 import type { MealSkipService } from '#domain/meal-skip/meal-skip-service'
 import type { MealSkipRow } from '#domain/meal-skip/types'
 import { isValidJstCalendarDateString } from '#lib/jst-date'
@@ -14,7 +15,10 @@ const CLIENT_ERROR_CODES = new Set([
   'meal_skip/future_date',
 ])
 
-const mealSkipErrorResponse = (c: Context, error: DomainError): Response => {
+const mealSkipErrorResponse = (
+  c: Context,
+  error: MealSkipDomainError,
+): Response => {
   if (NOT_FOUND_CODES.has(error.code))
     return c.json({ error: error.message }, 404)
   if (CLIENT_ERROR_CODES.has(error.code))
@@ -29,6 +33,24 @@ const paramsSchema = z.object({
   mealType: z.enum(MEAL_TYPES),
 })
 
+const parseParams = (
+  c: Context,
+): Result<z.infer<typeof paramsSchema>, Response> => {
+  const parsed = paramsSchema.safeParse({
+    date: c.req.param('date'),
+    mealType: c.req.param('mealType'),
+  })
+  if (!parsed.success) {
+    return err(
+      jsonBadRequest(
+        c,
+        parsed.error.issues.map((issue) => issue.message).join('; '),
+      ),
+    )
+  }
+  return ok(parsed.data)
+}
+
 const toMealSkipJson = (row: MealSkipRow) => ({
   id: row.id,
   date: row.date,
@@ -41,19 +63,11 @@ export const mountMealSkipRoutes = (
   mealSkipService: MealSkipService,
 ): void => {
   app.put('/api/meal-skips/:date/:mealType', async (c) => {
-    const parsed = paramsSchema.safeParse({
-      date: c.req.param('date'),
-      mealType: c.req.param('mealType'),
-    })
-    if (!parsed.success) {
-      return jsonBadRequest(
-        c,
-        parsed.error.issues.map((issue) => issue.message).join('; '),
-      )
-    }
+    const parsed = parseParams(c)
+    if (parsed.isErr()) return parsed.error
     const result = await mealSkipService.record({
-      date: parsed.data.date,
-      mealType: parsed.data.mealType,
+      date: parsed.value.date,
+      mealType: parsed.value.mealType,
     })
     return result.match(
       (skip) => c.json(toMealSkipJson(skip), 200),
@@ -62,19 +76,11 @@ export const mountMealSkipRoutes = (
   })
 
   app.delete('/api/meal-skips/:date/:mealType', async (c) => {
-    const parsed = paramsSchema.safeParse({
-      date: c.req.param('date'),
-      mealType: c.req.param('mealType'),
-    })
-    if (!parsed.success) {
-      return jsonBadRequest(
-        c,
-        parsed.error.issues.map((issue) => issue.message).join('; '),
-      )
-    }
+    const parsed = parseParams(c)
+    if (parsed.isErr()) return parsed.error
     const result = await mealSkipService.cancel({
-      date: parsed.data.date,
-      mealType: parsed.data.mealType,
+      date: parsed.value.date,
+      mealType: parsed.value.mealType,
     })
     return result.match(
       () => c.body(null, 204),
