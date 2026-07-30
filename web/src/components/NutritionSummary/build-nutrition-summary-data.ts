@@ -5,9 +5,9 @@ const PROTEIN_CODE = 'protein_g'
 const FAT_CODE = 'fat_g'
 const CARB_CODE = 'carb_g'
 
-// Fixed PFC balance reference ratios (% of energy) — a general dietary
-// guideline, not a per-user configurable target, so these don't come from
-// the profile's daily targets.
+// Default PFC balance ratio (% of energy) — a general dietary guideline used
+// as a fallback when the profile's daily targets don't have all four values
+// (energy_kcal, protein_g, fat_g, carb_g) needed to derive a per-user ratio.
 const PFC_TARGET_RATIO = { protein: 20, fat: 25, carb: 55 }
 const PFC_COLOR = {
   protein: 'var(--color-text)',
@@ -105,6 +105,21 @@ export const buildNutritionSummaryData = (
   const fatPct = (fatKcal / totalPfcKcal) * 100
   const carbPct = (carbKcal / totalPfcKcal) * 100
 
+  const proteinTarget = targetFor(PROTEIN_CODE)
+  const fatTarget = targetFor(FAT_CODE)
+  const carbTarget = targetFor(CARB_CODE)
+  const pfcTargetRatio =
+    proteinTarget !== null &&
+    fatTarget !== null &&
+    carbTarget !== null &&
+    isUsableTarget(energyTarget)
+      ? {
+          protein: ((proteinTarget * 4) / energyTarget) * 100,
+          fat: ((fatTarget * 9) / energyTarget) * 100,
+          carb: ((carbTarget * 4) / energyTarget) * 100,
+        }
+      : PFC_TARGET_RATIO
+
   const hasAnyTarget = targets !== null && Object.keys(targets).length > 0
 
   return {
@@ -115,24 +130,24 @@ export const buildNutritionSummaryData = (
           label: 'たんぱく質',
           color: PFC_COLOR.protein,
           pct: proteinPct,
-          targetPct: PFC_TARGET_RATIO.protein,
+          targetPct: pfcTargetRatio.protein,
         },
         {
           label: '脂質',
           color: PFC_COLOR.fat,
           pct: fatPct,
-          targetPct: PFC_TARGET_RATIO.fat,
+          targetPct: pfcTargetRatio.fat,
         },
         {
           label: '炭水化物',
           color: PFC_COLOR.carb,
           pct: carbPct,
-          targetPct: PFC_TARGET_RATIO.carb,
+          targetPct: pfcTargetRatio.carb,
         },
       ],
       targetMarks: [
-        PFC_TARGET_RATIO.protein,
-        PFC_TARGET_RATIO.protein + PFC_TARGET_RATIO.fat,
+        pfcTargetRatio.protein,
+        pfcTargetRatio.protein + pfcTargetRatio.fat,
       ],
     },
     majorRows,

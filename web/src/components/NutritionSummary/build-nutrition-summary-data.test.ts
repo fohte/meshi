@@ -364,6 +364,71 @@ describe('buildNutritionSummaryData', () => {
     })
   })
 
+  it('derives targetPct/targetMarks from daily targets once energy/protein/fat/carb are all set', () => {
+    const totals = { energy_kcal: 1800, protein_g: 90, fat_g: 50, carb_g: 200 }
+    const targets = {
+      energy_kcal: 2150,
+      protein_g: 132,
+      fat_g: 60,
+      carb_g: 270,
+    }
+
+    const result = buildNutritionSummaryData(totals, DEFINITIONS, targets)
+
+    const proteinTargetPct = ((132 * 4) / 2150) * 100
+    const fatTargetPct = ((60 * 9) / 2150) * 100
+    const carbTargetPct = ((270 * 4) / 2150) * 100
+
+    const totalActualKcal = 360 + 450 + 800 // 1610
+
+    expect(result.pfc).toEqual({
+      segments: [
+        {
+          label: 'たんぱく質',
+          color: 'var(--color-text)',
+          pct: (360 / totalActualKcal) * 100,
+          targetPct: proteinTargetPct,
+        },
+        {
+          label: '脂質',
+          color: 'var(--color-muted)',
+          pct: (450 / totalActualKcal) * 100,
+          targetPct: fatTargetPct,
+        },
+        {
+          label: '炭水化物',
+          color: '#3f3f46',
+          pct: (800 / totalActualKcal) * 100,
+          targetPct: carbTargetPct,
+        },
+      ],
+      targetMarks: [proteinTargetPct, proteinTargetPct + fatTargetPct],
+    })
+  })
+
+  it('falls back to the default PFC ratio when carb_g target is missing', () => {
+    const targets = { energy_kcal: 2150, protein_g: 132, fat_g: 60 }
+
+    const result = buildNutritionSummaryData({}, DEFINITIONS, targets)
+
+    expect(result.pfc.segments.map((s) => s.targetPct)).toEqual([20, 25, 55])
+    expect(result.pfc.targetMarks).toEqual([20, 45])
+  })
+
+  it('falls back to the default PFC ratio when energy_kcal target is 0', () => {
+    const targets = {
+      energy_kcal: 0,
+      protein_g: 132,
+      fat_g: 60,
+      carb_g: 270,
+    }
+
+    const result = buildNutritionSummaryData({}, DEFINITIONS, targets)
+
+    expect(result.pfc.segments.map((s) => s.targetPct)).toEqual([20, 25, 55])
+    expect(result.pfc.targetMarks).toEqual([20, 45])
+  })
+
   it('defaults missing totals to 0 and reports no target when targets is null', () => {
     const result = buildNutritionSummaryData({}, DEFINITIONS, null)
 
