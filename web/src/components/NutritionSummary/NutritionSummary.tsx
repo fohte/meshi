@@ -83,7 +83,7 @@ export const NutritionSummary = ({
               {Math.round(segment.pct)}%
             </span>
             <span className={styles.pfcLegendTarget}>
-              ({segment.targetPct}%)
+              ({Math.round(segment.targetPct)}%)
             </span>
           </div>
         ))}
