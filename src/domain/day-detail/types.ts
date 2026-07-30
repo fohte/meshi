@@ -20,11 +20,16 @@ export interface DayDetail {
   readonly totals: NutritionMap
   readonly hasEstimatedValues: boolean
   readonly entries: ReadonlyArray<DayDetailEntry>
+  readonly skippedMealTypes: ReadonlyArray<MealType>
 }
 
 export interface QueryDayDetailInput {
   readonly periodFrom: Date
   readonly periodTo: Date
+  // The JST calendar date (see src/lib/jst-date.ts),
+  // separate from periodFrom/periodTo's UTC instant range — meal_skips key
+  // off this exact string.
+  readonly date: string
 }
 
 export class DayDetailQueryError extends Error {

@@ -29,6 +29,8 @@ import { createDrizzleFoodMatcher } from '#domain/food-matcher/index'
 import { createMealHistoryService } from '#domain/meal-history/index'
 import { createDrizzleMealLogRepository } from '#domain/meal-log/drizzle-meal-log-repository'
 import { createMealLogService } from '#domain/meal-log/meal-log-service'
+import { createDrizzleMealSkipRepository } from '#domain/meal-skip/drizzle-meal-skip-repository'
+import { createMealSkipService } from '#domain/meal-skip/meal-skip-service'
 import { createUserProfileService } from '#domain/user-profile/user-profile-service'
 import { createMeshiCheckpointer } from '#llm/agent/checkpointer'
 import { createMeshiDomainAgent } from '#llm/agent/domain-agent'
@@ -74,6 +76,11 @@ const buildRegistry = (tx: Sql): DomainToolsRegistry => {
     // rejects a nested BEGIN inside it.
     wrapInTransaction: false,
   })
+  const mealSkipService = createMealSkipService({
+    repository: createDrizzleMealSkipRepository(tx),
+    idGenerator: () => randomUUID(),
+    now: () => new Date('2026-06-12T22:00:00+09:00'),
+  })
   return createDomainToolsRegistry({
     mealLogService,
     foodMasterService: createFoodMasterService(foodMasterRepository),
@@ -86,6 +93,7 @@ const buildRegistry = (tx: Sql): DomainToolsRegistry => {
       createDrizzleUserProfileRepository(tx),
     ),
     webSearchClient: stubWebSearchClient(),
+    mealSkipService,
   })
 }
 

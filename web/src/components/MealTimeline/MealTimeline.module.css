@@ -31,6 +31,34 @@
   color: var(--color-text-secondary);
 }
 
+.groupStatus {
+  margin-left: auto;
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+
+.groupStatusText {
+  font-family: var(--font-mono);
+  font-size: 13px;
+  color: var(--color-muted);
+}
+
+.groupStatusAction {
+  all: unset;
+  cursor: pointer;
+  padding: 3px 8px;
+  border: var(--border-width) solid var(--color-border);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--color-text-secondary);
+  transition: border-color 0.15s;
+}
+
+.groupStatusAction:hover {
+  border-color: var(--color-muted);
+}
+
 .items {
   display: flex;
   flex-direction: column;

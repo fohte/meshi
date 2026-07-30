@@ -21,6 +21,7 @@ describeIfDb('schema migrations', () => {
       'food_master_units',
       'food_masters',
       'meal_logs',
+      'meal_skips',
       'nutrient_definitions',
       'user_profiles',
     ])

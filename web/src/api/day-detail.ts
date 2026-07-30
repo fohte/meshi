@@ -27,6 +27,7 @@ const dayDetailSchema = z.object({
   totals: z.record(z.string(), z.number()),
   hasEstimatedValues: z.boolean(),
   entries: z.array(dayDetailEntrySchema),
+  skippedMealTypes: z.array(z.enum(MEAL_TYPES)),
 })
 
 export type DayDetail = z.infer<typeof dayDetailSchema>

@@ -3,6 +3,7 @@ import { errAsync, okAsync } from 'neverthrow'
 import type { ApiDeps } from '#api/index'
 import { FoodMasterDomainError } from '#domain/food-master/errors'
 import { MealLogPersistenceError } from '#domain/meal-log/errors'
+import { MealSkipPersistenceError } from '#domain/meal-skip/errors'
 import { DEFAULT_USER_PROFILE } from '#domain/user-profile/user-profile'
 
 // createApp's /api deps have their own dedicated route tests; callers that
@@ -19,7 +20,12 @@ export const createStubApiDeps = (): ApiDeps => ({
   },
   dayDetailService: {
     query: () =>
-      okAsync({ totals: {}, hasEstimatedValues: false, entries: [] }),
+      okAsync({
+        totals: {},
+        hasEstimatedValues: false,
+        entries: [],
+        skippedMealTypes: [],
+      }),
   },
   nutrientDefinitionRepository: { list: () => okAsync([]) },
   userProfileService: {
@@ -65,5 +71,16 @@ export const createStubApiDeps = (): ApiDeps => ({
           'foodMasterService.registerFromComposition not stubbed',
         ),
       ),
+  },
+  mealSkipService: {
+    record: () =>
+      errAsync(
+        new MealSkipPersistenceError('mealSkipService.record not stubbed'),
+      ),
+    cancel: () =>
+      errAsync(
+        new MealSkipPersistenceError('mealSkipService.cancel not stubbed'),
+      ),
+    findForDate: () => okAsync([]),
   },
 })

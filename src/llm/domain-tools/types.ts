@@ -11,6 +11,8 @@ export interface ToolError {
 export type DomainToolName =
   | 'record_meal_log'
   | 'update_meal_log'
+  | 'record_meal_skip'
+  | 'cancel_meal_skip'
   | 'search_food_master'
   | 'register_food_master'
   | 'register_food_master_unit'

@@ -1,3 +1,5 @@
+import { randomUUID } from 'node:crypto'
+
 import { Client } from '@modelcontextprotocol/sdk/client/index.js'
 import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js'
 import { okAsync } from 'neverthrow'
@@ -24,6 +26,8 @@ import { createMealHistoryService } from '#domain/meal-history/index'
 import { createDrizzleMealLogRepository } from '#domain/meal-log/drizzle-meal-log-repository'
 import { inferMealType } from '#domain/meal-log/infer-meal-type'
 import { createMealLogService } from '#domain/meal-log/meal-log-service'
+import { createDrizzleMealSkipRepository } from '#domain/meal-skip/drizzle-meal-skip-repository'
+import { createMealSkipService } from '#domain/meal-skip/meal-skip-service'
 import { createUserProfileService } from '#domain/user-profile/user-profile-service'
 import { createDomainToolsRegistry } from '#llm/domain-tools/index'
 import {
@@ -140,6 +144,12 @@ const startHarness = async (opts: HarnessOptions): Promise<Harness> => {
     // pin to a fixed point in time so eaten_at validation is deterministic
     now: () => new Date('2026-06-12T22:00:00+09:00'),
   })
+  const mealSkipService = createMealSkipService({
+    repository: createDrizzleMealSkipRepository(tx),
+    idGenerator: () => randomUUID(),
+    // pin to a fixed point in time so date validation is deterministic
+    now: () => new Date('2026-06-12T22:00:00+09:00'),
+  })
 
   let foodMasterIdCursor = 0
   const foodMasterIdGen = (prefix: string): string => {
@@ -177,6 +187,7 @@ const startHarness = async (opts: HarnessOptions): Promise<Harness> => {
     mealHistoryService,
     userProfileService,
     webSearchClient,
+    mealSkipService,
   })
   const orchestrator = createDomainAgentOrchestrator({
     model: scriptedDomainAgentModel(opts.toolCalls ?? [], opts.final),

@@ -1,8 +1,9 @@
-import { useQuery } from '@tanstack/react-query'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link } from 'react-router'
 
-import type { DayDetailEntry } from '#api/day-detail'
+import type { DayDetailEntry, MealType } from '#api/day-detail'
 import { fetchDayDetail } from '#api/day-detail'
+import { deleteMealSkip, putMealSkip } from '#api/meal-skips'
 import type { NutrientDefinition } from '#api/nutrient-definitions'
 import {
   fetchNutrientDefinitions,
@@ -111,9 +112,11 @@ export const DayDetailView = ({
 
       {!isPending && !isError && (
         <DayDetailContent
+          date={date}
           entries={dayDetailQuery.data.entries}
           totals={dayDetailQuery.data.totals}
           hasEstimatedValues={dayDetailQuery.data.hasEstimatedValues}
+          skippedMealTypes={dayDetailQuery.data.skippedMealTypes}
           definitions={nutrientDefinitionsQuery.data}
           targets={profileQuery.data.dailyTargets}
         />
@@ -123,36 +126,40 @@ export const DayDetailView = ({
 }
 
 interface DayDetailContentProps {
+  readonly date: string
   readonly entries: ReadonlyArray<DayDetailEntry>
   readonly totals: Readonly<Record<string, number>>
   readonly hasEstimatedValues: boolean
+  readonly skippedMealTypes: ReadonlyArray<MealType>
   readonly definitions: ReadonlyArray<NutrientDefinition>
   readonly targets: Readonly<Record<string, number>> | null
 }
 
 const DayDetailContent = ({
+  date,
   entries,
   totals,
   hasEstimatedValues,
+  skippedMealTypes,
   definitions,
   targets,
 }: DayDetailContentProps): React.JSX.Element => {
-  const { openCreate, openEdit } = useMealLogSheet()
+  const { openEdit } = useMealLogSheet()
+  const queryClient = useQueryClient()
 
-  if (entries.length === 0) {
-    return (
-      <div className={styles.emptyState}>
-        <div className={styles.emptyText}>この日の記録はありません</div>
-        <button
-          type="button"
-          className={styles.emptyCreateButton}
-          onClick={openCreate}
-        >
-          + 記録する
-        </button>
-      </div>
-    )
+  const invalidateDayDetail = (): void => {
+    void queryClient.invalidateQueries({ queryKey: ['day-detail'] })
   }
+
+  const markSkippedMutation = useMutation({
+    mutationFn: (mealType: MealType) => toPromise(putMealSkip(date, mealType)),
+    onSuccess: invalidateDayDetail,
+  })
+  const cancelSkipMutation = useMutation({
+    mutationFn: (mealType: MealType) =>
+      toPromise(deleteMealSkip(date, mealType)),
+    onSuccess: invalidateDayDetail,
+  })
 
   return (
     <div className={styles.content}>
@@ -161,11 +168,20 @@ const DayDetailContent = ({
         hasEstimatedValues={hasEstimatedValues}
       />
       <MealTimeline
-        groups={buildMealTimelineGroups(entries)}
+        groups={buildMealTimelineGroups(entries, skippedMealTypes)}
         onItemClick={(id) => {
           const entry = entries.find((e) => e.id === id)
           if (entry !== undefined) openEdit(entry)
         }}
+        onMarkSkipped={(mealType) => {
+          markSkippedMutation.mutate(mealType)
+        }}
+        onCancelSkip={(mealType) => {
+          cancelSkipMutation.mutate(mealType)
+        }}
+        isSkipActionPending={
+          markSkippedMutation.isPending || cancelSkipMutation.isPending
+        }
       />
     </div>
   )

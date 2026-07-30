@@ -9,6 +9,8 @@ import type { FoodMatcher } from '#domain/food-matcher/food-matcher'
 import type { MealHistoryService } from '#domain/meal-history/types'
 import { DomainError } from '#domain/meal-log/errors'
 import type { MealLogService } from '#domain/meal-log/meal-log-service'
+import { DomainError as MealSkipDomainError } from '#domain/meal-skip/errors'
+import type { MealSkipService } from '#domain/meal-skip/meal-skip-service'
 import type { UserProfileService } from '#domain/user-profile/user-profile-service'
 import {
   createDomainToolsRegistry,
@@ -122,6 +124,23 @@ const stubDeps = (override: Partial<DomainToolsDeps> = {}): DomainToolsDeps => {
   const webSearchClient: WebSearchClient = {
     search: () => okAsync({ snippets: [] }),
   }
+  const mealSkipService: MealSkipService = {
+    record: () =>
+      errAsync(
+        new MealSkipDomainError(
+          'mealSkipService.record not stubbed',
+          'test/not_stubbed',
+        ),
+      ),
+    cancel: () =>
+      errAsync(
+        new MealSkipDomainError(
+          'mealSkipService.cancel not stubbed',
+          'test/not_stubbed',
+        ),
+      ),
+    findForDate: () => okAsync([]),
+  }
   return {
     mealLogService,
     foodMasterService,
@@ -130,17 +149,20 @@ const stubDeps = (override: Partial<DomainToolsDeps> = {}): DomainToolsDeps => {
     mealHistoryService,
     userProfileService,
     webSearchClient,
+    mealSkipService,
     ...override,
   }
 }
 
 describe('createDomainToolsRegistry', () => {
-  it('registers all nine internal tools and exposes them via toLlmSchemas in the same order', () => {
+  it('registers all eleven internal tools and exposes them via toLlmSchemas in the same order', () => {
     const registry = createDomainToolsRegistry(stubDeps())
 
     const expectedNames = [
       'record_meal_log',
       'update_meal_log',
+      'record_meal_skip',
+      'cancel_meal_skip',
       'search_food_master',
       'register_food_master',
       'register_food_master_unit',

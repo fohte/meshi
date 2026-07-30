@@ -179,6 +179,8 @@ const TOOL_PROGRESS_MESSAGES: Record<DomainToolName, string> = {
   register_food_master_unit: 'Registering a unit for a food entry...',
   record_meal_log: 'Recording your meal...',
   update_meal_log: 'Updating your meal record...',
+  record_meal_skip: 'Recording that you skipped a meal...',
+  cancel_meal_skip: 'Undoing the recorded meal skip...',
   query_meal_history: 'Looking up your meal history...',
   get_user_profile: 'Reading your profile...',
   update_user_profile: 'Updating your profile...',

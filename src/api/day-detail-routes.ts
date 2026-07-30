@@ -21,6 +21,7 @@ export const mountDayDetailRoutes = (
     const result = await dayDetailService.query({
       periodFrom: parsed.data.from,
       periodTo: parsed.data.to,
+      date: dateParam,
     })
 
     return result.match(
@@ -29,6 +30,7 @@ export const mountDayDetailRoutes = (
           date: dateParam,
           totals: detail.totals,
           hasEstimatedValues: detail.hasEstimatedValues,
+          skippedMealTypes: detail.skippedMealTypes,
           entries: detail.entries.map((entry) => ({
             id: entry.id,
             foodMasterId: entry.foodMasterId,

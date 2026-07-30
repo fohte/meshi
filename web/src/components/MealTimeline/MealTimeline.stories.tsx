@@ -53,9 +53,18 @@ export default meta
 type Story = StoryObj<typeof MealTimeline>
 
 export const Default: Story = {
-  args: { groups: buildMealTimelineGroups(ENTRIES) },
+  args: { groups: buildMealTimelineGroups(ENTRIES, []) },
 }
 
 export const Empty: Story = {
-  args: { groups: buildMealTimelineGroups([]) },
+  args: { groups: buildMealTimelineGroups([], []) },
+}
+
+export const WithSkipsAndUnrecorded: Story = {
+  args: {
+    groups: buildMealTimelineGroups(
+      ENTRIES.filter((entry) => entry.mealType === 'breakfast'),
+      ['lunch'],
+    ),
+  },
 }

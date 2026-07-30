@@ -7,6 +7,7 @@ import type {
   foodMasters,
   foodMasterUnits,
   mealLogs,
+  mealSkips,
   nutrientDefinitions,
 } from '#db/schema'
 import { inferMealType } from '#domain/meal-log/infer-meal-type'
@@ -133,6 +134,16 @@ export const seedFoodComposition = async (
   await sql`
     INSERT INTO food_compositions (code, name)
     VALUES (${values.code}, ${values.name})
+  `
+}
+
+export const seedMealSkip = async (
+  sql: Sql,
+  values: Omit<typeof mealSkips.$inferInsert, 'createdAt'>,
+): Promise<void> => {
+  await sql`
+    INSERT INTO meal_skips (id, date, meal_type)
+    VALUES (${values.id}, ${values.date}, ${values.mealType})
   `
 }
 

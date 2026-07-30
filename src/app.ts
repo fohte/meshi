@@ -16,6 +16,7 @@ import type { FoodDetailService } from '#domain/food-detail/types'
 import type { FoodMasterService } from '#domain/food-master/service'
 import type { MealHistoryService } from '#domain/meal-history/types'
 import type { MealLogService } from '#domain/meal-log/meal-log-service'
+import type { MealSkipService } from '#domain/meal-skip/meal-skip-service'
 import type { NutrientDefinitionRepository } from '#domain/nutrient-definition/types'
 import type { UserProfileService } from '#domain/user-profile/user-profile-service'
 
@@ -36,6 +37,7 @@ export interface AppDeps {
   foodDetailService: FoodDetailService
   mealLogService: MealLogService
   foodMasterService: FoodMasterService
+  mealSkipService: MealSkipService
   bearerToken?: string
 }
 
@@ -69,6 +71,7 @@ export const createApp = (deps: AppDeps): Hono => {
     foodDetailService: deps.foodDetailService,
     mealLogService: deps.mealLogService,
     foodMasterService: deps.foodMasterService,
+    mealSkipService: deps.mealSkipService,
   })
 
   // SPA static assets, then an index.html fallback for client-side routes

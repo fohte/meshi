@@ -24,10 +24,13 @@ export interface MealTimelineItem {
   readonly note: string | null
 }
 
+export type MealGroupStatus = 'eaten' | 'skipped' | 'unrecorded'
+
 export interface MealTimelineGroup {
   readonly mealType: MealType
   readonly label: string
-  readonly kcalText: string
+  readonly status: MealGroupStatus
+  readonly kcalText: string | null
   readonly items: ReadonlyArray<MealTimelineItem>
 }
 
@@ -36,18 +39,23 @@ const formatQuantity = (quantity: number): string =>
 
 // Entries arrive pre-sorted by eatenAt from the API, so items within each
 // group stay time-ordered without a separate sort here.
+//
+// Always returns one group per MEAL_ORDER entry (never dropping empty ones)
+// so "no entries recorded" (unrecorded) is distinguishable from "recorded as
+// skipped" in the rendered output.
 export const buildMealTimelineGroups = (
   entries: ReadonlyArray<DayDetailEntry>,
-): ReadonlyArray<MealTimelineGroup> =>
-  MEAL_ORDER.flatMap((mealType) => {
+  skippedMealTypes: ReadonlyArray<MealType>,
+): ReadonlyArray<MealTimelineGroup> => {
+  const skipped = new Set(skippedMealTypes)
+  return MEAL_ORDER.map((mealType) => {
     const items = entries.filter((entry) => entry.mealType === mealType)
-    if (items.length === 0) return []
-
-    const kcalTotal = items.reduce((sum, entry) => sum + entry.kcal, 0)
-    return [
-      {
+    if (items.length > 0) {
+      const kcalTotal = items.reduce((sum, entry) => sum + entry.kcal, 0)
+      return {
         mealType,
         label: MEAL_LABELS[mealType],
+        status: 'eaten' as const,
         kcalText: `${String(Math.round(kcalTotal))} kcal`,
         items: items.map((entry) => ({
           id: entry.id,
@@ -58,6 +66,16 @@ export const buildMealTimelineGroups = (
           kcalText: `${String(Math.round(entry.kcal))} kcal`,
           note: entry.note,
         })),
-      },
-    ]
+      }
+    }
+    return {
+      mealType,
+      label: MEAL_LABELS[mealType],
+      status: skipped.has(mealType)
+        ? ('skipped' as const)
+        : ('unrecorded' as const),
+      kcalText: null,
+      items: [],
+    }
   })
+}
