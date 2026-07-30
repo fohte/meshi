@@ -364,6 +364,83 @@ describe('buildNutritionSummaryData', () => {
     })
   })
 
+  it('derives targetPct/targetMarks from daily targets once energy/protein/fat/carb are all set', () => {
+    const totals = { energy_kcal: 1800, protein_g: 90, fat_g: 50, carb_g: 200 }
+    const targets = {
+      energy_kcal: 2150,
+      protein_g: 132,
+      fat_g: 60,
+      carb_g: 270,
+    }
+
+    const result = buildNutritionSummaryData(totals, DEFINITIONS, targets)
+
+    expect(result.pfc).toEqual({
+      segments: [
+        {
+          label: 'たんぱく質',
+          color: 'var(--color-text)',
+          pct: 22.36024844720497,
+          targetPct: 24.558139534883722,
+        },
+        {
+          label: '脂質',
+          color: 'var(--color-muted)',
+          pct: 27.95031055900621,
+          targetPct: 25.116279069767444,
+        },
+        {
+          label: '炭水化物',
+          color: '#3f3f46',
+          pct: 49.68944099378882,
+          targetPct: 50.23255813953489,
+        },
+      ],
+      targetMarks: [24.558139534883722, 49.674418604651166],
+    })
+  })
+
+  it.each([
+    [
+      'carb_g target is missing',
+      { energy_kcal: 2150, protein_g: 132, fat_g: 60 },
+    ],
+    [
+      'energy_kcal target is 0',
+      { energy_kcal: 0, protein_g: 132, fat_g: 60, carb_g: 270 },
+    ],
+    [
+      'protein_g target is negative',
+      { energy_kcal: 2150, protein_g: -10, fat_g: 60, carb_g: 270 },
+    ],
+  ])('falls back to the default PFC ratio when %s', (_description, targets) => {
+    const result = buildNutritionSummaryData({}, DEFINITIONS, targets)
+
+    expect(result.pfc).toEqual({
+      segments: [
+        {
+          label: 'たんぱく質',
+          color: 'var(--color-text)',
+          pct: 0,
+          targetPct: 20,
+        },
+        {
+          label: '脂質',
+          color: 'var(--color-muted)',
+          pct: 0,
+          targetPct: 25,
+        },
+        {
+          label: '炭水化物',
+          color: '#3f3f46',
+          pct: 0,
+          targetPct: 55,
+        },
+      ],
+      targetMarks: [20, 45],
+    })
+  })
+
   it('defaults missing totals to 0 and reports no target when targets is null', () => {
     const result = buildNutritionSummaryData({}, DEFINITIONS, null)
 
