@@ -109,9 +109,9 @@ export const buildNutritionSummaryData = (
   const fatTarget = targetFor(FAT_CODE)
   const carbTarget = targetFor(CARB_CODE)
   const pfcTargetRatio =
-    proteinTarget !== null &&
-    fatTarget !== null &&
-    carbTarget !== null &&
+    isUsableTarget(proteinTarget) &&
+    isUsableTarget(fatTarget) &&
+    isUsableTarget(carbTarget) &&
     isUsableTarget(energyTarget)
       ? {
           protein: ((proteinTarget * 4) / energyTarget) * 100,
