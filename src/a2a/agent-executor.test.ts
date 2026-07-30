@@ -507,13 +507,22 @@ describe('runAgentTurn', () => {
     await runAgentTurn(
       agent,
       new RequestContext(userMessage, taskId, contextId),
+      undefined,
+      undefined,
+      () => new Date('2026-07-30T03:00:00.000Z'),
     )
 
     expect(invoke).toHaveBeenCalledWith(
       {
         messages: [
           new HumanMessage({
-            contentBlocks: [{ type: 'text', text: 'hello' }],
+            contentBlocks: [
+              {
+                type: 'text',
+                text: '(meta: occurred_at=2026-07-30T03:00:00.000Z, timezone=Asia/Tokyo)',
+              },
+              { type: 'text', text: 'hello' },
+            ],
           }),
         ],
       },
@@ -522,6 +531,89 @@ describe('runAgentTurn', () => {
         recursionLimit: MESHI_AGENT_RECURSION_LIMIT,
       },
     )
+  })
+
+  it('prepends an occurred_at/timezone meta block before the image content, using the injected now', async () => {
+    const contextId = `ctx-${randomUUID()}`
+    const taskId = `task-${randomUUID()}`
+    const userMessage: Message = {
+      kind: 'message',
+      messageId: `msg-${taskId}`,
+      role: 'user',
+      parts: [
+        { kind: 'text', text: 'what is this?' },
+        { kind: 'file', file: { bytes: 'imgdata', mimeType: 'image/webp' } },
+      ],
+      taskId,
+      contextId,
+    }
+    const invoke = vi.fn().mockResolvedValue(buildCompletedInvokeResult('ok'))
+    const agent: MeshiDomainAgentLike = { invoke }
+
+    await runAgentTurn(
+      agent,
+      new RequestContext(userMessage, taskId, contextId),
+      undefined,
+      undefined,
+      () => new Date('2026-07-30T03:00:00.000Z'),
+    )
+
+    expect(invoke).toHaveBeenCalledWith(
+      {
+        messages: [
+          new HumanMessage({
+            contentBlocks: [
+              {
+                type: 'text',
+                text: '(meta: occurred_at=2026-07-30T03:00:00.000Z, timezone=Asia/Tokyo)',
+              },
+              { type: 'text', text: 'what is this?' },
+              { type: 'image', mimeType: 'image/webp', data: 'imgdata' },
+            ],
+          }),
+        ],
+      },
+      {
+        configurable: { thread_id: contextId },
+        recursionLimit: MESHI_AGENT_RECURSION_LIMIT,
+      },
+    )
+  })
+
+  it('defaults now to the real wall clock when omitted', async () => {
+    vi.useFakeTimers()
+    vi.setSystemTime(new Date('2026-07-30T03:00:00.000Z'))
+    const contextId = `ctx-${randomUUID()}`
+    const taskId = `task-${randomUUID()}`
+    const userMessage = buildUserMessage(taskId, contextId)
+    const invoke = vi.fn().mockResolvedValue(buildCompletedInvokeResult('ok'))
+    const agent: MeshiDomainAgentLike = { invoke }
+
+    await runAgentTurn(
+      agent,
+      new RequestContext(userMessage, taskId, contextId),
+    )
+
+    expect(invoke).toHaveBeenCalledWith(
+      {
+        messages: [
+          new HumanMessage({
+            contentBlocks: [
+              {
+                type: 'text',
+                text: '(meta: occurred_at=2026-07-30T03:00:00.000Z, timezone=Asia/Tokyo)',
+              },
+              { type: 'text', text: 'hello' },
+            ],
+          }),
+        ],
+      },
+      {
+        configurable: { thread_id: contextId },
+        recursionLimit: MESHI_AGENT_RECURSION_LIMIT,
+      },
+    )
+    vi.useRealTimers()
   })
 
   it('carries forward the existing task history and artifacts on the final task', async () => {
@@ -983,6 +1075,43 @@ describeIfDb('createMeshiAgentExecutor', () => {
       },
     ])
     expect(finished).toHaveBeenCalledOnce()
+  })
+
+  it('forwards the now option into the occurred_at meta passed to the domain agent', async () => {
+    const contextId = `ctx-${randomUUID()}`
+    const taskId = `task-${randomUUID()}`
+    const userMessage = buildUserMessage(taskId, contextId)
+    const invoke = vi.fn().mockResolvedValue(buildCompletedInvokeResult('ok'))
+    const agent: MeshiDomainAgentLike = { invoke }
+    const executor = createMeshiAgentExecutor({
+      agent,
+      sql: getTestSql(),
+      heartbeatIntervalMs: 1_000_000,
+      now: () => new Date('2026-07-30T03:00:00.000Z'),
+    })
+    const { bus } = buildEventBus()
+
+    await executor.execute(
+      new RequestContext(userMessage, taskId, contextId),
+      bus,
+    )
+
+    expect(invoke).toHaveBeenCalledWith(
+      {
+        messages: [
+          new HumanMessage({
+            contentBlocks: [
+              {
+                type: 'text',
+                text: '(meta: occurred_at=2026-07-30T03:00:00.000Z, timezone=Asia/Tokyo)',
+              },
+              { type: 'text', text: 'hello' },
+            ],
+          }),
+        ],
+      },
+      expect.anything(),
+    )
   })
 
   it('publishes a working status-update before resuming an existing task', async () => {
