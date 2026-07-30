@@ -386,6 +386,7 @@ describeIfDb('meshi integration', () => {
           name: 'record_meal_log',
           args: {
             food_master_id: 'fm_rice',
+            food_name: '白米',
             eaten_at_iso: '2026-06-12T12:30:00+09:00',
             quantity: 200,
             unit: 'g',
@@ -484,6 +485,7 @@ describeIfDb('meshi integration', () => {
           name: 'record_meal_log',
           args: {
             food_master_id: 'fm_test_0001',
+            food_name: 'スターバックス抹茶ラテ',
             eaten_at_iso: '2026-06-12T15:00:00+09:00',
             quantity: 350,
             unit: 'g',
@@ -779,6 +781,7 @@ describeIfDb('meshi integration', () => {
           name: 'record_meal_log',
           args: {
             food_master_id: 'fm_rice',
+            food_name: '白米',
             eaten_at_iso: '2026-06-12T19:30:00+09:00',
             quantity: 150,
             unit: 'g',

@@ -77,3 +77,16 @@ export class ImplausibleQuantityError extends DomainError {
     this.name = 'ImplausibleQuantityError'
   }
 }
+
+export class FoodNameMismatchError extends DomainError {
+  constructor(
+    public readonly providedName: string,
+    public readonly actualName: string,
+  ) {
+    super(
+      `food_name does not match the food_master this food_master_id points to: provided "${providedName}", actual "${actualName}"`,
+      'meal_log/food_name_mismatch',
+    )
+    this.name = 'FoodNameMismatchError'
+  }
+}

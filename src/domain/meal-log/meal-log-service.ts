@@ -9,6 +9,7 @@ import {
 
 import {
   type DomainError,
+  FoodNameMismatchError,
   FutureEatenAtError,
   ImplausibleQuantityError,
   InvalidQuantityError,
@@ -45,6 +46,20 @@ const resolveAndCheckAmountGrams = (
       : ok(amountGrams),
   )
 
+// A caller-supplied foodName is a self-consistency check, not a fuzzy search:
+// callers that pass it (the record_meal_log domain tool) already got the
+// exact string from register_food_master/search_food_master output for this
+// same food_master_id, so it should match verbatim modulo surrounding
+// whitespace. food_masters.name is unique (food_masters_name_key), so this
+// check can never reject a legitimate id/name pairing due to a name collision.
+const checkFoodNameMatches = (
+  foodName: string | undefined,
+  actualName: string,
+): Result<void, DomainError> =>
+  foodName === undefined || foodName.trim() === actualName.trim()
+    ? ok(undefined)
+    : err(new FoodNameMismatchError(foodName, actualName))
+
 export interface MealLogService {
   record(input: RecordMealLogInput): ResultAsync<MealLogResult, DomainError>
   update(input: UpdateMealLogInput): ResultAsync<MealLogResult, DomainError>
@@ -71,6 +86,8 @@ export const createMealLogService = (
     return deps.repository
       .findFoodMaster(input.foodMasterId)
       .andThen((food) => {
+        const nameCheck = checkFoodNameMatches(input.foodName, food.name)
+        if (nameCheck.isErr()) return errAsync(nameCheck.error)
         const resolved = resolveAndCheckAmountGrams(
           input.quantity,
           input.unit,

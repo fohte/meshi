@@ -47,6 +47,7 @@ const inputSchema = z
 
 export interface RegisterFoodMasterOutput {
   readonly food_master_id: string
+  readonly name: string
 }
 
 export const createRegisterFoodMasterTool = (
@@ -54,7 +55,7 @@ export const createRegisterFoodMasterTool = (
 ): DomainTool => ({
   name: 'register_food_master',
   description:
-    "Register a new food_master row with per-100g nutrition values. source=web_search requires is_estimated=false (pair it with source_url for confirmed values); composition_table_estimate and user_input allow is_estimated to be true or false. Pass units for every non-mass unit (個/杯/ml/...) this food might later be recorded with — record_meal_log rejects a unit it can't resolve to grams, so add every unit the user is likely to use (g/kg/mg need no entry). If a unit is missing later, use register_food_master_unit to add it instead of re-registering the food.",
+    "Register a new food_master row with per-100g nutrition values. source=web_search requires is_estimated=false (pair it with source_url for confirmed values); composition_table_estimate and user_input allow is_estimated to be true or false. Pass units for every non-mass unit (個/杯/ml/...) this food might later be recorded with — record_meal_log rejects a unit it can't resolve to grams, so add every unit the user is likely to use (g/kg/mg need no entry). If a unit is missing later, use register_food_master_unit to add it instead of re-registering the food. Returns the registered name alongside food_master_id — pass that exact name as record_meal_log's food_name for this item.",
   inputSchema: z.toJSONSchema(inputSchema, { io: 'input' }),
   async execute(
     input: unknown,
@@ -82,7 +83,7 @@ export const createRegisterFoodMasterTool = (
               })),
             }),
       })
-      .map((master) => ({ food_master_id: master.id }))
+      .map((master) => ({ food_master_id: master.id, name: master.name }))
       .mapErr((e): ToolError => ({
         code: `food_master/${e.code}`,
         message: e.message,

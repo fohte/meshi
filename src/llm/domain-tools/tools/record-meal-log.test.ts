@@ -4,6 +4,7 @@ import { describe, expect, it } from 'vitest'
 import {
   DomainError,
   FoodMasterNotFoundError,
+  FoodNameMismatchError,
   FutureEatenAtError,
 } from '#domain/meal-log/errors'
 import type { MealLogService } from '#domain/meal-log/meal-log-service'
@@ -63,6 +64,7 @@ describe('record_meal_log tool', () => {
 
     const result = await tool.execute({
       food_master_id: 'fm_rice',
+      food_name: '白米',
       eaten_at_iso: '2026-06-18T09:00:00+09:00',
       quantity: 1,
       unit: '杯',
@@ -81,6 +83,7 @@ describe('record_meal_log tool', () => {
       record: [
         {
           foodMasterId: 'fm_rice',
+          foodName: '白米',
           eatenAt: new Date('2026-06-18T09:00:00+09:00'),
           quantity: 1,
           unit: '杯',
@@ -95,6 +98,7 @@ describe('record_meal_log tool', () => {
 
     await tool.execute({
       food_master_id: 'fm_rice',
+      food_name: '白米',
       eaten_at_iso: '2026-06-18T09:00:00+09:00',
       meal_type: 'breakfast',
       quantity: 1,
@@ -105,6 +109,7 @@ describe('record_meal_log tool', () => {
       record: [
         {
           foodMasterId: 'fm_rice',
+          foodName: '白米',
           eatenAt: new Date('2026-06-18T09:00:00+09:00'),
           mealType: 'breakfast',
           quantity: 1,
@@ -119,6 +124,7 @@ describe('record_meal_log tool', () => {
 
     const result = await tool.execute({
       food_master_id: 'fm_rice',
+      food_name: '白米',
       eaten_at_iso: '2026-06-18T09:00:00+09:00',
       meal_type: 'brunch',
       quantity: 1,
@@ -140,6 +146,28 @@ describe('record_meal_log tool', () => {
     const { tool, calls } = setup()
 
     const result = await tool.execute({
+      food_name: '白米',
+      eaten_at_iso: '2026-06-18T09:00:00+09:00',
+      quantity: 1,
+      unit: '杯',
+    })
+
+    expect(normalizeResult(result)).toEqual({
+      ok: false,
+      error: {
+        code: 'invalid_input',
+        message: '<dynamic>',
+        details: { issues: { count: 1 } },
+      },
+    })
+    expect(calls).toEqual({ record: [] })
+  })
+
+  it('returns invalid_input when food_name is missing', async () => {
+    const { tool, calls } = setup()
+
+    const result = await tool.execute({
+      food_master_id: 'fm_rice',
       eaten_at_iso: '2026-06-18T09:00:00+09:00',
       quantity: 1,
       unit: '杯',
@@ -160,6 +188,7 @@ describe('record_meal_log tool', () => {
     const { tool, calls } = setup()
     const result = await tool.execute({
       food_master_id: 'fm_rice',
+      food_name: '白米',
       eaten_at_iso: '2026-06-18T09:00:00+09:00',
       quantity: 0,
       unit: '杯',
@@ -183,6 +212,7 @@ describe('record_meal_log tool', () => {
 
     const result = await tool.execute({
       food_master_id: 'fm_rice',
+      food_name: '白米',
       eaten_at_iso: '2099-01-01T00:00:00+00:00',
       quantity: 1,
       unit: '杯',
@@ -205,6 +235,7 @@ describe('record_meal_log tool', () => {
 
     const result = await tool.execute({
       food_master_id: 'fm_missing',
+      food_name: '白米',
       eaten_at_iso: '2026-06-18T09:00:00+09:00',
       quantity: 1,
       unit: 'g',
@@ -214,6 +245,29 @@ describe('record_meal_log tool', () => {
       ok: false,
       error: {
         code: 'meal_log/food_master_not_found',
+        message: '<dynamic>',
+      },
+    })
+    expect(calls).toEqual({ record: [] })
+  })
+
+  it('maps FoodNameMismatchError to its DomainError code', async () => {
+    const { tool, calls } = setup({
+      record: () => errAsync(new FoodNameMismatchError('唐揚げ', '白米')),
+    })
+
+    const result = await tool.execute({
+      food_master_id: 'fm_rice',
+      food_name: '唐揚げ',
+      eaten_at_iso: '2026-06-18T09:00:00+09:00',
+      quantity: 1,
+      unit: 'g',
+    })
+
+    expect(normalizeResult(result)).toEqual({
+      ok: false,
+      error: {
+        code: 'meal_log/food_name_mismatch',
         message: '<dynamic>',
       },
     })

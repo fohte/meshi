@@ -104,7 +104,7 @@ describe('register_food_master tool', () => {
 
     expect(normalizeResult(result)).toEqual({
       ok: true,
-      value: { food_master_id: 'fm_new' },
+      value: { food_master_id: 'fm_new', name: 'バナナ' },
     })
     expect(calls).toEqual([
       {
