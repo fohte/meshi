@@ -14,7 +14,8 @@ import { withAdvisoryLock } from '#a2a/advisory-lock'
 import { toAgentContent } from '#a2a/message-content'
 import type { Sql } from '#db/index'
 import { parseJson } from '#lib/json'
-import { toHumanMessage } from '#llm/agent/content-block'
+import type { AgentContentBlock } from '#llm/agent/content-block'
+import { formatPromptMeta, toHumanMessage } from '#llm/agent/content-block'
 import {
   AGENT_NO_USABLE_REPLY_EVENT,
   AGENT_THINK_BLOCK_LEAKED_EVENT,
@@ -80,11 +81,33 @@ export interface MeshiAgentExecutorOptions {
   readonly sql: Sql
   readonly heartbeatIntervalMs?: number
   readonly logger?: Logger
+  // Overridable for tests; defaults to the real wall clock. Read once per
+  // turn to ground the LLM's date/time resolution (see withOccurredAtMeta
+  // below) in when the turn actually ran.
+  readonly now?: () => Date
 }
 
 const DEFAULT_HEARTBEAT_INTERVAL_MS = 30_000
 const USAGE_LIMIT_ERROR_KIND = 'usage_limit'
 const NO_USABLE_REPLY_FINGERPRINT = 'a2a.agent-executor.no-usable-reply'
+
+// meshi is @fohte's personal meal management service (see README) — a
+// single user in a single timezone — and the A2A transport (unlike the MCP
+// tool inputs in domain-agent-orchestrator.ts) carries no per-request
+// timezone signal to read instead.
+const AGENT_TIMEZONE = 'Asia/Tokyo'
+
+// Grounds the LLM in the actual current date/time so it can resolve a
+// relative or year-omitted date the user mentions (e.g. "7/27") into the
+// right absolute date instead of guessing — see MESHI_AGENT_SYSTEM_PROMPT's
+// instruction for how this line is meant to be read.
+const withOccurredAtMeta = (
+  content: ReadonlyArray<AgentContentBlock>,
+  now: Date,
+): AgentContentBlock[] => [
+  { type: 'text', text: formatPromptMeta(now, AGENT_TIMEZONE) },
+  ...content,
+]
 
 const STATUS_TO_TASK_STATE: Record<AgentReplyStatus, TaskState> = {
   completed: 'completed',
@@ -284,12 +307,20 @@ export const runAgentTurn = async (
   // fake callbacks array in the invoke assertion below.
   onToolStart?: (toolName: string) => void,
   logger: Logger = createNullLogger(),
+  now: () => Date = () => new Date(),
 ): Promise<Task> => {
   // eslint-disable-next-line no-restricted-syntax -- boundary between LangGraph's throw-based agent.invoke() and this module's Task mapping; the catch below turns any thrown error into a failed Task instead of propagating it
   try {
     const result = await agent.invoke(
       {
-        messages: [toHumanMessage(toAgentContent(requestContext.userMessage))],
+        messages: [
+          toHumanMessage(
+            withOccurredAtMeta(
+              toAgentContent(requestContext.userMessage),
+              now(),
+            ),
+          ),
+        ],
       },
       {
         configurable: { thread_id: requestContext.contextId },
@@ -363,6 +394,7 @@ export const createMeshiAgentExecutor = (
   const heartbeatIntervalMs =
     options.heartbeatIntervalMs ?? DEFAULT_HEARTBEAT_INTERVAL_MS
   const logger = options.logger ?? createNullLogger()
+  const now = options.now ?? (() => new Date())
 
   return {
     async execute(requestContext, eventBus) {
@@ -439,6 +471,7 @@ export const createMeshiAgentExecutor = (
               requestContext,
               onToolStart,
               logger,
+              now,
             ),
           )
         } finally {
