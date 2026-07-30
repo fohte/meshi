@@ -36,6 +36,11 @@ export interface RecordMealLogInput {
   readonly quantity: number
   readonly unit: string
   readonly note?: string
+  // The caller's expected name for foodMasterId, checked against the actual
+  // food_master row before the write (see FoodNameMismatchError). Optional so
+  // callers that already resolve food_master_id from a UI the user directly
+  // confirmed (e.g. the web registration sheet) aren't forced to supply it.
+  readonly foodName?: string
 }
 
 export interface UpdateMealLogInput {

@@ -221,6 +221,7 @@ describeIfDb('A2A integration', () => {
           name: 'record_meal_log',
           args: {
             food_master_id: 'fm_rice_happy',
+            food_name: '白米 happy-path',
             eaten_at_iso: '2026-06-12T12:30:00+09:00',
             quantity: 200,
             unit: 'g',
@@ -315,6 +316,7 @@ describeIfDb('A2A integration', () => {
           name: 'record_meal_log',
           args: {
             food_master_id: 'fm_rice_mixed',
+            food_name: '白米 mixed-item',
             eaten_at_iso: '2026-06-12T12:30:00+09:00',
             quantity: 200,
             unit: 'g',
@@ -437,6 +439,7 @@ describeIfDb('A2A integration', () => {
           name: 'record_meal_log',
           args: {
             food_master_id: 'fm_salmon_resume',
+            food_name: 'salmon sushi resume',
             eaten_at_iso: '2026-06-12T19:00:00+09:00',
             quantity: 180,
             unit: 'g',

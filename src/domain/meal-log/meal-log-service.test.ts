@@ -4,6 +4,7 @@ import { describe, expect, it } from 'vitest'
 import {
   DomainError,
   FoodMasterNotFoundError,
+  FoodNameMismatchError,
   FutureEatenAtError,
   ImplausibleQuantityError,
   InvalidQuantityError,
@@ -574,6 +575,69 @@ describe('MealLogService.record', () => {
       error instanceof ImplausibleQuantityError ? error.amountGrams : undefined,
     ).toBe(20000)
     expect(inserted).toEqual([])
+  })
+
+  it('rejects a foodName that does not match the resolved food_master with FoodNameMismatchError', async () => {
+    const { service, inserted } = buildService([RICE])
+
+    const error = (
+      await service.record({
+        foodMasterId: 'fm_rice',
+        foodName: '唐揚げ',
+        eatenAt: EATEN_AT,
+        quantity: 100,
+        unit: 'g',
+      })
+    )._unsafeUnwrapErr()
+
+    expect(error).toBeInstanceOf(FoodNameMismatchError)
+    expect(error).toEqual(new FoodNameMismatchError('唐揚げ', '白米'))
+    expect(inserted).toEqual([])
+  })
+
+  it('accepts a foodName that matches the resolved food_master modulo surrounding whitespace', async () => {
+    const { service, inserted } = buildService([RICE])
+
+    const result = (
+      await service.record({
+        foodMasterId: 'fm_rice',
+        foodName: ' 白米 ',
+        eatenAt: EATEN_AT,
+        quantity: 100,
+        unit: 'g',
+      })
+    )._unsafeUnwrap()
+
+    expect(result).toEqual({
+      id: 'ml_1',
+      foodMasterId: 'fm_rice',
+      eatenAt: EATEN_AT,
+      mealType: 'dinner',
+      quantity: 100,
+      unit: 'g',
+      amountGrams: 100,
+      note: null,
+      createdAt: CREATED_AT,
+      nutrition: {
+        energy_kcal: 156,
+        protein_g: 2.5,
+        fat_g: 0.3,
+        carb_g: 37.1,
+      },
+      isEstimated: false,
+    })
+    expect(inserted).toEqual([
+      {
+        id: 'ml_1',
+        foodMasterId: 'fm_rice',
+        eatenAt: EATEN_AT,
+        mealType: 'dinner',
+        quantity: 100,
+        unit: 'g',
+        amountGrams: 100,
+        note: null,
+      },
+    ])
   })
 })
 
