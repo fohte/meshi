@@ -172,7 +172,21 @@ const buildCompletedInvokeResult = (
   messages: [buildInvokeMessage('human'), buildInvokeMessage('ai', { text })],
 })
 
+// Skips past runAgentTurn's onToolStart/logger positional parameters (unused
+// by the tests calling this) to reach the `now` override, so callers don't
+// have to spell out `undefined, undefined,` to get there.
+const runAgentTurnAt = (
+  agent: MeshiDomainAgentLike,
+  requestContext: RequestContext,
+  now: () => Date,
+): Promise<Task> =>
+  runAgentTurn(agent, requestContext, undefined, undefined, now)
+
 describe('runAgentTurn', () => {
+  afterEach(() => {
+    vi.useRealTimers()
+  })
+
   it('maps a plain-text reply with no tool call to a completed task', async () => {
     const contextId = `ctx-${randomUUID()}`
     const taskId = `task-${randomUUID()}`
@@ -497,18 +511,16 @@ describe('runAgentTurn', () => {
     )
   })
 
-  it('passes the converted user message content, thread_id, and recursion limit to the domain agent', async () => {
+  it('passes the converted user message content (including the occurred_at meta block), thread_id, and recursion limit to the domain agent', async () => {
     const contextId = `ctx-${randomUUID()}`
     const taskId = `task-${randomUUID()}`
     const userMessage = buildUserMessage(taskId, contextId)
     const invoke = vi.fn().mockResolvedValue(buildCompletedInvokeResult('ok'))
     const agent: MeshiDomainAgentLike = { invoke }
 
-    await runAgentTurn(
+    await runAgentTurnAt(
       agent,
       new RequestContext(userMessage, taskId, contextId),
-      undefined,
-      undefined,
       () => new Date('2026-07-30T03:00:00.000Z'),
     )
 
@@ -550,11 +562,9 @@ describe('runAgentTurn', () => {
     const invoke = vi.fn().mockResolvedValue(buildCompletedInvokeResult('ok'))
     const agent: MeshiDomainAgentLike = { invoke }
 
-    await runAgentTurn(
+    await runAgentTurnAt(
       agent,
       new RequestContext(userMessage, taskId, contextId),
-      undefined,
-      undefined,
       () => new Date('2026-07-30T03:00:00.000Z'),
     )
 
@@ -613,7 +623,6 @@ describe('runAgentTurn', () => {
         recursionLimit: MESHI_AGENT_RECURSION_LIMIT,
       },
     )
-    vi.useRealTimers()
   })
 
   it('carries forward the existing task history and artifacts on the final task', async () => {
@@ -1096,22 +1105,22 @@ describeIfDb('createMeshiAgentExecutor', () => {
       bus,
     )
 
-    expect(invoke).toHaveBeenCalledWith(
-      {
-        messages: [
-          new HumanMessage({
-            contentBlocks: [
-              {
-                type: 'text',
-                text: '(meta: occurred_at=2026-07-30T03:00:00.000Z, timezone=Asia/Tokyo)',
-              },
-              { type: 'text', text: 'hello' },
-            ],
-          }),
-        ],
-      },
-      expect.anything(),
-    )
+    // Only the messages argument is this test's concern (does options.now
+    // reach the occurred_at meta); thread_id/recursionLimit/callbacks are
+    // already covered by the other executor and runAgentTurn tests.
+    expect(invoke.mock.calls[0]?.[0]).toEqual({
+      messages: [
+        new HumanMessage({
+          contentBlocks: [
+            {
+              type: 'text',
+              text: '(meta: occurred_at=2026-07-30T03:00:00.000Z, timezone=Asia/Tokyo)',
+            },
+            { type: 'text', text: 'hello' },
+          ],
+        }),
+      ],
+    })
   })
 
   it('publishes a working status-update before resuming an existing task', async () => {

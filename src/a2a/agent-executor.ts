@@ -15,7 +15,7 @@ import { toAgentContent } from '#a2a/message-content'
 import type { Sql } from '#db/index'
 import { parseJson } from '#lib/json'
 import type { AgentContentBlock } from '#llm/agent/content-block'
-import { toHumanMessage } from '#llm/agent/content-block'
+import { formatPromptMeta, toHumanMessage } from '#llm/agent/content-block'
 import {
   AGENT_NO_USABLE_REPLY_EVENT,
   AGENT_THINK_BLOCK_LEAKED_EVENT,
@@ -82,7 +82,7 @@ export interface MeshiAgentExecutorOptions {
   readonly heartbeatIntervalMs?: number
   readonly logger?: Logger
   // Overridable for tests; defaults to the real wall clock. Read once per
-  // turn to ground the LLM's date/time resolution (see formatOccurredAtMeta
+  // turn to ground the LLM's date/time resolution (see withOccurredAtMeta
   // below) in when the turn actually ran.
   readonly now?: () => Date
 }
@@ -101,14 +101,11 @@ const AGENT_TIMEZONE = 'Asia/Tokyo'
 // relative or year-omitted date the user mentions (e.g. "7/27") into the
 // right absolute date instead of guessing — see MESHI_AGENT_SYSTEM_PROMPT's
 // instruction for how this line is meant to be read.
-const formatOccurredAtMeta = (now: Date): string =>
-  `(meta: occurred_at=${now.toISOString()}, timezone=${AGENT_TIMEZONE})`
-
 const withOccurredAtMeta = (
   content: ReadonlyArray<AgentContentBlock>,
   now: Date,
 ): AgentContentBlock[] => [
-  { type: 'text', text: formatOccurredAtMeta(now) },
+  { type: 'text', text: formatPromptMeta(now, AGENT_TIMEZONE) },
   ...content,
 ]
 

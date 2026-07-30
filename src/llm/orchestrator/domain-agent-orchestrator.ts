@@ -7,6 +7,7 @@ import { ResultAsync } from 'neverthrow'
 
 import {
   type AgentContentBlock,
+  formatPromptMeta,
   toHumanMessage,
 } from '#llm/agent/content-block'
 import {
@@ -205,26 +206,12 @@ const ORCHESTRATOR_NO_USABLE_REPLY_FINGERPRINT =
 const errorMessage = (e: unknown): string =>
   e instanceof Error ? e.message : String(e)
 
-const formatMeta = (
-  occurredAt: Date | undefined,
-  timezone: string | undefined,
-): string => {
-  const parts: string[] = []
-  if (occurredAt !== undefined) {
-    parts.push(`occurred_at=${occurredAt.toISOString()}`)
-  }
-  if (timezone !== undefined && timezone !== '') {
-    parts.push(`timezone=${timezone}`)
-  }
-  return parts.length === 0 ? '' : `(meta: ${parts.join(', ')})`
-}
-
 const textContent = (
   body: string,
   occurredAt: Date | undefined,
   timezone: string | undefined,
 ): AgentContentBlock[] => {
-  const meta = formatMeta(occurredAt, timezone)
+  const meta = formatPromptMeta(occurredAt, timezone)
   return [{ type: 'text', text: meta === '' ? body : `${meta}\n${body}` }]
 }
 
@@ -327,7 +314,7 @@ export const createDomainAgentOrchestrator = (
     },
     recordFromImage(input: RecordFromImageInput) {
       const content: AgentContentBlock[] = []
-      const meta = formatMeta(input.occurredAt, input.timezone)
+      const meta = formatPromptMeta(input.occurredAt, input.timezone)
       if (meta !== '') content.push({ type: 'text', text: meta })
       if (input.hintText !== undefined && input.hintText !== '') {
         content.push({ type: 'text', text: input.hintText })
