@@ -50,13 +50,15 @@ const resolveAndCheckAmountGrams = (
 // callers that pass it (the record_meal_log domain tool) already got the
 // exact string from register_food_master/search_food_master output for this
 // same food_master_id, so it should match verbatim modulo surrounding
-// whitespace. food_masters.name is unique (food_masters_name_key), so this
-// check can never reject a legitimate id/name pairing due to a name collision.
+// whitespace and case.
+const normalizeFoodName = (name: string): string => name.trim().toLowerCase()
+
 const checkFoodNameMatches = (
   foodName: string | undefined,
   actualName: string,
 ): Result<void, DomainError> =>
-  foodName === undefined || foodName.trim() === actualName.trim()
+  foodName === undefined ||
+  normalizeFoodName(foodName) === normalizeFoodName(actualName)
     ? ok(undefined)
     : err(new FoodNameMismatchError(foodName, actualName))
 

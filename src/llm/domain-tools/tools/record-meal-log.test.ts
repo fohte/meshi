@@ -184,6 +184,28 @@ describe('record_meal_log tool', () => {
     expect(calls).toEqual({ record: [] })
   })
 
+  it('returns invalid_input when food_name is whitespace-only', async () => {
+    const { tool, calls } = setup()
+
+    const result = await tool.execute({
+      food_master_id: 'fm_rice',
+      food_name: '   ',
+      eaten_at_iso: '2026-06-18T09:00:00+09:00',
+      quantity: 1,
+      unit: '杯',
+    })
+
+    expect(normalizeResult(result)).toEqual({
+      ok: false,
+      error: {
+        code: 'invalid_input',
+        message: '<dynamic>',
+        details: { issues: { count: 1 } },
+      },
+    })
+    expect(calls).toEqual({ record: [] })
+  })
+
   it('returns invalid_input for non-positive quantity', async () => {
     const { tool, calls } = setup()
     const result = await tool.execute({
