@@ -9,10 +9,13 @@ import type { FoodMasterUnitService } from '#domain/food-master-unit/service'
 import type { FoodMatcher } from '#domain/food-matcher/food-matcher'
 import type { MealHistoryService } from '#domain/meal-history/types'
 import type { MealLogService } from '#domain/meal-log/meal-log-service'
+import type { MealSkipService } from '#domain/meal-skip/meal-skip-service'
 import type { UserProfileService } from '#domain/user-profile/user-profile-service'
+import { createCancelMealSkipTool } from '#llm/domain-tools/tools/cancel-meal-skip'
 import { createGetUserProfileTool } from '#llm/domain-tools/tools/get-user-profile'
 import { createQueryMealHistoryTool } from '#llm/domain-tools/tools/query-meal-history'
 import { createRecordMealLogTool } from '#llm/domain-tools/tools/record-meal-log'
+import { createRecordMealSkipTool } from '#llm/domain-tools/tools/record-meal-skip'
 import { createRegisterFoodMasterTool } from '#llm/domain-tools/tools/register-food-master'
 import { createRegisterFoodMasterUnitTool } from '#llm/domain-tools/tools/register-food-master-unit'
 import { createSearchFoodMasterTool } from '#llm/domain-tools/tools/search-food-master'
@@ -63,6 +66,7 @@ export interface DomainToolsDeps {
   readonly mealHistoryService: MealHistoryService
   readonly userProfileService: UserProfileService
   readonly webSearchClient: WebSearchClient
+  readonly mealSkipService: MealSkipService
 }
 
 export interface DomainToolsRegistry {
@@ -78,6 +82,8 @@ export const createDomainToolsRegistry = (
   const tools: ReadonlyArray<DomainTool> = [
     createRecordMealLogTool(deps.mealLogService),
     createUpdateMealLogTool(deps.mealLogService),
+    createRecordMealSkipTool(deps.mealSkipService),
+    createCancelMealSkipTool(deps.mealSkipService),
     createSearchFoodMasterTool(deps.foodMatcher),
     createRegisterFoodMasterTool(deps.foodMasterService),
     createRegisterFoodMasterUnitTool(deps.foodMasterUnitService),

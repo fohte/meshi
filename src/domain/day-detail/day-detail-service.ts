@@ -16,6 +16,9 @@ import type {
   MealHistoryAggregate,
   MealHistoryService,
 } from '#domain/meal-history/types'
+import { MEAL_TYPES } from '#domain/meal-log/types'
+import type { MealSkipService } from '#domain/meal-skip/meal-skip-service'
+import type { MealSkipRow } from '#domain/meal-skip/types'
 
 const ENERGY_KCAL_CODE = 'energy_kcal'
 
@@ -36,12 +39,13 @@ type Db = ReturnType<typeof drizzle>
 export const createDayDetailService = (
   sql: Sql,
   mealHistoryService: MealHistoryService,
+  mealSkipService: MealSkipService,
 ): DayDetailService => {
   const db = drizzle(sql)
 
   return {
     query(input) {
-      return mealHistoryService
+      const historyResult = mealHistoryService
         .query({
           periodFrom: input.periodFrom,
           periodTo: input.periodTo,
@@ -51,7 +55,16 @@ export const createDayDetailService = (
           (queryError) =>
             new DayDetailQueryError('meal history query failed', queryError),
         )
-        .andThen((aggregate) => enrichEntries(db, aggregate))
+      const skipsResult = mealSkipService
+        .findForDate(input.date)
+        .mapErr(
+          (queryError) =>
+            new DayDetailQueryError('meal skip query failed', queryError),
+        )
+
+      return ResultAsync.combine([historyResult, skipsResult]).andThen(
+        ([aggregate, skips]) => enrichEntries(db, aggregate, skips),
+      )
     },
   }
 }
@@ -59,17 +72,31 @@ export const createDayDetailService = (
 const enrichEntries = (
   db: Db,
   aggregate: MealHistoryAggregate,
+  skips: ReadonlyArray<MealSkipRow>,
 ): ResultAsync<DayDetail, DayDetailQueryError> => {
   const entryIds = aggregate.entries.map((entry) => entry.id)
   const foodMasterIds = [
     ...new Set(aggregate.entries.map((entry) => entry.foodMasterId)),
   ]
 
+  const eatenMealTypes = new Set(
+    aggregate.entries.map((entry) => entry.mealType),
+  )
+  const skippedSet = new Set(
+    skips
+      .map((skip) => skip.mealType)
+      .filter((mealType) => !eatenMealTypes.has(mealType)),
+  )
+  const skippedMealTypes = MEAL_TYPES.filter((mealType) =>
+    skippedSet.has(mealType),
+  )
+
   if (foodMasterIds.length === 0) {
     return okAsync({
       totals: aggregate.totals,
       hasEstimatedValues: aggregate.hasEstimatedValues,
       entries: [],
+      skippedMealTypes,
     })
   }
 
@@ -134,6 +161,7 @@ const enrichEntries = (
       totals: aggregate.totals,
       hasEstimatedValues: aggregate.hasEstimatedValues,
       entries,
+      skippedMealTypes,
     }
   })
 }

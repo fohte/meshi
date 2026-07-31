@@ -1,17 +1,33 @@
-import { okAsync } from 'neverthrow'
+import { errAsync, okAsync } from 'neverthrow'
 import { expect, it } from 'vitest'
 
 import { createDayDetailService } from '#domain/day-detail/day-detail-service'
 import type { MealHistoryService } from '#domain/meal-history/types'
+import { MealSkipPersistenceError } from '#domain/meal-skip/errors'
+import type { MealSkipService } from '#domain/meal-skip/meal-skip-service'
 import { describeIfDb, setupDrizzleTx } from '#test/db'
 import { seedFoodMaster, seedMealLog } from '#test/seed'
+
+const stubNoSkips: MealSkipService = {
+  record: () =>
+    errAsync(
+      new MealSkipPersistenceError('mealSkipService.record not stubbed'),
+    ),
+  cancel: () =>
+    errAsync(
+      new MealSkipPersistenceError('mealSkipService.cancel not stubbed'),
+    ),
+  findForDate: () => okAsync([]),
+}
 
 // createDayDetailService's own job is enriching MealHistoryService's entries
 // with food_masters/meal_logs data it looks up itself (name, per-item kcal,
 // estimated flag) — its aggregation (totals/hasEstimatedValues) is entirely
 // MealHistoryService's responsibility and already covered by
-// mealHistoryService.test.ts, so these tests stub MealHistoryService rather
-// than composing the real implementation.
+// mealHistoryService.test.ts, and skippedMealTypes is entirely
+// MealSkipService's responsibility and already covered by
+// meal-skip-service.test.ts, so these tests stub both rather than composing
+// the real implementations.
 describeIfDb('DayDetailService.query', () => {
   const getTx = setupDrizzleTx()
 
@@ -74,12 +90,13 @@ describeIfDb('DayDetailService.query', () => {
           ],
         }),
     }
-    const service = createDayDetailService(tx, mealHistoryService)
+    const service = createDayDetailService(tx, mealHistoryService, stubNoSkips)
 
     const result = (
       await service.query({
         periodFrom: new Date('2026-06-01T00:00:00Z'),
         periodTo: new Date('2026-06-02T00:00:00Z'),
+        date: '2026-06-01',
       })
     )._unsafeUnwrap()
 
@@ -112,6 +129,7 @@ describeIfDb('DayDetailService.query', () => {
           isEstimated: true,
         },
       ],
+      skippedMealTypes: [],
     })
   })
 
@@ -154,12 +172,13 @@ describeIfDb('DayDetailService.query', () => {
           ],
         }),
     }
-    const service = createDayDetailService(tx, mealHistoryService)
+    const service = createDayDetailService(tx, mealHistoryService, stubNoSkips)
 
     const result = (
       await service.query({
         periodFrom: new Date('2026-06-01T00:00:00Z'),
         periodTo: new Date('2026-06-02T00:00:00Z'),
+        date: '2026-06-01',
       })
     )._unsafeUnwrap()
 
@@ -180,6 +199,7 @@ describeIfDb('DayDetailService.query', () => {
           isEstimated: false,
         },
       ],
+      skippedMealTypes: [],
     })
   })
 
@@ -194,12 +214,13 @@ describeIfDb('DayDetailService.query', () => {
           entries: [],
         }),
     }
-    const service = createDayDetailService(tx, mealHistoryService)
+    const service = createDayDetailService(tx, mealHistoryService, stubNoSkips)
 
     const result = (
       await service.query({
         periodFrom: new Date('2026-06-01T00:00:00Z'),
         periodTo: new Date('2026-06-02T00:00:00Z'),
+        date: '2026-06-01',
       })
     )._unsafeUnwrap()
 
@@ -207,6 +228,95 @@ describeIfDb('DayDetailService.query', () => {
       totals: {},
       hasEstimatedValues: false,
       entries: [],
+      skippedMealTypes: [],
+    })
+  })
+
+  it('excludes a skipped meal type that already has a meal_log entry, but includes one that does not', async () => {
+    const tx = getTx()
+    await seedFoodMaster(tx, {
+      id: 'rice',
+      name: 'ごはん',
+      source: 'user_input',
+      nutrients: { energy_kcal: 156 },
+    })
+    await seedMealLog(tx, {
+      id: 'log-1',
+      foodMasterId: 'rice',
+      eatenAt: new Date('2026-06-01T00:00:00Z'),
+      quantity: 200,
+    })
+
+    const mealHistoryService: MealHistoryService = {
+      query: () =>
+        okAsync({
+          totals: { energy_kcal: 312 },
+          perDay: [],
+          hasEstimatedValues: false,
+          entries: [
+            {
+              id: 'log-1',
+              foodMasterId: 'rice',
+              foodName: 'ごはん',
+              eatenAt: new Date('2026-06-01T00:00:00Z'),
+              mealType: 'breakfast',
+              quantity: 200,
+              unit: 'g',
+              note: null,
+            },
+          ],
+        }),
+    }
+    const mealSkipService: MealSkipService = {
+      ...stubNoSkips,
+      findForDate: () =>
+        okAsync([
+          {
+            id: 'skip-breakfast',
+            date: '2026-06-01',
+            mealType: 'breakfast',
+            createdAt: new Date('2026-06-01T00:00:00Z'),
+          },
+          {
+            id: 'skip-lunch',
+            date: '2026-06-01',
+            mealType: 'lunch',
+            createdAt: new Date('2026-06-01T00:00:00Z'),
+          },
+        ]),
+    }
+    const service = createDayDetailService(
+      tx,
+      mealHistoryService,
+      mealSkipService,
+    )
+
+    const result = (
+      await service.query({
+        periodFrom: new Date('2026-06-01T00:00:00Z'),
+        periodTo: new Date('2026-06-02T00:00:00Z'),
+        date: '2026-06-01',
+      })
+    )._unsafeUnwrap()
+
+    expect(result).toEqual({
+      totals: { energy_kcal: 312 },
+      hasEstimatedValues: false,
+      entries: [
+        {
+          id: 'log-1',
+          foodMasterId: 'rice',
+          foodName: 'ごはん',
+          eatenAt: new Date('2026-06-01T00:00:00Z'),
+          mealType: 'breakfast',
+          quantity: 200,
+          unit: 'g',
+          note: null,
+          kcal: 312,
+          isEstimated: false,
+        },
+      ],
+      skippedMealTypes: ['lunch'],
     })
   })
 })

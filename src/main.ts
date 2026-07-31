@@ -31,6 +31,8 @@ import { createDrizzleFoodMatcher } from '#domain/food-matcher/index'
 import { createMealHistoryService } from '#domain/meal-history/index'
 import { createDrizzleMealLogRepository } from '#domain/meal-log/drizzle-meal-log-repository'
 import { createMealLogService } from '#domain/meal-log/meal-log-service'
+import { createDrizzleMealSkipRepository } from '#domain/meal-skip/drizzle-meal-skip-repository'
+import { createMealSkipService } from '#domain/meal-skip/meal-skip-service'
 import { createDrizzleNutrientDefinitionRepository } from '#domain/nutrient-definition/index'
 import { createUserProfileService } from '#domain/user-profile/user-profile-service'
 import { EnvError, loadEnv } from '#env'
@@ -98,9 +100,18 @@ export const main = async (): Promise<void> => {
   const foodMasterUnitService = createFoodMasterUnitService(
     createFoodMasterUnitRepository(sql),
   )
+  const mealSkipService = createMealSkipService({
+    repository: createDrizzleMealSkipRepository(sql),
+    idGenerator: () => randomUUID(),
+    now: () => new Date(),
+  })
   const foodMatcher = createDrizzleFoodMatcher(sql)
   const mealHistoryService = createMealHistoryService(sql)
-  const dayDetailService = createDayDetailService(sql, mealHistoryService)
+  const dayDetailService = createDayDetailService(
+    sql,
+    mealHistoryService,
+    mealSkipService,
+  )
   const foodBrowseService = createFoodBrowseService(sql, foodMatcher)
   const foodDetailService = createFoodDetailService(sql, foodMasterService)
   const nutrientDefinitionRepository =
@@ -119,6 +130,7 @@ export const main = async (): Promise<void> => {
     mealHistoryService,
     userProfileService,
     webSearchClient,
+    mealSkipService,
   })
 
   const model = createMeshiChatModel({
@@ -175,6 +187,7 @@ export const main = async (): Promise<void> => {
     foodDetailService,
     mealLogService,
     foodMasterService,
+    mealSkipService,
     ...(env.A2A_BEARER_TOKEN === undefined
       ? {}
       : { bearerToken: env.A2A_BEARER_TOKEN }),

@@ -63,30 +63,3 @@
   flex-direction: column;
   gap: 28px;
 }
-
-.emptyState {
-  border: var(--border-width) solid var(--color-border);
-  padding: 56px 20px;
-  text-align: center;
-}
-
-.emptyText {
-  font-family: var(--font-mono);
-  font-size: 13px;
-  color: var(--color-muted);
-  margin-bottom: 18px;
-}
-
-.emptyCreateButton {
-  all: unset;
-  cursor: pointer;
-  padding: 10px 20px;
-  border: var(--border-width) solid var(--color-border);
-  font-family: var(--font-mono);
-  font-size: 13px;
-  transition: border-color 0.15s;
-}
-
-.emptyCreateButton:hover {
-  border-color: var(--color-muted);
-}

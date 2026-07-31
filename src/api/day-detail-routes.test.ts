@@ -13,7 +13,13 @@ const buildApp = (dayDetailService: DayDetailService): Hono => {
 }
 
 const stubEmptyDetail: DayDetailService = {
-  query: () => okAsync({ totals: {}, hasEstimatedValues: false, entries: [] }),
+  query: () =>
+    okAsync({
+      totals: {},
+      hasEstimatedValues: false,
+      entries: [],
+      skippedMealTypes: [],
+    }),
 }
 
 describe('GET /api/days/:date', () => {
@@ -30,7 +36,12 @@ describe('GET /api/days/:date', () => {
     const dayDetailService: DayDetailService = {
       query: (input) => {
         capturedInput = input
-        return okAsync({ totals: {}, hasEstimatedValues: false, entries: [] })
+        return okAsync({
+          totals: {},
+          hasEstimatedValues: false,
+          entries: [],
+          skippedMealTypes: [],
+        })
       },
     }
     const app = buildApp(dayDetailService)
@@ -40,6 +51,7 @@ describe('GET /api/days/:date', () => {
     expect(capturedInput).toEqual({
       periodFrom: new Date('2026-07-28T15:00:00.000Z'),
       periodTo: new Date('2026-07-29T15:00:00.000Z'),
+      date: '2026-07-29',
     })
   })
 
@@ -63,6 +75,7 @@ describe('GET /api/days/:date', () => {
               isEstimated: false,
             },
           ],
+          skippedMealTypes: ['lunch'],
         }),
     }
     const app = buildApp(dayDetailService)
@@ -74,6 +87,7 @@ describe('GET /api/days/:date', () => {
       date: '2026-07-29',
       totals: { energy_kcal: 312, protein_g: 5 },
       hasEstimatedValues: true,
+      skippedMealTypes: ['lunch'],
       entries: [
         {
           id: 'log-1',

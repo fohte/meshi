@@ -2,6 +2,7 @@ import { sql } from 'drizzle-orm'
 import {
   boolean,
   check,
+  date,
   foreignKey,
   index,
   integer,
@@ -171,6 +172,29 @@ export const mealLogs = pgTable(
     ),
     check('meal_logs_quantity_positive', sql`${table.quantity} > 0`),
     check('meal_logs_amount_grams_positive', sql`${table.amountGrams} > 0`),
+  ],
+)
+
+export const mealSkips = pgTable(
+  'meal_skips',
+  {
+    // Not the primary key: every lookup (repository, routes) keys off
+    // (date, meal_type) instead. Kept as an opaque external identifier for
+    // API responses and LLM tool output.
+    id: text('id').notNull(),
+    // JST calendar date, no time component — see src/lib/jst-date.ts.
+    date: date('date', { mode: 'string' }).notNull(),
+    mealType: mealTypeEnum('meal_type').notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true, mode: 'date' })
+      .notNull()
+      .default(sql`now()`),
+  },
+  (table) => [
+    primaryKey({
+      name: 'meal_skips_pkey',
+      columns: [table.date, table.mealType],
+    }),
+    uniqueIndex('meal_skips_id_key').on(table.id),
   ],
 )
 
