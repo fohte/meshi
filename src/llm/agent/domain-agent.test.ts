@@ -8,6 +8,7 @@ import {
   SimpleSpanProcessor,
 } from '@opentelemetry/sdk-trace-base'
 import {
+  ATTR_GEN_AI_INPUT_MESSAGES,
   ATTR_GEN_AI_OPERATION_NAME,
   ATTR_GEN_AI_OUTPUT_MESSAGES,
   ATTR_GEN_AI_PROVIDER_NAME,
@@ -204,7 +205,7 @@ describe('createMeshiDomainAgent gen_ai tracing', () => {
     ])
   })
 
-  it('records reasoning content in gen_ai.output.messages when captureMessageContent is enabled', async () => {
+  it('records gen_ai attributes, including reasoning content in output messages, when captureMessageContent is enabled', async () => {
     const registry = stubRegistry([])
     const model = fakeModel().respond(
       new AIMessage({
@@ -218,22 +219,57 @@ describe('createMeshiDomainAgent gen_ai tracing', () => {
       registry,
       checkpointer: new MemorySaver(),
       captureMessageContent: true,
+      systemPrompt: 'You are a test agent.',
     })
     await agent.invoke(
       { messages: [{ role: 'user', content: 'I ate rice' }] },
       { configurable: { thread_id: 'thread-tracing-2' } },
     )
 
-    const [span] = exporter.getFinishedSpans()
     expect(
-      JSON.parse(String(span?.attributes[ATTR_GEN_AI_OUTPUT_MESSAGES])),
+      exporter.getFinishedSpans().map((span) => ({
+        name: span.name,
+        kind: span.kind,
+        status: span.status,
+        attributes: {
+          ...span.attributes,
+          [ATTR_GEN_AI_INPUT_MESSAGES]: JSON.parse(
+            String(span.attributes[ATTR_GEN_AI_INPUT_MESSAGES]),
+          ) as unknown,
+          [ATTR_GEN_AI_OUTPUT_MESSAGES]: JSON.parse(
+            String(span.attributes[ATTR_GEN_AI_OUTPUT_MESSAGES]),
+          ) as unknown,
+        },
+      })),
     ).toEqual([
       {
-        role: 'assistant',
-        parts: [
-          { type: 'reasoning', content: 'User ate rice.' },
-          { type: 'text', content: 'Recorded your meal.' },
-        ],
+        name: 'chat unknown',
+        kind: SpanKind.CLIENT,
+        status: { code: SpanStatusCode.UNSET },
+        attributes: {
+          [ATTR_GEN_AI_OPERATION_NAME]: 'chat',
+          [ATTR_GEN_AI_PROVIDER_NAME]: 'opencode',
+          [ATTR_GEN_AI_REQUEST_MODEL]: 'unknown',
+          [ATTR_GEN_AI_INPUT_MESSAGES]: [
+            {
+              role: 'system',
+              parts: [{ type: 'text', content: 'You are a test agent.' }],
+            },
+            {
+              role: 'user',
+              parts: [{ type: 'text', content: 'I ate rice' }],
+            },
+          ],
+          [ATTR_GEN_AI_OUTPUT_MESSAGES]: [
+            {
+              role: 'assistant',
+              parts: [
+                { type: 'reasoning', content: 'User ate rice.' },
+                { type: 'text', content: 'Recorded your meal.' },
+              ],
+            },
+          ],
+        },
       },
     ])
   })
