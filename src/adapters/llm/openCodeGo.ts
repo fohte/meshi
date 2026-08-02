@@ -4,5 +4,5 @@ export const OPENCODE_GO_BASE_URL = 'https://opencode.ai/zen/go/v1'
 // proxies to multiple underlying model providers, so this is the gateway
 // being called, not the resolved model's own provider). Shared by every
 // OpenCode Go-backed client (e.g. the GenAI tracing middleware wiring in
-// src/llm/agent/domain-agent.ts) so they report the same gen_ai.provider.name.
+// src/main.ts) so they report the same gen_ai.provider.name.
 export const GEN_AI_PROVIDER_NAME_VALUE_OPENCODE = 'opencode'
