@@ -272,7 +272,7 @@ describeIfDb('createDrizzleFoodMatcher', () => {
       await seedFoodMaster(tx, {
         id: 'fm_ja_alias',
         name: '木綿豆腐',
-        source: 'web_search',
+        source: 'user_input',
       })
       await seedFoodMasterAlias(tx, {
         id: 'alias_ja_1',
