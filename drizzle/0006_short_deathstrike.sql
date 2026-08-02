@@ -1,0 +1,7 @@
+ALTER TABLE "food_masters" DROP CONSTRAINT "food_masters_estimated_not_web_search";--> statement-breakpoint
+ALTER TABLE "food_masters" ADD COLUMN "source_composition_code" text;--> statement-breakpoint
+ALTER TABLE "food_masters" ADD CONSTRAINT "food_masters_source_composition_code_fk" FOREIGN KEY ("source_composition_code") REFERENCES "public"."food_compositions"("code") ON DELETE restrict ON UPDATE cascade;--> statement-breakpoint
+CREATE INDEX "food_masters_source_composition_code_idx" ON "food_masters" USING btree ("source_composition_code");--> statement-breakpoint
+ALTER TABLE "food_masters" ADD CONSTRAINT "food_masters_web_search_evidence" CHECK ("food_masters"."source" <> 'web_search' OR ("food_masters"."is_estimated" = false AND "food_masters"."source_url" IS NOT NULL AND "food_masters"."source_composition_code" IS NULL)) NOT VALID;--> statement-breakpoint
+ALTER TABLE "food_masters" ADD CONSTRAINT "food_masters_composition_evidence" CHECK ("food_masters"."source" <> 'composition_table_estimate' OR ("food_masters"."is_estimated" = true AND "food_masters"."source_url" IS NULL AND "food_masters"."source_composition_code" IS NOT NULL)) NOT VALID;--> statement-breakpoint
+ALTER TABLE "food_masters" ADD CONSTRAINT "food_masters_user_input_evidence" CHECK ("food_masters"."source" <> 'user_input' OR ("food_masters"."source_url" IS NULL AND "food_masters"."source_composition_code" IS NULL)) NOT VALID;

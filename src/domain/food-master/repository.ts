@@ -16,6 +16,8 @@ import type {
 import {
   hasDuplicateAfterTrim,
   isInvalidSourceCombination,
+  type SourceEvidenceViolation,
+  validateSourceEvidence,
 } from '#domain/food-master/validation'
 import {
   isImplausibleGramsPerUnit,
@@ -55,6 +57,18 @@ const FOOD_MASTER_ALIASES_ALIAS_CONSTRAINT = 'food_master_aliases_alias_key'
 const errorMessage = (e: unknown): string =>
   e instanceof Error ? e.message : String(e)
 
+const SOURCE_EVIDENCE_VIOLATION_MESSAGE: Record<
+  SourceEvidenceViolation,
+  string
+> = {
+  missing_source_url: "source='web_search' requires sourceUrl",
+  unexpected_source_url: "sourceUrl must not be set unless source='web_search'",
+  missing_composition_code:
+    "source='composition_table_estimate' requires sourceCompositionCode",
+  unexpected_composition_code:
+    "sourceCompositionCode must not be set unless source='composition_table_estimate'",
+}
+
 interface NormalizedInput {
   readonly name: string
   readonly aliases: ReadonlyArray<string>
@@ -62,6 +76,7 @@ interface NormalizedInput {
   readonly source: FoodSource
   readonly isEstimated: boolean
   readonly sourceUrl: string | null
+  readonly sourceCompositionCode: string | null
   readonly units: ReadonlyArray<FoodMasterUnitDefinition>
 }
 
@@ -80,6 +95,22 @@ const normalizeAndValidate = (
         'invalid_source_combination',
         "is_estimated=true must not be combined with source='web_search'",
         { source: input.source, isEstimated: input.isEstimated },
+      ),
+    )
+  }
+  const sourceUrl = input.sourceUrl ?? null
+  const sourceCompositionCode = input.sourceCompositionCode ?? null
+  const evidenceViolation = validateSourceEvidence({
+    source: input.source,
+    sourceUrl,
+    sourceCompositionCode,
+  })
+  if (evidenceViolation !== null) {
+    return err(
+      new FoodMasterDomainError(
+        evidenceViolation,
+        SOURCE_EVIDENCE_VIOLATION_MESSAGE[evidenceViolation],
+        { source: input.source, sourceUrl, sourceCompositionCode },
       ),
     )
   }
@@ -157,7 +188,8 @@ const normalizeAndValidate = (
     nutrition: input.nutrition,
     source: input.source,
     isEstimated: input.isEstimated,
-    sourceUrl: input.sourceUrl ?? null,
+    sourceUrl,
+    sourceCompositionCode,
     units,
   })
 }
@@ -180,6 +212,7 @@ interface FoodMasterRow {
   readonly is_estimated: boolean
   readonly source: FoodSource
   readonly source_url: string | null
+  readonly source_composition_code: string | null
   readonly created_at: Date
 }
 
@@ -266,9 +299,9 @@ export const createFoodMasterRepository = (
     }
 
     const [inserted] = await tx<FoodMasterRow[]>`
-      INSERT INTO food_masters (id, name, is_estimated, source, source_url)
-      VALUES (${id}, ${normalized.name}, ${normalized.isEstimated}, ${normalized.source}, ${normalized.sourceUrl})
-      RETURNING id, name, is_estimated, source, source_url, created_at
+      INSERT INTO food_masters (id, name, is_estimated, source, source_url, source_composition_code)
+      VALUES (${id}, ${normalized.name}, ${normalized.isEstimated}, ${normalized.source}, ${normalized.sourceUrl}, ${normalized.sourceCompositionCode})
+      RETURNING id, name, is_estimated, source, source_url, source_composition_code, created_at
     `
     if (inserted === undefined) {
       return err(
@@ -313,6 +346,7 @@ export const createFoodMasterRepository = (
       isEstimated: inserted.is_estimated,
       source: inserted.source,
       sourceUrl: inserted.source_url,
+      sourceCompositionCode: inserted.source_composition_code,
       nutrition: normalized.nutrition,
       units: normalized.units,
       createdAt: inserted.created_at,
@@ -346,7 +380,7 @@ export const createFoodMasterRepository = (
     ResultAsync.fromPromise(
       (async () => {
         const rows = await sql<FoodMasterRow[]>`
-          SELECT id, name, is_estimated, source, source_url, created_at
+          SELECT id, name, is_estimated, source, source_url, source_composition_code, created_at
           FROM food_masters
           WHERE id = ${id}
         `
@@ -376,6 +410,7 @@ export const createFoodMasterRepository = (
           isEstimated: row.is_estimated,
           source: row.source,
           sourceUrl: row.source_url,
+          sourceCompositionCode: row.source_composition_code,
           nutrition: toNutritionMap(nutrientRows),
           units: unitRows.map((r) => ({
             unit: r.unit,

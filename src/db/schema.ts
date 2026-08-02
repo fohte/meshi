@@ -61,6 +61,7 @@ export const foodMasters = pgTable(
     isEstimated: boolean('is_estimated').notNull().default(false),
     source: foodSourceEnum('source').notNull(),
     sourceUrl: text('source_url'),
+    sourceCompositionCode: text('source_composition_code'),
     createdAt: timestamp('created_at', { withTimezone: true, mode: 'date' })
       .notNull()
       .default(sql`now()`),
@@ -74,9 +75,32 @@ export const foodMasters = pgTable(
       'gin',
       sql`${table.name} gin_trgm_ops`,
     ),
+    foreignKey({
+      name: 'food_masters_source_composition_code_fk',
+      columns: [table.sourceCompositionCode],
+      foreignColumns: [foodCompositions.code],
+    })
+      .onUpdate('cascade')
+      .onDelete('restrict'),
+    index('food_masters_source_composition_code_idx').on(
+      table.sourceCompositionCode,
+    ),
+    // NOT VALID (hand-edited — drizzle's check() builder can't express NOT
+    // VALID itself): production already has food_masters rows that predate
+    // the evidence requirement (e.g. web_search rows with no source_url).
+    // The migration never runs VALIDATE CONSTRAINT, so only new/updated
+    // rows are checked — existing violating rows stay unvalidated.
     check(
-      'food_masters_estimated_not_web_search',
-      sql`${table.isEstimated} = false OR ${table.source} <> 'web_search'`,
+      'food_masters_web_search_evidence',
+      sql`${table.source} <> 'web_search' OR (${table.isEstimated} = false AND ${table.sourceUrl} IS NOT NULL AND ${table.sourceCompositionCode} IS NULL)`,
+    ),
+    check(
+      'food_masters_composition_evidence',
+      sql`${table.source} <> 'composition_table_estimate' OR (${table.isEstimated} = true AND ${table.sourceUrl} IS NULL AND ${table.sourceCompositionCode} IS NOT NULL)`,
+    ),
+    check(
+      'food_masters_user_input_evidence',
+      sql`${table.source} <> 'user_input' OR (${table.sourceUrl} IS NULL AND ${table.sourceCompositionCode} IS NULL)`,
     ),
   ],
 )

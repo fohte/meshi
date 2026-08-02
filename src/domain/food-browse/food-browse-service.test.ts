@@ -43,6 +43,7 @@ describeIfDb('createFoodBrowseService', () => {
         id: 'fm_apricot',
         name: 'apricot_y',
         source: 'web_search',
+        sourceUrl: 'https://example.test/apricot',
       })
       const service = createFoodBrowseService(tx, createDrizzleFoodMatcher(tx))
 

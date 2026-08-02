@@ -197,7 +197,7 @@ describeIfDb('createDrizzleMealLogRepository', () => {
       id: 'fm_karaage',
       name: '唐揚げ',
       isEstimated: true,
-      source: 'composition_table_estimate',
+      source: 'user_input',
       nutrients: { protein_g: 24.2, carb_g: 7.9 },
     })
     const repo = createDrizzleMealLogRepository(tx)

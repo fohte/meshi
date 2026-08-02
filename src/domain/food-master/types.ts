@@ -19,6 +19,7 @@ export interface FoodMaster {
   readonly isEstimated: boolean
   readonly source: FoodSource
   readonly sourceUrl: string | null
+  readonly sourceCompositionCode: string | null
   readonly nutrition: NutritionMap
   readonly units: ReadonlyArray<FoodMasterUnitDefinition>
   readonly createdAt: Date
@@ -31,6 +32,7 @@ export interface RegisterFoodMasterInput {
   readonly source: FoodSource
   readonly isEstimated: boolean
   readonly sourceUrl?: string
+  readonly sourceCompositionCode?: string
   // Per-serving mass for non-mass units (個/杯/ml/...) this food may be
   // recorded with; g/kg/mg need no entry here — see resolveAmountGrams.
   readonly units?: ReadonlyArray<FoodMasterUnitDefinition>

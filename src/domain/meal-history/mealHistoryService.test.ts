@@ -340,7 +340,7 @@ describeIfDb('MealHistoryService.query', () => {
       id: 'mystery_stew',
       name: 'mystery stew',
       isEstimated: true,
-      source: 'composition_table_estimate',
+      source: 'user_input',
       nutrients: { energy_kcal: 200, protein_g: 8 },
     })
     await seedMealLog(tx, {

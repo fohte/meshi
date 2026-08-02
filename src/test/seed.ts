@@ -49,13 +49,14 @@ export const seedFoodMaster = async (
 ): Promise<void> => {
   const { nutrients, ...row } = values
   await sql`
-    INSERT INTO food_masters (id, name, is_estimated, source, source_url)
+    INSERT INTO food_masters (id, name, is_estimated, source, source_url, source_composition_code)
     VALUES (
       ${row.id},
       ${row.name},
       ${row.isEstimated ?? false},
       ${row.source},
-      ${row.sourceUrl ?? null}
+      ${row.sourceUrl ?? null},
+      ${row.sourceCompositionCode ?? null}
     )
   `
   // Nutrient codes referenced by a seeded food need a definition row to

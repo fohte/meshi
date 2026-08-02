@@ -43,7 +43,7 @@ describeIfDb('DayDetailService.query', () => {
       id: 'mystery_stew',
       name: 'なぞのシチュー',
       isEstimated: true,
-      source: 'composition_table_estimate',
+      source: 'user_input',
       nutrients: { energy_kcal: 200 },
     })
     await seedMealLog(tx, {
