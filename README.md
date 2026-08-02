@@ -28,6 +28,8 @@ docker compose port postgres 5432
 
 Stop it with `pnpm db:down`.
 
+The compose file pins the locale Postgres is `initdb`'d with (`LC_COLLATE=C` / `LC_CTYPE=C.UTF-8`) to match production. `initdb` only runs against an empty data directory, so an existing `meshi-postgres` volume keeps whatever locale it was first created with — run `docker compose down -v` before `pnpm db:up` to pick up the current locale.
+
 ### Environment variables
 
 The server fails fast on missing required env at startup. This table covers every env var this repo's own code reads directly, not just via `src/env.ts`. Observability (Sentry/OTel exporter) config is delegated wholesale to `@fohte/service-kit/observability` and follows that package's own env var contract, not `src/env.ts`'s — see its docs for those variable names.
