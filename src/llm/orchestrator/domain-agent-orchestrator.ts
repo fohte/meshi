@@ -55,6 +55,7 @@ export interface DomainAgentOrchestratorOptions {
   readonly registry: DomainToolsRegistry
   readonly formatter?: ReplyFormatter
   readonly logger?: Logger
+  readonly captureMessageContent?: boolean
 }
 
 interface RecordedInvocation {
@@ -236,6 +237,7 @@ export const createDomainAgentOrchestrator = (
       // below, never revisited — a real (Postgres-backed) checkpointer would
       // just accumulate unreclaimed rows forever.
       checkpointer: new MemorySaver(),
+      captureMessageContent: options.captureMessageContent,
     })
     // A crashed agent.invoke() (e.g. a transport failure) must not discard
     // invocations already recorded before the crash — a food recorded

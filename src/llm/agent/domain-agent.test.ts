@@ -1,7 +1,24 @@
 import { AIMessage } from '@langchain/core/messages'
 import { MemorySaver } from '@langchain/langgraph'
+import { context, SpanKind, SpanStatusCode, trace } from '@opentelemetry/api'
+import { AsyncLocalStorageContextManager } from '@opentelemetry/context-async-hooks'
+import {
+  BasicTracerProvider,
+  InMemorySpanExporter,
+  SimpleSpanProcessor,
+} from '@opentelemetry/sdk-trace-base'
+import {
+  ATTR_GEN_AI_OPERATION_NAME,
+  ATTR_GEN_AI_OUTPUT_MESSAGES,
+  ATTR_GEN_AI_PROVIDER_NAME,
+  ATTR_GEN_AI_REQUEST_MODEL,
+  ATTR_GEN_AI_TOOL_CALL_ID,
+  ATTR_GEN_AI_TOOL_DESCRIPTION,
+  ATTR_GEN_AI_TOOL_NAME,
+  ATTR_GEN_AI_TOOL_TYPE,
+} from '@opentelemetry/semantic-conventions/incubating'
 import { fakeModel } from 'langchain'
-import { describe, expect, it } from 'vitest'
+import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 
 import { createMeshiDomainAgent } from '#llm/agent/domain-agent'
 import { REQUEST_USER_INPUT_TOOL_NAME } from '#llm/agent/request-user-input-tool'
@@ -96,5 +113,128 @@ describe('createMeshiDomainAgent', () => {
     expect(result.messages.find((m) => m.type === 'ai')?.text).toBe(
       'Which food did you mean?',
     )
+  })
+})
+
+describe('createMeshiDomainAgent gen_ai tracing', () => {
+  const exporter = new InMemorySpanExporter()
+  const provider = new BasicTracerProvider({
+    spanProcessors: [new SimpleSpanProcessor(exporter)],
+  })
+
+  beforeAll(() => {
+    trace.setGlobalTracerProvider(provider)
+    context.setGlobalContextManager(new AsyncLocalStorageContextManager())
+  })
+
+  afterAll(async () => {
+    context.disable()
+    trace.disable()
+    await provider.shutdown()
+  })
+
+  beforeEach(() => {
+    exporter.reset()
+  })
+
+  it('emits a chat span per model call and an execute_tool span per domain tool call', async () => {
+    const registry = stubRegistry([
+      recordMealLogTool(() =>
+        Promise.resolve(ok({ meal_log_id: 'm1', is_estimated: false })),
+      ),
+    ])
+    const model = fakeModel()
+      .respondWithTools([
+        {
+          name: 'record_meal_log',
+          args: { food_master_id: 'fm_1' },
+          id: 'call_1',
+        },
+      ])
+      .respond(new AIMessage('Recorded your meal.'))
+
+    const agent = createMeshiDomainAgent({
+      model,
+      registry,
+      checkpointer: new MemorySaver(),
+      captureMessageContent: false,
+    })
+    await agent.invoke(
+      { messages: [{ role: 'user', content: 'I ate rice' }] },
+      { configurable: { thread_id: 'thread-tracing-1' } },
+    )
+
+    const chatAttributes = {
+      [ATTR_GEN_AI_OPERATION_NAME]: 'chat',
+      [ATTR_GEN_AI_PROVIDER_NAME]: 'opencode',
+      [ATTR_GEN_AI_REQUEST_MODEL]: 'unknown',
+    }
+    expect(
+      exporter.getFinishedSpans().map((span) => ({
+        name: span.name,
+        kind: span.kind,
+        status: span.status,
+        attributes: span.attributes,
+      })),
+    ).toEqual([
+      {
+        name: 'chat unknown',
+        kind: SpanKind.CLIENT,
+        status: { code: SpanStatusCode.UNSET },
+        attributes: chatAttributes,
+      },
+      {
+        name: 'execute_tool record_meal_log',
+        kind: SpanKind.INTERNAL,
+        status: { code: SpanStatusCode.UNSET },
+        attributes: {
+          [ATTR_GEN_AI_OPERATION_NAME]: 'execute_tool',
+          [ATTR_GEN_AI_TOOL_NAME]: 'record_meal_log',
+          [ATTR_GEN_AI_TOOL_TYPE]: 'function',
+          [ATTR_GEN_AI_TOOL_CALL_ID]: 'call_1',
+          [ATTR_GEN_AI_TOOL_DESCRIPTION]: 'Records a meal log entry.',
+        },
+      },
+      {
+        name: 'chat unknown',
+        kind: SpanKind.CLIENT,
+        status: { code: SpanStatusCode.UNSET },
+        attributes: chatAttributes,
+      },
+    ])
+  })
+
+  it('records reasoning content in gen_ai.output.messages when captureMessageContent is enabled', async () => {
+    const registry = stubRegistry([])
+    const model = fakeModel().respond(
+      new AIMessage({
+        content: 'Recorded your meal.',
+        additional_kwargs: { reasoning_content: 'User ate rice.' },
+      }),
+    )
+
+    const agent = createMeshiDomainAgent({
+      model,
+      registry,
+      checkpointer: new MemorySaver(),
+      captureMessageContent: true,
+    })
+    await agent.invoke(
+      { messages: [{ role: 'user', content: 'I ate rice' }] },
+      { configurable: { thread_id: 'thread-tracing-2' } },
+    )
+
+    const [span] = exporter.getFinishedSpans()
+    expect(
+      JSON.parse(String(span?.attributes[ATTR_GEN_AI_OUTPUT_MESSAGES])),
+    ).toEqual([
+      {
+        role: 'assistant',
+        parts: [
+          { type: 'reasoning', content: 'User ate rice.' },
+          { type: 'text', content: 'Recorded your meal.' },
+        ],
+      },
+    ])
   })
 })

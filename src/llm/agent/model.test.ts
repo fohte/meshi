@@ -1,7 +1,7 @@
 import { ChatOpenAI } from '@langchain/openai'
-import { describe, expect, it, vi } from 'vitest'
+import { describe, expect, it } from 'vitest'
 
-import { GenAiCallbackHandler, OPENCODE_GO_BASE_URL } from '#adapters/llm/index'
+import { OPENCODE_GO_BASE_URL } from '#adapters/llm/index'
 import { createMeshiChatModel } from '#llm/agent/model'
 
 describe('createMeshiChatModel', () => {
@@ -26,15 +26,6 @@ describe('createMeshiChatModel', () => {
     expect(model.clientConfig.baseURL).toBe('https://example.com/v1')
   })
 
-  it('attaches a GenAiCallbackHandler so LLM calls emit gen_ai.* spans', () => {
-    const model = createMeshiChatModel({
-      apiKey: 'test-key',
-      model: 'test-model',
-    })
-
-    expect(model.callbacks).toEqual([expect.any(GenAiCallbackHandler)])
-  })
-
   it('asks the upstream model to split reasoning out of content', () => {
     const model = createMeshiChatModel({
       apiKey: 'test-key',
@@ -42,21 +33,5 @@ describe('createMeshiChatModel', () => {
     })
 
     expect(model.modelKwargs).toEqual({ reasoning_split: true })
-  })
-
-  it('routes the client fetch through the GenAiCallbackHandler', () => {
-    const wrapFetchSpy = vi.spyOn(GenAiCallbackHandler.prototype, 'wrapFetch')
-
-    try {
-      const model = createMeshiChatModel({
-        apiKey: 'test-key',
-        model: 'test-model',
-      })
-
-      expect(wrapFetchSpy).toHaveBeenCalledWith(fetch)
-      expect(model.clientConfig.fetch).toBe(wrapFetchSpy.mock.results[0]?.value)
-    } finally {
-      wrapFetchSpy.mockRestore()
-    }
   })
 })

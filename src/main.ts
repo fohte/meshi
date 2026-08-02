@@ -136,11 +136,15 @@ export const main = async (): Promise<void> => {
   const model = createMeshiChatModel({
     apiKey: env.OPENCODE_API_KEY,
     model: env.MESHI_LLM_MODEL,
+  })
+  const checkpointer = createMeshiCheckpointer(env.DATABASE_URL)
+  const domainAgent = createMeshiDomainAgent({
+    model,
+    registry,
+    checkpointer,
     captureMessageContent:
       env.OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT,
   })
-  const checkpointer = createMeshiCheckpointer(env.DATABASE_URL)
-  const domainAgent = createMeshiDomainAgent({ model, registry, checkpointer })
 
   const logger = createJsonStdoutLogger()
   const orchestrator = createDomainAgentOrchestrator({
@@ -148,6 +152,8 @@ export const main = async (): Promise<void> => {
     registry,
     formatter: createTemplateReplyFormatter(),
     logger,
+    captureMessageContent:
+      env.OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT,
   })
   const toolDeps: MeshiToolDeps = {
     orchestrator,
