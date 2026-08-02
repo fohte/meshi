@@ -1,7 +1,15 @@
+import { createGenAiTracingMiddleware } from '@fohte/service-kit/langchain-genai'
 import { AIMessage } from '@langchain/core/messages'
 import { MemorySaver } from '@langchain/langgraph'
+import { context, SpanKind, trace } from '@opentelemetry/api'
+import { AsyncLocalStorageContextManager } from '@opentelemetry/context-async-hooks'
+import {
+  BasicTracerProvider,
+  InMemorySpanExporter,
+  SimpleSpanProcessor,
+} from '@opentelemetry/sdk-trace-base'
 import { fakeModel } from 'langchain'
-import { describe, expect, it } from 'vitest'
+import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 
 import { createMeshiDomainAgent } from '#llm/agent/domain-agent'
 import { REQUEST_USER_INPUT_TOOL_NAME } from '#llm/agent/request-user-input-tool'
@@ -96,5 +104,68 @@ describe('createMeshiDomainAgent', () => {
     expect(result.messages.find((m) => m.type === 'ai')?.text).toBe(
       'Which food did you mean?',
     )
+  })
+})
+
+describe('createMeshiDomainAgent gen_ai tracing', () => {
+  const exporter = new InMemorySpanExporter()
+  const provider = new BasicTracerProvider({
+    spanProcessors: [new SimpleSpanProcessor(exporter)],
+  })
+
+  beforeAll(() => {
+    trace.setGlobalTracerProvider(provider)
+    context.setGlobalContextManager(new AsyncLocalStorageContextManager())
+  })
+
+  afterAll(async () => {
+    context.disable()
+    trace.disable()
+    await provider.shutdown()
+  })
+
+  beforeEach(() => {
+    exporter.reset()
+  })
+
+  it('forwards the middleware option to createAgent so both the chat and execute_tool hooks run', async () => {
+    const registry = stubRegistry([
+      recordMealLogTool(() =>
+        Promise.resolve(ok({ meal_log_id: 'm1', is_estimated: false })),
+      ),
+    ])
+    const model = fakeModel()
+      .respondWithTools([
+        {
+          name: 'record_meal_log',
+          args: { food_master_id: 'fm_1' },
+          id: 'call_1',
+        },
+      ])
+      .respond(new AIMessage('Recorded your meal.'))
+
+    const agent = createMeshiDomainAgent({
+      model,
+      registry,
+      checkpointer: new MemorySaver(),
+      middleware: [
+        createGenAiTracingMiddleware({ providerName: 'test-provider' }),
+      ],
+    })
+    await agent.invoke(
+      { messages: [{ role: 'user', content: 'I ate rice' }] },
+      { configurable: { thread_id: 'thread-tracing-1' } },
+    )
+
+    expect(
+      exporter.getFinishedSpans().map((span) => ({
+        name: span.name,
+        kind: span.kind,
+      })),
+    ).toEqual([
+      { name: 'chat unknown', kind: SpanKind.CLIENT },
+      { name: 'execute_tool record_meal_log', kind: SpanKind.INTERNAL },
+      { name: 'chat unknown', kind: SpanKind.CLIENT },
+    ])
   })
 })
