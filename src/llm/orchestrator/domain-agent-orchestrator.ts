@@ -3,6 +3,7 @@ import { randomUUID } from 'node:crypto'
 import { captureWithFingerprint } from '@fohte/service-kit/observability'
 import type { BaseChatModel } from '@langchain/core/language_models/chat_models'
 import { MemorySaver } from '@langchain/langgraph'
+import type { AnyAgentMiddleware } from 'langchain'
 import { ResultAsync } from 'neverthrow'
 
 import {
@@ -55,7 +56,7 @@ export interface DomainAgentOrchestratorOptions {
   readonly registry: DomainToolsRegistry
   readonly formatter?: ReplyFormatter
   readonly logger?: Logger
-  readonly captureMessageContent?: boolean
+  readonly middleware?: ReadonlyArray<AnyAgentMiddleware>
 }
 
 interface RecordedInvocation {
@@ -237,7 +238,7 @@ export const createDomainAgentOrchestrator = (
       // below, never revisited — a real (Postgres-backed) checkpointer would
       // just accumulate unreclaimed rows forever.
       checkpointer: new MemorySaver(),
-      captureMessageContent: options.captureMessageContent,
+      middleware: options.middleware,
     })
     // A crashed agent.invoke() (e.g. a transport failure) must not discard
     // invocations already recorded before the crash — a food recorded

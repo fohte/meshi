@@ -1,9 +1,7 @@
-import { createGenAiTracingMiddleware } from '@fohte/service-kit/langchain-genai'
 import type { BaseChatModel } from '@langchain/core/language_models/chat_models'
 import type { BaseCheckpointSaver } from '@langchain/langgraph'
-import { createAgent } from 'langchain'
+import { type AnyAgentMiddleware, createAgent } from 'langchain'
 
-import { GEN_AI_PROVIDER_NAME_VALUE_OPENCODE } from '#adapters/llm/index'
 import { createRequestUserInputTool } from '#llm/agent/request-user-input-tool'
 import { MESHI_AGENT_SYSTEM_PROMPT } from '#llm/agent/system-prompt'
 import { toLangChainTools } from '#llm/agent/tools'
@@ -14,7 +12,12 @@ export interface CreateMeshiDomainAgentOptions {
   readonly registry: DomainToolsRegistry
   readonly checkpointer: BaseCheckpointSaver
   readonly systemPrompt?: string
-  readonly captureMessageContent?: boolean | undefined
+  // Left for the caller to build (e.g. createGenAiTracingMiddleware) rather
+  // than constructed in here: this factory takes an arbitrary BaseChatModel,
+  // so it has no way to know which provider it's actually talking to —
+  // that's known at the composition root (main.ts) where the model itself
+  // is built.
+  readonly middleware?: ReadonlyArray<AnyAgentMiddleware> | undefined
 }
 
 // The system prompt (system-prompt.ts) has the agent handle each food item
@@ -54,11 +57,6 @@ export const createMeshiDomainAgent = (
     tools,
     checkpointer: options.checkpointer,
     systemPrompt: options.systemPrompt ?? MESHI_AGENT_SYSTEM_PROMPT,
-    middleware: [
-      createGenAiTracingMiddleware({
-        providerName: GEN_AI_PROVIDER_NAME_VALUE_OPENCODE,
-        captureMessageContent: options.captureMessageContent,
-      }),
-    ],
+    middleware: options.middleware ?? [],
   })
 }

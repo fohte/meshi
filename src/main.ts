@@ -5,6 +5,7 @@ import {
   DefaultPushNotificationSender,
   DefaultRequestHandler,
 } from '@a2a-js/sdk/server'
+import { createGenAiTracingMiddleware } from '@fohte/service-kit/langchain-genai'
 import { getRequestListener } from '@hono/node-server'
 import * as Sentry from '@sentry/node'
 
@@ -14,6 +15,7 @@ import { startTaskLifecycleJobs } from '#a2a/lifecycle-jobs'
 import { createPostgresPushNotificationStore } from '#a2a/postgres-push-notification-store'
 import { createPostgresTaskStore } from '#a2a/postgres-task-store'
 import { createDrizzleUserProfileRepository } from '#adapters/db/drizzle-user-profile-repository'
+import { GEN_AI_PROVIDER_NAME_VALUE_OPENCODE } from '#adapters/llm/index'
 import { createTavilyWebSearchClient } from '#adapters/web-search/tavily-web-search-client'
 import { createApp } from '#app'
 import { observability } from '#bootstrap'
@@ -137,13 +139,21 @@ export const main = async (): Promise<void> => {
     apiKey: env.OPENCODE_API_KEY,
     model: env.MESHI_LLM_MODEL,
   })
+  // Built once here, not inside createMeshiDomainAgent: that factory takes
+  // an arbitrary BaseChatModel and has no way to know which provider it's
+  // actually talking to, whereas main.ts (the composition root) already
+  // knows model is OpenCode Go-backed (see createMeshiChatModel above).
+  const genAiTracingMiddleware = createGenAiTracingMiddleware({
+    providerName: GEN_AI_PROVIDER_NAME_VALUE_OPENCODE,
+    captureMessageContent:
+      env.OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT,
+  })
   const checkpointer = createMeshiCheckpointer(env.DATABASE_URL)
   const domainAgent = createMeshiDomainAgent({
     model,
     registry,
     checkpointer,
-    captureMessageContent:
-      env.OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT,
+    middleware: [genAiTracingMiddleware],
   })
 
   const logger = createJsonStdoutLogger()
@@ -152,8 +162,7 @@ export const main = async (): Promise<void> => {
     registry,
     formatter: createTemplateReplyFormatter(),
     logger,
-    captureMessageContent:
-      env.OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT,
+    middleware: [genAiTracingMiddleware],
   })
   const toolDeps: MeshiToolDeps = {
     orchestrator,

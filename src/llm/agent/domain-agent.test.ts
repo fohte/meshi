@@ -1,3 +1,4 @@
+import { createGenAiTracingMiddleware } from '@fohte/service-kit/langchain-genai'
 import { AIMessage } from '@langchain/core/messages'
 import { MemorySaver } from '@langchain/langgraph'
 import { context, SpanKind, trace } from '@opentelemetry/api'
@@ -7,11 +8,6 @@ import {
   InMemorySpanExporter,
   SimpleSpanProcessor,
 } from '@opentelemetry/sdk-trace-base'
-import {
-  ATTR_GEN_AI_OUTPUT_MESSAGES,
-  ATTR_GEN_AI_PROVIDER_NAME,
-  ATTR_GEN_AI_TOOL_NAME,
-} from '@opentelemetry/semantic-conventions/incubating'
 import { fakeModel } from 'langchain'
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 
@@ -132,14 +128,7 @@ describe('createMeshiDomainAgent gen_ai tracing', () => {
     exporter.reset()
   })
 
-  // These tests deliberately stop at meshi's own wiring contract — that
-  // createMeshiDomainAgent attaches createGenAiTracingMiddleware with this
-  // repo's provider name and threads captureMessageContent through to it.
-  // The middleware's own span/attribute shape (message serialization,
-  // reasoning extraction, tool attribute set, ...) is @fohte/service-kit's
-  // responsibility and is covered by its own test suite; asserting on it
-  // here would just make this test fail on an unrelated service-kit change.
-  const buildRecordingAgent = (captureMessageContent: boolean) => {
+  it('forwards the middleware option to createAgent so both the chat and execute_tool hooks run', async () => {
     const registry = stubRegistry([
       recordMealLogTool(() =>
         Promise.resolve(ok({ meal_log_id: 'm1', is_estimated: false })),
@@ -154,16 +143,15 @@ describe('createMeshiDomainAgent gen_ai tracing', () => {
         },
       ])
       .respond(new AIMessage('Recorded your meal.'))
-    return createMeshiDomainAgent({
+
+    const agent = createMeshiDomainAgent({
       model,
       registry,
       checkpointer: new MemorySaver(),
-      captureMessageContent,
+      middleware: [
+        createGenAiTracingMiddleware({ providerName: 'test-provider' }),
+      ],
     })
-  }
-
-  it('wires the middleware with this repo’s provider name into a chat span per model call and an execute_tool span per domain tool call', async () => {
-    const agent = buildRecordingAgent(false)
     await agent.invoke(
       { messages: [{ role: 'user', content: 'I ate rice' }] },
       { configurable: { thread_id: 'thread-tracing-1' } },
@@ -173,57 +161,11 @@ describe('createMeshiDomainAgent gen_ai tracing', () => {
       exporter.getFinishedSpans().map((span) => ({
         name: span.name,
         kind: span.kind,
-        providerName: span.attributes[ATTR_GEN_AI_PROVIDER_NAME],
-        toolName: span.attributes[ATTR_GEN_AI_TOOL_NAME],
       })),
     ).toEqual([
-      {
-        name: 'chat unknown',
-        kind: SpanKind.CLIENT,
-        providerName: 'opencode',
-        toolName: undefined,
-      },
-      {
-        name: 'execute_tool record_meal_log',
-        kind: SpanKind.INTERNAL,
-        providerName: undefined,
-        toolName: 'record_meal_log',
-      },
-      {
-        name: 'chat unknown',
-        kind: SpanKind.CLIENT,
-        providerName: 'opencode',
-        toolName: undefined,
-      },
+      { name: 'chat unknown', kind: SpanKind.CLIENT },
+      { name: 'execute_tool record_meal_log', kind: SpanKind.INTERNAL },
+      { name: 'chat unknown', kind: SpanKind.CLIENT },
     ])
-  })
-
-  it('threads captureMessageContent through to the middleware, gating gen_ai.output.messages on the chat spans', async () => {
-    const withCapture = buildRecordingAgent(true)
-    await withCapture.invoke(
-      { messages: [{ role: 'user', content: 'I ate rice' }] },
-      { configurable: { thread_id: 'thread-tracing-2' } },
-    )
-    const withCaptureHasOutputMessages = exporter
-      .getFinishedSpans()
-      .filter((span) => span.kind === SpanKind.CLIENT)
-      .map((span) => span.attributes[ATTR_GEN_AI_OUTPUT_MESSAGES] !== undefined)
-    exporter.reset()
-
-    const withoutCapture = buildRecordingAgent(false)
-    await withoutCapture.invoke(
-      { messages: [{ role: 'user', content: 'I ate rice' }] },
-      { configurable: { thread_id: 'thread-tracing-3' } },
-    )
-    const withoutCaptureHasOutputMessages = exporter
-      .getFinishedSpans()
-      .filter((span) => span.kind === SpanKind.CLIENT)
-      .map((span) => span.attributes[ATTR_GEN_AI_OUTPUT_MESSAGES] !== undefined)
-
-    // Two expect() calls, not one combined literal: each checks a genuinely
-    // distinct scenario (captureMessageContent true vs. false), not two
-    // fragments of a single output.
-    expect(withCaptureHasOutputMessages).toEqual([true, true])
-    expect(withoutCaptureHasOutputMessages).toEqual([false, false])
   })
 })
