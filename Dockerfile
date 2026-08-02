@@ -42,19 +42,13 @@ COPY web/package.json ./web/package.json
 RUN --mount=type=cache,id=pnpm-store,target=/pnpm/store \
     pnpm install --frozen-lockfile --prod --filter meshi
 COPY --from=builder /app/dist ./dist
-<<<<<<< before updating
 # Served by Hono's serveStatic (src/app.ts) from the same relative path.
 COPY --from=web-builder /app/web/dist ./web/dist
 COPY drizzle ./drizzle
-COPY otel-register.mjs ./
 # runAsUser/runAsGroup 1000 (node user) is enforced by the infra Deployment's
 # securityContext, since kubelet can't verify runAsNonRoot against a
 # non-numeric USER. Keep this image's node user at the default uid/gid 1000
 # so the two stay in sync.
-||||||| last update
-COPY otel-register.mjs ./
-=======
->>>>>>> after updating
 USER node
 EXPOSE 8080
 CMD ["node", "--import", "@fohte/service-kit/otel-register", "dist/index.js"]

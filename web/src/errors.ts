@@ -15,21 +15,12 @@
 //     // eslint-disable-next-line no-restricted-syntax -- interop boundary
 //     throw wrapped
 //   }
-<<<<<<< before updating
-||||||| last update
-//
-// To report a wrapped error under a stable fingerprint (for Sentry
-// grouping) without changing control flow, call `captureWithFingerprint`
-// (from `@fohte/service-kit/observability`, see src/bootstrap.ts) right
-// before re-throwing.
-=======
 //
 // To report a wrapped error under a stable fingerprint (for Sentry
 // grouping) without changing control flow, call `captureWithFingerprint`
 // (from `@fohte/service-kit/observability`, see src/bootstrap.ts — only
 // generated when `error_tracking` or `is_web_app` is enabled) right before
 // re-throwing.
->>>>>>> after updating
 export abstract class BoundaryError extends Error {
   constructor(message: string, cause: unknown) {
     super(message, { cause })
