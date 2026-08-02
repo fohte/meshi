@@ -106,6 +106,9 @@ jobs:
           POSTGRES_USER: meshi
           POSTGRES_PASSWORD: meshi
           POSTGRES_DB: meshi
+          # Match production's locale (see docker-compose.yml) so pg_trgm
+          # tests catch the same multi-byte trigram behavior as production.
+          POSTGRES_INITDB_ARGS: --lc-collate=C --lc-ctype=C.UTF-8
         ports:
           - 5432:5432
         options: >-

@@ -6,6 +6,14 @@ services:
       POSTGRES_USER: ${POSTGRES_USER:-meshi}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-meshi}
       POSTGRES_DB: ${POSTGRES_DB:-meshi}
+      # Match production's locale (CloudNativePG initdb'd with
+      # localeCollate=C / localeCtype=C.UTF-8) so pg_trgm's iswalpha()-based
+      # word-character detection behaves the same for multi-byte text here as
+      # it does in production. initdb only runs against an empty data
+      # directory, so an existing `meshi-postgres` volume keeps its old
+      # locale — run `docker compose down -v` and `pnpm db:up` again to pick
+      # this up.
+      POSTGRES_INITDB_ARGS: --lc-collate=C --lc-ctype=C.UTF-8
     ports:
       - '127.0.0.1::5432'
     volumes:
