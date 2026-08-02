@@ -155,7 +155,7 @@ const stubDeps = (override: Partial<DomainToolsDeps> = {}): DomainToolsDeps => {
 }
 
 describe('createDomainToolsRegistry', () => {
-  it('registers all eleven internal tools and exposes them via toLlmSchemas in the same order', () => {
+  it('registers all twelve internal tools and exposes them via toLlmSchemas in the same order', () => {
     const registry = createDomainToolsRegistry(stubDeps())
 
     const expectedNames = [
@@ -165,6 +165,7 @@ describe('createDomainToolsRegistry', () => {
       'cancel_meal_skip',
       'search_food_master',
       'register_food_master',
+      'register_food_master_from_composition',
       'register_food_master_unit',
       'query_meal_history',
       'get_user_profile',

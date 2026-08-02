@@ -11,9 +11,16 @@ import type { CallbackHandlerMethods } from '@langchain/core/callbacks/base'
 import type { HumanMessage } from '@langchain/core/messages'
 
 import { withAdvisoryLock } from '#a2a/advisory-lock'
+import {
+  extractRegisteredFoodMasters,
+  withRegisteredFoodMasterDisclosure,
+} from '#a2a/food-master-disclosure'
+import {
+  extractLatestMealHistoryOutput,
+  withItemizedMealHistory,
+} from '#a2a/meal-history-itemization'
 import { toAgentContent } from '#a2a/message-content'
 import type { Sql } from '#db/index'
-import { parseJson } from '#lib/json'
 import type { AgentContentBlock } from '#llm/agent/content-block'
 import { formatPromptMeta, toHumanMessage } from '#llm/agent/content-block'
 import {
@@ -23,17 +30,10 @@ import {
   type AgentReplyStatus,
   buildNoUsableReplyError,
   deriveAgentReply,
-  findTurnMessages,
   NO_USABLE_REPLY_MESSAGE,
 } from '#llm/agent/derive-reply'
 import { MESHI_AGENT_RECURSION_LIMIT } from '#llm/agent/domain-agent'
-import {
-  type QueryMealHistoryOutput,
-  queryMealHistoryOutputSchema,
-  toMealHistoryEntryFields,
-} from '#llm/domain-tools/tools/query-meal-history'
 import type { DomainToolName } from '#llm/domain-tools/types'
-import { formatMealHistoryEntries } from '#llm/orchestrator/reply-formatter'
 import { createNullLogger, type Logger } from '#logger'
 
 export type { AgentInvokeMessage } from '#llm/agent/derive-reply'
@@ -176,6 +176,8 @@ const TOOL_PROGRESS_MESSAGES: Record<DomainToolName, string> = {
   search_food_master: 'Looking up the food in the food database...',
   web_search: 'Searching the web for food information...',
   register_food_master: 'Registering a new food entry...',
+  register_food_master_from_composition:
+    'Registering a new food entry from the composition table...',
   register_food_master_unit: 'Registering a unit for a food entry...',
   record_meal_log: 'Recording your meal...',
   update_meal_log: 'Updating your meal record...',
@@ -224,47 +226,6 @@ const buildProgressCallbacks = (
     },
   },
 ]
-
-const QUERY_MEAL_HISTORY_TOOL_NAME = 'query_meal_history'
-
-// Finds the most recent query_meal_history tool result produced after the
-// turn's own human message — not just anywhere in the thread — so a history
-// query from an earlier turn on the same context can't leak its itemized
-// entries into a later, unrelated turn's response (e.g. recording a meal).
-const extractLatestMealHistoryOutput = (
-  messages: ReadonlyArray<AgentInvokeMessage> | undefined,
-): QueryMealHistoryOutput | null => {
-  const turnMessages = findTurnMessages(messages)
-  for (let i = turnMessages.length - 1; i >= 0; i -= 1) {
-    const message = turnMessages[i]
-    if (
-      message === undefined ||
-      message.getType() !== 'tool' ||
-      message.name !== QUERY_MEAL_HISTORY_TOOL_NAME ||
-      typeof message.content !== 'string'
-    ) {
-      continue
-    }
-    const json = parseJson(message.content)
-    if (json.isErr()) continue
-    const parsed = queryMealHistoryOutputSchema.safeParse(json.value)
-    if (parsed.success) return parsed.data
-  }
-  return null
-}
-
-// Appends a deterministic, code-rendered itemization of this turn's
-// query_meal_history entries after the LLM's own message — the LLM's text
-// stays free-form (it may still summarize or ask a follow-up), but the
-// actual list of what was eaten never depends on the LLM choosing to
-// enumerate it faithfully.
-const withItemizedMealHistory = (
-  message: string,
-  output: QueryMealHistoryOutput | null,
-): string => {
-  if (output === null || output.entries.length === 0) return message
-  return `${message}\n\n${formatMealHistoryEntries(output.entries.map(toMealHistoryEntryFields))}`
-}
 
 // Always a full Task event (never a status-update) so it can carry
 // metadata.error_kind: ResultManager only copies a status-update event's
@@ -363,9 +324,12 @@ export const runAgentTurn = async (
     return buildFinalTask(
       requestContext,
       STATUS_TO_TASK_STATE[reply.status],
-      withItemizedMealHistory(
-        reply.text,
-        extractLatestMealHistoryOutput(result.messages),
+      withRegisteredFoodMasterDisclosure(
+        withItemizedMealHistory(
+          reply.text,
+          extractLatestMealHistoryOutput(result.messages),
+        ),
+        extractRegisteredFoodMasters(result.messages),
       ),
     )
   } catch (err) {

@@ -1012,6 +1012,66 @@ describe('runAgentTurn meal history itemization', () => {
   })
 })
 
+describe('runAgentTurn food master disclosure', () => {
+  it("appends a deterministic disclosure block for this turn's registered foods", async () => {
+    const contextId = `ctx-${randomUUID()}`
+    const taskId = `task-${randomUUID()}`
+    const userMessage = buildUserMessage(
+      taskId,
+      contextId,
+      '抹茶ラテを飲みました',
+    )
+    const agent: MeshiDomainAgentLike = {
+      invoke: vi.fn().mockResolvedValue({
+        messages: [
+          buildInvokeMessage('human'),
+          buildInvokeMessage('ai'),
+          buildInvokeMessage('tool', {
+            name: 'register_food_master',
+            content: JSON.stringify({
+              food_master_id: 'fm_test_0001',
+              name: 'スターバックス抹茶ラテ',
+              source: 'web_search',
+              source_url: 'https://example.com/matcha',
+              nutrition_per_100g: { energy_kcal: 60, protein_g: 2 },
+            }),
+          }),
+          buildInvokeMessage('ai', { text: '記録しました。' }),
+        ],
+      }),
+    }
+
+    const task = await runAgentTurn(
+      agent,
+      new RequestContext(userMessage, taskId, contextId),
+    )
+
+    const agentMessage = buildExpectedAgentMessage(
+      taskId,
+      contextId,
+      [
+        '記録しました。',
+        '',
+        '新しく登録した食品:',
+        '- スターバックス抹茶ラテ 60kcal/100g',
+        '  出典: https://example.com/matcha (web検索)',
+        '値が違う場合は教えてください。',
+      ].join('\n'),
+    )
+    expect(normalizeEvent(task)).toEqual({
+      kind: 'task',
+      id: taskId,
+      contextId,
+      status: {
+        state: 'completed',
+        timestamp: NORMALIZED,
+        message: agentMessage,
+      },
+      history: [userMessage, agentMessage],
+    })
+  })
+})
+
 const buildEventBus = (): {
   bus: ExecutionEventBus
   published: AgentExecutionEvent[]

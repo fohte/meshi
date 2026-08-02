@@ -23,6 +23,7 @@ const SAMPLE_FOOD_MASTER: FoodMaster = {
   isEstimated: true,
   source: 'composition_table_estimate',
   sourceUrl: null,
+  sourceCompositionCode: '01088',
   nutrition: { energy_kcal: 130, protein_g: 4.8 },
   units: [],
   createdAt: new Date('2026-06-18T00:00:00.000Z'),
@@ -64,9 +65,12 @@ describe('POST /api/food-masters/from-composition', () => {
     let captured: unknown
     const app = buildApp({
       ...notStubbed('service'),
-      registerFromComposition: (code) => {
-        captured = code
-        return okAsync(SAMPLE_FOOD_MASTER)
+      registerFromComposition: (input) => {
+        captured = input
+        return okAsync({
+          foodMaster: SAMPLE_FOOD_MASTER,
+          compositionName: 'そば',
+        })
       },
     })
 
@@ -85,7 +89,7 @@ describe('POST /api/food-masters/from-composition', () => {
       sourceUrl: null,
       nutritionPer100g: { energy_kcal: 130, protein_g: 4.8 },
     })
-    expect(captured).toBe('01088')
+    expect(captured).toEqual({ compositionCode: '01088' })
   })
 
   it('returns 400 when the body is not valid JSON', async () => {

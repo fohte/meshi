@@ -6,6 +6,7 @@ import {
   type FoodMasterService,
   type RegisterFoodMasterInput,
 } from '#domain/food-master/index'
+import type { RegisteredFromComposition } from '#domain/food-master/service'
 import { captureDomainError } from '#test/capture-domain-error'
 import { describeIfDb, setupTx } from '#test/db'
 import { seedFoodComposition } from '#test/seed'
@@ -63,6 +64,21 @@ describeIfDb('FoodMasterService + Repository', () => {
     createdAt: '<date>',
   })
 
+  // Combines both fields of a registerFromComposition() result into one
+  // object so the two tests below can assert on it with a single toEqual
+  // instead of two separate expect() calls.
+  const normalizeRegistered = (
+    registered: RegisteredFromComposition,
+  ): {
+    foodMaster: ReturnType<
+      typeof normalize<RegisteredFromComposition['foodMaster']>
+    >
+    compositionName: string
+  } => ({
+    foodMaster: normalize(registered.foodMaster),
+    compositionName: registered.compositionName,
+  })
+
   it('registers a confirmed food master and round-trips it through getById', async () => {
     const registered = (
       await service.register({
@@ -82,6 +98,7 @@ describeIfDb('FoodMasterService + Repository', () => {
       isEstimated: false,
       source: 'web_search',
       sourceUrl: 'https://example.com/rice',
+      sourceCompositionCode: null,
       nutrition: { energy_kcal: 168, protein_g: 2.5, iron_mg: 0.1 },
       units: [],
       createdAt: '<date>',
@@ -93,29 +110,6 @@ describeIfDb('FoodMasterService + Repository', () => {
     )
   })
 
-  it('accepts an estimated food master backed by the composition table', async () => {
-    const registered = (
-      await service.register({
-        name: 'homemade curry',
-        nutrition: { energy_kcal: 250 },
-        source: 'composition_table_estimate',
-        isEstimated: true,
-      })
-    )._unsafeUnwrap()
-
-    expect(normalize(registered)).toEqual({
-      id: 'fm_test_0001',
-      name: 'homemade curry',
-      aliases: [],
-      isEstimated: true,
-      source: 'composition_table_estimate',
-      sourceUrl: null,
-      nutrition: { energy_kcal: 250 },
-      units: [],
-      createdAt: '<date>',
-    })
-  })
-
   it("rejects is_estimated=true combined with source='web_search'", async () => {
     const tx = getTx()
     const captured = await captureDomainError(
@@ -124,6 +118,7 @@ describeIfDb('FoodMasterService + Repository', () => {
         name: 'guess from web',
         source: 'web_search',
         isEstimated: true,
+        sourceUrl: 'https://example.com/guess',
       }),
     )
 
@@ -138,13 +133,40 @@ describeIfDb('FoodMasterService + Repository', () => {
     expect(rows).toEqual([{ count: '0' }])
   })
 
-  it("allows source='web_search' without source_url (recommendation only)", async () => {
+  it("rejects source='web_search' without source_url", async () => {
+    const tx = getTx()
+    const captured = await captureDomainError(
+      service.register({
+        name: 'milk',
+        nutrition: { energy_kcal: 67 },
+        source: 'web_search',
+        isEstimated: false,
+      }),
+    )
+
+    expect(captured).toEqual({
+      code: 'missing_source_url',
+      details: {
+        source: 'web_search',
+        sourceUrl: null,
+        sourceCompositionCode: null,
+      },
+    })
+
+    const rows = await tx<{ count: string }[]>`
+      SELECT count(*)::text AS count FROM food_masters
+    `
+    expect(rows).toEqual([{ count: '0' }])
+  })
+
+  it("registers source='web_search' with source_url and round-trips sourceCompositionCode as null", async () => {
     const registered = (
       await service.register({
         name: 'milk',
         nutrition: { energy_kcal: 67 },
         source: 'web_search',
         isEstimated: false,
+        sourceUrl: 'https://example.com/milk',
       })
     )._unsafeUnwrap()
 
@@ -154,11 +176,152 @@ describeIfDb('FoodMasterService + Repository', () => {
       aliases: [],
       isEstimated: false,
       source: 'web_search',
-      sourceUrl: null,
+      sourceUrl: 'https://example.com/milk',
+      sourceCompositionCode: null,
       nutrition: { energy_kcal: 67 },
       units: [],
       createdAt: '<date>',
     })
+  })
+
+  it("rejects source='composition_table_estimate' without sourceCompositionCode", async () => {
+    const captured = await captureDomainError(
+      service.register({
+        name: 'homemade curry',
+        nutrition: { energy_kcal: 250 },
+        source: 'composition_table_estimate',
+        isEstimated: true,
+      }),
+    )
+
+    expect(captured).toEqual({
+      code: 'missing_composition_code',
+      details: {
+        source: 'composition_table_estimate',
+        sourceUrl: null,
+        sourceCompositionCode: null,
+      },
+    })
+  })
+
+  it("rejects sourceUrl set with source='composition_table_estimate'", async () => {
+    const tx = getTx()
+    await seedFoodComposition(tx, { code: '18008', name: 'カレールウ' })
+    const captured = await captureDomainError(
+      service.register({
+        name: 'homemade curry',
+        nutrition: { energy_kcal: 250 },
+        source: 'composition_table_estimate',
+        isEstimated: true,
+        sourceUrl: 'https://example.com/curry',
+        sourceCompositionCode: '18008',
+      }),
+    )
+
+    expect(captured).toEqual({
+      code: 'unexpected_source_url',
+      details: {
+        source: 'composition_table_estimate',
+        sourceUrl: 'https://example.com/curry',
+        sourceCompositionCode: '18008',
+      },
+    })
+  })
+
+  it("rejects sourceCompositionCode set with source='user_input'", async () => {
+    const tx = getTx()
+    await seedFoodComposition(tx, { code: '18008', name: 'カレールウ' })
+    const captured = await captureDomainError(
+      service.register({
+        ...baseInput,
+        name: 'homemade curry',
+        sourceCompositionCode: '18008',
+      }),
+    )
+
+    expect(captured).toEqual({
+      code: 'unexpected_composition_code',
+      details: {
+        source: 'user_input',
+        sourceUrl: null,
+        sourceCompositionCode: '18008',
+      },
+    })
+  })
+
+  it("rejects sourceCompositionCode set with source='web_search'", async () => {
+    const tx = getTx()
+    await seedFoodComposition(tx, { code: '18008', name: 'カレールウ' })
+    const captured = await captureDomainError(
+      service.register({
+        name: 'homemade curry',
+        nutrition: { energy_kcal: 250 },
+        source: 'web_search',
+        isEstimated: false,
+        sourceUrl: 'https://example.com/curry',
+        sourceCompositionCode: '18008',
+      }),
+    )
+
+    expect(captured).toEqual({
+      code: 'unexpected_composition_code',
+      details: {
+        source: 'web_search',
+        sourceUrl: 'https://example.com/curry',
+        sourceCompositionCode: '18008',
+      },
+    })
+  })
+
+  it("rejects sourceUrl set with source='user_input'", async () => {
+    const captured = await captureDomainError(
+      service.register({
+        ...baseInput,
+        name: 'homemade curry',
+        sourceUrl: 'https://example.com/curry',
+      }),
+    )
+
+    expect(captured).toEqual({
+      code: 'unexpected_source_url',
+      details: {
+        source: 'user_input',
+        sourceUrl: 'https://example.com/curry',
+        sourceCompositionCode: null,
+      },
+    })
+  })
+
+  it("registers source='composition_table_estimate' with sourceCompositionCode and round-trips it", async () => {
+    const tx = getTx()
+    await seedFoodComposition(tx, { code: '18008', name: 'カレールウ' })
+    const registered = (
+      await service.register({
+        name: 'homemade curry',
+        nutrition: { energy_kcal: 250 },
+        source: 'composition_table_estimate',
+        isEstimated: true,
+        sourceCompositionCode: '18008',
+      })
+    )._unsafeUnwrap()
+
+    expect(normalize(registered)).toEqual({
+      id: 'fm_test_0001',
+      name: 'homemade curry',
+      aliases: [],
+      isEstimated: true,
+      source: 'composition_table_estimate',
+      sourceUrl: null,
+      sourceCompositionCode: '18008',
+      nutrition: { energy_kcal: 250 },
+      units: [],
+      createdAt: '<date>',
+    })
+
+    const fetched = (await service.getById('fm_test_0001'))._unsafeUnwrap()
+    expect(fetched === null ? null : normalize(fetched)).toEqual(
+      normalize(registered),
+    )
   })
 
   it('rejects registrations with nutrient_code not present in nutrient_definitions', async () => {
@@ -317,6 +480,7 @@ describeIfDb('FoodMasterService + Repository', () => {
       isEstimated: false,
       source: 'user_input',
       sourceUrl: null,
+      sourceCompositionCode: null,
       nutrition: baseInput.nutrition,
       units: [
         { unit: '個', gramsPerUnit: 55 },
@@ -406,30 +570,67 @@ describeIfDb('FoodMasterService + Repository', () => {
     `
 
     const registered = (
-      await service.registerFromComposition('01088')
+      await service.registerFromComposition({ compositionCode: '01088' })
     )._unsafeUnwrap()
 
-    expect(normalize(registered)).toEqual({
-      id: 'fm_test_0001',
-      name: 'そば ゆで',
-      aliases: [],
-      isEstimated: true,
-      source: 'composition_table_estimate',
-      sourceUrl: null,
-      nutrition: { energy_kcal: 130, protein_g: 4.8 },
-      units: [],
-      createdAt: '<date>',
+    expect(normalizeRegistered(registered)).toEqual({
+      foodMaster: {
+        id: 'fm_test_0001',
+        name: 'そば ゆで',
+        aliases: [],
+        isEstimated: true,
+        source: 'composition_table_estimate',
+        sourceUrl: null,
+        sourceCompositionCode: '01088',
+        nutrition: { energy_kcal: 130, protein_g: 4.8 },
+        units: [],
+        createdAt: '<date>',
+      },
+      compositionName: 'そば ゆで',
     })
 
     const fetched = (await service.getById('fm_test_0001'))._unsafeUnwrap()
     expect(fetched === null ? null : normalize(fetched)).toEqual(
-      normalize(registered),
+      normalize(registered.foodMaster),
     )
+  })
+
+  it('overrides the composition name while nutrition still comes from the composition row', async () => {
+    const tx = getTx()
+    await seedFoodComposition(tx, { code: '01088', name: 'そば ゆで' })
+    await tx`
+      INSERT INTO food_composition_nutrients (food_composition_code, nutrient_code, value)
+      VALUES ('01088', 'energy_kcal', '130'), ('01088', 'protein_g', '4.8')
+    `
+
+    const registered = (
+      await service.registerFromComposition({
+        compositionCode: '01088',
+        name: 'カスタム名',
+        aliases: ['そば'],
+      })
+    )._unsafeUnwrap()
+
+    expect(normalizeRegistered(registered)).toEqual({
+      foodMaster: {
+        id: 'fm_test_0001',
+        name: 'カスタム名',
+        aliases: ['そば'],
+        isEstimated: true,
+        source: 'composition_table_estimate',
+        sourceUrl: null,
+        sourceCompositionCode: '01088',
+        nutrition: { energy_kcal: 130, protein_g: 4.8 },
+        units: [],
+        createdAt: '<date>',
+      },
+      compositionName: 'そば ゆで',
+    })
   })
 
   it('rejects registerFromComposition for an unknown composition code', async () => {
     const captured = await captureDomainError(
-      service.registerFromComposition('99999'),
+      service.registerFromComposition({ compositionCode: '99999' }),
     )
 
     expect(captured).toEqual({
@@ -444,7 +645,7 @@ describeIfDb('FoodMasterService + Repository', () => {
     ;(await service.register(baseInput))._unsafeUnwrap()
 
     const captured = await captureDomainError(
-      service.registerFromComposition('01088'),
+      service.registerFromComposition({ compositionCode: '01088' }),
     )
 
     expect(captured).toEqual({

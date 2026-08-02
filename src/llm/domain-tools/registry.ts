@@ -17,6 +17,7 @@ import { createQueryMealHistoryTool } from '#llm/domain-tools/tools/query-meal-h
 import { createRecordMealLogTool } from '#llm/domain-tools/tools/record-meal-log'
 import { createRecordMealSkipTool } from '#llm/domain-tools/tools/record-meal-skip'
 import { createRegisterFoodMasterTool } from '#llm/domain-tools/tools/register-food-master'
+import { createRegisterFoodMasterFromCompositionTool } from '#llm/domain-tools/tools/register-food-master-from-composition'
 import { createRegisterFoodMasterUnitTool } from '#llm/domain-tools/tools/register-food-master-unit'
 import { createSearchFoodMasterTool } from '#llm/domain-tools/tools/search-food-master'
 import { createUpdateMealLogTool } from '#llm/domain-tools/tools/update-meal-log'
@@ -86,6 +87,7 @@ export const createDomainToolsRegistry = (
     createCancelMealSkipTool(deps.mealSkipService),
     createSearchFoodMasterTool(deps.foodMatcher),
     createRegisterFoodMasterTool(deps.foodMasterService),
+    createRegisterFoodMasterFromCompositionTool(deps.foodMasterService),
     createRegisterFoodMasterUnitTool(deps.foodMasterUnitService),
     createQueryMealHistoryTool(deps.mealHistoryService),
     createGetUserProfileTool(deps.userProfileService),

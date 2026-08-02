@@ -21,6 +21,7 @@ const sampleMaster = (
   isEstimated: input.isEstimated,
   source: input.source,
   sourceUrl: input.sourceUrl ?? null,
+  sourceCompositionCode: input.sourceCompositionCode ?? null,
   nutrition: input.nutrition,
   units: input.units ?? [],
   createdAt: new Date('2026-06-18T00:00:00.000Z'),
@@ -70,7 +71,7 @@ describe('register_food_master tool', () => {
         },
         source: {
           type: 'string',
-          enum: ['web_search', 'composition_table_estimate', 'user_input'],
+          enum: ['web_search', 'user_input'],
         },
         is_estimated: { type: 'boolean' },
         source_url: { type: 'string', format: 'uri' },
@@ -104,7 +105,13 @@ describe('register_food_master tool', () => {
 
     expect(normalizeResult(result)).toEqual({
       ok: true,
-      value: { food_master_id: 'fm_new', name: 'バナナ' },
+      value: {
+        food_master_id: 'fm_new',
+        name: 'バナナ',
+        source: 'web_search',
+        source_url: 'https://example.test/banana',
+        nutrition_per_100g: { energy_kcal: 89, protein_g: 1.1 },
+      },
     })
     expect(calls).toEqual([
       {
@@ -146,7 +153,7 @@ describe('register_food_master tool', () => {
     await tool.execute({
       name: 'おにぎり',
       nutrition_per_100g: { energy_kcal: 168 },
-      source: 'composition_table_estimate',
+      source: 'user_input',
       is_estimated: true,
     })
 
@@ -154,7 +161,7 @@ describe('register_food_master tool', () => {
       {
         name: 'おにぎり',
         nutrition: { energy_kcal: 168 },
-        source: 'composition_table_estimate',
+        source: 'user_input',
         isEstimated: true,
       },
     ])
@@ -171,12 +178,52 @@ describe('register_food_master tool', () => {
       },
     },
     {
+      label:
+        'a composition_table_estimate source (no longer accepted by this tool)',
+      input: {
+        name: 'X',
+        nutrition_per_100g: { energy_kcal: 1 },
+        source: 'composition_table_estimate',
+        is_estimated: true,
+      },
+    },
+    {
       label: 'is_estimated=true combined with source=web_search',
       input: {
         name: 'X',
         nutrition_per_100g: { energy_kcal: 1 },
         source: 'web_search',
         is_estimated: true,
+        source_url: 'https://example.test',
+      },
+    },
+    {
+      label: 'source=web_search without source_url',
+      input: {
+        name: 'X',
+        nutrition_per_100g: { energy_kcal: 1 },
+        source: 'web_search',
+        is_estimated: false,
+      },
+    },
+    {
+      label: 'source_url present with source=user_input',
+      input: {
+        name: 'X',
+        nutrition_per_100g: { energy_kcal: 1 },
+        source: 'user_input',
+        is_estimated: false,
+        source_url: 'https://example.test',
+      },
+    },
+    {
+      label: 'a source_url containing control characters',
+      input: {
+        name: 'X',
+        nutrition_per_100g: { energy_kcal: 1 },
+        source: 'web_search',
+        is_estimated: false,
+        source_url: 'https://example.test/\ninjected',
       },
     },
     {

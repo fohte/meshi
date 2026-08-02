@@ -208,6 +208,13 @@ describeIfDb('schema migrations', () => {
         on_delete: 'c',
       },
       {
+        conname: 'food_masters_source_composition_code_fk',
+        table_name: 'food_masters',
+        ref_table: 'food_compositions',
+        on_update: 'c',
+        on_delete: 'r',
+      },
+      {
         conname: 'meal_logs_food_master_id_fk',
         table_name: 'meal_logs',
         ref_table: 'food_masters',
@@ -249,7 +256,15 @@ describeIfDb('schema migrations', () => {
         table_name: 'food_master_units',
       },
       {
-        conname: 'food_masters_estimated_not_web_search',
+        conname: 'food_masters_composition_evidence',
+        table_name: 'food_masters',
+      },
+      {
+        conname: 'food_masters_user_input_evidence',
+        table_name: 'food_masters',
+      },
+      {
+        conname: 'food_masters_web_search_evidence',
         table_name: 'food_masters',
       },
       { conname: 'meal_logs_amount_grams_positive', table_name: 'meal_logs' },
@@ -324,12 +339,53 @@ describeIfDb('schema runtime constraints', () => {
     ).toEqual({ status: 'error', code: '23514' })
   })
 
-  it('rejects inserts that violate the food_masters_estimated_not_web_search CHECK', async () => {
+  it('rejects inserts that violate the food_masters_web_search_evidence CHECK (is_estimated=true)', async () => {
     const tx = getTx()
     expect(
       await runOutcome(tx`
         INSERT INTO food_masters (id, name, is_estimated, source)
         VALUES ('fm_e', 'guessed', true, 'web_search')
+      `),
+    ).toEqual({ status: 'error', code: '23514' })
+  })
+
+  it('rejects inserts that violate the food_masters_web_search_evidence CHECK (missing source_url)', async () => {
+    const tx = getTx()
+    expect(
+      await runOutcome(tx`
+        INSERT INTO food_masters (id, name, is_estimated, source)
+        VALUES ('fm_wse', 'guessed', false, 'web_search')
+      `),
+    ).toEqual({ status: 'error', code: '23514' })
+  })
+
+  it('rejects inserts that violate the food_masters_web_search_evidence CHECK (source_composition_code set)', async () => {
+    const tx = getTx()
+    await tx`INSERT INTO food_compositions (code, name) VALUES ('18008', 'カレールウ')`
+    expect(
+      await runOutcome(tx`
+        INSERT INTO food_masters (id, name, is_estimated, source, source_url, source_composition_code)
+        VALUES ('fm_wsc', 'guessed', false, 'web_search', 'https://example.com', '18008')
+      `),
+    ).toEqual({ status: 'error', code: '23514' })
+  })
+
+  it('rejects inserts that violate the food_masters_composition_evidence CHECK (missing source_composition_code)', async () => {
+    const tx = getTx()
+    expect(
+      await runOutcome(tx`
+        INSERT INTO food_masters (id, name, is_estimated, source)
+        VALUES ('fm_ce', 'unbacked', true, 'composition_table_estimate')
+      `),
+    ).toEqual({ status: 'error', code: '23514' })
+  })
+
+  it('rejects inserts that violate the food_masters_user_input_evidence CHECK (source_url set)', async () => {
+    const tx = getTx()
+    expect(
+      await runOutcome(tx`
+        INSERT INTO food_masters (id, name, is_estimated, source, source_url)
+        VALUES ('fm_uie', 'claimed', false, 'user_input', 'https://example.com')
       `),
     ).toEqual({ status: 'error', code: '23514' })
   })

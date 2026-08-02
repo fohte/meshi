@@ -45,11 +45,11 @@ export const mountFoodMasterRoutes = (
     const parsed = await parseJsonBody(c, registerFromCompositionBodySchema)
     if (parsed.isErr()) return parsed.error
 
-    const result = await foodMasterService.registerFromComposition(
-      parsed.value.compositionCode,
-    )
+    const result = await foodMasterService.registerFromComposition({
+      compositionCode: parsed.value.compositionCode,
+    })
     return result.match(
-      (foodMaster) => c.json(toFoodMasterJson(foodMaster), 201),
+      ({ foodMaster }) => c.json(toFoodMasterJson(foodMaster), 201),
       (error) => foodMasterErrorResponse(c, error),
     )
   })
