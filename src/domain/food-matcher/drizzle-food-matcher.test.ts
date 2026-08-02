@@ -3,7 +3,12 @@ import { describe, expect, it } from 'vitest'
 import type { FoodMatchCandidate } from '#domain/food-matcher/index'
 import { createDrizzleFoodMatcher } from '#domain/food-matcher/index'
 import { describeIfDb, setupTx } from '#test/db'
-import { seedFoodComposition, seedFoodMaster, seedMealLog } from '#test/seed'
+import {
+  seedFoodComposition,
+  seedFoodMaster,
+  seedFoodMasterAlias,
+  seedMealLog,
+} from '#test/seed'
 
 const MS_PER_DAY = 24 * 60 * 60 * 1000
 
@@ -227,6 +232,69 @@ describeIfDb('createDrizzleFoodMatcher', () => {
       )._unsafeUnwrap()
 
       expect(result).toEqual([])
+    })
+  })
+
+  describe('multi-byte (Japanese) name matches', () => {
+    // pg_trgm delegates "is this a word character" to libc's iswalpha(),
+    // which is locale-dependent: under a `C`/`POSIX` ctype locale every
+    // non-ASCII byte is rejected, so no trigrams are generated for Japanese
+    // text and similarity() returns 0 even for identical strings. These
+    // tests only pass when Postgres is initdb'd with a UTF-8-aware ctype
+    // locale (e.g. `C.UTF-8`), not bare `C`.
+    it('matches a food_master by an identical Japanese name', async () => {
+      const tx = getTx()
+      await seedFoodMaster(tx, {
+        id: 'fm_ja_name',
+        name: '味噌汁',
+        source: 'user_input',
+      })
+
+      const matcher = createDrizzleFoodMatcher(tx)
+      const result = (
+        await matcher.search({ query: '味噌汁', limit: 5 })
+      )._unsafeUnwrap()
+
+      expect(normalize(result)).toEqual([
+        {
+          reason: 'fuzzy_name',
+          score: 1,
+          foodMasterId: 'fm_ja_name',
+          compositionCode: null,
+          name: '味噌汁',
+          isEstimated: false,
+        },
+      ])
+    })
+
+    it('matches a food_master via food_master_aliases by an identical Japanese alias', async () => {
+      const tx = getTx()
+      await seedFoodMaster(tx, {
+        id: 'fm_ja_alias',
+        name: '木綿豆腐',
+        source: 'web_search',
+      })
+      await seedFoodMasterAlias(tx, {
+        id: 'alias_ja_1',
+        foodMasterId: 'fm_ja_alias',
+        alias: '絹ごし豆腐',
+      })
+
+      const matcher = createDrizzleFoodMatcher(tx)
+      const result = (
+        await matcher.search({ query: '絹ごし豆腐', limit: 5 })
+      )._unsafeUnwrap()
+
+      expect(normalize(result)).toEqual([
+        {
+          reason: 'fuzzy_name',
+          score: 1,
+          foodMasterId: 'fm_ja_alias',
+          compositionCode: null,
+          name: '木綿豆腐',
+          isEstimated: false,
+        },
+      ])
     })
   })
 })
