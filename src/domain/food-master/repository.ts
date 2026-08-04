@@ -147,13 +147,20 @@ const normalizeAndValidate = (
       ),
     )
   }
+  // Mass and volume units collapse to their classifyUnit canonical form (g,
+  // ml) so resolveAmountGrams's food-independent bridge — comparing a
+  // recorded unit's canonical form directly against basisUnit — also covers
+  // a basis given in an alias unit (kg, l, cc). Serving units (食/個/杯/...)
+  // have no food-independent canonical form and are kept as given.
   const basisClassification = classifyUnit(normalizedBasisUnit)
   const resolvedBasisQuantity =
-    basisClassification.kind === 'mass'
-      ? basisQuantity * basisClassification.factorToCanonical
-      : basisQuantity
+    basisClassification.kind === 'serving'
+      ? basisQuantity
+      : basisQuantity * basisClassification.factorToCanonical
   const resolvedBasisUnit =
-    basisClassification.kind === 'mass' ? 'g' : normalizedBasisUnit
+    basisClassification.kind === 'serving'
+      ? normalizedBasisUnit
+      : basisClassification.canonicalUnit
   const aliases = (input.aliases ?? []).map((a) => a.trim())
   if (aliases.some((a) => a === '')) {
     return err(

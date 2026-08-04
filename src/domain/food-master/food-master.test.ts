@@ -728,6 +728,37 @@ describeIfDb('FoodMasterService + Repository', () => {
     )
   })
 
+  it('collapses a volume-unit basis (1 l) to (1000, ml) and round-trips it through getById', async () => {
+    const registered = (
+      await service.register({
+        ...baseInput,
+        name: 'スープ大量',
+        basisQuantity: 1,
+        basisUnit: 'l',
+      })
+    )._unsafeUnwrap()
+
+    expect(normalize(registered)).toEqual({
+      id: 'fm_test_0001',
+      name: 'スープ大量',
+      aliases: [],
+      isEstimated: false,
+      source: 'user_input',
+      sourceUrl: null,
+      sourceCompositionCode: null,
+      nutrition: baseInput.nutrition,
+      units: [],
+      basisQuantity: 1000,
+      basisUnit: 'ml',
+      createdAt: '<date>',
+    })
+
+    const fetched = (await service.getById('fm_test_0001'))._unsafeUnwrap()
+    expect(fetched === null ? null : normalize(fetched)).toEqual(
+      normalize(registered),
+    )
+  })
+
   it.each([0, -1, Number.NaN, Number.POSITIVE_INFINITY])(
     'rejects an invalid basisQuantity %p',
     async (basisQuantity) => {

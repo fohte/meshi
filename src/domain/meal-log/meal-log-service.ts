@@ -215,9 +215,9 @@ const buildResult = (log: MealLogRow, food: FoodMasterRef): MealLogResult => ({
   isEstimated: food.isEstimated,
 })
 
-// No longer assumes a fixed 100g basis; nutrient values are scaled against
-// the food's own basis_quantity (amountGrams already resolved quantity+unit
-// to the food's basis unit — see resolveAmountGrams).
+// Nutrient values are scaled against the food's own basis_quantity;
+// amountGrams is already resolved to the food's basis unit (see
+// resolveAmountGrams).
 const scaleNutrition = (
   perBasis: NutritionMap,
   amountGrams: number,

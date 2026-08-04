@@ -5,26 +5,18 @@ import { classifyUnit } from '#domain/unit/classification'
 
 // Resolves a recorded quantity+unit to an amount expressed in the food's own
 // basis unit (food_masters.basis_unit) — the sole basis for every downstream
-// nutrition calculation (nutrient value / basis_quantity × this amount). For
-// the (100, 'g') basis every pre-existing food has, this is literally grams,
-// so behavior is unchanged.
+// nutrition calculation (nutrient value / basis_quantity × this amount).
 //
-// Resolution order, and why it's safe:
-// 1. If the record's unit classifies (food-independently, via classifyUnit)
-//    to the same canonical unit as the food's basis_unit, the conversion
-//    needs no per-food data at all — this subsumes both "record unit equals
-//    basis_unit exactly" (factor 1) and "food-independent unit alias" (e.g.
-//    record in kg when basis_unit is g, canonical g both sides) in one check.
-// 2. Otherwise fall back to the food's own food_master_units definitions
-//    (now generalized in meaning from "grams per unit" to "basis-units per
-//    unit" — same numbers, same column, just no longer assuming the basis is
-//    grams).
-// 3. UnknownUnitError otherwise.
-//
-// A key consequence: recording in grams for a food whose basis_unit isn't
-// 'g' is structurally impossible (g/kg/mg are reserved units that can never
-// appear in food_master_units — see isReservedUnit), so there's no way to
-// fabricate a weight for a food that was registered without one.
+// The canonicalUnit === basisUnit check below covers both an exact unit
+// match and a food-independent alias (e.g. recording in kg when basisUnit is
+// g) in one step, because basisUnit is itself normalized to a classifyUnit
+// canonical form at registration time (see food-master/repository.ts). Only
+// once that fails does resolution fall back to the food's own
+// food_master_units definitions. A consequence worth knowing: recording in
+// grams for a food whose basisUnit isn't 'g' always fails here, since g/kg/mg
+// are reserved units that can never appear in food_master_units (see
+// isReservedUnit) — there is no path to fabricate a weight for a food
+// registered without one.
 export const resolveAmountGrams = (
   quantity: number,
   rawUnit: string,
