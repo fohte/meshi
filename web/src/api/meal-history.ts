@@ -13,7 +13,6 @@ const mealHistoryEntrySchema = z.object({
   mealType: z.enum(MEAL_TYPES),
   quantity: z.number(),
   unit: z.string(),
-  note: z.string().nullable(),
 })
 
 export type MealHistoryEntry = z.infer<typeof mealHistoryEntrySchema>

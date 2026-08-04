@@ -80,12 +80,7 @@ export const MealTimeline = ({
                       <span className={styles.itemEstimateMark}> ~</span>
                     )}
                   </div>
-                  <div className={styles.itemMeta}>
-                    {item.quantityText}
-                    {item.note !== null && item.note !== '' && (
-                      <span> · {item.note}</span>
-                    )}
-                  </div>
+                  <div className={styles.itemMeta}>{item.quantityText}</div>
                 </div>
                 <span className={styles.itemKcal}>{item.kcalText}</span>
               </button>

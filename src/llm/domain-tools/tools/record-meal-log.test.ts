@@ -31,7 +31,6 @@ const setup = (
         quantity: input.quantity,
         unit: input.unit,
         amountGrams: input.quantity,
-        note: input.note ?? null,
         createdAt: new Date('2026-06-18T00:00:00.000Z'),
         nutrition: { energy_kcal: 252 },
         isEstimated: false,
@@ -68,7 +67,6 @@ describe('record_meal_log tool', () => {
       eaten_at_iso: '2026-06-18T09:00:00+09:00',
       quantity: 1,
       unit: '杯',
-      note: 'lunch',
     })
 
     expect(normalizeResult(result)).toEqual({
@@ -87,7 +85,6 @@ describe('record_meal_log tool', () => {
           eatenAt: new Date('2026-06-18T09:00:00+09:00'),
           quantity: 1,
           unit: '杯',
-          note: 'lunch',
         },
       ],
     })

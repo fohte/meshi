@@ -20,7 +20,6 @@ const inputSchema = z
     meal_type: z.enum(MEAL_TYPES).optional(),
     quantity: z.number().positive().optional(),
     unit: z.string().min(1).optional(),
-    note: z.string().optional(),
   })
   .refine(
     (v) =>
@@ -28,8 +27,7 @@ const inputSchema = z
       v.eaten_at_iso !== undefined ||
       v.meal_type !== undefined ||
       v.quantity !== undefined ||
-      v.unit !== undefined ||
-      v.note !== undefined,
+      v.unit !== undefined,
     { message: 'at least one field to update must be provided' },
   )
 
@@ -44,7 +42,7 @@ export const createUpdateMealLogTool = (
 ): DomainTool => ({
   name: 'update_meal_log',
   description:
-    'Patch fields on an already-recorded meal_log identified by meal_log_id (from query_meal_history entries, or a prior record_meal_log/update_meal_log result). Omitted fields are left unchanged. Use this to fix a mistake (wrong quantity, unit, food_master_id, eaten_at, meal_type, or note) instead of calling record_meal_log again, which would create a duplicate entry. Re-validates the same invariants as record_meal_log: eaten_at_iso must not be in the future, quantity must be positive, and a changed food_master_id must exist. Returns the meal_log_id and the recomputed nutrition for the corrected entry.',
+    'Patch fields on an already-recorded meal_log identified by meal_log_id (from query_meal_history entries, or a prior record_meal_log/update_meal_log result). Omitted fields are left unchanged. Use this to fix a mistake (wrong quantity, unit, food_master_id, eaten_at, or meal_type) instead of calling record_meal_log again, which would create a duplicate entry. Re-validates the same invariants as record_meal_log: eaten_at_iso must not be in the future, quantity must be positive, and a changed food_master_id must exist. Returns the meal_log_id and the recomputed nutrition for the corrected entry.',
   inputSchema: z.toJSONSchema(inputSchema, { io: 'input' }),
   async execute(
     input: unknown,
@@ -66,7 +64,6 @@ export const createUpdateMealLogTool = (
         ? {}
         : { quantity: parsed.value.quantity }),
       ...(parsed.value.unit === undefined ? {} : { unit: parsed.value.unit }),
-      ...(parsed.value.note === undefined ? {} : { note: parsed.value.note }),
     })
     if (result.isErr()) {
       return err(toToolError(result.error))

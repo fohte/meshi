@@ -58,7 +58,6 @@ export interface MealHistoryAggregateSnapshot {
     readonly mealType: MealType
     readonly quantity: number
     readonly unit: string
-    readonly note: string | null
   }>
   readonly hasEstimatedValues: boolean
 }

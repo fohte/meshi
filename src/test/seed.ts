@@ -108,7 +108,7 @@ export const seedMealLog = async (
   },
 ): Promise<void> => {
   await sql`
-    INSERT INTO meal_logs (id, food_master_id, eaten_at, meal_type, quantity, unit, amount_grams, note)
+    INSERT INTO meal_logs (id, food_master_id, eaten_at, meal_type, quantity, unit, amount_grams)
     VALUES (
       ${values.id},
       ${values.foodMasterId},
@@ -116,8 +116,7 @@ export const seedMealLog = async (
       ${values.mealType ?? inferMealType(values.eatenAt)},
       ${values.quantity},
       ${values.unit ?? 'g'},
-      ${values.amountGrams ?? values.quantity},
-      ${values.note ?? null}
+      ${values.amountGrams ?? values.quantity}
     )
   `
 }

@@ -115,7 +115,6 @@ const toRow = (row: {
   quantity: string
   unit: string
   amountGrams: string
-  note: string | null
   createdAt: Date
 }): MealLogRow => ({
   id: row.id,
@@ -125,7 +124,6 @@ const toRow = (row: {
   quantity: Number(row.quantity),
   unit: row.unit,
   amountGrams: Number(row.amountGrams),
-  note: row.note,
   createdAt: row.createdAt,
 })
 
@@ -150,7 +148,6 @@ export const createDrizzleMealLogRepository = (sql: Sql): MealLogRepository => {
               quantity: input.quantity.toString(),
               unit: input.unit,
               amountGrams: input.amountGrams.toString(),
-              note: input.note,
             })
             .returning()
           if (inserted === undefined) {
@@ -188,7 +185,6 @@ export const createDrizzleMealLogRepository = (sql: Sql): MealLogRepository => {
               ...(input.amountGrams === undefined
                 ? {}
                 : { amountGrams: input.amountGrams.toString() }),
-              ...(input.note === undefined ? {} : { note: input.note }),
             })
             .where(eq(mealLogs.id, input.id))
             .returning()

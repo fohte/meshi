@@ -25,7 +25,6 @@ export interface MealLogEntry {
   readonly mealType: MealType
   readonly quantity: number
   readonly unit: string
-  readonly note: string | null
 }
 
 export interface MealHistoryDayTotals {

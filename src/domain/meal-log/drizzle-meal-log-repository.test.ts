@@ -56,7 +56,6 @@ describeIfDb('createDrizzleMealLogRepository', () => {
         quantity: 150,
         unit: 'g',
         amountGrams: 150,
-        note: 'breakfast',
       })
     )._unsafeUnwrap()
     const fetched = (await repo.findMealLogById('ml_round'))._unsafeUnwrap()
@@ -69,7 +68,6 @@ describeIfDb('createDrizzleMealLogRepository', () => {
       quantity: 150,
       unit: 'g',
       amountGrams: 150,
-      note: 'breakfast',
       createdAt: CREATED_AT_PLACEHOLDER,
     }
 
@@ -129,7 +127,6 @@ describeIfDb('createDrizzleMealLogRepository', () => {
       quantity: 1,
       unit: '食',
       amountGrams: 1,
-      note: null,
     })
     const fetched = (await repo.findMealLogById('ml_katsudon'))._unsafeUnwrap()
     expect(fetched === null ? null : fetched.food).toEqual({
@@ -169,7 +166,6 @@ describeIfDb('createDrizzleMealLogRepository', () => {
       quantity: 150,
       unit: 'g',
       amountGrams: 150,
-      note: 'breakfast',
     })
 
     // amountGrams is deliberately omitted from this patch — at the
@@ -180,7 +176,6 @@ describeIfDb('createDrizzleMealLogRepository', () => {
       await repo.updateMealLog({
         id: 'ml_patch',
         quantity: 200,
-        note: 'corrected quantity',
       })
     )._unsafeUnwrap()
 
@@ -192,7 +187,6 @@ describeIfDb('createDrizzleMealLogRepository', () => {
       quantity: 200,
       unit: 'g',
       amountGrams: 150,
-      note: 'corrected quantity',
       createdAt: CREATED_AT_PLACEHOLDER,
     })
   })
@@ -214,7 +208,6 @@ describeIfDb('createDrizzleMealLogRepository', () => {
       quantity: 1,
       unit: '杯',
       amountGrams: 100,
-      note: null,
     })
 
     const updated = (
@@ -229,7 +222,6 @@ describeIfDb('createDrizzleMealLogRepository', () => {
       quantity: 1,
       unit: '杯',
       amountGrams: 150,
-      note: null,
       createdAt: CREATED_AT_PLACEHOLDER,
     })
   })
@@ -259,7 +251,6 @@ describeIfDb('createDrizzleMealLogRepository', () => {
       quantity: 100,
       unit: 'g',
       amountGrams: 100,
-      note: null,
     })
 
     await repo.updateMealLog({ id: 'ml_repoint', foodMasterId: 'fm_karaage' })
@@ -278,7 +269,6 @@ describeIfDb('createDrizzleMealLogRepository', () => {
         quantity: 100,
         unit: 'g',
         amountGrams: 100,
-        note: null,
         createdAt: CREATED_AT_PLACEHOLDER,
       },
       food: {
@@ -324,7 +314,6 @@ describeIfDb('createDrizzleMealLogRepository', () => {
       quantity: 150,
       unit: 'g',
       amountGrams: 150,
-      note: null,
     })
 
     expect((await repo.deleteMealLog('ml_delete'))._unsafeUnwrap()).toBe(true)

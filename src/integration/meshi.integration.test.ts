@@ -824,7 +824,6 @@ describeIfDb('meshi integration', () => {
                 eaten_at_iso: '2026-06-12T03:30:00.000Z',
                 quantity: 200,
                 unit: 'g',
-                note: null,
               },
             ],
             has_estimated_values: false,

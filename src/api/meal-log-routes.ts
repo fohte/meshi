@@ -39,7 +39,6 @@ const recordMealLogBodySchema = z.object({
   mealType: z.enum(MEAL_TYPES).optional(),
   quantity: z.number().positive(),
   unit: z.string().min(1),
-  note: z.string().optional(),
 })
 
 const updateMealLogBodySchema = z.object({
@@ -48,7 +47,6 @@ const updateMealLogBodySchema = z.object({
   mealType: z.enum(MEAL_TYPES).optional(),
   quantity: z.number().positive().optional(),
   unit: z.string().min(1).optional(),
-  note: z.string().optional(),
 })
 
 const toMealLogJson = (result: MealLogResult) => ({
@@ -59,7 +57,6 @@ const toMealLogJson = (result: MealLogResult) => ({
   quantity: result.quantity,
   unit: result.unit,
   amountGrams: result.amountGrams,
-  note: result.note,
   nutrition: result.nutrition,
   isEstimated: result.isEstimated,
   createdAt: result.createdAt.toISOString(),
@@ -81,7 +78,6 @@ export const mountMealLogRoutes = (
       ...(parsed.value.mealType === undefined
         ? {}
         : { mealType: parsed.value.mealType }),
-      ...(parsed.value.note === undefined ? {} : { note: parsed.value.note }),
     })
     return result.match(
       (mealLog) => c.json(toMealLogJson(mealLog), 201),
@@ -108,7 +104,6 @@ export const mountMealLogRoutes = (
         ? {}
         : { quantity: parsed.value.quantity }),
       ...(parsed.value.unit === undefined ? {} : { unit: parsed.value.unit }),
-      ...(parsed.value.note === undefined ? {} : { note: parsed.value.note }),
     })
     return result.match(
       (mealLog) => c.json(toMealLogJson(mealLog)),

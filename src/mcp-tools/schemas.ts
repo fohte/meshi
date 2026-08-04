@@ -59,7 +59,6 @@ export const mealHistoryStructuredOutput = {
           eaten_at_iso: z.string(),
           quantity: z.number(),
           unit: z.string(),
-          note: z.string().nullable(),
         }),
       ),
       has_estimated_values: z.boolean(),

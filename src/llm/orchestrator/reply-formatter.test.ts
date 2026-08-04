@@ -274,7 +274,6 @@ describe('createTemplateReplyFormatter', () => {
               mealType: 'dinner',
               quantity: 1,
               unit: '杯',
-              note: null,
             },
             {
               mealLogId: 'log_2',
@@ -283,7 +282,6 @@ describe('createTemplateReplyFormatter', () => {
               mealType: 'lunch',
               quantity: 180,
               unit: 'g',
-              note: 'サラダ付き',
             },
           ],
           hasEstimatedValues: true,
@@ -301,7 +299,7 @@ describe('createTemplateReplyFormatter', () => {
           [
             '明細 (2 件):',
             '- 2026-06-17 12:00 夕食 fm_1: 1杯',
-            '- 2026-06-18 03:00 昼食 fm_2: 180g (サラダ付き)',
+            '- 2026-06-18 03:00 昼食 fm_2: 180g',
           ].join('\n'),
           '※ 集計には推測値が含まれています。値は目安としてご確認ください。',
         ].join('\n'),

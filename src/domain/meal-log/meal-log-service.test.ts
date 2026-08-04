@@ -60,7 +60,6 @@ const createFakeRepository = (
         quantity: input.quantity,
         unit: input.unit,
         amountGrams: input.amountGrams,
-        note: input.note,
         createdAt: CREATED_AT,
       }
       return okAsync(row)
@@ -85,7 +84,6 @@ const createFakeRepository = (
         ...(input.amountGrams === undefined
           ? {}
           : { amountGrams: input.amountGrams }),
-        ...(input.note === undefined ? {} : { note: input.note }),
       }
       logs.set(input.id, { log: merged, food: existing.food })
       return okAsync(merged)
@@ -155,7 +153,6 @@ const EXISTING_RICE_LOG: FoundMealLog = {
     quantity: 100,
     unit: 'g',
     amountGrams: 100,
-    note: null,
     createdAt: CREATED_AT,
   },
   food: RICE,
@@ -200,7 +197,6 @@ describe('MealLogService.record', () => {
       quantity: 100,
       unit: 'g',
       amountGrams: 100,
-      note: null,
       createdAt: CREATED_AT,
       nutrition: {
         energy_kcal: 156,
@@ -219,7 +215,6 @@ describe('MealLogService.record', () => {
         quantity: 100,
         unit: 'g',
         amountGrams: 100,
-        note: null,
       },
     ])
   })
@@ -244,7 +239,6 @@ describe('MealLogService.record', () => {
       quantity: 200,
       unit: 'g',
       amountGrams: 200,
-      note: null,
       createdAt: CREATED_AT,
       nutrition: {
         energy_kcal: 312,
@@ -299,7 +293,6 @@ describe('MealLogService.record', () => {
       quantity: 0.5,
       unit: '杯',
       amountGrams: 100,
-      note: null,
       createdAt: CREATED_AT,
       nutrition: {
         energy_kcal: 60,
@@ -339,7 +332,6 @@ describe('MealLogService.record', () => {
       quantity: 100,
       unit: 'g',
       amountGrams: 100,
-      note: null,
       createdAt: CREATED_AT,
       nutrition: {
         energy_kcal: 156,
@@ -357,7 +349,6 @@ describe('MealLogService.record', () => {
       quantity: 100,
       unit: 'g',
       amountGrams: 100,
-      note: null,
       createdAt: CREATED_AT,
       nutrition: {
         energy_kcal: 290,
@@ -409,7 +400,6 @@ describe('MealLogService.record', () => {
       quantity: 100,
       unit: 'g',
       amountGrams: 100,
-      note: null,
       createdAt: CREATED_AT,
       nutrition: {
         energy_kcal: 156,
@@ -483,7 +473,6 @@ describe('MealLogService.record', () => {
       quantity: 100,
       unit: 'g',
       amountGrams: 100,
-      note: null,
       createdAt: CREATED_AT,
       nutrition: {
         energy_kcal: 156,
@@ -502,7 +491,6 @@ describe('MealLogService.record', () => {
         quantity: 100,
         unit: 'g',
         amountGrams: 100,
-        note: null,
       },
     ])
   })
@@ -528,7 +516,6 @@ describe('MealLogService.record', () => {
       quantity: 100,
       unit: 'g',
       amountGrams: 100,
-      note: null,
       createdAt: CREATED_AT,
       nutrition: {
         energy_kcal: 156,
@@ -624,7 +611,6 @@ describe('MealLogService.record', () => {
       quantity: 100,
       unit: 'g',
       amountGrams: 100,
-      note: null,
       createdAt: CREATED_AT,
       nutrition: {
         energy_kcal: 156,
@@ -643,7 +629,6 @@ describe('MealLogService.record', () => {
         quantity: 100,
         unit: 'g',
         amountGrams: 100,
-        note: null,
       },
     ])
   })
@@ -666,7 +651,6 @@ describe('MealLogService.update', () => {
       quantity: 100,
       unit: 'g',
       amountGrams: 100,
-      note: null,
       createdAt: CREATED_AT,
       nutrition: {
         energy_kcal: 156,
@@ -697,7 +681,6 @@ describe('MealLogService.update', () => {
       quantity: 200,
       unit: 'g',
       amountGrams: 200,
-      note: null,
       createdAt: CREATED_AT,
       nutrition: {
         energy_kcal: 312,
@@ -728,7 +711,6 @@ describe('MealLogService.update', () => {
       quantity: 100,
       unit: 'g',
       amountGrams: 100,
-      note: null,
       createdAt: CREATED_AT,
       nutrition: {
         energy_kcal: 290,
@@ -761,7 +743,6 @@ describe('MealLogService.update', () => {
       quantity: 100,
       unit: 'g',
       amountGrams: 100,
-      note: null,
       createdAt: CREATED_AT,
       nutrition: {
         energy_kcal: 156,
@@ -791,7 +772,6 @@ describe('MealLogService.update', () => {
         mealType: 'snack',
         quantity: 1,
         unit: '杯',
-        note: 'まとめて訂正',
       })
     )._unsafeUnwrap()
 
@@ -803,7 +783,6 @@ describe('MealLogService.update', () => {
       quantity: 1,
       unit: '杯',
       amountGrams: 150,
-      note: 'まとめて訂正',
       createdAt: CREATED_AT,
       nutrition: {
         energy_kcal: 156 * 1.5,
@@ -820,7 +799,6 @@ describe('MealLogService.update', () => {
         quantity: 1,
         unit: '杯',
         amountGrams: 150,
-        note: 'まとめて訂正',
       },
     ])
   })
@@ -957,7 +935,6 @@ describe('MealLogService.getById', () => {
             quantity: 200,
             unit: 'g',
             amountGrams: 200,
-            note: 'lunch',
             createdAt: CREATED_AT,
           },
           food: KARAAGE_GUESS,
@@ -978,7 +955,6 @@ describe('MealLogService.getById', () => {
       quantity: 200,
       unit: 'g',
       amountGrams: 200,
-      note: 'lunch',
       createdAt: CREATED_AT,
       nutrition: {
         energy_kcal: 580,
@@ -1047,7 +1023,6 @@ describe('MealLogService.record with a non-gram basis food', () => {
       quantity: 1,
       unit: '食',
       amountGrams: 1,
-      note: null,
       createdAt: CREATED_AT,
       nutrition: {
         energy_kcal: 913,
@@ -1079,7 +1054,6 @@ describe('MealLogService.record with a non-gram basis food', () => {
       quantity: 0.5,
       unit: '食',
       amountGrams: 0.5,
-      note: null,
       createdAt: CREATED_AT,
       nutrition: {
         energy_kcal: 456.5,

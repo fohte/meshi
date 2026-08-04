@@ -46,7 +46,6 @@ export const mountMealHistoryRoutes = (
             mealType: entry.mealType,
             quantity: entry.quantity,
             unit: entry.unit,
-            note: entry.note,
           })),
           hasEstimatedValues: aggregate.hasEstimatedValues,
         }),

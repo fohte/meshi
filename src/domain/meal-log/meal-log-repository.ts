@@ -15,7 +15,6 @@ export interface InsertMealLogInput {
   readonly quantity: number
   readonly unit: string
   readonly amountGrams: number
-  readonly note: string | null
 }
 
 // Distinct from the service-facing UpdateMealLogInput (types.ts): the
@@ -31,7 +30,6 @@ export interface UpdateMealLogPatch {
   readonly quantity?: number
   readonly unit?: string
   readonly amountGrams?: number
-  readonly note?: string
 }
 
 export interface FoundMealLog {

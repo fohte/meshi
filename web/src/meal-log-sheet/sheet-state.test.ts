@@ -29,7 +29,6 @@ const ENTRY: DayDetailEntry = {
   mealType: 'breakfast',
   quantity: 150,
   unit: 'g',
-  note: 'メモ',
   kcal: 234,
   isEstimated: false,
 }
@@ -57,7 +56,6 @@ describe('buildCreateState', () => {
       mealType: null,
       date: '2026-07-29',
       time: '09:30',
-      note: '',
       justSaved: false,
     })
   })
@@ -85,7 +83,6 @@ describe('buildContinueState', () => {
       mealType: null,
       date: '2026-07-20',
       time: '12:00',
-      note: '',
       justSaved: true,
     })
   })
@@ -110,15 +107,7 @@ describe('buildEditState', () => {
       mealType: 'breakfast',
       date: '2026-07-29',
       time: '08:05',
-      note: 'メモ',
       justSaved: false,
-    })
-  })
-
-  it('defaults note to an empty string when null', () => {
-    expect(buildEditState({ ...ENTRY, note: null })).toEqual({
-      ...buildEditState(ENTRY),
-      note: '',
     })
   })
 })
@@ -254,7 +243,7 @@ describe('buildSavePayload', () => {
     },
   )
 
-  it('builds a payload with an inferred mealType and no note', () => {
+  it('builds a payload with an inferred mealType', () => {
     const state: SheetState = {
       ...buildCreateState(),
       selectedFood: RICE,
@@ -263,7 +252,6 @@ describe('buildSavePayload', () => {
       mealType: null,
       date: '2026-07-29',
       time: '08:05',
-      note: '  ',
     }
 
     expect(buildSavePayload(state)).toEqual({
@@ -275,7 +263,7 @@ describe('buildSavePayload', () => {
     })
   })
 
-  it('includes an explicit mealType and trimmed note when set', () => {
+  it('includes an explicit mealType when set', () => {
     const state: SheetState = {
       ...buildCreateState(),
       selectedFood: RICE,
@@ -284,7 +272,6 @@ describe('buildSavePayload', () => {
       mealType: 'dinner',
       date: '2026-07-29',
       time: '08:05',
-      note: '  多め  ',
     }
 
     expect(buildSavePayload(state)).toEqual({
@@ -293,7 +280,6 @@ describe('buildSavePayload', () => {
       mealType: 'dinner',
       quantity: 150,
       unit: 'g',
-      note: '多め',
     })
   })
 })

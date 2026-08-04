@@ -21,7 +21,6 @@ export interface MealTimelineItem {
   readonly isEstimated: boolean
   readonly quantityText: string
   readonly kcalText: string
-  readonly note: string | null
 }
 
 export type MealGroupStatus = 'eaten' | 'skipped' | 'unrecorded'
@@ -64,7 +63,6 @@ export const buildMealTimelineGroups = (
           isEstimated: entry.isEstimated,
           quantityText: `${formatQuantity(entry.quantity)} ${entry.unit}`,
           kcalText: `${String(Math.round(entry.kcal))} kcal`,
-          note: entry.note,
         })),
       }
     }
