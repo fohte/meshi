@@ -46,7 +46,7 @@ export const scriptedDomainAgentModel = (
             tool_calls: [
               {
                 name: REQUEST_USER_INPUT_TOOL_NAME,
-                args: {},
+                args: { question: final.message },
                 id: nextScriptedCallId(),
                 type: 'tool_call',
               },
