@@ -103,12 +103,14 @@ const RICE: FoodMasterRef = {
   id: 'fm_rice',
   name: '白米',
   isEstimated: false,
-  nutritionPer100g: {
+  nutritionPerBasis: {
     energy_kcal: 156,
     protein_g: 2.5,
     fat_g: 0.3,
     carb_g: 37.1,
   },
+  basisQuantity: 100,
+  basisUnit: 'g',
   units: {},
 }
 
@@ -116,12 +118,14 @@ const KARAAGE_GUESS: FoodMasterRef = {
   id: 'fm_karaage',
   name: '唐揚げ',
   isEstimated: true,
-  nutritionPer100g: {
+  nutritionPerBasis: {
     energy_kcal: 290,
     protein_g: 24.2,
     fat_g: 18.1,
     carb_g: 7.9,
   },
+  basisQuantity: 100,
+  basisUnit: 'g',
   units: {},
 }
 
@@ -131,12 +135,14 @@ const CAFE_LATTE: FoodMasterRef = {
   id: 'fm_latte',
   name: 'カフェラテ',
   isEstimated: false,
-  nutritionPer100g: {
+  nutritionPerBasis: {
     energy_kcal: 60,
     protein_g: 3.2,
     fat_g: 3.4,
     carb_g: 4.6,
   },
+  basisQuantity: 100,
+  basisUnit: 'g',
   units: { 杯: 200 },
 }
 
@@ -556,7 +562,9 @@ describe('MealLogService.record', () => {
       id: 'fm_huge_pot',
       name: '寸胴鍋',
       isEstimated: false,
-      nutritionPer100g: { energy_kcal: 80 },
+      nutritionPerBasis: { energy_kcal: 80 },
+      basisQuantity: 100,
+      basisUnit: 'g',
       units: { 鍋: 20000 },
     }
     const { service, inserted } = buildService([HUGE_POT])
@@ -905,7 +913,9 @@ describe('MealLogService.update', () => {
       id: 'fm_huge_pot',
       name: '寸胴鍋',
       isEstimated: false,
-      nutritionPer100g: { energy_kcal: 80 },
+      nutritionPerBasis: { energy_kcal: 80 },
+      basisQuantity: 100,
+      basisUnit: 'g',
       units: { 鍋: 20000 },
     }
     const existingLog: FoundMealLog = {
@@ -995,5 +1005,106 @@ describe('MealLogService.delete', () => {
     expect(error instanceof MealLogNotFoundError ? error.id : undefined).toBe(
       'ml_missing',
     )
+  })
+})
+
+// A food registered with a non-gram basis (e.g. a restaurant menu item
+// published only as "913kcal per serving", with no weight in grams) computes
+// correctly, and recording it in grams is structurally rejected.
+describe('MealLogService.record with a non-gram basis food', () => {
+  const KATSUDON: FoodMasterRef = {
+    id: 'fm_katsudon',
+    name: '味噌ロースかつ丼',
+    isEstimated: false,
+    nutritionPerBasis: {
+      energy_kcal: 913,
+      protein_g: 28.5,
+      fat_g: 34.2,
+      carb_g: 124.8,
+    },
+    basisQuantity: 1,
+    basisUnit: '食',
+    units: {},
+  }
+
+  it('records 1 食 as the full nutritionPerBasis (ratio 1)', async () => {
+    const { service } = buildService([KATSUDON])
+
+    const result = (
+      await service.record({
+        foodMasterId: 'fm_katsudon',
+        eatenAt: EATEN_AT,
+        quantity: 1,
+        unit: '食',
+      })
+    )._unsafeUnwrap()
+
+    expect(result).toEqual({
+      id: 'ml_1',
+      foodMasterId: 'fm_katsudon',
+      eatenAt: EATEN_AT,
+      mealType: 'dinner',
+      quantity: 1,
+      unit: '食',
+      amountGrams: 1,
+      note: null,
+      createdAt: CREATED_AT,
+      nutrition: {
+        energy_kcal: 913,
+        protein_g: 28.5,
+        fat_g: 34.2,
+        carb_g: 124.8,
+      },
+      isEstimated: false,
+    })
+  })
+
+  it('scales nutrition by 0.5 食', async () => {
+    const { service } = buildService([KATSUDON])
+
+    const result = (
+      await service.record({
+        foodMasterId: 'fm_katsudon',
+        eatenAt: EATEN_AT,
+        quantity: 0.5,
+        unit: '食',
+      })
+    )._unsafeUnwrap()
+
+    expect(result).toEqual({
+      id: 'ml_1',
+      foodMasterId: 'fm_katsudon',
+      eatenAt: EATEN_AT,
+      mealType: 'dinner',
+      quantity: 0.5,
+      unit: '食',
+      amountGrams: 0.5,
+      note: null,
+      createdAt: CREATED_AT,
+      nutrition: {
+        energy_kcal: 456.5,
+        protein_g: 14.25,
+        fat_g: 17.1,
+        carb_g: 62.4,
+      },
+      isEstimated: false,
+    })
+  })
+
+  it('rejects recording in grams with UnknownUnitError, since the food has no gram basis', async () => {
+    const { service, inserted } = buildService([KATSUDON])
+
+    const error = (
+      await service.record({
+        foodMasterId: 'fm_katsudon',
+        eatenAt: EATEN_AT,
+        quantity: 200,
+        unit: 'g',
+      })
+    )._unsafeUnwrapErr()
+
+    expect(error).toBeInstanceOf(UnknownUnitError)
+    expect(error).toEqual(new UnknownUnitError('g', []))
+    expect(inserted).toEqual([])
   })
 })

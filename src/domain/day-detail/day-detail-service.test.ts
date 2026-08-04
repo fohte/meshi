@@ -319,4 +319,74 @@ describeIfDb('DayDetailService.query', () => {
       skippedMealTypes: ['lunch'],
     })
   })
+
+  it('computes per-item kcal against a non-gram basis_quantity, not a hardcoded 100', async () => {
+    const tx = getTx()
+    await seedFoodMaster(tx, {
+      id: 'katsudon',
+      name: '味噌ロースかつ丼',
+      source: 'user_input',
+      basisQuantity: 1,
+      basisUnit: '食',
+      nutrients: { energy_kcal: 913 },
+    })
+    await seedMealLog(tx, {
+      id: 'log-1',
+      foodMasterId: 'katsudon',
+      eatenAt: new Date('2026-06-01T00:00:00Z'),
+      quantity: 1,
+      unit: '食',
+      amountGrams: 1,
+    })
+
+    const mealHistoryService: MealHistoryService = {
+      query: () =>
+        okAsync({
+          totals: { energy_kcal: 913 },
+          perDay: [],
+          hasEstimatedValues: false,
+          entries: [
+            {
+              id: 'log-1',
+              foodMasterId: 'katsudon',
+              foodName: '味噌ロースかつ丼',
+              eatenAt: new Date('2026-06-01T00:00:00Z'),
+              mealType: 'breakfast',
+              quantity: 1,
+              unit: '食',
+              note: null,
+            },
+          ],
+        }),
+    }
+    const service = createDayDetailService(tx, mealHistoryService, stubNoSkips)
+
+    const result = (
+      await service.query({
+        periodFrom: new Date('2026-06-01T00:00:00Z'),
+        periodTo: new Date('2026-06-02T00:00:00Z'),
+        date: '2026-06-01',
+      })
+    )._unsafeUnwrap()
+
+    expect(result).toEqual({
+      totals: { energy_kcal: 913 },
+      hasEstimatedValues: false,
+      entries: [
+        {
+          id: 'log-1',
+          foodMasterId: 'katsudon',
+          foodName: '味噌ロースかつ丼',
+          eatenAt: new Date('2026-06-01T00:00:00Z'),
+          mealType: 'breakfast',
+          quantity: 1,
+          unit: '食',
+          note: null,
+          kcal: 913,
+          isEstimated: false,
+        },
+      ],
+      skippedMealTypes: [],
+    })
+  })
 })

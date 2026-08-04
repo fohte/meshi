@@ -15,6 +15,8 @@ export type FoodMasterErrorCode =
   | 'reserved_unit'
   | 'duplicate_unit_in_input'
   | 'implausible_grams_per_unit'
+  | 'invalid_basis_quantity'
+  | 'empty_basis_unit'
   | 'duplicate_name'
   | 'duplicate_alias'
   | 'composition_not_found'

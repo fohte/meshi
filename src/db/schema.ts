@@ -62,6 +62,8 @@ export const foodMasters = pgTable(
     source: foodSourceEnum('source').notNull(),
     sourceUrl: text('source_url'),
     sourceCompositionCode: text('source_composition_code'),
+    basisQuantity: numeric('basis_quantity').notNull().default('100'),
+    basisUnit: text('basis_unit').notNull().default('g'),
     createdAt: timestamp('created_at', { withTimezone: true, mode: 'date' })
       .notNull()
       .default(sql`now()`),
@@ -101,6 +103,10 @@ export const foodMasters = pgTable(
     check(
       'food_masters_user_input_evidence',
       sql`${table.source} <> 'user_input' OR (${table.sourceUrl} IS NULL AND ${table.sourceCompositionCode} IS NULL)`,
+    ),
+    check(
+      'food_masters_basis_quantity_positive',
+      sql`${table.basisQuantity} > 0`,
     ),
   ],
 )

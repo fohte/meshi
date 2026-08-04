@@ -77,6 +77,8 @@ const loadFoodMaster = (
           id: foodMasters.id,
           name: foodMasters.name,
           isEstimated: foodMasters.isEstimated,
+          basisQuantity: foodMasters.basisQuantity,
+          basisUnit: foodMasters.basisUnit,
         })
         .from(foodMasters)
         .where(eq(foodMasters.id, foodMasterId))
@@ -87,7 +89,7 @@ const loadFoodMaster = (
         return err(new FoodMasterNotFoundError(foodMasterId))
       }
 
-      const [nutritionPer100g, units] = await Promise.all([
+      const [nutritionPerBasis, units] = await Promise.all([
         loadNutrition(db, foodMasterId),
         loadUnits(db, foodMasterId),
       ])
@@ -95,7 +97,9 @@ const loadFoodMaster = (
         id: master.id,
         name: master.name,
         isEstimated: master.isEstimated,
-        nutritionPer100g,
+        nutritionPerBasis,
+        basisQuantity: Number(master.basisQuantity),
+        basisUnit: master.basisUnit,
         units,
       })
     })(),
@@ -220,6 +224,8 @@ export const createDrizzleMealLogRepository = (sql: Sql): MealLogRepository => {
                 id: foodMasters.id,
                 name: foodMasters.name,
                 isEstimated: foodMasters.isEstimated,
+                basisQuantity: foodMasters.basisQuantity,
+                basisUnit: foodMasters.basisUnit,
               },
             })
             .from(mealLogs)
@@ -232,7 +238,7 @@ export const createDrizzleMealLogRepository = (sql: Sql): MealLogRepository => {
           const row = rows[0]
           if (row === undefined) return null
 
-          const [nutritionPer100g, units] = await Promise.all([
+          const [nutritionPerBasis, units] = await Promise.all([
             loadNutrition(db, row.food.id),
             loadUnits(db, row.food.id),
           ])
@@ -240,7 +246,9 @@ export const createDrizzleMealLogRepository = (sql: Sql): MealLogRepository => {
             log: toRow(row.log),
             food: {
               ...row.food,
-              nutritionPer100g,
+              nutritionPerBasis,
+              basisQuantity: Number(row.food.basisQuantity),
+              basisUnit: row.food.basisUnit,
               units,
             },
           }

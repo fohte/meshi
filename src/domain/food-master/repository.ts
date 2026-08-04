@@ -20,7 +20,11 @@ import {
   validateSourceEvidence,
 } from '#domain/food-master/validation'
 import { isImplausibleGramsPerUnit } from '#domain/food-master-unit/validation'
-import { isReservedUnit, normalizeUnit } from '#domain/unit/classification'
+import {
+  classifyUnit,
+  isReservedUnit,
+  normalizeUnit,
+} from '#domain/unit/classification'
 
 export interface FoodComposition {
   readonly name: string
@@ -75,6 +79,8 @@ interface NormalizedInput {
   readonly sourceUrl: string | null
   readonly sourceCompositionCode: string | null
   readonly units: ReadonlyArray<FoodMasterUnitDefinition>
+  readonly basisQuantity: number
+  readonly basisUnit: string
 }
 
 const normalizeAndValidate = (
@@ -122,6 +128,32 @@ const normalizeAndValidate = (
       )
     }
   }
+  const basisQuantity = input.basisQuantity ?? 100
+  if (!Number.isFinite(basisQuantity) || basisQuantity <= 0) {
+    return err(
+      new FoodMasterDomainError(
+        'invalid_basis_quantity',
+        `basisQuantity must be a finite positive number: ${String(basisQuantity)}`,
+        { basisQuantity },
+      ),
+    )
+  }
+  const normalizedBasisUnit = normalizeUnit(input.basisUnit ?? 'g')
+  if (normalizedBasisUnit === '') {
+    return err(
+      new FoodMasterDomainError(
+        'empty_basis_unit',
+        'basisUnit must not be empty string',
+      ),
+    )
+  }
+  const basisClassification = classifyUnit(normalizedBasisUnit)
+  const resolvedBasisQuantity =
+    basisClassification.kind === 'mass'
+      ? basisQuantity * basisClassification.factorToCanonical
+      : basisQuantity
+  const resolvedBasisUnit =
+    basisClassification.kind === 'mass' ? 'g' : normalizedBasisUnit
   const aliases = (input.aliases ?? []).map((a) => a.trim())
   if (aliases.some((a) => a === '')) {
     return err(
@@ -188,6 +220,8 @@ const normalizeAndValidate = (
     sourceUrl,
     sourceCompositionCode,
     units,
+    basisQuantity: resolvedBasisQuantity,
+    basisUnit: resolvedBasisUnit,
   })
 }
 
@@ -210,6 +244,8 @@ interface FoodMasterRow {
   readonly source: FoodSource
   readonly source_url: string | null
   readonly source_composition_code: string | null
+  readonly basis_quantity: string
+  readonly basis_unit: string
   readonly created_at: Date
 }
 
@@ -296,9 +332,9 @@ export const createFoodMasterRepository = (
     }
 
     const [inserted] = await tx<FoodMasterRow[]>`
-      INSERT INTO food_masters (id, name, is_estimated, source, source_url, source_composition_code)
-      VALUES (${id}, ${normalized.name}, ${normalized.isEstimated}, ${normalized.source}, ${normalized.sourceUrl}, ${normalized.sourceCompositionCode})
-      RETURNING id, name, is_estimated, source, source_url, source_composition_code, created_at
+      INSERT INTO food_masters (id, name, is_estimated, source, source_url, source_composition_code, basis_quantity, basis_unit)
+      VALUES (${id}, ${normalized.name}, ${normalized.isEstimated}, ${normalized.source}, ${normalized.sourceUrl}, ${normalized.sourceCompositionCode}, ${normalized.basisQuantity}, ${normalized.basisUnit})
+      RETURNING id, name, is_estimated, source, source_url, source_composition_code, basis_quantity, basis_unit, created_at
     `
     if (inserted === undefined) {
       return err(
@@ -346,6 +382,8 @@ export const createFoodMasterRepository = (
       sourceCompositionCode: inserted.source_composition_code,
       nutrition: normalized.nutrition,
       units: normalized.units,
+      basisQuantity: Number(inserted.basis_quantity),
+      basisUnit: inserted.basis_unit,
       createdAt: inserted.created_at,
     })
   }
@@ -377,7 +415,7 @@ export const createFoodMasterRepository = (
     ResultAsync.fromPromise(
       (async () => {
         const rows = await sql<FoodMasterRow[]>`
-          SELECT id, name, is_estimated, source, source_url, source_composition_code, created_at
+          SELECT id, name, is_estimated, source, source_url, source_composition_code, basis_quantity, basis_unit, created_at
           FROM food_masters
           WHERE id = ${id}
         `
@@ -413,6 +451,8 @@ export const createFoodMasterRepository = (
             unit: r.unit,
             gramsPerUnit: Number(r.grams_per_unit),
           })),
+          basisQuantity: Number(row.basis_quantity),
+          basisUnit: row.basis_unit,
           createdAt: row.created_at,
         }
       })(),

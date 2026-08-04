@@ -12,11 +12,6 @@ import type {
 import { MealHistoryQueryError } from '#domain/meal-history/types'
 import { MEAL_TYPES } from '#domain/meal-log/types'
 
-// The shared basis every per-nutrient value in food_master_nutrients is
-// stored against; also used by DayDetailService when it computes an
-// individual entry's kcal from the same amount_grams this file aggregates.
-export const PER_100G_BASE = 100
-
 const numericString = z.union([
   z.number().refine(Number.isFinite),
   z.string().transform((s, ctx) => {
@@ -90,10 +85,12 @@ export const createMealHistoryService = (sql: Sql): MealHistoryService => {
                   to_char(date_trunc('day', ml.eaten_at AT TIME ZONE ${dayBoundaryTimeZone}), 'YYYY-MM-DD')
                     AS day,
                   fmn.nutrient_code AS nutrient_code,
-                  SUM(fmn.value * ml.amount_grams / ${PER_100G_BASE}) AS value
+                  SUM(fmn.value * ml.amount_grams / fm.basis_quantity) AS value
                 FROM meal_logs ml
                 INNER JOIN food_master_nutrients fmn
                   ON fmn.food_master_id = ml.food_master_id
+                INNER JOIN food_masters fm
+                  ON fm.id = ml.food_master_id
                 WHERE ml.eaten_at >= ${periodFrom}::timestamptz
                   AND ml.eaten_at < ${periodTo}::timestamptz
                   AND (

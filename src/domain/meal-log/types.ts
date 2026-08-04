@@ -8,7 +8,12 @@ export interface FoodMasterRef {
   readonly id: string
   readonly name: string
   readonly isEstimated: boolean
-  readonly nutritionPer100g: NutritionMap
+  readonly nutritionPerBasis: NutritionMap
+  // The food's own basis quantity/unit (food_masters.basis_quantity/
+  // basis_unit) — nutritionPerBasis is "per basisQuantity basisUnit", not
+  // necessarily per 100g. See resolveAmountGrams and scaleNutrition.
+  readonly basisQuantity: number
+  readonly basisUnit: string
   // Food-specific serving definitions (food_master_units), keyed by
   // normalized (trimmed, lowercased) unit. g/kg/mg resolve without needing
   // an entry here — see resolveAmountGrams.

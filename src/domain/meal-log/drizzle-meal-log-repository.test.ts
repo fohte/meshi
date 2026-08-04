@@ -84,12 +84,62 @@ describeIfDb('createDrizzleMealLogRepository', () => {
         id: 'fm_rice',
         name: '白米',
         isEstimated: false,
-        nutritionPer100g: {
+        nutritionPerBasis: {
           protein_g: 2.5,
           carb_g: 37.1,
         },
+        basisQuantity: 100,
+        basisUnit: 'g',
         units: { 杯: 150 },
       },
+    })
+  })
+
+  it('round-trips a non-default basis (1, 食) through findFoodMaster and findMealLogById', async () => {
+    const tx = getTx()
+    await seedFoodMaster(tx, {
+      id: 'fm_katsudon',
+      name: '味噌ロースかつ丼',
+      isEstimated: false,
+      source: 'user_input',
+      basisQuantity: 1,
+      basisUnit: '食',
+      nutrients: { energy_kcal: 913 },
+    })
+    const repo = createDrizzleMealLogRepository(tx)
+
+    const foundMaster = (
+      await repo.findFoodMaster('fm_katsudon')
+    )._unsafeUnwrap()
+    expect(foundMaster).toEqual({
+      id: 'fm_katsudon',
+      name: '味噌ロースかつ丼',
+      isEstimated: false,
+      nutritionPerBasis: { energy_kcal: 913 },
+      basisQuantity: 1,
+      basisUnit: '食',
+      units: {},
+    })
+
+    await repo.insertMealLog({
+      id: 'ml_katsudon',
+      foodMasterId: 'fm_katsudon',
+      eatenAt: new Date('2026-06-15T03:30:00.000Z'),
+      mealType: 'dinner',
+      quantity: 1,
+      unit: '食',
+      amountGrams: 1,
+      note: null,
+    })
+    const fetched = (await repo.findMealLogById('ml_katsudon'))._unsafeUnwrap()
+    expect(fetched === null ? null : fetched.food).toEqual({
+      id: 'fm_katsudon',
+      name: '味噌ロースかつ丼',
+      isEstimated: false,
+      nutritionPerBasis: { energy_kcal: 913 },
+      basisQuantity: 1,
+      basisUnit: '食',
+      units: {},
     })
   })
 
@@ -235,10 +285,12 @@ describeIfDb('createDrizzleMealLogRepository', () => {
         id: 'fm_karaage',
         name: '唐揚げ',
         isEstimated: true,
-        nutritionPer100g: {
+        nutritionPerBasis: {
           protein_g: 24.2,
           carb_g: 7.9,
         },
+        basisQuantity: 100,
+        basisUnit: 'g',
         units: {},
       },
     })

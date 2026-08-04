@@ -24,6 +24,8 @@ const sampleMaster = (
   sourceCompositionCode: input.sourceCompositionCode ?? null,
   nutrition: input.nutrition,
   units: input.units ?? [],
+  basisQuantity: 100,
+  basisUnit: 'g',
   createdAt: new Date('2026-06-18T00:00:00.000Z'),
 })
 
