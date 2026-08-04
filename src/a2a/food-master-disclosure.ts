@@ -9,10 +9,9 @@ import {
 // The register_food_master(_from_composition) tools only export a plain TS
 // output type, not a zod schema — these validate that tool result's JSON
 // content locally.
-// basis_quantity/basis_unit are optional because register-food-master.ts
-// (a parallel, out-of-scope PR) doesn't send them yet. Defaulting to
-// (100, 'g') below reproduces today's exact output and lets this file pick
-// up a real basis with zero further changes once that PR lands.
+// basis_quantity/basis_unit are optional: a tool result that omits them was
+// registered at the implicit 100g/1g basis, so defaulting to (100, 'g')
+// below reflects that basis rather than an arbitrary fallback.
 const registerFoodMasterOutputSchema = z.object({
   food_master_id: z.string(),
   name: z.string(),

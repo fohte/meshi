@@ -61,6 +61,34 @@ describe('extractRegisteredFoodMasters', () => {
     ])
   })
 
+  it('preserves a non-default basis_quantity/basis_unit when the tool result includes them', () => {
+    const messages: AgentInvokeMessage[] = [
+      buildInvokeMessage('human'),
+      buildInvokeMessage('tool', {
+        name: 'register_food_master',
+        content: JSON.stringify({
+          food_master_id: 'fm_1',
+          name: '松のや 味噌ロースかつ丼 並',
+          source: 'user_input',
+          source_url: null,
+          nutrition_per_100g: { energy_kcal: 913 },
+          basis_quantity: 1,
+          basis_unit: '食',
+        }),
+      }),
+    ]
+
+    expect(extractRegisteredFoodMasters(messages)).toEqual([
+      {
+        name: '松のや 味噌ロースかつ丼 並',
+        energyKcalPerBasis: 913,
+        basisQuantity: 1,
+        basisUnit: '食',
+        sourceLabel: 'あなたの申告値',
+      },
+    ])
+  })
+
   it("labels a user_input registration as the user's own claim", () => {
     const messages: AgentInvokeMessage[] = [
       buildInvokeMessage('human'),
@@ -241,6 +269,29 @@ describe('withRegisteredFoodMasterDisclosure', () => {
         '  出典: https://example.com/matcha (web検索)',
         '- そば ゆで 130kcal/100g',
         '  出典: 成分表「そば ゆで」(コード 01088)',
+        '値が違う場合は教えてください。',
+      ].join('\n'),
+    )
+  })
+
+  it('renders the kcal suffix against a non-default basis, not a hardcoded 100g', () => {
+    const result = withRegisteredFoodMasterDisclosure('記録しました。', [
+      {
+        name: '松のや 味噌ロースかつ丼 並',
+        energyKcalPerBasis: 913,
+        basisQuantity: 1,
+        basisUnit: '食',
+        sourceLabel: 'あなたの申告値',
+      },
+    ])
+
+    expect(result).toBe(
+      [
+        '記録しました。',
+        '',
+        '新しく登録した食品:',
+        '- 松のや 味噌ロースかつ丼 並 913kcal/1食',
+        '  出典: あなたの申告値',
         '値が違う場合は教えてください。',
       ].join('\n'),
     )
