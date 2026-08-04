@@ -19,11 +19,8 @@ import {
   type SourceEvidenceViolation,
   validateSourceEvidence,
 } from '#domain/food-master/validation'
-import {
-  isImplausibleGramsPerUnit,
-  isReservedUnit,
-  normalizeUnit,
-} from '#domain/food-master-unit/validation'
+import { isImplausibleGramsPerUnit } from '#domain/food-master-unit/validation'
+import { isReservedUnit, normalizeUnit } from '#domain/unit/classification'
 
 export interface FoodComposition {
   readonly name: string
