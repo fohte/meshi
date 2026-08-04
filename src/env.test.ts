@@ -5,6 +5,7 @@ import { EnvError, loadEnv, requireDatabaseUrl } from '#env'
 const fullSource = {
   OPENCODE_API_KEY: 'k',
   MESHI_LLM_MODEL: 'm',
+  MESHI_LLM_BASE_URL: 'https://litellm.example.com/v1',
   DATABASE_URL: 'postgres://localhost/meshi',
   WEB_SEARCH_API_KEY: 'wk',
   MCP_LISTEN_ADDR: '0.0.0.0:8080',
@@ -16,6 +17,7 @@ const fullSource = {
 const fullEnv = {
   OPENCODE_API_KEY: 'k',
   MESHI_LLM_MODEL: 'm',
+  MESHI_LLM_BASE_URL: 'https://litellm.example.com/v1',
   DATABASE_URL: 'postgres://localhost/meshi',
   WEB_SEARCH_API_KEY: 'wk',
   MCP_LISTEN_ADDR: '0.0.0.0:8080',
@@ -49,6 +51,22 @@ describe('loadEnv', () => {
     expect(loadEnv({ ...fullSource, A2A_BEARER_TOKEN: '' })).toEqual({
       ...fullEnv,
       A2A_BEARER_TOKEN: undefined,
+    })
+  })
+
+  it('defaults MESHI_LLM_BASE_URL to undefined when omitted', () => {
+    const { MESHI_LLM_BASE_URL: _baseUrl, ...rest } = fullSource
+    void _baseUrl
+    expect(loadEnv(rest)).toEqual({
+      ...fullEnv,
+      MESHI_LLM_BASE_URL: undefined,
+    })
+  })
+
+  it('treats an empty-string MESHI_LLM_BASE_URL as undefined', () => {
+    expect(loadEnv({ ...fullSource, MESHI_LLM_BASE_URL: '' })).toEqual({
+      ...fullEnv,
+      MESHI_LLM_BASE_URL: undefined,
     })
   })
 

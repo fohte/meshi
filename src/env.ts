@@ -1,6 +1,7 @@
 export interface Env {
   OPENCODE_API_KEY: string
   MESHI_LLM_MODEL: string
+  MESHI_LLM_BASE_URL: string | undefined
   DATABASE_URL: string
   WEB_SEARCH_API_KEY: string
   MCP_LISTEN_ADDR: string
@@ -60,6 +61,10 @@ export const loadEnv = (
   const env: Env = {
     OPENCODE_API_KEY: requireString('OPENCODE_API_KEY'),
     MESHI_LLM_MODEL: requireString('MESHI_LLM_MODEL'),
+    MESHI_LLM_BASE_URL:
+      source['MESHI_LLM_BASE_URL'] === ''
+        ? undefined
+        : source['MESHI_LLM_BASE_URL'],
     DATABASE_URL: requireString('DATABASE_URL'),
     WEB_SEARCH_API_KEY: requireString('WEB_SEARCH_API_KEY'),
     MCP_LISTEN_ADDR: requireString('MCP_LISTEN_ADDR'),

@@ -138,6 +138,9 @@ export const main = async (): Promise<void> => {
   const model = createMeshiChatModel({
     apiKey: env.OPENCODE_API_KEY,
     model: env.MESHI_LLM_MODEL,
+    ...(env.MESHI_LLM_BASE_URL === undefined
+      ? {}
+      : { baseUrl: env.MESHI_LLM_BASE_URL }),
   })
   // Built once here, not inside createMeshiDomainAgent: that factory takes
   // an arbitrary BaseChatModel and has no way to know which provider it's
