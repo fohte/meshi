@@ -37,7 +37,7 @@ const toSelectedFood = (foodMaster: RegisteredFoodMaster): SelectedFood => ({
   foodMasterId: foodMaster.id,
   name: foodMaster.name,
   isEstimated: foodMaster.isEstimated,
-  energyKcalPer100g: foodMaster.nutritionPer100g['energy_kcal'] ?? null,
+  energyKcalPer100g: foodMaster.nutritionPerBasis['energy_kcal'] ?? null,
 })
 
 export const MealLogSheetProvider = ({

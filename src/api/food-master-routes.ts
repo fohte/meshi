@@ -34,7 +34,9 @@ const toFoodMasterJson = (foodMaster: FoodMaster) => ({
   isEstimated: foodMaster.isEstimated,
   source: foodMaster.source,
   sourceUrl: foodMaster.sourceUrl,
-  nutritionPer100g: foodMaster.nutrition,
+  basisQuantity: foodMaster.basisQuantity,
+  basisUnit: foodMaster.basisUnit,
+  nutritionPerBasis: foodMaster.nutrition,
 })
 
 export const mountFoodMasterRoutes = (

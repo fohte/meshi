@@ -198,7 +198,9 @@ describe('GET /api/foods/:id', () => {
       source: 'user_input',
       sourceUrl: null,
       aliases: ['ご飯'],
-      nutritionPer100g: { energy_kcal: 168 },
+      basisQuantity: 100,
+      basisUnit: 'g',
+      nutritionPerBasis: { energy_kcal: 168 },
       history: [
         {
           id: 'ml_1',
@@ -226,7 +228,9 @@ describe('GET /api/foods/:id', () => {
       source: 'user_input',
       sourceUrl: null,
       aliases: ['ご飯'],
-      nutritionPer100g: { energy_kcal: 168 },
+      basisQuantity: 100,
+      basisUnit: 'g',
+      nutritionPerBasis: { energy_kcal: 168 },
       totalEatenCount: 1,
       history: [
         {
