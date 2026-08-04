@@ -43,20 +43,26 @@ const seedFoodMasterNutrient = async (
 
 export const seedFoodMaster = async (
   sql: Sql,
-  values: Omit<typeof foodMasters.$inferInsert, 'createdAt'> & {
+  values: Omit<
+    typeof foodMasters.$inferInsert,
+    'createdAt' | 'basisQuantity'
+  > & {
     nutrients?: Readonly<Record<string, number>>
+    basisQuantity?: number
   },
 ): Promise<void> => {
   const { nutrients, ...row } = values
   await sql`
-    INSERT INTO food_masters (id, name, is_estimated, source, source_url, source_composition_code)
+    INSERT INTO food_masters (id, name, is_estimated, source, source_url, source_composition_code, basis_quantity, basis_unit)
     VALUES (
       ${row.id},
       ${row.name},
       ${row.isEstimated ?? false},
       ${row.source},
       ${row.sourceUrl ?? null},
-      ${row.sourceCompositionCode ?? null}
+      ${row.sourceCompositionCode ?? null},
+      ${row.basisQuantity ?? 100},
+      ${row.basisUnit ?? 'g'}
     )
   `
   // Nutrient codes referenced by a seeded food need a definition row to

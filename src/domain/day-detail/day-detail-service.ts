@@ -11,7 +11,6 @@ import type {
   DayDetailService,
 } from '#domain/day-detail/types'
 import { DayDetailQueryError } from '#domain/day-detail/types'
-import { PER_100G_BASE } from '#domain/meal-history/mealHistoryService'
 import type {
   MealHistoryAggregate,
   MealHistoryService,
@@ -107,7 +106,8 @@ const enrichEntries = (
           id: foodMasters.id,
           name: foodMasters.name,
           isEstimated: foodMasters.isEstimated,
-          kcalPer100: foodMasterNutrients.value,
+          kcalPerBasis: foodMasterNutrients.value,
+          basisQuantity: foodMasters.basisQuantity,
         })
         .from(foodMasters)
         .leftJoin(
@@ -132,7 +132,9 @@ const enrichEntries = (
         {
           name: row.name,
           isEstimated: row.isEstimated,
-          kcalPer100: row.kcalPer100 === null ? 0 : Number(row.kcalPer100),
+          kcalPerBasis:
+            row.kcalPerBasis === null ? 0 : Number(row.kcalPerBasis),
+          basisQuantity: Number(row.basisQuantity),
         },
       ]),
     )
@@ -152,7 +154,9 @@ const enrichEntries = (
         quantity: entry.quantity,
         unit: entry.unit,
         note: entry.note,
-        kcal: ((food?.kcalPer100 ?? 0) * amountGrams) / PER_100G_BASE,
+        kcal:
+          ((food?.kcalPerBasis ?? 0) * amountGrams) /
+          (food?.basisQuantity ?? 100),
         isEstimated: food?.isEstimated ?? false,
       }
     })

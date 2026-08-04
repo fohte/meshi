@@ -256,6 +256,10 @@ describeIfDb('schema migrations', () => {
         table_name: 'food_master_units',
       },
       {
+        conname: 'food_masters_basis_quantity_positive',
+        table_name: 'food_masters',
+      },
+      {
         conname: 'food_masters_composition_evidence',
         table_name: 'food_masters',
       },

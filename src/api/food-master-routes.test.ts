@@ -26,6 +26,8 @@ const SAMPLE_FOOD_MASTER: FoodMaster = {
   sourceCompositionCode: '01088',
   nutrition: { energy_kcal: 130, protein_g: 4.8 },
   units: [],
+  basisQuantity: 100,
+  basisUnit: 'g',
   createdAt: new Date('2026-06-18T00:00:00.000Z'),
 }
 

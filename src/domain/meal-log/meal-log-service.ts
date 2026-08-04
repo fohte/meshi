@@ -38,9 +38,10 @@ const MAX_PLAUSIBLE_AMOUNT_GRAMS = 10_000
 const resolveAndCheckAmountGrams = (
   quantity: number,
   unit: string,
+  basisUnit: string,
   units: Readonly<Record<string, number>>,
 ): Result<number, DomainError> =>
-  resolveAmountGrams(quantity, unit, units).andThen((amountGrams) =>
+  resolveAmountGrams(quantity, unit, basisUnit, units).andThen((amountGrams) =>
     amountGrams > MAX_PLAUSIBLE_AMOUNT_GRAMS
       ? err(new ImplausibleQuantityError(amountGrams))
       : ok(amountGrams),
@@ -93,6 +94,7 @@ export const createMealLogService = (
         const resolved = resolveAndCheckAmountGrams(
           input.quantity,
           input.unit,
+          food.basisUnit,
           food.units,
         )
         if (resolved.isErr()) return errAsync(resolved.error)
@@ -160,6 +162,7 @@ export const createMealLogService = (
           const resolved = resolveAndCheckAmountGrams(
             input.quantity ?? found.log.quantity,
             input.unit ?? found.log.unit,
+            food.basisUnit,
             food.units,
           )
           if (resolved.isErr()) return errAsync(resolved.error)
@@ -204,19 +207,25 @@ export const createMealLogService = (
 
 const buildResult = (log: MealLogRow, food: FoodMasterRef): MealLogResult => ({
   ...log,
-  nutrition: scaleNutrition(food.nutritionPer100g, log.amountGrams),
+  nutrition: scaleNutrition(
+    food.nutritionPerBasis,
+    log.amountGrams,
+    food.basisQuantity,
+  ),
   isEstimated: food.isEstimated,
 })
 
-// food_master nutrient values are stored per 100g; amountGrams already
-// resolved quantity+unit to grams (see resolveAmountGrams).
+// Nutrient values are scaled against the food's own basis_quantity;
+// amountGrams is already resolved to the food's basis unit (see
+// resolveAmountGrams).
 const scaleNutrition = (
-  per100g: NutritionMap,
+  perBasis: NutritionMap,
   amountGrams: number,
+  basisQuantity: number,
 ): NutritionMap => {
-  const multiplier = amountGrams / 100
+  const multiplier = amountGrams / basisQuantity
   const out: Record<string, number> = {}
-  for (const [key, value] of Object.entries(per100g)) {
+  for (const [key, value] of Object.entries(perBasis)) {
     out[key] = value * multiplier
   }
   return out
