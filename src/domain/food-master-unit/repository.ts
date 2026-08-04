@@ -9,11 +9,8 @@ import type {
   FoodMasterUnit,
   RegisterFoodMasterUnitInput,
 } from '#domain/food-master-unit/types'
-import {
-  isImplausibleGramsPerUnit,
-  isReservedUnit,
-  normalizeUnit,
-} from '#domain/food-master-unit/validation'
+import { isImplausibleGramsPerUnit } from '#domain/food-master-unit/validation'
+import { isReservedUnit, normalizeUnit } from '#domain/unit/classification'
 
 export interface FoodMasterUnitRepository {
   register(
