@@ -36,7 +36,6 @@ export interface SheetState {
   readonly mealType: MealType | null
   readonly date: string
   readonly time: string
-  readonly note: string
   readonly justSaved: boolean
 }
 
@@ -52,7 +51,6 @@ export const buildCreateState = (): SheetState => ({
   mealType: null,
   date: todayJstDate(),
   time: nowJstTime(),
-  note: '',
   justSaved: false,
 })
 
@@ -83,7 +81,6 @@ export const buildEditState = (entry: DayDetailEntry): SheetState => ({
   mealType: entry.mealType,
   date: formatJstDate(entry.eatenAt),
   time: formatJstTime(entry.eatenAt),
-  note: entry.note ?? '',
   justSaved: false,
 })
 
@@ -148,13 +145,11 @@ export const buildSavePayload = (
   if (state.date === '' || state.time === '') return null
   const quantity = Number(state.quantity)
   if (!Number.isFinite(quantity) || quantity <= 0) return null
-  const note = state.note.trim()
   return {
     foodMasterId: state.selectedFood.foodMasterId,
     eatenAt: jstWallClockToIsoInstant(state.date, state.time),
     mealType: resolvedMealType(state),
     quantity,
     unit: state.unit.trim(),
-    ...(note === '' ? {} : { note }),
   }
 }

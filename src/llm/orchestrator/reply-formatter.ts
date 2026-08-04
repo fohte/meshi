@@ -167,7 +167,6 @@ export interface MealHistoryEntryDisplay {
   readonly mealType: MealType
   readonly quantity: number
   readonly unit: string
-  readonly note: string | null
 }
 
 const MEAL_TYPE_LABEL: Readonly<Record<MealType, string>> = {
@@ -186,9 +185,7 @@ const MEAL_TYPE_LABEL: Readonly<Record<MealType, string>> = {
 const formatMealHistoryEntry = (entry: MealHistoryEntryDisplay): string => {
   const date = entry.eatenAtIso.slice(0, 10)
   const time = entry.eatenAtIso.slice(11, 16)
-  const noteSuffix =
-    entry.note !== null && entry.note !== '' ? ` (${entry.note})` : ''
-  return `- ${date} ${time} ${MEAL_TYPE_LABEL[entry.mealType]} ${entry.foodMasterId}: ${formatNumber(entry.quantity)}${entry.unit}${noteSuffix}`
+  return `- ${date} ${time} ${MEAL_TYPE_LABEL[entry.mealType]} ${entry.foodMasterId}: ${formatNumber(entry.quantity)}${entry.unit}`
 }
 
 // Itemizes meal-history entries deterministically from structured data,

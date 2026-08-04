@@ -72,7 +72,6 @@ export const buildMealHistoryPayload = (
             eaten_at_iso: e.eatenAtIso,
             quantity: e.quantity,
             unit: e.unit,
-            note: e.note,
           })),
           has_estimated_values: result.aggregate.hasEstimatedValues,
         },

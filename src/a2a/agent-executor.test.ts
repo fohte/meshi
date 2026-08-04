@@ -901,7 +901,6 @@ const QUERY_MEAL_HISTORY_OUTPUT = {
       meal_type: 'lunch',
       quantity: 200,
       unit: 'g',
-      note: null,
     },
   ],
   has_estimated_values: false,

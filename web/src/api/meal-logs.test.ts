@@ -25,7 +25,6 @@ const SAMPLE_JSON = {
   quantity: 150,
   unit: 'g',
   amountGrams: 150,
-  note: null,
   nutrition: { energy_kcal: 234 },
   isEstimated: false,
   createdAt: '2026-07-29T03:00:01.000Z',

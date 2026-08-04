@@ -108,7 +108,6 @@ export const createMealLogService = (
             quantity: input.quantity,
             unit: input.unit,
             amountGrams,
-            note: input.note ?? null,
           })
           .map((log) => buildResult(log, food))
       })
@@ -135,8 +134,7 @@ export const createMealLogService = (
         input.eatenAt === undefined &&
         input.mealType === undefined &&
         input.quantity === undefined &&
-        input.unit === undefined &&
-        input.note === undefined
+        input.unit === undefined
       ) {
         return okAsync(buildResult(found.log, found.food))
       }
@@ -183,7 +181,6 @@ export const createMealLogService = (
               : { quantity: input.quantity }),
             ...(input.unit === undefined ? {} : { unit: input.unit }),
             ...(amountGrams === undefined ? {} : { amountGrams }),
-            ...(input.note === undefined ? {} : { note: input.note }),
           })
           .map((log) => buildResult(log, food))
       })

@@ -136,13 +136,3 @@
   font-size: 14px;
   color: var(--color-text);
 }
-
-.noteInput {
-  all: unset;
-  width: 100%;
-  box-sizing: border-box;
-  border: var(--border-width) solid var(--color-border);
-  padding: 9px 11px;
-  font-size: 14px;
-  color: var(--color-text);
-}

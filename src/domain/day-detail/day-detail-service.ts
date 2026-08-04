@@ -153,7 +153,6 @@ const enrichEntries = (
         mealType: entry.mealType,
         quantity: entry.quantity,
         unit: entry.unit,
-        note: entry.note,
         kcal:
           ((food?.kcalPerBasis ?? 0) * amountGrams) /
           (food?.basisQuantity ?? 100),

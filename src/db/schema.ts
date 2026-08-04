@@ -189,7 +189,6 @@ export const mealLogs = pgTable(
     // (see resolveAmountGrams), the sole basis for every downstream nutrition
     // calculation. quantity/unit stay for display only.
     amountGrams: numeric('amount_grams').notNull(),
-    note: text('note'),
     createdAt: timestamp('created_at', { withTimezone: true, mode: 'date' })
       .notNull()
       .default(sql`now()`),

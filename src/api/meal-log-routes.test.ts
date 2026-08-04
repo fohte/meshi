@@ -32,7 +32,6 @@ const SAMPLE_RESULT: MealLogResult = {
   quantity: 150,
   unit: 'g',
   amountGrams: 150,
-  note: null,
   createdAt: new Date('2026-06-18T00:00:01.000Z'),
   nutrition: { energy_kcal: 234 },
   isEstimated: false,
@@ -46,7 +45,6 @@ const SAMPLE_JSON = {
   quantity: 150,
   unit: 'g',
   amountGrams: 150,
-  note: null,
   nutrition: { energy_kcal: 234 },
   isEstimated: false,
   createdAt: '2026-06-18T00:00:01.000Z',
@@ -100,7 +98,7 @@ describe('POST /api/meal-logs', () => {
     })
   })
 
-  it('forwards mealType and note when present', async () => {
+  it('forwards mealType when present', async () => {
     let captured: unknown
     const app = buildApp({
       ...notStubbed('service'),
@@ -117,7 +115,6 @@ describe('POST /api/meal-logs', () => {
         mealType: 'breakfast',
         quantity: 150,
         unit: 'g',
-        note: 'quick breakfast',
       }),
     )
 
@@ -127,7 +124,6 @@ describe('POST /api/meal-logs', () => {
       mealType: 'breakfast',
       quantity: 150,
       unit: 'g',
-      note: 'quick breakfast',
     })
   })
 

@@ -38,7 +38,6 @@ const setup = (
         quantity: input.quantity ?? 100,
         unit: input.unit ?? 'g',
         amountGrams: input.quantity ?? 100,
-        note: input.note ?? null,
         createdAt: new Date('2026-06-18T00:00:00.000Z'),
         nutrition: { energy_kcal: 312 },
         isEstimated: false,
@@ -69,7 +68,6 @@ describe('update_meal_log tool', () => {
       meal_type: 'breakfast',
       quantity: 200,
       unit: 'g',
-      note: 'corrected',
     })
 
     expect(normalizeResult(result)).toEqual({
@@ -89,7 +87,6 @@ describe('update_meal_log tool', () => {
           mealType: 'breakfast',
           quantity: 200,
           unit: 'g',
-          note: 'corrected',
         },
       ],
     })

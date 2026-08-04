@@ -19,7 +19,6 @@ const inputSchema = z.object({
   meal_type: z.enum(MEAL_TYPES).optional(),
   quantity: z.number().positive(),
   unit: z.string().min(1),
-  note: z.string().optional(),
 })
 
 export interface RecordMealLogOutput {
@@ -49,7 +48,6 @@ export const createRecordMealLogTool = (
       ...(parsed.value.meal_type === undefined
         ? {}
         : { mealType: parsed.value.meal_type }),
-      ...(parsed.value.note === undefined ? {} : { note: parsed.value.note }),
     })
     if (result.isErr()) {
       return err(toToolError(result.error))

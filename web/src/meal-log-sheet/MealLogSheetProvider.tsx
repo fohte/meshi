@@ -193,9 +193,6 @@ export const MealLogSheetProvider = ({
         setTime={(time) => {
           patchSheet({ time, mealType: null })
         }}
-        setNote={(note) => {
-          patchSheet({ note })
-        }}
         save={() => {
           saveMutation.mutate({
             continueCreating: false,

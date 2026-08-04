@@ -21,7 +21,6 @@ export interface MealLogDetailFormProps {
   readonly setMealType: (mealType: MealType) => void
   readonly setDate: (date: string) => void
   readonly setTime: (time: string) => void
-  readonly setNote: (note: string) => void
 }
 
 export const MealLogDetailForm = ({
@@ -32,7 +31,6 @@ export const MealLogDetailForm = ({
   setMealType,
   setDate,
   setTime,
-  setNote,
 }: MealLogDetailFormProps): React.JSX.Element => {
   const { selectedFood } = state
   const kcal = previewKcal(state)
@@ -138,18 +136,6 @@ export const MealLogDetailForm = ({
             className={styles.timeInput}
           />
         </div>
-      </div>
-
-      <div className={styles.field}>
-        <div className={styles.label}>メモ</div>
-        <input
-          value={state.note}
-          onChange={(e) => {
-            setNote(e.target.value)
-          }}
-          placeholder="任意"
-          className={styles.noteInput}
-        />
       </div>
     </div>
   )

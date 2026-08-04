@@ -30,7 +30,6 @@ export interface MealLogRow {
   // The resolved mass this quantity+unit was converted to at record time —
   // the sole basis for this row's nutrition. See resolveAmountGrams.
   readonly amountGrams: number
-  readonly note: string | null
   readonly createdAt: Date
 }
 
@@ -40,7 +39,6 @@ export interface RecordMealLogInput {
   readonly mealType?: MealType
   readonly quantity: number
   readonly unit: string
-  readonly note?: string
   // The caller's expected name for foodMasterId, checked against the actual
   // food_master row before the write (see FoodNameMismatchError). Optional so
   // callers that already resolve food_master_id from a UI the user directly
@@ -55,7 +53,6 @@ export interface UpdateMealLogInput {
   readonly mealType?: MealType
   readonly quantity?: number
   readonly unit?: string
-  readonly note?: string
 }
 
 export interface MealLogResult extends MealLogRow {

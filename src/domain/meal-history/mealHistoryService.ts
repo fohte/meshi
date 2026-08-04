@@ -51,7 +51,6 @@ const entryRowSchema = z.object({
   meal_type: z.enum(MEAL_TYPES),
   quantity: numericString,
   unit: z.string(),
-  note: z.string().nullable(),
   is_estimated: z.boolean(),
 })
 
@@ -119,7 +118,6 @@ export const createMealHistoryService = (sql: Sql): MealHistoryService => {
               ml.meal_type AS meal_type,
               ml.quantity AS quantity,
               ml.unit AS unit,
-              ml.note AS note,
               fm.is_estimated AS is_estimated
             FROM meal_logs ml
             INNER JOIN food_masters fm ON fm.id = ml.food_master_id
@@ -168,7 +166,6 @@ export const createMealHistoryService = (sql: Sql): MealHistoryService => {
           mealType: row.meal_type,
           quantity: row.quantity,
           unit: row.unit,
-          note: row.note,
         }))
         const hasEstimatedValues = entryParsed.data.some(
           (row) => row.is_estimated,

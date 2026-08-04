@@ -11,7 +11,6 @@ export interface DayDetailEntry {
   readonly mealType: MealType
   readonly quantity: number
   readonly unit: string
-  readonly note: string | null
   readonly kcal: number
   readonly isEstimated: boolean
 }
