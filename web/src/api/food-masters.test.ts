@@ -24,7 +24,9 @@ describe('registerFoodMasterFromComposition', () => {
       isEstimated: true,
       source: 'composition_table_estimate',
       sourceUrl: null,
-      nutritionPer100g: { energy_kcal: 130 },
+      basisQuantity: 100,
+      basisUnit: 'g',
+      nutritionPerBasis: { energy_kcal: 130 },
     }
     const fetchMock = mockFetchOk(body)
 

@@ -486,7 +486,7 @@ describeIfDb('meshi integration', () => {
           name: 'register_food_master',
           args: {
             name: 'スターバックス抹茶ラテ',
-            nutrition_per_100g: { energy_kcal: 60, protein_g: 2 },
+            nutrition_per_basis: { energy_kcal: 60, protein_g: 2 },
             source: 'web_search',
             is_estimated: false,
             source_url: 'https://example.com/matcha',
@@ -555,6 +555,129 @@ describeIfDb('meshi integration', () => {
         { count: string }[]
       >`SELECT COUNT(*)::text AS count FROM meal_logs`
       expect(mealLogCount).toEqual([{ count: '1' }])
+    } finally {
+      await harness.close()
+    }
+  })
+
+  it('on-demand registration with a per-meal basis — restaurant menu with no stated serving weight', async () => {
+    const tx = getTx()
+    // The shared beforeEach only seeds the file's carbohydrate_g convention;
+    // register_food_master's nutrition_per_basis is constrained to the real
+    // NUTRIENT_CODES enum, which spells it carb_g.
+    await upsertNutrientDefinitions(tx, [
+      {
+        code: 'carb_g',
+        displayName: 'carb',
+        unit: 'g',
+        isMajor: true,
+        sortOrder: 5,
+      },
+    ])
+
+    const harness = await startHarness({
+      tx,
+      mealLogIds: ['ml_scenario_katsudon'],
+      webSearch: {
+        snippets: [
+          {
+            title: 'とんかつ亭 かつ丼 並盛',
+            url: 'https://example.com/tonkatsutei-katsudon',
+            text: 'かつ丼 並盛 913kcal タンパク質28.5g 脂質34.2g 炭水化物124.8g',
+          },
+        ],
+      },
+      toolCalls: [
+        {
+          name: 'search_food_master',
+          args: { query: 'かつ丼 並' },
+        },
+        {
+          name: 'web_search',
+          args: { query: 'とんかつ亭 かつ丼 並盛 栄養成分' },
+        },
+        {
+          name: 'register_food_master',
+          args: {
+            name: 'かつ丼 並',
+            nutrition_per_basis: {
+              energy_kcal: 913,
+              protein_g: 28.5,
+              fat_g: 34.2,
+              carb_g: 124.8,
+            },
+            basis_quantity: 1,
+            basis_unit: '食',
+            source: 'web_search',
+            is_estimated: false,
+            source_url: 'https://example.com/tonkatsutei-katsudon',
+          },
+        },
+        {
+          name: 'record_meal_log',
+          args: {
+            food_master_id: 'fm_test_0001',
+            food_name: 'かつ丼 並',
+            eaten_at_iso: '2026-06-12T12:00:00+09:00',
+            quantity: 1,
+            unit: '食',
+          },
+        },
+      ],
+      final: {
+        status: 'completed',
+        message: 'かつ丼を記録しました。',
+      },
+    })
+
+    try {
+      const result = normalizeResult(
+        await harness.client.callTool({
+          name: 'record_meal_from_text',
+          arguments: {
+            text: 'とんかつ亭 かつ丼 並を1食食べました',
+          },
+        }),
+      )
+
+      expect(result).toEqual({
+        structuredContent: {
+          recorded: [
+            {
+              meal_log_id: 'ml_scenario_katsudon',
+              food_master_id: 'fm_test_0001',
+              nutrition: {
+                energy_kcal: 913,
+                protein_g: 28.5,
+                fat_g: 34.2,
+                carb_g: 124.8,
+              },
+              is_estimated: false,
+            },
+          ],
+          candidates: [],
+          has_estimated_values: false,
+          error: null,
+        },
+        content: [
+          {
+            type: 'text',
+            text: [
+              '記録しました (1 件)。',
+              '- fm_test_0001: 913 kcal / P 28.5g / F 34.2g',
+            ].join('\n'),
+          },
+        ],
+      })
+
+      const masters = await tx<
+        { id: string; basis_quantity: string; basis_unit: string }[]
+      >`
+        SELECT id, basis_quantity, basis_unit FROM food_masters ORDER BY id
+      `
+      expect(masters).toEqual([
+        { id: 'fm_test_0001', basis_quantity: '1', basis_unit: '食' },
+      ])
     } finally {
       await harness.close()
     }

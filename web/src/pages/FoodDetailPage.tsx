@@ -20,6 +20,9 @@ const MEAL_TYPE_LABELS: Record<MealType, string> = {
 const formatNumber = (value: number): string =>
   Number.isInteger(value) ? String(value) : value.toFixed(1)
 
+const formatBasisLabel = (quantity: number, unit: string): string =>
+  `${formatNumber(quantity)} ${unit} あたり`
+
 // food_masters.source_url is populated from web-search results with no
 // scheme restriction on write; rendering it as an <a href> without this
 // guard would let a javascript: URI execute in the app's origin.
@@ -48,14 +51,14 @@ const useNutrientDefinitions = () =>
 
 interface NutrientRowProps {
   definition: NutrientDefinition
-  nutritionPer100g: FoodDetail['nutritionPer100g']
+  nutritionPerBasis: FoodDetail['nutritionPerBasis']
 }
 
 const NutrientRow = ({
   definition,
-  nutritionPer100g,
+  nutritionPerBasis,
 }: NutrientRowProps): React.JSX.Element => {
-  const value = nutritionPer100g[definition.code]
+  const value = nutritionPerBasis[definition.code]
   return (
     <tr>
       <td className={styles.nutrientLabel}>{definition.displayName}</td>
@@ -80,7 +83,7 @@ const FoodDetailContent = ({
   const [showAllNutrients, setShowAllNutrients] = useState(false)
   const majorDefinitions = nutrientDefinitions.filter((d) => d.isMajor)
   const minorDefinitions = nutrientDefinitions.filter((d) => !d.isMajor)
-  const energyKcalPer100g = food.nutritionPer100g['energy_kcal']
+  const energyKcalPerBasis = food.nutritionPerBasis['energy_kcal']
 
   return (
     <div>
@@ -90,7 +93,9 @@ const FoodDetailContent = ({
       </h1>
       <div className={styles.meta}>
         <span className={styles.sourceBadge}>{SOURCE_LABELS[food.source]}</span>
-        <span className={styles.metaText}>100 g あたり</span>
+        <span className={styles.metaText}>
+          {formatBasisLabel(food.basisQuantity, food.basisUnit)}
+        </span>
         {food.sourceUrl !== null && isHttpUrl(food.sourceUrl) && (
           <a href={food.sourceUrl} className={styles.sourceLink}>
             出典 →
@@ -101,7 +106,9 @@ const FoodDetailContent = ({
       <section className={styles.section}>
         <div className={styles.sectionHeader}>
           <span className={styles.sectionMarker}>##</span>
-          <span className={styles.sectionTitle}>栄養成分 (100 g あたり)</span>
+          <span className={styles.sectionTitle}>
+            栄養成分 ({formatBasisLabel(food.basisQuantity, food.basisUnit)})
+          </span>
         </div>
         <table className={styles.nutrientTable}>
           <tbody>
@@ -109,7 +116,7 @@ const FoodDetailContent = ({
               <NutrientRow
                 key={definition.code}
                 definition={definition}
-                nutritionPer100g={food.nutritionPer100g}
+                nutritionPerBasis={food.nutritionPerBasis}
               />
             ))}
           </tbody>
@@ -130,7 +137,7 @@ const FoodDetailContent = ({
                 <NutrientRow
                   key={definition.code}
                   definition={definition}
-                  nutritionPer100g={food.nutritionPer100g}
+                  nutritionPerBasis={food.nutritionPerBasis}
                 />
               ))}
             </tbody>
@@ -170,9 +177,10 @@ const FoodDetailContent = ({
           <div className={styles.historyList}>
             {food.history.map((entry) => {
               const kcal =
-                energyKcalPer100g === undefined
+                energyKcalPerBasis === undefined
                   ? null
-                  : (energyKcalPer100g * entry.amountGrams) / 100
+                  : (energyKcalPerBasis * entry.amountGrams) /
+                    food.basisQuantity
               return (
                 <div key={entry.id} className={styles.historyRow}>
                   <span className={styles.historyDate}>

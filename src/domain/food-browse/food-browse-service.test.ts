@@ -82,6 +82,60 @@ describeIfDb('createFoodBrowseService', () => {
       ])
     })
 
+    it('leaves energyKcalPer100g null for a non-gram basis, even with an energy_kcal value', async () => {
+      const tx = getTx()
+      await seedFoodMaster(tx, {
+        id: 'fm_katsudon',
+        name: 'katsudon_z',
+        source: 'user_input',
+        basisQuantity: 1,
+        basisUnit: '食',
+        nutrients: { energy_kcal: 913 },
+      })
+      const service = createFoodBrowseService(tx, createDrizzleFoodMatcher(tx))
+
+      const result = (await service.search('katsudon', 5))._unsafeUnwrap()
+
+      expect(result).toEqual([
+        {
+          foodMasterId: 'fm_katsudon',
+          compositionCode: null,
+          name: 'katsudon_z',
+          isEstimated: false,
+          reason: 'fuzzy_name',
+          source: 'user_input',
+          energyKcalPer100g: null,
+        },
+      ])
+    })
+
+    it('scales energyKcalPer100g from a non-default gram basis', async () => {
+      const tx = getTx()
+      await seedFoodMaster(tx, {
+        id: 'fm_halfcup',
+        name: 'halfcup_w',
+        source: 'user_input',
+        basisQuantity: 50,
+        basisUnit: 'g',
+        nutrients: { energy_kcal: 84 },
+      })
+      const service = createFoodBrowseService(tx, createDrizzleFoodMatcher(tx))
+
+      const result = (await service.search('halfcup', 5))._unsafeUnwrap()
+
+      expect(result).toEqual([
+        {
+          foodMasterId: 'fm_halfcup',
+          compositionCode: null,
+          name: 'halfcup_w',
+          isEstimated: false,
+          reason: 'fuzzy_name',
+          source: 'user_input',
+          energyKcalPer100g: 168,
+        },
+      ])
+    })
+
     it('returns an empty array for a blank query', async () => {
       const tx = getTx()
       const service = createFoodBrowseService(tx, createDrizzleFoodMatcher(tx))

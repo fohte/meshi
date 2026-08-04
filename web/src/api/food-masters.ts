@@ -11,7 +11,9 @@ const registeredFoodMasterSchema = z.object({
   isEstimated: z.boolean(),
   source: foodSourceSchema,
   sourceUrl: z.string().nullable(),
-  nutritionPer100g: z.record(z.string(), z.number()),
+  basisQuantity: z.number(),
+  basisUnit: z.string(),
+  nutritionPerBasis: z.record(z.string(), z.number()),
 })
 
 export type RegisteredFoodMaster = z.infer<typeof registeredFoodMasterSchema>

@@ -82,7 +82,9 @@ const foodDetailSchema = z.object({
   source: foodSourceSchema,
   sourceUrl: z.string().nullable(),
   aliases: z.array(z.string()),
-  nutritionPer100g: z.record(z.string(), z.number()),
+  basisQuantity: z.number(),
+  basisUnit: z.string(),
+  nutritionPerBasis: z.record(z.string(), z.number()),
   totalEatenCount: z.number(),
   history: z.array(foodEatHistoryEntrySchema),
 })
