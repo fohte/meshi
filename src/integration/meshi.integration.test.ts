@@ -486,7 +486,7 @@ describeIfDb('meshi integration', () => {
           name: 'register_food_master',
           args: {
             name: 'スターバックス抹茶ラテ',
-            nutrition_per_100g: { energy_kcal: 60, protein_g: 2 },
+            nutrition_per_basis: { energy_kcal: 60, protein_g: 2 },
             source: 'web_search',
             is_estimated: false,
             source_url: 'https://example.com/matcha',
