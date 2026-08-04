@@ -73,7 +73,9 @@ describe('fetchFoodDetail', () => {
       source: 'user_input',
       sourceUrl: null,
       aliases: [],
-      nutritionPer100g: { energy_kcal: 168 },
+      basisQuantity: 100,
+      basisUnit: 'g',
+      nutritionPerBasis: { energy_kcal: 168 },
       totalEatenCount: 1,
       history: [
         {
@@ -96,7 +98,9 @@ describe('fetchFoodDetail', () => {
       source: 'user_input',
       sourceUrl: null,
       aliases: [],
-      nutritionPer100g: { energy_kcal: 168 },
+      basisQuantity: 100,
+      basisUnit: 'g',
+      nutritionPerBasis: { energy_kcal: 168 },
       totalEatenCount: 1,
       history: [
         {

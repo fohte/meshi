@@ -109,7 +109,9 @@ export const mountFoodRoutes = (
           source: detail.source,
           sourceUrl: detail.sourceUrl,
           aliases: detail.aliases,
-          nutritionPer100g: detail.nutritionPer100g,
+          basisQuantity: detail.basisQuantity,
+          basisUnit: detail.basisUnit,
+          nutritionPerBasis: detail.nutritionPerBasis,
           totalEatenCount: detail.totalEatenCount,
           history: detail.history.map((entry) => ({
             id: entry.id,

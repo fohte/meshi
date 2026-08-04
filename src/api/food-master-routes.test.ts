@@ -89,7 +89,9 @@ describe('POST /api/food-masters/from-composition', () => {
       isEstimated: true,
       source: 'composition_table_estimate',
       sourceUrl: null,
-      nutritionPer100g: { energy_kcal: 130, protein_g: 4.8 },
+      basisQuantity: 100,
+      basisUnit: 'g',
+      nutritionPerBasis: { energy_kcal: 130, protein_g: 4.8 },
     })
     expect(captured).toEqual({ compositionCode: '01088' })
   })

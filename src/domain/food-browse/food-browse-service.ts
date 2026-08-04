@@ -22,6 +22,21 @@ interface Enrichment {
 const numericOrNull = (value: string | null): number | null =>
   value === null ? null : Number(value)
 
+// food_master_nutrients.value is "per basisQuantity basisUnit", not always
+// per-100g (e.g. a 1-食 restaurant dish). Only a gram basis can be rescaled
+// to per-100g; anything else (opaque serving units like '食') has no known
+// gram equivalent, so the per-100g comparison is undefined.
+const MASS_BASIS_UNIT = 'g'
+
+const toEnergyKcalPer100g = (
+  kcalPerBasis: number | null,
+  basisQuantity: number,
+  basisUnit: string,
+): number | null => {
+  if (kcalPerBasis === null || basisUnit !== MASS_BASIS_UNIT) return null
+  return (kcalPerBasis * 100) / basisQuantity
+}
+
 const loadEnrichment = async (
   db: Db,
   foodMasterIds: ReadonlyArray<string>,
@@ -33,6 +48,8 @@ const loadEnrichment = async (
       id: foodMasters.id,
       source: foodMasters.source,
       energyKcal: foodMasterNutrients.value,
+      basisQuantity: foodMasters.basisQuantity,
+      basisUnit: foodMasters.basisUnit,
     })
     .from(foodMasters)
     .leftJoin(
@@ -49,7 +66,11 @@ const loadEnrichment = async (
       row.id,
       {
         source: row.source,
-        energyKcalPer100g: numericOrNull(row.energyKcal),
+        energyKcalPer100g: toEnergyKcalPer100g(
+          numericOrNull(row.energyKcal),
+          Number(row.basisQuantity),
+          row.basisUnit,
+        ),
       },
     ]),
   )
@@ -67,6 +88,8 @@ const rawRowSchema = z.object({
     .union([z.number(), z.string()])
     .nullable()
     .transform((v) => (v === null ? null : Number(v))),
+  basis_quantity: z.union([z.number(), z.string()]).transform((v) => Number(v)),
+  basis_unit: z.string(),
 })
 
 const rawRowsSchema = z.array(rawRowSchema)
@@ -81,7 +104,11 @@ const toListItem = (
   isEstimated: row.is_estimated,
   reason,
   source: row.source,
-  energyKcalPer100g: row.energy_kcal,
+  energyKcalPer100g: toEnergyKcalPer100g(
+    row.energy_kcal,
+    row.basis_quantity,
+    row.basis_unit,
+  ),
 })
 
 const parseRankedRows = (
@@ -141,7 +168,8 @@ export const createFoodBrowseService = (
     listRecent: (limit) =>
       ResultAsync.fromPromise(
         sql`
-          SELECT fm.id, fm.name, fm.is_estimated, fm.source, fmn.value AS energy_kcal
+          SELECT fm.id, fm.name, fm.is_estimated, fm.source, fmn.value AS energy_kcal,
+            fm.basis_quantity, fm.basis_unit
           FROM (
             SELECT food_master_id, MAX(eaten_at) AS last_eaten_at
             FROM meal_logs
@@ -163,7 +191,8 @@ export const createFoodBrowseService = (
     listFrequent: (limit) =>
       ResultAsync.fromPromise(
         sql`
-          SELECT fm.id, fm.name, fm.is_estimated, fm.source, fmn.value AS energy_kcal
+          SELECT fm.id, fm.name, fm.is_estimated, fm.source, fmn.value AS energy_kcal,
+            fm.basis_quantity, fm.basis_unit
           FROM (
             SELECT food_master_id, COUNT(*) AS cnt
             FROM meal_logs

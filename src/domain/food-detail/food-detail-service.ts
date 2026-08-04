@@ -59,7 +59,9 @@ export const createFoodDetailService = (
           source: master.source,
           sourceUrl: master.sourceUrl,
           aliases: master.aliases,
-          nutritionPer100g: master.nutrition,
+          basisQuantity: master.basisQuantity,
+          basisUnit: master.basisUnit,
+          nutritionPerBasis: master.nutrition,
           history,
           totalEatenCount: history.length,
         }))

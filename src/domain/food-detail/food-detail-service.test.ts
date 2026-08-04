@@ -53,7 +53,41 @@ describeIfDb('createFoodDetailService', () => {
       source: 'user_input',
       sourceUrl: null,
       aliases: ['ご飯'],
-      nutritionPer100g: { energy_kcal: 168, protein_g: 2.5 },
+      basisQuantity: 100,
+      basisUnit: 'g',
+      nutritionPerBasis: { energy_kcal: 168, protein_g: 2.5 },
+      history: [],
+      totalEatenCount: 0,
+    })
+  })
+
+  it('returns the basis quantity/unit for a food registered with a non-gram basis', async () => {
+    const tx = getTx()
+    await seedFoodMaster(tx, {
+      id: 'fm_katsudon',
+      name: 'かつ丼',
+      source: 'user_input',
+      basisQuantity: 1,
+      basisUnit: '食',
+      nutrients: { energy_kcal: 913 },
+    })
+    const foodMasterService = createFoodMasterService(
+      createFoodMasterRepository(tx),
+    )
+    const service = createFoodDetailService(tx, foodMasterService)
+
+    const result = (await service.getById('fm_katsudon'))._unsafeUnwrap()
+
+    expect(result).toEqual({
+      id: 'fm_katsudon',
+      name: 'かつ丼',
+      isEstimated: false,
+      source: 'user_input',
+      sourceUrl: null,
+      aliases: [],
+      basisQuantity: 1,
+      basisUnit: '食',
+      nutritionPerBasis: { energy_kcal: 913 },
       history: [],
       totalEatenCount: 0,
     })
@@ -103,7 +137,9 @@ describeIfDb('createFoodDetailService', () => {
       source: 'web_search',
       sourceUrl: 'https://example.com/bread',
       aliases: [],
-      nutritionPer100g: {},
+      basisQuantity: 100,
+      basisUnit: 'g',
+      nutritionPerBasis: {},
       history: [
         {
           id: 'ml_newer',
