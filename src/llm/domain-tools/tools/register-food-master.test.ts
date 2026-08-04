@@ -331,6 +331,26 @@ describe('register_food_master tool', () => {
         is_estimated: false,
       },
     },
+    {
+      label: 'basis_quantity without basis_unit',
+      input: {
+        name: 'X',
+        nutrition_per_basis: { energy_kcal: 1 },
+        basis_quantity: 1,
+        source: 'user_input',
+        is_estimated: false,
+      },
+    },
+    {
+      label: 'basis_unit without basis_quantity',
+      input: {
+        name: 'X',
+        nutrition_per_basis: { energy_kcal: 1 },
+        basis_unit: '食',
+        source: 'user_input',
+        is_estimated: false,
+      },
+    },
   ])('rejects $label with invalid_input', async ({ input }) => {
     const { tool, calls } = setup()
 

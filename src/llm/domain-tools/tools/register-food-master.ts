@@ -65,16 +65,23 @@ const inputSchema = z
     message: 'aliases must not contain duplicates within the same input',
     path: ['aliases'],
   })
+  .refine(
+    (v) => (v.basis_quantity === undefined) === (v.basis_unit === undefined),
+    {
+      message: 'basis_quantity and basis_unit must be set together',
+      path: ['basis_unit'],
+    },
+  )
 
 export interface RegisterFoodMasterOutput {
   readonly food_master_id: string
   readonly name: string
   readonly source: 'web_search' | 'user_input'
   readonly source_url: string | null
-  // Field name kept as nutrition_per_100g (not nutrition_per_basis) because
-  // src/a2a/food-master-disclosure.ts parses this exact key from the tool's
-  // JSON result; it now holds the value at whatever basis_quantity/basis_unit
-  // resolved to below, not necessarily per 100g.
+  // Field named nutrition_per_100g for src/a2a/food-master-disclosure.ts,
+  // which parses this exact key from the tool's JSON result. The value is
+  // at whatever basis_quantity/basis_unit below resolved to, not necessarily
+  // per 100g.
   readonly nutrition_per_100g: Readonly<Record<string, number>>
   readonly basis_quantity: number
   readonly basis_unit: string
@@ -85,7 +92,7 @@ export const createRegisterFoodMasterTool = (
 ): DomainTool => ({
   name: 'register_food_master',
   description:
-    "Register a new food_master row, source=web_search or source=user_input only — never fabricate nutrition values or a serving-size gram amount from your own general knowledge. Pass nutrition_per_basis at whatever quantity your evidence actually states (per 100g, per serving, per meal, ...) together with matching basis_quantity/basis_unit; omit both to default to (100, 'g'). When evidence gives a per-serving or per-meal figure without stating that serving's weight (e.g. a restaurant menu's \"1食913kcal\"), register it at that basis directly — basis_quantity=1, basis_unit='食' or whatever serving noun the evidence itself uses — instead of searching for or estimating that serving's weight in grams to force a per-100g conversion; record_meal_log then records this food using that same basis unit. If the food is backed by a food_compositions row (search_food_master returned a candidate with a composition_code), use register_food_master_from_composition instead, which copies the composition's own per-100g nutrition verbatim. source=web_search requires is_estimated=false and source_url set to the page you found the values on. source=user_input is for values the user themselves stated in their message; is_estimated may be true or false, but source_url must not be set. If web_search fails or is rate-limited and the user hasn't stated values themselves, do not guess — call request_user_input instead. Pass units for every non-mass unit (個/杯/ml/...), other than basis_unit itself, this food might later be recorded with — record_meal_log rejects a unit it can't resolve to grams, so add every unit the user is likely to use (g/kg/mg need no entry). If a unit is missing later, use register_food_master_unit to add it instead of re-registering the food. Returns the registered name alongside food_master_id — pass that exact name as record_meal_log's food_name for this item.",
+    "Register a new food_master row, source=web_search or source=user_input only — never fabricate nutrition values or a serving-size gram amount from your own general knowledge. Pass nutrition_per_basis at whatever quantity your evidence actually states (per 100g, per serving, per meal, ...) together with matching basis_quantity/basis_unit — set both or neither; omitting both defaults to (100, 'g'). When evidence gives a per-serving or per-meal figure without stating that serving's weight (e.g. a restaurant menu's \"1食913kcal\"), register it at that basis directly — basis_quantity=1, basis_unit='食' or whatever serving noun the evidence itself uses — instead of searching for or estimating that serving's weight in grams to force a per-100g conversion; record_meal_log then records this food using that same basis unit. If the food is backed by a food_compositions row (search_food_master returned a candidate with a composition_code), use register_food_master_from_composition instead, which copies the composition's own per-100g nutrition verbatim. source=web_search requires is_estimated=false and source_url set to the page you found the values on. source=user_input is for values the user themselves stated in their message; is_estimated may be true or false, but source_url must not be set. If web_search fails or is rate-limited and the user hasn't stated values themselves, do not guess — call request_user_input instead. Pass units for every non-mass unit (個/杯/ml/...), other than basis_unit itself, this food might later be recorded with — record_meal_log rejects a unit it can't resolve to grams, so add every unit the user is likely to use (g/kg/mg need no entry). If a unit is missing later, use register_food_master_unit to add it instead of re-registering the food. Returns the registered name alongside food_master_id — pass that exact name as record_meal_log's food_name for this item.",
   inputSchema: z.toJSONSchema(inputSchema, { io: 'input' }),
   async execute(
     input: unknown,
