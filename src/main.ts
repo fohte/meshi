@@ -146,10 +146,6 @@ export const main = async (): Promise<void> => {
   // an arbitrary BaseChatModel and has no way to know which provider it's
   // actually talking to, whereas main.ts (the composition root) already
   // knows model is OpenCode Go-backed (see createMeshiChatModel above).
-  // MESHI_LLM_BASE_URL can redirect the request over the network, but as
-  // long as every endpoint it may point to (proxy included) only forwards
-  // to OpenCode Go, the provider identity below stays accurate; revisit
-  // this once a non-OpenCode-Go provider is reachable through it.
   const genAiTracingMiddleware = createGenAiTracingMiddleware({
     providerName: GEN_AI_PROVIDER_NAME_VALUE_OPENCODE,
     captureMessageContent:
