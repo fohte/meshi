@@ -1,8 +1,6 @@
 export interface Env {
   OPENCODE_API_KEY: string
   MESHI_LLM_MODEL: string
-  // OpenAI-compatible endpoint the domain agent talks to; unset falls back
-  // to OPENCODE_GO_BASE_URL (see src/adapters/llm/openCodeGo.ts).
   MESHI_LLM_BASE_URL: string | undefined
   DATABASE_URL: string
   WEB_SEARCH_API_KEY: string
