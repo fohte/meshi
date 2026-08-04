@@ -581,25 +581,25 @@ describeIfDb('meshi integration', () => {
       webSearch: {
         snippets: [
           {
-            title: 'とんかつ亭 みそかつ丼 並盛',
+            title: 'とんかつ亭 かつ丼 並盛',
             url: 'https://example.com/tonkatsutei-katsudon',
-            text: 'みそかつ丼 並盛 913kcal タンパク質28.5g 脂質34.2g 炭水化物124.8g',
+            text: 'かつ丼 並盛 913kcal タンパク質28.5g 脂質34.2g 炭水化物124.8g',
           },
         ],
       },
       toolCalls: [
         {
           name: 'search_food_master',
-          args: { query: 'みそかつ丼 並' },
+          args: { query: 'かつ丼 並' },
         },
         {
           name: 'web_search',
-          args: { query: 'とんかつ亭 みそかつ丼 並盛 栄養成分' },
+          args: { query: 'とんかつ亭 かつ丼 並盛 栄養成分' },
         },
         {
           name: 'register_food_master',
           args: {
-            name: 'みそかつ丼 並',
+            name: 'かつ丼 並',
             nutrition_per_basis: {
               energy_kcal: 913,
               protein_g: 28.5,
@@ -617,7 +617,7 @@ describeIfDb('meshi integration', () => {
           name: 'record_meal_log',
           args: {
             food_master_id: 'fm_test_0001',
-            food_name: 'みそかつ丼 並',
+            food_name: 'かつ丼 並',
             eaten_at_iso: '2026-06-12T12:00:00+09:00',
             quantity: 1,
             unit: '食',
@@ -626,7 +626,7 @@ describeIfDb('meshi integration', () => {
       ],
       final: {
         status: 'completed',
-        message: 'みそかつ丼を記録しました。',
+        message: 'かつ丼を記録しました。',
       },
     })
 
@@ -635,7 +635,7 @@ describeIfDb('meshi integration', () => {
         await harness.client.callTool({
           name: 'record_meal_from_text',
           arguments: {
-            text: 'とんかつ亭 みそかつ丼 並を1食食べました',
+            text: 'とんかつ亭 かつ丼 並を1食食べました',
           },
         }),
       )
