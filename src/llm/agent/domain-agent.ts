@@ -24,13 +24,14 @@ export interface CreateMeshiDomainAgentOptions {
 // with its own sequential tool calls, so LangGraph's tick budget (one tick
 // per agent-node LLM turn, one per tools-node execution — see
 // GRAPH_RECURSION_LIMIT in @langchain/langgraph) grows linearly with item
-// count. A worst-case item needs up to 4 tool calls in sequence
-// (search_food_master, web_search, register_food_master, record_meal_log),
-// i.e. 8 ticks; MAX_MEAL_ITEMS_PER_TURN covers a full day's meals with
-// headroom beyond LangGraph's default limit of 25. +2 covers the agent's
-// final plain-text turn plus an optional request_user_input tool call.
+// count. A worst-case item needs up to 5 tool calls in sequence
+// (search_food_master, web_search, a reformulated retry web_search,
+// register_food_master, record_meal_log), i.e. 10 ticks; MAX_MEAL_ITEMS_PER_TURN
+// covers a full day's meals with headroom beyond LangGraph's default limit
+// of 25. +2 covers the agent's final plain-text turn plus an optional
+// request_user_input tool call.
 const MAX_MEAL_ITEMS_PER_TURN = 25
-const MAX_TOOL_CALLS_PER_ITEM = 4
+const MAX_TOOL_CALLS_PER_ITEM = 5
 const TICKS_PER_TOOL_CALL = 2
 const FINAL_RESPONSE_TICKS = 2
 
