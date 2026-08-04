@@ -581,25 +581,25 @@ describeIfDb('meshi integration', () => {
       webSearch: {
         snippets: [
           {
-            title: '松のや 味噌ロースかつ丼 並盛',
-            url: 'https://example.com/matsunoya-katsudon',
-            text: '味噌ロースかつ丼 並盛 913kcal タンパク質28.5g 脂質34.2g 炭水化物124.8g',
+            title: 'とんかつ亭 みそかつ丼 並盛',
+            url: 'https://example.com/tonkatsutei-katsudon',
+            text: 'みそかつ丼 並盛 913kcal タンパク質28.5g 脂質34.2g 炭水化物124.8g',
           },
         ],
       },
       toolCalls: [
         {
           name: 'search_food_master',
-          args: { query: '味噌ロースかつ丼 並' },
+          args: { query: 'みそかつ丼 並' },
         },
         {
           name: 'web_search',
-          args: { query: '松のや 味噌ロースかつ丼 並盛 栄養成分' },
+          args: { query: 'とんかつ亭 みそかつ丼 並盛 栄養成分' },
         },
         {
           name: 'register_food_master',
           args: {
-            name: '味噌ロースかつ丼 並',
+            name: 'みそかつ丼 並',
             nutrition_per_basis: {
               energy_kcal: 913,
               protein_g: 28.5,
@@ -610,14 +610,14 @@ describeIfDb('meshi integration', () => {
             basis_unit: '食',
             source: 'web_search',
             is_estimated: false,
-            source_url: 'https://example.com/matsunoya-katsudon',
+            source_url: 'https://example.com/tonkatsutei-katsudon',
           },
         },
         {
           name: 'record_meal_log',
           args: {
             food_master_id: 'fm_test_0001',
-            food_name: '味噌ロースかつ丼 並',
+            food_name: 'みそかつ丼 並',
             eaten_at_iso: '2026-06-12T12:00:00+09:00',
             quantity: 1,
             unit: '食',
@@ -626,7 +626,7 @@ describeIfDb('meshi integration', () => {
       ],
       final: {
         status: 'completed',
-        message: '味噌ロースかつ丼を記録しました。',
+        message: 'みそかつ丼を記録しました。',
       },
     })
 
@@ -635,7 +635,7 @@ describeIfDb('meshi integration', () => {
         await harness.client.callTool({
           name: 'record_meal_from_text',
           arguments: {
-            text: '松のや 味噌ロースかつ丼 並を1食食べました',
+            text: 'とんかつ亭 みそかつ丼 並を1食食べました',
           },
         }),
       )
