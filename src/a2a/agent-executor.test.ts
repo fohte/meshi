@@ -13,6 +13,7 @@ import type {
 } from '#a2a/agent-executor'
 import { createMeshiAgentExecutor, runAgentTurn } from '#a2a/agent-executor'
 import type { Sql } from '#db/index'
+import { FALLBACK_QUESTION_TEXT } from '#llm/agent/derive-reply'
 import { MESHI_AGENT_RECURSION_LIMIT } from '#llm/agent/domain-agent'
 import { REQUEST_USER_INPUT_TOOL_NAME } from '#llm/agent/request-user-input-tool'
 import type { Logger } from '#logger'
@@ -154,7 +155,7 @@ const buildInvokeMessage = (
     name?: string
     content?: unknown
     text?: string
-    toolCalls?: ReadonlyArray<{ name: string }>
+    toolCalls?: ReadonlyArray<{ name: string; args?: unknown }>
   } = {},
 ): AgentInvokeMessage => ({
   getType: () => type,
@@ -258,6 +259,128 @@ describe('runAgentTurn', () => {
       },
       history: [...buildExistingTaskHistory(taskId, contextId), agentMessage],
     })
+  })
+
+  it('maps a request_user_input call with empty reply text to an input-required task using the tool call question', async () => {
+    const contextId = `ctx-${randomUUID()}`
+    const taskId = `task-${randomUUID()}`
+    const existingTask = buildExistingTask(taskId, contextId)
+    const userMessage = buildUserMessage(taskId, contextId, 'more info')
+    const agent: MeshiDomainAgentLike = {
+      invoke: vi.fn().mockResolvedValue({
+        messages: [
+          buildInvokeMessage('human'),
+          buildInvokeMessage('ai', {
+            text: '',
+            toolCalls: [
+              {
+                name: REQUEST_USER_INPUT_TOOL_NAME,
+                args: { question: 'Which food did you mean?' },
+              },
+            ],
+          }),
+        ],
+      }),
+    }
+
+    const task = await runAgentTurn(
+      agent,
+      new RequestContext(userMessage, taskId, contextId, existingTask),
+    )
+
+    const agentMessage = buildExpectedAgentMessage(
+      taskId,
+      contextId,
+      'Which food did you mean?',
+    )
+    expect(normalizeEvent(task)).toEqual({
+      kind: 'task',
+      id: taskId,
+      contextId,
+      status: {
+        state: 'input-required',
+        timestamp: NORMALIZED,
+        message: agentMessage,
+      },
+      history: [...buildExistingTaskHistory(taskId, contextId), agentMessage],
+    })
+  })
+
+  it('maps a request_user_input call with no usable text or question argument to an input-required task using the fallback question', async () => {
+    const contextId = `ctx-${randomUUID()}`
+    const taskId = `task-${randomUUID()}`
+    const userMessage = buildUserMessage(taskId, contextId)
+    const agent: MeshiDomainAgentLike = {
+      invoke: vi.fn().mockResolvedValue({
+        messages: [
+          buildInvokeMessage('human'),
+          buildInvokeMessage('ai', {
+            text: '',
+            toolCalls: [{ name: REQUEST_USER_INPUT_TOOL_NAME }],
+          }),
+        ],
+      }),
+    }
+
+    const task = await runAgentTurn(
+      agent,
+      new RequestContext(userMessage, taskId, contextId),
+    )
+
+    const agentMessage = buildExpectedAgentMessage(
+      taskId,
+      contextId,
+      FALLBACK_QUESTION_TEXT,
+    )
+    expect(normalizeEvent(task)).toEqual({
+      kind: 'task',
+      id: taskId,
+      contextId,
+      status: {
+        state: 'input-required',
+        timestamp: NORMALIZED,
+        message: agentMessage,
+      },
+      history: [userMessage, agentMessage],
+    })
+  })
+
+  it('logs an event when request_user_input is called with no usable reply text', async () => {
+    const contextId = `ctx-${randomUUID()}`
+    const taskId = `task-${randomUUID()}`
+    const userMessage = buildUserMessage(taskId, contextId)
+    const agent: MeshiDomainAgentLike = {
+      invoke: vi.fn().mockResolvedValue({
+        messages: [
+          buildInvokeMessage('human'),
+          buildInvokeMessage('ai', {
+            text: '',
+            toolCalls: [{ name: REQUEST_USER_INPUT_TOOL_NAME }],
+          }),
+        ],
+      }),
+    }
+    const logs: Array<{
+      event: string
+      payload: Readonly<Record<string, unknown>> | undefined
+    }> = []
+    const logger: Logger = {
+      log: (event, payload) => logs.push({ event, payload }),
+    }
+
+    await runAgentTurn(
+      agent,
+      new RequestContext(userMessage, taskId, contextId),
+      undefined,
+      logger,
+    )
+
+    expect(logs).toEqual([
+      {
+        event: 'meshi.agent_question_text_missing',
+        payload: { taskId, contextId },
+      },
+    ])
   })
 
   it('falls back to a failed task when the agent produces no usable AI message text', async () => {

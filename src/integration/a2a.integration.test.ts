@@ -341,7 +341,9 @@ describeIfDb('A2A integration', () => {
           tool_calls: [
             {
               name: REQUEST_USER_INPUT_TOOL_NAME,
-              args: {},
+              args: {
+                question: '白米は記録しました。salmon はどのメニューですか?',
+              },
               id: 'call_3',
               type: 'tool_call',
             },
@@ -435,7 +437,7 @@ describeIfDb('A2A integration', () => {
           tool_calls: [
             {
               name: REQUEST_USER_INPUT_TOOL_NAME,
-              args: {},
+              args: { question: 'どのメニューですか?' },
               id: 'call_2',
               type: 'tool_call',
             },

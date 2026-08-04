@@ -1,7 +1,11 @@
 import { describe, expect, it, vi } from 'vitest'
 
 import type { AgentInvokeMessage } from '#llm/agent/derive-reply'
-import { deriveAgentReply, findTurnMessages } from '#llm/agent/derive-reply'
+import {
+  deriveAgentReply,
+  FALLBACK_QUESTION_TEXT,
+  findTurnMessages,
+} from '#llm/agent/derive-reply'
 import { REQUEST_USER_INPUT_TOOL_NAME } from '#llm/agent/request-user-input-tool'
 
 const buildMessage = (
@@ -10,7 +14,7 @@ const buildMessage = (
     name?: string
     content?: unknown
     text?: string
-    toolCalls?: ReadonlyArray<{ name: string }>
+    toolCalls?: ReadonlyArray<{ name: string; args?: unknown }>
   } = {},
 ): AgentInvokeMessage => ({
   getType: () => type,
@@ -47,54 +51,74 @@ describe('findTurnMessages', () => {
 describe('deriveAgentReply', () => {
   it('returns null when there are no messages', () => {
     const onLeak = vi.fn()
-    expect(deriveAgentReply(undefined, onLeak)).toBeNull()
+    const onQuestionMissing = vi.fn()
+    expect(deriveAgentReply(undefined, onLeak, onQuestionMissing)).toBeNull()
     expect(onLeak).not.toHaveBeenCalled()
+    expect(onQuestionMissing).not.toHaveBeenCalled()
   })
 
   it('returns null when the turn has no AI message', () => {
     const onLeak = vi.fn()
-    expect(deriveAgentReply([buildMessage('human')], onLeak)).toBeNull()
+    const onQuestionMissing = vi.fn()
+    expect(
+      deriveAgentReply([buildMessage('human')], onLeak, onQuestionMissing),
+    ).toBeNull()
   })
 
-  it('returns null when the last AI message has no usable text', () => {
+  it('returns null when the last AI message has no usable text and did not call request_user_input', () => {
     const onLeak = vi.fn()
+    const onQuestionMissing = vi.fn()
     const result = deriveAgentReply(
       [buildMessage('human'), buildMessage('ai', { text: '   ' })],
       onLeak,
+      onQuestionMissing,
     )
     expect(result).toBeNull()
+    expect(onQuestionMissing).not.toHaveBeenCalled()
   })
 
   it('returns a completed reply for a plain AI message with no tool calls', () => {
     const onLeak = vi.fn()
+    const onQuestionMissing = vi.fn()
     const result = deriveAgentReply(
       [buildMessage('human'), buildMessage('ai', { text: 'all done' })],
       onLeak,
+      onQuestionMissing,
     )
     expect(result).toEqual({ status: 'completed', text: 'all done' })
     expect(onLeak).not.toHaveBeenCalled()
+    expect(onQuestionMissing).not.toHaveBeenCalled()
   })
 
   it('returns an input_required reply when the last AI message calls request_user_input', () => {
     const onLeak = vi.fn()
+    const onQuestionMissing = vi.fn()
     const result = deriveAgentReply(
       [
         buildMessage('human'),
         buildMessage('ai', {
           text: 'Which food did you mean?',
-          toolCalls: [{ name: REQUEST_USER_INPUT_TOOL_NAME }],
+          toolCalls: [
+            {
+              name: REQUEST_USER_INPUT_TOOL_NAME,
+              args: { question: 'Which food did you mean?' },
+            },
+          ],
         }),
       ],
       onLeak,
+      onQuestionMissing,
     )
     expect(result).toEqual({
       status: 'input_required',
       text: 'Which food did you mean?',
     })
+    expect(onQuestionMissing).not.toHaveBeenCalled()
   })
 
   it('does not treat a call to an unrelated tool as input_required', () => {
     const onLeak = vi.fn()
+    const onQuestionMissing = vi.fn()
     const result = deriveAgentReply(
       [
         buildMessage('human'),
@@ -104,12 +128,15 @@ describe('deriveAgentReply', () => {
         }),
       ],
       onLeak,
+      onQuestionMissing,
     )
     expect(result).toEqual({ status: 'completed', text: 'Recorded your meal.' })
+    expect(onQuestionMissing).not.toHaveBeenCalled()
   })
 
   it('scopes to the last human turn, ignoring an earlier AI reply', () => {
     const onLeak = vi.fn()
+    const onQuestionMissing = vi.fn()
     const result = deriveAgentReply(
       [
         buildMessage('human'),
@@ -118,12 +145,14 @@ describe('deriveAgentReply', () => {
         buildMessage('ai', { text: 'latest reply' }),
       ],
       onLeak,
+      onQuestionMissing,
     )
     expect(result).toEqual({ status: 'completed', text: 'latest reply' })
   })
 
   it('strips a leaked think block and reports it via the callback', () => {
     const onLeak = vi.fn()
+    const onQuestionMissing = vi.fn()
     const result = deriveAgentReply(
       [
         buildMessage('human'),
@@ -132,8 +161,77 @@ describe('deriveAgentReply', () => {
         }),
       ],
       onLeak,
+      onQuestionMissing,
     )
     expect(result).toEqual({ status: 'completed', text: 'the answer' })
     expect(onLeak).toHaveBeenCalledOnce()
+  })
+
+  it('falls back to the request_user_input tool call args when the reply text is empty', () => {
+    const onLeak = vi.fn()
+    const onQuestionMissing = vi.fn()
+    const result = deriveAgentReply(
+      [
+        buildMessage('human'),
+        buildMessage('ai', {
+          text: '',
+          toolCalls: [
+            {
+              name: REQUEST_USER_INPUT_TOOL_NAME,
+              args: { question: 'Which food did you mean?' },
+            },
+          ],
+        }),
+      ],
+      onLeak,
+      onQuestionMissing,
+    )
+    expect(result).toEqual({
+      status: 'input_required',
+      text: 'Which food did you mean?',
+    })
+    expect(onQuestionMissing).toHaveBeenCalledOnce()
+  })
+
+  it('falls back to a hardcoded question when the reply text and the question argument are both empty', () => {
+    const onLeak = vi.fn()
+    const onQuestionMissing = vi.fn()
+    const result = deriveAgentReply(
+      [
+        buildMessage('human'),
+        buildMessage('ai', {
+          text: '',
+          toolCalls: [{ name: REQUEST_USER_INPUT_TOOL_NAME, args: {} }],
+        }),
+      ],
+      onLeak,
+      onQuestionMissing,
+    )
+    expect(result).toEqual({
+      status: 'input_required',
+      text: FALLBACK_QUESTION_TEXT,
+    })
+    expect(onQuestionMissing).toHaveBeenCalledOnce()
+  })
+
+  it('falls back to a hardcoded question when request_user_input was called with no args at all', () => {
+    const onLeak = vi.fn()
+    const onQuestionMissing = vi.fn()
+    const result = deriveAgentReply(
+      [
+        buildMessage('human'),
+        buildMessage('ai', {
+          text: '',
+          toolCalls: [{ name: REQUEST_USER_INPUT_TOOL_NAME }],
+        }),
+      ],
+      onLeak,
+      onQuestionMissing,
+    )
+    expect(result).toEqual({
+      status: 'input_required',
+      text: FALLBACK_QUESTION_TEXT,
+    })
+    expect(onQuestionMissing).toHaveBeenCalledOnce()
   })
 })

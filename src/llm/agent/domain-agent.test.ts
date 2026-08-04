@@ -78,7 +78,7 @@ describe('createMeshiDomainAgent', () => {
         tool_calls: [
           {
             name: REQUEST_USER_INPUT_TOOL_NAME,
-            args: {},
+            args: { question: 'Which food did you mean?' },
             id: 'call_1',
             type: 'tool_call',
           },

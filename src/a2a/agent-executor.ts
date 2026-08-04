@@ -25,6 +25,7 @@ import type { AgentContentBlock } from '#llm/agent/content-block'
 import { formatPromptMeta, toHumanMessage } from '#llm/agent/content-block'
 import {
   AGENT_NO_USABLE_REPLY_EVENT,
+  AGENT_QUESTION_TEXT_MISSING_EVENT,
   AGENT_THINK_BLOCK_LEAKED_EVENT,
   type AgentInvokeMessage,
   type AgentReplyStatus,
@@ -298,12 +299,21 @@ export const runAgentTurn = async (
           : {}),
       },
     )
-    const reply = deriveAgentReply(result.messages, () => {
-      logger.log(AGENT_THINK_BLOCK_LEAKED_EVENT, {
-        taskId: requestContext.taskId,
-        contextId: requestContext.contextId,
-      })
-    })
+    const reply = deriveAgentReply(
+      result.messages,
+      () => {
+        logger.log(AGENT_THINK_BLOCK_LEAKED_EVENT, {
+          taskId: requestContext.taskId,
+          contextId: requestContext.contextId,
+        })
+      },
+      () => {
+        logger.log(AGENT_QUESTION_TEXT_MISSING_EVENT, {
+          taskId: requestContext.taskId,
+          contextId: requestContext.contextId,
+        })
+      },
+    )
     if (reply === null) {
       logger.log(AGENT_NO_USABLE_REPLY_EVENT, {
         taskId: requestContext.taskId,

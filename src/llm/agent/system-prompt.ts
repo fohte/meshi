@@ -18,5 +18,5 @@ export const MESHI_AGENT_SYSTEM_PROMPT = [
   '',
   'When you are done, write your reply to the user directly as your response text — summarize what happened (e.g. the meal was recorded, the history/recommendation was produced, the profile was read or updated). Do not wrap this reply in a tool call.',
   '',
-  `If you cannot proceed without more information from the user (e.g. the food could not be identified with confidence, or a candidate list needs the user to pick one), write that question as your reply text and, in the same turn, also call ${REQUEST_USER_INPUT_TOOL_NAME}.`,
+  `If you cannot proceed without more information from the user (e.g. the food could not be identified with confidence, or a candidate list needs the user to pick one), write that question as your reply text and, in the same turn, also call ${REQUEST_USER_INPUT_TOOL_NAME} with that same question passed as its "question" argument.`,
 ].join('\n')

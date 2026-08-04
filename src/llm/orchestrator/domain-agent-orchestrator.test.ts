@@ -3,6 +3,8 @@ import { AIMessage } from '@langchain/core/messages'
 import { fakeModel } from 'langchain'
 import { describe, expect, it, vi } from 'vitest'
 
+import { FALLBACK_QUESTION_TEXT } from '#llm/agent/derive-reply'
+import { REQUEST_USER_INPUT_TOOL_NAME } from '#llm/agent/request-user-input-tool'
 import type { DomainToolsRegistry } from '#llm/domain-tools/registry'
 import type { DomainTool, DomainToolName } from '#llm/domain-tools/types'
 import { err, ok } from '#llm/domain-tools/types'
@@ -312,6 +314,102 @@ describe('createDomainAgentOrchestrator', () => {
         expect.any(Error),
         'llm.orchestrator.no-usable-reply',
       )
+    })
+
+    it('falls back to the request_user_input question argument when the reply text is empty', async () => {
+      const registry = stubRegistry([])
+      const orchestrator = createDomainAgentOrchestrator({
+        model: fakeModel().respond(
+          new AIMessage({
+            content: '',
+            tool_calls: [
+              {
+                name: REQUEST_USER_INPUT_TOOL_NAME,
+                args: {
+                  question: 'どの salmon メニューか特定できませんでした。',
+                },
+                id: 'call_1',
+                type: 'tool_call',
+              },
+            ],
+          }),
+        ),
+        registry,
+      })
+
+      const result = await orchestrator.recordFromText({ text: 'salmon' })
+
+      expect(result).toEqual({
+        recorded: [],
+        candidates: [],
+        hasEstimatedValues: false,
+        summaryText: 'どの salmon メニューか特定できませんでした。',
+        error: null,
+      })
+    })
+
+    it('falls back to a hardcoded question when request_user_input has neither reply text nor a question argument', async () => {
+      const registry = stubRegistry([])
+      const orchestrator = createDomainAgentOrchestrator({
+        model: fakeModel().respond(
+          new AIMessage({
+            content: '',
+            tool_calls: [
+              {
+                name: REQUEST_USER_INPUT_TOOL_NAME,
+                args: {},
+                id: 'call_1',
+                type: 'tool_call',
+              },
+            ],
+          }),
+        ),
+        registry,
+      })
+
+      const result = await orchestrator.recordFromText({ text: 'salmon' })
+
+      expect(result).toEqual({
+        recorded: [],
+        candidates: [],
+        hasEstimatedValues: false,
+        summaryText: FALLBACK_QUESTION_TEXT,
+        error: null,
+      })
+    })
+
+    it('logs an event when request_user_input is called with no usable reply text', async () => {
+      const registry = stubRegistry([])
+      const logs: Array<{
+        event: string
+        payload: Readonly<Record<string, unknown>> | undefined
+      }> = []
+      const logger: Logger = {
+        log: (event, payload) => logs.push({ event, payload }),
+      }
+      const orchestrator = createDomainAgentOrchestrator({
+        model: fakeModel().respond(
+          new AIMessage({
+            content: '',
+            tool_calls: [
+              {
+                name: REQUEST_USER_INPUT_TOOL_NAME,
+                args: {},
+                id: 'call_1',
+                type: 'tool_call',
+              },
+            ],
+          }),
+        ),
+        registry,
+        logger,
+      })
+
+      await orchestrator.recordFromText({ text: 'salmon' })
+
+      expect(logs).toEqual([
+        { event: 'meshi.agent_question_text_missing', payload: {} },
+      ])
     })
 
     it('strips a leaked think block from the reply summary text', async () => {
