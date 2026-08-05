@@ -565,7 +565,7 @@ describe('createDomainAgentOrchestrator', () => {
                 {
                   meal_log_id: 'ml_1',
                   food_master_id: 'fm_rice',
-                  eaten_at_iso: '2026-06-12T03:30:00.000Z',
+                  eaten_date: '2026-06-12',
                   meal_type: 'lunch',
                   quantity: 200,
                   unit: 'g',
@@ -604,7 +604,7 @@ describe('createDomainAgentOrchestrator', () => {
             {
               mealLogId: 'ml_1',
               foodMasterId: 'fm_rice',
-              eatenAtIso: '2026-06-12T03:30:00.000Z',
+              eatenDate: '2026-06-12',
               mealType: 'lunch',
               quantity: 200,
               unit: 'g',

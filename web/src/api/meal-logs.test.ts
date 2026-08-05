@@ -20,7 +20,7 @@ afterEach(() => {
 const SAMPLE_JSON = {
   id: 'ml_1',
   foodMasterId: 'fm_rice',
-  eatenAt: '2026-07-29T03:00:00.000Z',
+  eatenDate: '2026-07-29',
   mealType: 'breakfast',
   quantity: 150,
   unit: 'g',
@@ -36,7 +36,8 @@ describe('postMealLog', () => {
 
     const result = await postMealLog({
       foodMasterId: 'fm_rice',
-      eatenAt: '2026-07-29T03:00:00.000Z',
+      eatenDate: '2026-07-29',
+      mealType: 'breakfast',
       quantity: 150,
       unit: 'g',
     })
@@ -46,7 +47,8 @@ describe('postMealLog', () => {
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({
         foodMasterId: 'fm_rice',
-        eatenAt: '2026-07-29T03:00:00.000Z',
+        eatenDate: '2026-07-29',
+        mealType: 'breakfast',
         quantity: 150,
         unit: 'g',
       }),

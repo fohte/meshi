@@ -5,7 +5,7 @@ import {
   DomainError,
   FoodMasterNotFoundError,
   FoodNameMismatchError,
-  FutureEatenAtError,
+  FutureEatenDateError,
 } from '#domain/meal-log/errors'
 import type { MealLogService } from '#domain/meal-log/meal-log-service'
 import type { MealLogResult, RecordMealLogInput } from '#domain/meal-log/types'
@@ -26,8 +26,8 @@ const setup = (
       const result: MealLogResult = {
         id: 'ml_1',
         foodMasterId: input.foodMasterId,
-        eatenAt: input.eatenAt,
-        mealType: input.mealType ?? 'lunch',
+        eatenDate: input.eatenDate,
+        mealType: input.mealType,
         quantity: input.quantity,
         unit: input.unit,
         amountGrams: input.quantity,
@@ -64,7 +64,8 @@ describe('record_meal_log tool', () => {
     const result = await tool.execute({
       food_master_id: 'fm_rice',
       food_name: '白米',
-      eaten_at_iso: '2026-06-18T09:00:00+09:00',
+      date: '2026-06-18',
+      meal_type: 'breakfast',
       quantity: 1,
       unit: '杯',
     })
@@ -82,32 +83,7 @@ describe('record_meal_log tool', () => {
         {
           foodMasterId: 'fm_rice',
           foodName: '白米',
-          eatenAt: new Date('2026-06-18T09:00:00+09:00'),
-          quantity: 1,
-          unit: '杯',
-        },
-      ],
-    })
-  })
-
-  it('passes meal_type through when provided', async () => {
-    const { tool, calls } = setup()
-
-    await tool.execute({
-      food_master_id: 'fm_rice',
-      food_name: '白米',
-      eaten_at_iso: '2026-06-18T09:00:00+09:00',
-      meal_type: 'breakfast',
-      quantity: 1,
-      unit: '杯',
-    })
-
-    expect(calls).toEqual({
-      record: [
-        {
-          foodMasterId: 'fm_rice',
-          foodName: '白米',
-          eatenAt: new Date('2026-06-18T09:00:00+09:00'),
+          eatenDate: '2026-06-18',
           mealType: 'breakfast',
           quantity: 1,
           unit: '杯',
@@ -122,8 +98,30 @@ describe('record_meal_log tool', () => {
     const result = await tool.execute({
       food_master_id: 'fm_rice',
       food_name: '白米',
-      eaten_at_iso: '2026-06-18T09:00:00+09:00',
+      date: '2026-06-18',
       meal_type: 'brunch',
+      quantity: 1,
+      unit: '杯',
+    })
+
+    expect(normalizeResult(result)).toEqual({
+      ok: false,
+      error: {
+        code: 'invalid_input',
+        message: '<dynamic>',
+        details: { issues: { count: 1 } },
+      },
+    })
+    expect(calls).toEqual({ record: [] })
+  })
+
+  it('returns invalid_input when meal_type is missing', async () => {
+    const { tool, calls } = setup()
+
+    const result = await tool.execute({
+      food_master_id: 'fm_rice',
+      food_name: '白米',
+      date: '2026-06-18',
       quantity: 1,
       unit: '杯',
     })
@@ -144,7 +142,8 @@ describe('record_meal_log tool', () => {
 
     const result = await tool.execute({
       food_name: '白米',
-      eaten_at_iso: '2026-06-18T09:00:00+09:00',
+      date: '2026-06-18',
+      meal_type: 'breakfast',
       quantity: 1,
       unit: '杯',
     })
@@ -165,7 +164,8 @@ describe('record_meal_log tool', () => {
 
     const result = await tool.execute({
       food_master_id: 'fm_rice',
-      eaten_at_iso: '2026-06-18T09:00:00+09:00',
+      date: '2026-06-18',
+      meal_type: 'breakfast',
       quantity: 1,
       unit: '杯',
     })
@@ -187,7 +187,8 @@ describe('record_meal_log tool', () => {
     const result = await tool.execute({
       food_master_id: 'fm_rice',
       food_name: '   ',
-      eaten_at_iso: '2026-06-18T09:00:00+09:00',
+      date: '2026-06-18',
+      meal_type: 'breakfast',
       quantity: 1,
       unit: '杯',
     })
@@ -208,7 +209,8 @@ describe('record_meal_log tool', () => {
     const result = await tool.execute({
       food_master_id: 'fm_rice',
       food_name: '白米',
-      eaten_at_iso: '2026-06-18T09:00:00+09:00',
+      date: '2026-06-18',
+      meal_type: 'breakfast',
       quantity: 0,
       unit: '杯',
     })
@@ -223,16 +225,16 @@ describe('record_meal_log tool', () => {
     expect(calls).toEqual({ record: [] })
   })
 
-  it('maps FutureEatenAtError to its DomainError code', async () => {
-    const eatenAt = new Date('2099-01-01T00:00:00.000Z')
+  it('maps FutureEatenDateError to its DomainError code', async () => {
     const { tool, calls } = setup({
-      record: () => errAsync(new FutureEatenAtError(eatenAt)),
+      record: () => errAsync(new FutureEatenDateError('2099-01-01')),
     })
 
     const result = await tool.execute({
       food_master_id: 'fm_rice',
       food_name: '白米',
-      eaten_at_iso: '2099-01-01T00:00:00+00:00',
+      date: '2099-01-01',
+      meal_type: 'breakfast',
       quantity: 1,
       unit: '杯',
     })
@@ -240,7 +242,7 @@ describe('record_meal_log tool', () => {
     expect(normalizeResult(result)).toEqual({
       ok: false,
       error: {
-        code: 'meal_log/future_eaten_at',
+        code: 'meal_log/future_eaten_date',
         message: '<dynamic>',
       },
     })
@@ -255,7 +257,8 @@ describe('record_meal_log tool', () => {
     const result = await tool.execute({
       food_master_id: 'fm_missing',
       food_name: '白米',
-      eaten_at_iso: '2026-06-18T09:00:00+09:00',
+      date: '2026-06-18',
+      meal_type: 'breakfast',
       quantity: 1,
       unit: 'g',
     })
@@ -278,7 +281,8 @@ describe('record_meal_log tool', () => {
     const result = await tool.execute({
       food_master_id: 'fm_rice',
       food_name: '唐揚げ',
-      eaten_at_iso: '2026-06-18T09:00:00+09:00',
+      date: '2026-06-18',
+      meal_type: 'breakfast',
       quantity: 1,
       unit: 'g',
     })

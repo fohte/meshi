@@ -4,7 +4,7 @@ import { describe, expect, it } from 'vitest'
 import {
   DomainError,
   FoodMasterNotFoundError,
-  FutureEatenAtError,
+  FutureEatenDateError,
   MealLogNotFoundError,
 } from '#domain/meal-log/errors'
 import type { MealLogService } from '#domain/meal-log/meal-log-service'
@@ -33,7 +33,7 @@ const setup = (
       const result: MealLogResult = {
         id: input.id,
         foodMasterId: input.foodMasterId ?? 'fm_rice',
-        eatenAt: input.eatenAt ?? new Date('2026-06-18T00:00:00.000Z'),
+        eatenDate: input.eatenDate ?? '2026-06-18',
         mealType: input.mealType ?? 'lunch',
         quantity: input.quantity ?? 100,
         unit: input.unit ?? 'g',
@@ -64,7 +64,7 @@ describe('update_meal_log tool', () => {
     const result = await tool.execute({
       meal_log_id: 'ml_1',
       food_master_id: 'fm_karaage',
-      eaten_at_iso: '2026-06-18T09:00:00+09:00',
+      date: '2026-06-18',
       meal_type: 'breakfast',
       quantity: 200,
       unit: 'g',
@@ -83,7 +83,7 @@ describe('update_meal_log tool', () => {
         {
           id: 'ml_1',
           foodMasterId: 'fm_karaage',
-          eatenAt: new Date('2026-06-18T09:00:00+09:00'),
+          eatenDate: '2026-06-18',
           mealType: 'breakfast',
           quantity: 200,
           unit: 'g',
@@ -189,21 +189,20 @@ describe('update_meal_log tool', () => {
     expect(calls).toEqual({ update: [] })
   })
 
-  it('maps FutureEatenAtError to its DomainError code', async () => {
-    const eatenAt = new Date('2099-01-01T00:00:00.000Z')
+  it('maps FutureEatenDateError to its DomainError code', async () => {
     const { tool, calls } = setup({
-      update: () => errAsync(new FutureEatenAtError(eatenAt)),
+      update: () => errAsync(new FutureEatenDateError('2099-01-01')),
     })
 
     const result = await tool.execute({
       meal_log_id: 'ml_1',
-      eaten_at_iso: '2099-01-01T00:00:00+00:00',
+      date: '2099-01-01',
     })
 
     expect(normalizeResult(result)).toEqual({
       ok: false,
       error: {
-        code: 'meal_log/future_eaten_at',
+        code: 'meal_log/future_eaten_date',
         message: '<dynamic>',
       },
     })

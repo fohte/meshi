@@ -29,10 +29,12 @@ const formatBasisLabel = (quantity: number, unit: string): string =>
 const isHttpUrl = (url: string): boolean =>
   url.startsWith('http://') || url.startsWith('https://')
 
-// The user is a single person based in Japan, so the browser's local clock
-// is always JST; no explicit timezone conversion is needed here.
-const formatDate = (date: Date): string =>
-  `${String(date.getMonth() + 1).padStart(2, '0')}/${String(date.getDate()).padStart(2, '0')}`
+// eatenDate is already a JST calendar date (YYYY-MM-DD), so this just slices
+// out the month/day rather than going through Date.
+const formatDate = (eatenDate: string): string => {
+  const [, month, day] = eatenDate.split('-')
+  return `${month ?? ''}/${day ?? ''}`
+}
 
 const useFoodDetail = (id: string | undefined) =>
   useQuery<FoodDetail>({
@@ -184,7 +186,7 @@ const FoodDetailContent = ({
               return (
                 <div key={entry.id} className={styles.historyRow}>
                   <span className={styles.historyDate}>
-                    {formatDate(entry.eatenAt)}
+                    {formatDate(entry.eatenDate)}
                   </span>
                   <span className={styles.historyMeal}>
                     {MEAL_TYPE_LABELS[entry.mealType]}

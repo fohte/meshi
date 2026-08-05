@@ -190,9 +190,6 @@ export const MealLogSheetProvider = ({
         setDate={(date) => {
           patchSheet({ date })
         }}
-        setTime={(time) => {
-          patchSheet({ time, mealType: null })
-        }}
         save={() => {
           saveMutation.mutate({
             continueCreating: false,

@@ -5,7 +5,7 @@ import {
   DomainError,
   FoodMasterNotFoundError,
   FoodNameMismatchError,
-  FutureEatenAtError,
+  FutureEatenDateError,
   ImplausibleQuantityError,
   InvalidQuantityError,
   MealLogNotFoundError,
@@ -22,7 +22,9 @@ import type { FoodMasterRef, MealLogRow } from '#domain/meal-log/types'
 
 const NOW = new Date('2026-06-16T12:00:00.000Z')
 const CREATED_AT = new Date('2026-06-16T12:00:00.500Z')
-const EATEN_AT = new Date('2026-06-16T09:00:00.000Z')
+// JST calendar date of NOW — deps.now() returns NOW, so this doubles as
+// "today" for the future-date boundary tests below.
+const EATEN_DATE = '2026-06-16'
 
 interface FakeRepoOptions {
   readonly foodMasters: ReadonlyArray<FoodMasterRef>
@@ -55,7 +57,7 @@ const createFakeRepository = (
       const row: MealLogRow = {
         id: input.id,
         foodMasterId: input.foodMasterId,
-        eatenAt: input.eatenAt,
+        eatenDate: input.eatenDate,
         mealType: input.mealType,
         quantity: input.quantity,
         unit: input.unit,
@@ -77,7 +79,9 @@ const createFakeRepository = (
         ...(input.foodMasterId === undefined
           ? {}
           : { foodMasterId: input.foodMasterId }),
-        ...(input.eatenAt === undefined ? {} : { eatenAt: input.eatenAt }),
+        ...(input.eatenDate === undefined
+          ? {}
+          : { eatenDate: input.eatenDate }),
         ...(input.mealType === undefined ? {} : { mealType: input.mealType }),
         ...(input.quantity === undefined ? {} : { quantity: input.quantity }),
         ...(input.unit === undefined ? {} : { unit: input.unit }),
@@ -148,7 +152,7 @@ const EXISTING_RICE_LOG: FoundMealLog = {
   log: {
     id: 'ml_1',
     foodMasterId: 'fm_rice',
-    eatenAt: EATEN_AT,
+    eatenDate: EATEN_DATE,
     mealType: 'dinner',
     quantity: 100,
     unit: 'g',
@@ -183,7 +187,8 @@ describe('MealLogService.record', () => {
     const result = (
       await service.record({
         foodMasterId: 'fm_rice',
-        eatenAt: EATEN_AT,
+        eatenDate: EATEN_DATE,
+        mealType: 'dinner',
         quantity: 100,
         unit: 'g',
       })
@@ -192,7 +197,7 @@ describe('MealLogService.record', () => {
     expect(result).toEqual({
       id: 'ml_1',
       foodMasterId: 'fm_rice',
-      eatenAt: EATEN_AT,
+      eatenDate: EATEN_DATE,
       mealType: 'dinner',
       quantity: 100,
       unit: 'g',
@@ -210,7 +215,7 @@ describe('MealLogService.record', () => {
       {
         id: 'ml_1',
         foodMasterId: 'fm_rice',
-        eatenAt: EATEN_AT,
+        eatenDate: EATEN_DATE,
         mealType: 'dinner',
         quantity: 100,
         unit: 'g',
@@ -225,7 +230,8 @@ describe('MealLogService.record', () => {
     const result = (
       await service.record({
         foodMasterId: 'fm_rice',
-        eatenAt: EATEN_AT,
+        eatenDate: EATEN_DATE,
+        mealType: 'dinner',
         quantity: 200,
         unit: 'g',
       })
@@ -234,7 +240,7 @@ describe('MealLogService.record', () => {
     expect(result).toEqual({
       id: 'ml_1',
       foodMasterId: 'fm_rice',
-      eatenAt: EATEN_AT,
+      eatenDate: EATEN_DATE,
       mealType: 'dinner',
       quantity: 200,
       unit: 'g',
@@ -258,7 +264,8 @@ describe('MealLogService.record', () => {
       const result = (
         await service.record({
           foodMasterId: 'fm_rice',
-          eatenAt: EATEN_AT,
+          eatenDate: EATEN_DATE,
+          mealType: 'dinner',
           quantity: 100,
           unit,
         })
@@ -279,7 +286,8 @@ describe('MealLogService.record', () => {
     const result = (
       await service.record({
         foodMasterId: 'fm_latte',
-        eatenAt: EATEN_AT,
+        eatenDate: EATEN_DATE,
+        mealType: 'dinner',
         quantity: 0.5,
         unit: '杯',
       })
@@ -288,7 +296,7 @@ describe('MealLogService.record', () => {
     expect(result).toEqual({
       id: 'ml_1',
       foodMasterId: 'fm_latte',
-      eatenAt: EATEN_AT,
+      eatenDate: EATEN_DATE,
       mealType: 'dinner',
       quantity: 0.5,
       unit: '杯',
@@ -310,7 +318,8 @@ describe('MealLogService.record', () => {
     const confirmed = (
       await service.record({
         foodMasterId: 'fm_rice',
-        eatenAt: EATEN_AT,
+        eatenDate: EATEN_DATE,
+        mealType: 'dinner',
         quantity: 100,
         unit: 'g',
       })
@@ -318,7 +327,8 @@ describe('MealLogService.record', () => {
     const estimated = (
       await service.record({
         foodMasterId: 'fm_karaage',
-        eatenAt: EATEN_AT,
+        eatenDate: EATEN_DATE,
+        mealType: 'dinner',
         quantity: 100,
         unit: 'g',
       })
@@ -327,7 +337,7 @@ describe('MealLogService.record', () => {
     expect(confirmed).toEqual({
       id: 'ml_1',
       foodMasterId: 'fm_rice',
-      eatenAt: EATEN_AT,
+      eatenDate: EATEN_DATE,
       mealType: 'dinner',
       quantity: 100,
       unit: 'g',
@@ -344,7 +354,7 @@ describe('MealLogService.record', () => {
     expect(estimated).toEqual({
       id: 'ml_2',
       foodMasterId: 'fm_karaage',
-      eatenAt: EATEN_AT,
+      eatenDate: EATEN_DATE,
       mealType: 'dinner',
       quantity: 100,
       unit: 'g',
@@ -360,33 +370,36 @@ describe('MealLogService.record', () => {
     })
   })
 
-  it('rejects an eaten_at strictly in the future with FutureEatenAtError', async () => {
+  it('rejects an eatenDate strictly in the future with FutureEatenDateError', async () => {
     const { service, inserted } = buildService([RICE])
-    const future = new Date(NOW.getTime() + 1)
+    const future = '2026-06-17'
 
     const error = (
       await service.record({
         foodMasterId: 'fm_rice',
-        eatenAt: future,
+        eatenDate: future,
+        mealType: 'dinner',
         quantity: 100,
         unit: 'g',
       })
     )._unsafeUnwrapErr()
 
-    expect(error).toBeInstanceOf(FutureEatenAtError)
+    expect(error).toBeInstanceOf(FutureEatenDateError)
     expect(
-      error instanceof FutureEatenAtError ? error.eatenAt : undefined,
+      error instanceof FutureEatenDateError ? error.eatenDate : undefined,
     ).toEqual(future)
     expect(inserted).toEqual([])
   })
 
-  it('allows eaten_at exactly equal to now', async () => {
+  it('allows eatenDate exactly equal to today', async () => {
     const { service } = buildService([RICE])
+    const today = EATEN_DATE
 
     const result = (
       await service.record({
         foodMasterId: 'fm_rice',
-        eatenAt: NOW,
+        eatenDate: today,
+        mealType: 'dinner',
         quantity: 100,
         unit: 'g',
       })
@@ -395,7 +408,7 @@ describe('MealLogService.record', () => {
     expect(result).toEqual({
       id: 'ml_1',
       foodMasterId: 'fm_rice',
-      eatenAt: NOW,
+      eatenDate: today,
       mealType: 'dinner',
       quantity: 100,
       unit: 'g',
@@ -419,7 +432,8 @@ describe('MealLogService.record', () => {
       const error = (
         await service.record({
           foodMasterId: 'fm_rice',
-          eatenAt: EATEN_AT,
+          eatenDate: EATEN_DATE,
+          mealType: 'dinner',
           quantity,
           unit: 'g',
         })
@@ -439,7 +453,8 @@ describe('MealLogService.record', () => {
     const error = (
       await service.record({
         foodMasterId: 'fm_missing',
-        eatenAt: EATEN_AT,
+        eatenDate: EATEN_DATE,
+        mealType: 'dinner',
         quantity: 100,
         unit: 'g',
       })
@@ -452,13 +467,13 @@ describe('MealLogService.record', () => {
     expect(inserted).toEqual([])
   })
 
-  it('uses the given mealType verbatim instead of the time-of-day default', async () => {
+  it('uses the given mealType verbatim', async () => {
     const { service, inserted } = buildService([RICE])
 
     const result = (
       await service.record({
         foodMasterId: 'fm_rice',
-        eatenAt: EATEN_AT,
+        eatenDate: EATEN_DATE,
         mealType: 'snack',
         quantity: 100,
         unit: 'g',
@@ -468,7 +483,7 @@ describe('MealLogService.record', () => {
     expect(result).toEqual({
       id: 'ml_1',
       foodMasterId: 'fm_rice',
-      eatenAt: EATEN_AT,
+      eatenDate: EATEN_DATE,
       mealType: 'snack',
       quantity: 100,
       unit: 'g',
@@ -486,7 +501,7 @@ describe('MealLogService.record', () => {
       {
         id: 'ml_1',
         foodMasterId: 'fm_rice',
-        eatenAt: EATEN_AT,
+        eatenDate: EATEN_DATE,
         mealType: 'snack',
         quantity: 100,
         unit: 'g',
@@ -495,45 +510,14 @@ describe('MealLogService.record', () => {
     ])
   })
 
-  it('defaults mealType from eaten_at when omitted', async () => {
-    const { service } = buildService([RICE])
-    const eatenAt = new Date('2026-06-15T23:30:00.000Z') // 08:30 JST
-
-    const result = (
-      await service.record({
-        foodMasterId: 'fm_rice',
-        eatenAt,
-        quantity: 100,
-        unit: 'g',
-      })
-    )._unsafeUnwrap()
-
-    expect(result).toEqual({
-      id: 'ml_1',
-      foodMasterId: 'fm_rice',
-      eatenAt,
-      mealType: 'breakfast',
-      quantity: 100,
-      unit: 'g',
-      amountGrams: 100,
-      createdAt: CREATED_AT,
-      nutrition: {
-        energy_kcal: 156,
-        protein_g: 2.5,
-        fat_g: 0.3,
-        carb_g: 37.1,
-      },
-      isEstimated: false,
-    })
-  })
-
   it('rejects a unit undefined for the food_master with UnknownUnitError', async () => {
     const { service, inserted } = buildService([CAFE_LATTE])
 
     const error = (
       await service.record({
         foodMasterId: 'fm_latte',
-        eatenAt: EATEN_AT,
+        eatenDate: EATEN_DATE,
+        mealType: 'dinner',
         quantity: 1,
         unit: '個',
       })
@@ -559,7 +543,8 @@ describe('MealLogService.record', () => {
     const error = (
       await service.record({
         foodMasterId: 'fm_huge_pot',
-        eatenAt: EATEN_AT,
+        eatenDate: EATEN_DATE,
+        mealType: 'dinner',
         quantity: 1,
         unit: '鍋',
       })
@@ -579,7 +564,8 @@ describe('MealLogService.record', () => {
       await service.record({
         foodMasterId: 'fm_rice',
         foodName: '唐揚げ',
-        eatenAt: EATEN_AT,
+        eatenDate: EATEN_DATE,
+        mealType: 'dinner',
         quantity: 100,
         unit: 'g',
       })
@@ -597,7 +583,8 @@ describe('MealLogService.record', () => {
       await service.record({
         foodMasterId: 'fm_rice',
         foodName: ' 白米 ',
-        eatenAt: EATEN_AT,
+        eatenDate: EATEN_DATE,
+        mealType: 'dinner',
         quantity: 100,
         unit: 'g',
       })
@@ -606,7 +593,7 @@ describe('MealLogService.record', () => {
     expect(result).toEqual({
       id: 'ml_1',
       foodMasterId: 'fm_rice',
-      eatenAt: EATEN_AT,
+      eatenDate: EATEN_DATE,
       mealType: 'dinner',
       quantity: 100,
       unit: 'g',
@@ -624,7 +611,7 @@ describe('MealLogService.record', () => {
       {
         id: 'ml_1',
         foodMasterId: 'fm_rice',
-        eatenAt: EATEN_AT,
+        eatenDate: EATEN_DATE,
         mealType: 'dinner',
         quantity: 100,
         unit: 'g',
@@ -646,7 +633,7 @@ describe('MealLogService.update', () => {
     expect(result).toEqual({
       id: 'ml_1',
       foodMasterId: 'fm_rice',
-      eatenAt: EATEN_AT,
+      eatenDate: EATEN_DATE,
       mealType: 'dinner',
       quantity: 100,
       unit: 'g',
@@ -676,7 +663,7 @@ describe('MealLogService.update', () => {
     expect(result).toEqual({
       id: 'ml_1',
       foodMasterId: 'fm_rice',
-      eatenAt: EATEN_AT,
+      eatenDate: EATEN_DATE,
       mealType: 'dinner',
       quantity: 200,
       unit: 'g',
@@ -706,7 +693,7 @@ describe('MealLogService.update', () => {
     expect(result).toEqual({
       id: 'ml_1',
       foodMasterId: 'fm_karaage',
-      eatenAt: EATEN_AT,
+      eatenDate: EATEN_DATE,
       mealType: 'dinner',
       quantity: 100,
       unit: 'g',
@@ -738,7 +725,7 @@ describe('MealLogService.update', () => {
     expect(result).toEqual({
       id: 'ml_1',
       foodMasterId: 'fm_rice',
-      eatenAt: EATEN_AT,
+      eatenDate: EATEN_DATE,
       mealType: 'dinner',
       quantity: 100,
       unit: 'g',
@@ -778,7 +765,7 @@ describe('MealLogService.update', () => {
     expect(result).toEqual({
       id: 'ml_1',
       foodMasterId: 'fm_rice',
-      eatenAt: EATEN_AT,
+      eatenDate: EATEN_DATE,
       mealType: 'snack',
       quantity: 1,
       unit: '杯',
@@ -831,30 +818,31 @@ describe('MealLogService.update', () => {
     expect(updated).toEqual([])
   })
 
-  it('rejects an eaten_at strictly in the future with FutureEatenAtError', async () => {
+  it('rejects an eatenDate strictly in the future with FutureEatenDateError', async () => {
     const { service, updated } = buildService([RICE], [EXISTING_RICE_LOG])
-    const future = new Date(NOW.getTime() + 1)
+    const future = '2026-06-17'
 
     const error = (
-      await service.update({ id: 'ml_1', eatenAt: future })
+      await service.update({ id: 'ml_1', eatenDate: future })
     )._unsafeUnwrapErr()
 
-    expect(error).toBeInstanceOf(FutureEatenAtError)
+    expect(error).toBeInstanceOf(FutureEatenDateError)
     expect(
-      error instanceof FutureEatenAtError ? error.eatenAt : undefined,
+      error instanceof FutureEatenDateError ? error.eatenDate : undefined,
     ).toEqual(future)
     expect(updated).toEqual([])
   })
 
-  it('allows eaten_at exactly equal to now', async () => {
+  it('allows eatenDate exactly equal to today', async () => {
     const { service, updated } = buildService([RICE], [EXISTING_RICE_LOG])
+    const today = EATEN_DATE
 
     const result = (
-      await service.update({ id: 'ml_1', eatenAt: NOW })
+      await service.update({ id: 'ml_1', eatenDate: today })
     )._unsafeUnwrap()
 
-    expect(result.eatenAt).toEqual(NOW)
-    expect(updated).toEqual([{ id: 'ml_1', eatenAt: NOW }])
+    expect(result.eatenDate).toEqual(today)
+    expect(updated).toEqual([{ id: 'ml_1', eatenDate: today }])
   })
 
   it.each([0, -1, Number.NaN, Number.POSITIVE_INFINITY])(
@@ -930,7 +918,7 @@ describe('MealLogService.getById', () => {
           log: {
             id,
             foodMasterId: KARAAGE_GUESS.id,
-            eatenAt: new Date('2026-06-15T12:00:00.000Z'),
+            eatenDate: '2026-06-15',
             mealType: 'lunch',
             quantity: 200,
             unit: 'g',
@@ -950,7 +938,7 @@ describe('MealLogService.getById', () => {
     expect((await service.getById('ml_1'))._unsafeUnwrap()).toEqual({
       id: 'ml_1',
       foodMasterId: KARAAGE_GUESS.id,
-      eatenAt: new Date('2026-06-15T12:00:00.000Z'),
+      eatenDate: '2026-06-15',
       mealType: 'lunch',
       quantity: 200,
       unit: 'g',
@@ -1009,7 +997,8 @@ describe('MealLogService.record with a non-gram basis food', () => {
     const result = (
       await service.record({
         foodMasterId: 'fm_katsudon',
-        eatenAt: EATEN_AT,
+        eatenDate: EATEN_DATE,
+        mealType: 'dinner',
         quantity: 1,
         unit: '食',
       })
@@ -1018,7 +1007,7 @@ describe('MealLogService.record with a non-gram basis food', () => {
     expect(result).toEqual({
       id: 'ml_1',
       foodMasterId: 'fm_katsudon',
-      eatenAt: EATEN_AT,
+      eatenDate: EATEN_DATE,
       mealType: 'dinner',
       quantity: 1,
       unit: '食',
@@ -1040,7 +1029,8 @@ describe('MealLogService.record with a non-gram basis food', () => {
     const result = (
       await service.record({
         foodMasterId: 'fm_katsudon',
-        eatenAt: EATEN_AT,
+        eatenDate: EATEN_DATE,
+        mealType: 'dinner',
         quantity: 0.5,
         unit: '食',
       })
@@ -1049,7 +1039,7 @@ describe('MealLogService.record with a non-gram basis food', () => {
     expect(result).toEqual({
       id: 'ml_1',
       foodMasterId: 'fm_katsudon',
-      eatenAt: EATEN_AT,
+      eatenDate: EATEN_DATE,
       mealType: 'dinner',
       quantity: 0.5,
       unit: '食',
@@ -1071,7 +1061,8 @@ describe('MealLogService.record with a non-gram basis food', () => {
     const error = (
       await service.record({
         foodMasterId: 'fm_katsudon',
-        eatenAt: EATEN_AT,
+        eatenDate: EATEN_DATE,
+        mealType: 'dinner',
         quantity: 200,
         unit: 'g',
       })

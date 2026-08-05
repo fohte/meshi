@@ -24,19 +24,6 @@ const numericString = z.union([
   }),
 ])
 
-// Postgres's own `timestamptz` text output (e.g. `2026-06-01 03:00:00+00`)
-// isn't reliably parseable by JS's `Date` constructor across engines, so
-// `to_char` is given an explicit ISO 8601 template instead of casting to
-// `::text`.
-const isoTimestamp = z.string().transform((s, ctx) => {
-  const d = new Date(s)
-  if (Number.isNaN(d.getTime())) {
-    ctx.addIssue({ code: 'custom', message: `not a valid timestamp: ${s}` })
-    return z.NEVER
-  }
-  return d
-})
-
 const aggregateRowSchema = z.object({
   day: z.string(),
   nutrient_code: z.string(),
@@ -47,7 +34,7 @@ const entryRowSchema = z.object({
   id: z.string(),
   food_master_id: z.string(),
   food_name: z.string(),
-  eaten_at: isoTimestamp,
+  eaten_date: z.string(),
   meal_type: z.enum(MEAL_TYPES),
   quantity: numericString,
   unit: z.string(),
@@ -67,13 +54,12 @@ export const createMealHistoryService = (sql: Sql): MealHistoryService => {
       const useMajorOnly = nutrientCodes === undefined
       const emptyNutrientFilter =
         nutrientCodes !== undefined && nutrientCodes.length === 0
-      // Bound as explicit text + inline cast, not a raw `Date`, so the
-      // query survives a pool whose timestamp serializer was flipped to
-      // identity pass-through by a `drizzle()` instance built on the same
-      // connection (see the comment in src/a2a/postgres-task-store.ts).
-      const periodFrom = asText(input.periodFrom.toISOString())
-      const periodTo = asText(input.periodTo.toISOString())
-      const dayBoundaryTimeZone = asText(input.timeZone ?? 'UTC')
+      // Bound as explicit text + inline `::date` cast so the query survives
+      // a pool whose date serializer was flipped to identity pass-through
+      // by a `drizzle()` instance built on the same connection (see the
+      // comment in src/a2a/postgres-task-store.ts).
+      const periodFrom = asText(input.periodFrom)
+      const periodTo = asText(input.periodTo)
 
       return ResultAsync.fromPromise(
         (async () => {
@@ -81,8 +67,7 @@ export const createMealHistoryService = (sql: Sql): MealHistoryService => {
             ? []
             : await sql`
                 SELECT
-                  to_char(date_trunc('day', ml.eaten_at AT TIME ZONE ${dayBoundaryTimeZone}), 'YYYY-MM-DD')
-                    AS day,
+                  to_char(ml.eaten_date, 'YYYY-MM-DD') AS day,
                   fmn.nutrient_code AS nutrient_code,
                   SUM(fmn.value * ml.amount_grams / fm.basis_quantity) AS value
                 FROM meal_logs ml
@@ -90,8 +75,8 @@ export const createMealHistoryService = (sql: Sql): MealHistoryService => {
                   ON fmn.food_master_id = ml.food_master_id
                 INNER JOIN food_masters fm
                   ON fm.id = ml.food_master_id
-                WHERE ml.eaten_at >= ${periodFrom}::timestamptz
-                  AND ml.eaten_at < ${periodTo}::timestamptz
+                WHERE ml.eaten_date >= ${periodFrom}::date
+                  AND ml.eaten_date < ${periodTo}::date
                   AND (
                     ${foodFilter === null}::boolean
                     OR ml.food_master_id = ANY(${foodFilter ?? []}::text[])
@@ -113,21 +98,20 @@ export const createMealHistoryService = (sql: Sql): MealHistoryService => {
               ml.id AS id,
               ml.food_master_id AS food_master_id,
               fm.name AS food_name,
-              to_char(ml.eaten_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"')
-                AS eaten_at,
+              to_char(ml.eaten_date, 'YYYY-MM-DD') AS eaten_date,
               ml.meal_type AS meal_type,
               ml.quantity AS quantity,
               ml.unit AS unit,
               fm.is_estimated AS is_estimated
             FROM meal_logs ml
             INNER JOIN food_masters fm ON fm.id = ml.food_master_id
-            WHERE ml.eaten_at >= ${periodFrom}::timestamptz
-              AND ml.eaten_at < ${periodTo}::timestamptz
+            WHERE ml.eaten_date >= ${periodFrom}::date
+              AND ml.eaten_date < ${periodTo}::date
               AND (
                 ${foodFilter === null}::boolean
                 OR ml.food_master_id = ANY(${foodFilter ?? []}::text[])
               )
-            ORDER BY ml.eaten_at ASC, ml.id ASC
+            ORDER BY ml.eaten_date ASC, ml.created_at ASC, ml.id ASC
           `
 
           return { aggregateRaw, entryRaw }
@@ -162,7 +146,7 @@ export const createMealHistoryService = (sql: Sql): MealHistoryService => {
           id: row.id,
           foodMasterId: row.food_master_id,
           foodName: row.food_name,
-          eatenAt: row.eaten_at,
+          eatenDate: row.eaten_date,
           mealType: row.meal_type,
           quantity: row.quantity,
           unit: row.unit,

@@ -23,7 +23,7 @@ export interface FoodMasterRef {
 export interface MealLogRow {
   readonly id: string
   readonly foodMasterId: string
-  readonly eatenAt: Date
+  readonly eatenDate: string
   readonly mealType: MealType
   readonly quantity: number
   readonly unit: string
@@ -35,8 +35,8 @@ export interface MealLogRow {
 
 export interface RecordMealLogInput {
   readonly foodMasterId: string
-  readonly eatenAt: Date
-  readonly mealType?: MealType
+  readonly eatenDate: string
+  readonly mealType: MealType
   readonly quantity: number
   readonly unit: string
   // The caller's expected name for foodMasterId, checked against the actual
@@ -49,7 +49,7 @@ export interface RecordMealLogInput {
 export interface UpdateMealLogInput {
   readonly id: string
   readonly foodMasterId?: string
-  readonly eatenAt?: Date
+  readonly eatenDate?: string
   readonly mealType?: MealType
   readonly quantity?: number
   readonly unit?: string

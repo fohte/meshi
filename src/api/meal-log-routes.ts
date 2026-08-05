@@ -6,19 +6,20 @@ import type { DomainError } from '#domain/meal-log/errors'
 import type { MealLogService } from '#domain/meal-log/meal-log-service'
 import type { MealLogResult } from '#domain/meal-log/types'
 import { MEAL_TYPES } from '#domain/meal-log/types'
+import { isValidJstCalendarDateString } from '#lib/jst-date'
 
 const NOT_FOUND_CODES = new Set([
   'meal_log/food_master_not_found',
   'meal_log/not_found',
 ])
 const CLIENT_ERROR_CODES = new Set([
-  'meal_log/future_eaten_at',
+  'meal_log/future_eaten_date',
   'meal_log/invalid_quantity',
   'meal_log/unknown_unit',
   'meal_log/implausible_quantity',
 ])
 
-// meal-log-service.ts surfaces user-input mistakes (future eaten_at, a
+// meal-log-service.ts surfaces user-input mistakes (future eaten_date, a
 // non-positive quantity, an unresolvable unit, an unknown food_master_id)
 // as DomainError alongside genuine persistence failures — unlike
 // profile-routes.ts, which only ever hits genuine DB errors, this needs to
@@ -35,15 +36,22 @@ const mealLogErrorResponse = (c: Context, error: DomainError): Response => {
 
 const recordMealLogBodySchema = z.object({
   foodMasterId: z.string().min(1),
-  eatenAt: z.iso.datetime({ offset: true }),
-  mealType: z.enum(MEAL_TYPES).optional(),
+  eatenDate: z.string().refine(isValidJstCalendarDateString, {
+    message: 'eatenDate must be a valid YYYY-MM-DD JST calendar date',
+  }),
+  mealType: z.enum(MEAL_TYPES),
   quantity: z.number().positive(),
   unit: z.string().min(1),
 })
 
 const updateMealLogBodySchema = z.object({
   foodMasterId: z.string().min(1).optional(),
-  eatenAt: z.iso.datetime({ offset: true }).optional(),
+  eatenDate: z
+    .string()
+    .refine(isValidJstCalendarDateString, {
+      message: 'eatenDate must be a valid YYYY-MM-DD JST calendar date',
+    })
+    .optional(),
   mealType: z.enum(MEAL_TYPES).optional(),
   quantity: z.number().positive().optional(),
   unit: z.string().min(1).optional(),
@@ -52,7 +60,7 @@ const updateMealLogBodySchema = z.object({
 const toMealLogJson = (result: MealLogResult) => ({
   id: result.id,
   foodMasterId: result.foodMasterId,
-  eatenAt: result.eatenAt.toISOString(),
+  eatenDate: result.eatenDate,
   mealType: result.mealType,
   quantity: result.quantity,
   unit: result.unit,
@@ -72,12 +80,10 @@ export const mountMealLogRoutes = (
 
     const result = await mealLogService.record({
       foodMasterId: parsed.value.foodMasterId,
-      eatenAt: new Date(parsed.value.eatenAt),
+      eatenDate: parsed.value.eatenDate,
+      mealType: parsed.value.mealType,
       quantity: parsed.value.quantity,
       unit: parsed.value.unit,
-      ...(parsed.value.mealType === undefined
-        ? {}
-        : { mealType: parsed.value.mealType }),
     })
     return result.match(
       (mealLog) => c.json(toMealLogJson(mealLog), 201),
@@ -94,9 +100,9 @@ export const mountMealLogRoutes = (
       ...(parsed.value.foodMasterId === undefined
         ? {}
         : { foodMasterId: parsed.value.foodMasterId }),
-      ...(parsed.value.eatenAt === undefined
+      ...(parsed.value.eatenDate === undefined
         ? {}
-        : { eatenAt: new Date(parsed.value.eatenAt) }),
+        : { eatenDate: parsed.value.eatenDate }),
       ...(parsed.value.mealType === undefined
         ? {}
         : { mealType: parsed.value.mealType }),

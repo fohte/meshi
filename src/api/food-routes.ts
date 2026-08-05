@@ -115,7 +115,7 @@ export const mountFoodRoutes = (
           totalEatenCount: detail.totalEatenCount,
           history: detail.history.map((entry) => ({
             id: entry.id,
-            eatenAt: entry.eatenAt.toISOString(),
+            eatenDate: entry.eatenDate,
             mealType: entry.mealType,
             amountGrams: entry.amountGrams,
             quantity: entry.quantity,

@@ -204,7 +204,7 @@ describe('GET /api/foods/:id', () => {
       history: [
         {
           id: 'ml_1',
-          eatenAt: new Date('2026-07-29T03:00:00Z'),
+          eatenDate: '2026-07-29',
           mealType: 'breakfast',
           amountGrams: 100,
           quantity: 100,
@@ -235,7 +235,7 @@ describe('GET /api/foods/:id', () => {
       history: [
         {
           id: 'ml_1',
-          eatenAt: '2026-07-29T03:00:00.000Z',
+          eatenDate: '2026-07-29',
           mealType: 'breakfast',
           amountGrams: 100,
           quantity: 100,

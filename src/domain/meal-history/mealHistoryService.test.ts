@@ -51,27 +51,30 @@ describeIfDb('MealHistoryService.query', () => {
     await seedMealLog(tx, {
       id: 'log-1',
       foodMasterId: 'rice',
-      eatenAt: new Date('2026-06-01T03:00:00Z'),
+      eatenDate: '2026-06-01',
+      mealType: 'lunch',
       quantity: 200,
     })
     await seedMealLog(tx, {
       id: 'log-2',
       foodMasterId: 'egg',
-      eatenAt: new Date('2026-06-01T12:00:00Z'),
+      eatenDate: '2026-06-01',
+      mealType: 'dinner',
       quantity: 50,
     })
     await seedMealLog(tx, {
       id: 'log-3',
       foodMasterId: 'rice',
-      eatenAt: new Date('2026-06-02T00:00:00Z'),
+      eatenDate: '2026-06-02',
+      mealType: 'breakfast',
       quantity: 100,
     })
 
     const service = createMealHistoryService(tx)
     const result = (
       await service.query({
-        periodFrom: new Date('2026-06-01T00:00:00Z'),
-        periodTo: new Date('2026-06-02T00:00:00Z'),
+        periodFrom: '2026-06-01',
+        periodTo: '2026-06-02',
       })
     )._unsafeUnwrap()
 
@@ -94,7 +97,7 @@ describeIfDb('MealHistoryService.query', () => {
           id: 'log-1',
           foodMasterId: 'rice',
           foodName: 'rice',
-          eatenAt: new Date('2026-06-01T03:00:00Z'),
+          eatenDate: '2026-06-01',
           mealType: 'lunch',
           quantity: 200,
           unit: 'g',
@@ -103,7 +106,7 @@ describeIfDb('MealHistoryService.query', () => {
           id: 'log-2',
           foodMasterId: 'egg',
           foodName: 'egg',
-          eatenAt: new Date('2026-06-01T12:00:00Z'),
+          eatenDate: '2026-06-01',
           mealType: 'dinner',
           quantity: 50,
           unit: 'g',
@@ -127,7 +130,8 @@ describeIfDb('MealHistoryService.query', () => {
     await seedMealLog(tx, {
       id: 'log-1',
       foodMasterId: 'egg',
-      eatenAt: new Date('2026-06-01T03:00:00Z'),
+      eatenDate: '2026-06-01',
+      mealType: 'lunch',
       quantity: 2,
       unit: '個',
       amountGrams: 110,
@@ -136,8 +140,8 @@ describeIfDb('MealHistoryService.query', () => {
     const service = createMealHistoryService(tx)
     const result = (
       await service.query({
-        periodFrom: new Date('2026-06-01T00:00:00Z'),
-        periodTo: new Date('2026-06-02T00:00:00Z'),
+        periodFrom: '2026-06-01',
+        periodTo: '2026-06-02',
       })
     )._unsafeUnwrap()
 
@@ -160,7 +164,7 @@ describeIfDb('MealHistoryService.query', () => {
           id: 'log-1',
           foodMasterId: 'egg',
           foodName: 'egg',
-          eatenAt: new Date('2026-06-01T03:00:00Z'),
+          eatenDate: '2026-06-01',
           mealType: 'lunch',
           quantity: 2,
           unit: '個',
@@ -188,21 +192,23 @@ describeIfDb('MealHistoryService.query', () => {
     await seedMealLog(tx, {
       id: 'log-1',
       foodMasterId: 'rice',
-      eatenAt: new Date('2026-06-01T03:00:00Z'),
+      eatenDate: '2026-06-01',
+      mealType: 'lunch',
       quantity: 200,
     })
     await seedMealLog(tx, {
       id: 'log-2',
       foodMasterId: 'egg',
-      eatenAt: new Date('2026-06-01T12:00:00Z'),
+      eatenDate: '2026-06-01',
+      mealType: 'dinner',
       quantity: 50,
     })
 
     const service = createMealHistoryService(tx)
     const result = (
       await service.query({
-        periodFrom: new Date('2026-06-01T00:00:00Z'),
-        periodTo: new Date('2026-06-02T00:00:00Z'),
+        periodFrom: '2026-06-01',
+        periodTo: '2026-06-02',
         foodFilter: ['egg'],
       })
     )._unsafeUnwrap()
@@ -220,7 +226,7 @@ describeIfDb('MealHistoryService.query', () => {
           id: 'log-2',
           foodMasterId: 'egg',
           foodName: 'egg',
-          eatenAt: new Date('2026-06-01T12:00:00Z'),
+          eatenDate: '2026-06-01',
           mealType: 'dinner',
           quantity: 50,
           unit: 'g',
@@ -242,15 +248,16 @@ describeIfDb('MealHistoryService.query', () => {
     await seedMealLog(tx, {
       id: 'log-1',
       foodMasterId: 'spinach',
-      eatenAt: new Date('2026-06-01T03:00:00Z'),
+      eatenDate: '2026-06-01',
+      mealType: 'lunch',
       quantity: 100,
     })
 
     const service = createMealHistoryService(tx)
     const result = (
       await service.query({
-        periodFrom: new Date('2026-06-01T00:00:00Z'),
-        periodTo: new Date('2026-06-02T00:00:00Z'),
+        periodFrom: '2026-06-01',
+        periodTo: '2026-06-02',
         nutrientCodes: ['iron_mg'],
       })
     )._unsafeUnwrap()
@@ -268,7 +275,7 @@ describeIfDb('MealHistoryService.query', () => {
           id: 'log-1',
           foodMasterId: 'spinach',
           foodName: 'spinach',
-          eatenAt: new Date('2026-06-01T03:00:00Z'),
+          eatenDate: '2026-06-01',
           mealType: 'lunch',
           quantity: 100,
           unit: 'g',
@@ -290,15 +297,16 @@ describeIfDb('MealHistoryService.query', () => {
     await seedMealLog(tx, {
       id: 'log-1',
       foodMasterId: 'rice',
-      eatenAt: new Date('2026-06-01T03:00:00Z'),
+      eatenDate: '2026-06-01',
+      mealType: 'lunch',
       quantity: 100,
     })
 
     const service = createMealHistoryService(tx)
     const result = (
       await service.query({
-        periodFrom: new Date('2026-06-01T00:00:00Z'),
-        periodTo: new Date('2026-06-02T00:00:00Z'),
+        periodFrom: '2026-06-01',
+        periodTo: '2026-06-02',
         nutrientCodes: [],
       })
     )._unsafeUnwrap()
@@ -311,7 +319,7 @@ describeIfDb('MealHistoryService.query', () => {
           id: 'log-1',
           foodMasterId: 'rice',
           foodName: 'rice',
-          eatenAt: new Date('2026-06-01T03:00:00Z'),
+          eatenDate: '2026-06-01',
           mealType: 'lunch',
           quantity: 100,
           unit: 'g',
@@ -340,21 +348,23 @@ describeIfDb('MealHistoryService.query', () => {
     await seedMealLog(tx, {
       id: 'log-1',
       foodMasterId: 'rice',
-      eatenAt: new Date('2026-06-01T03:00:00Z'),
+      eatenDate: '2026-06-01',
+      mealType: 'lunch',
       quantity: 100,
     })
     await seedMealLog(tx, {
       id: 'log-2',
       foodMasterId: 'mystery_stew',
-      eatenAt: new Date('2026-06-01T12:00:00Z'),
+      eatenDate: '2026-06-01',
+      mealType: 'dinner',
       quantity: 250,
     })
 
     const service = createMealHistoryService(tx)
     const result = (
       await service.query({
-        periodFrom: new Date('2026-06-01T00:00:00Z'),
-        periodTo: new Date('2026-06-02T00:00:00Z'),
+        periodFrom: '2026-06-01',
+        periodTo: '2026-06-02',
       })
     )._unsafeUnwrap()
 
@@ -377,7 +387,7 @@ describeIfDb('MealHistoryService.query', () => {
           id: 'log-1',
           foodMasterId: 'rice',
           foodName: 'rice',
-          eatenAt: new Date('2026-06-01T03:00:00Z'),
+          eatenDate: '2026-06-01',
           mealType: 'lunch',
           quantity: 100,
           unit: 'g',
@@ -386,7 +396,7 @@ describeIfDb('MealHistoryService.query', () => {
           id: 'log-2',
           foodMasterId: 'mystery_stew',
           foodName: 'mystery stew',
-          eatenAt: new Date('2026-06-01T12:00:00Z'),
+          eatenDate: '2026-06-01',
           mealType: 'dinner',
           quantity: 250,
           unit: 'g',
@@ -395,97 +405,13 @@ describeIfDb('MealHistoryService.query', () => {
       hasEstimatedValues: true,
     })
   })
-
-  // 2026-06-01T15:30:00Z is 2026-06-02T00:30 in Asia/Tokyo, so the single
-  // seeded entry below belongs to a different calendar day depending on
-  // which zone these two tests bucket it by.
-  const seedTimeZoneBucketingFixture = async (
-    tx: postgres.Sql,
-  ): Promise<void> => {
-    await seedNutrientDefinitions(tx)
-    await seedFoodMaster(tx, {
-      id: 'rice',
-      name: 'rice',
-      source: 'user_input',
-      nutrients: { energy_kcal: 156, protein_g: 2.5 },
-    })
-    await seedMealLog(tx, {
-      id: 'log-1',
-      foodMasterId: 'rice',
-      eatenAt: new Date('2026-06-01T15:30:00Z'),
-      quantity: 100,
-    })
-  }
-
-  const timeZoneBucketingExpectedEntries = [
-    {
-      id: 'log-1',
-      foodMasterId: 'rice',
-      foodName: 'rice',
-      eatenAt: new Date('2026-06-01T15:30:00Z'),
-      mealType: 'snack',
-      quantity: 100,
-      unit: 'g',
-    },
-  ]
-
-  it('buckets perDay entries by UTC when timeZone is omitted', async () => {
-    const tx = getTx()
-    await seedTimeZoneBucketingFixture(tx)
-
-    const service = createMealHistoryService(tx)
-    const result = (
-      await service.query({
-        periodFrom: new Date('2026-06-01T00:00:00Z'),
-        periodTo: new Date('2026-06-03T00:00:00Z'),
-      })
-    )._unsafeUnwrap()
-
-    expect(result).toEqual({
-      totals: { energy_kcal: 156, protein_g: 2.5 },
-      perDay: [
-        {
-          date: '2026-06-01',
-          totals: { energy_kcal: 156, protein_g: 2.5 },
-        },
-      ],
-      entries: timeZoneBucketingExpectedEntries,
-      hasEstimatedValues: false,
-    })
-  })
-
-  it('buckets perDay entries by the given IANA timeZone', async () => {
-    const tx = getTx()
-    await seedTimeZoneBucketingFixture(tx)
-
-    const service = createMealHistoryService(tx)
-    const result = (
-      await service.query({
-        periodFrom: new Date('2026-06-01T00:00:00Z'),
-        periodTo: new Date('2026-06-03T00:00:00Z'),
-        timeZone: 'Asia/Tokyo',
-      })
-    )._unsafeUnwrap()
-
-    expect(result).toEqual({
-      totals: { energy_kcal: 156, protein_g: 2.5 },
-      perDay: [
-        {
-          date: '2026-06-02',
-          totals: { energy_kcal: 156, protein_g: 2.5 },
-        },
-      ],
-      entries: timeZoneBucketingExpectedEntries,
-      hasEstimatedValues: false,
-    })
-  })
 })
 
 // Reproduces main.ts's production wiring, where createMealHistoryService
 // shares a connection pool with repositories that construct drizzle() on
 // it. drizzle-orm's postgres-js driver mutates that pool's own
-// options.serializers/parsers for timestamp OIDs to identity pass-through
-// as a side effect of construction (see the comment in
+// options.serializers/parsers for timestamp/date OIDs to identity
+// pass-through as a side effect of construction (see the comment in
 // mealHistoryService.ts). A setupTx()/setupDrizzleTx() reserved connection
 // can't reproduce this: postgres.js's wire encoding always reads the
 // pool's original options object regardless of what a reserved
@@ -497,7 +423,7 @@ describeIfDb('MealHistoryService.query', () => {
 describeIfDb(
   'meal history query survives a drizzle()-corrupted connection pool',
   () => {
-    it('still binds periodFrom/periodTo and reads back eaten_at correctly', async () => {
+    it('still binds periodFrom/periodTo and reads back eaten_date correctly', async () => {
       if (TEST_DATABASE_URL === undefined) {
         throw new Error('TEST_DATABASE_URL is not set')
       }
@@ -533,19 +459,19 @@ describeIfDb(
             source: 'user_input',
             nutrients: { probe_energy_kcal: 156 },
           })
-          // Not seedMealLog() from #test/seed: it binds eaten_at as a raw
-          // `Date`, which fails against this corrupted pool the same way a
-          // raw `Date` bind anywhere in this file would.
-          await tx`
-            INSERT INTO meal_logs (id, food_master_id, eaten_at, meal_type, quantity, unit, amount_grams)
-            VALUES ('probe_log_1', 'probe_rice', '2026-06-01T03:00:00Z'::timestamptz, 'lunch', 200, 'g', 200)
-          `
+          await seedMealLog(tx, {
+            id: 'probe_log_1',
+            foodMasterId: 'probe_rice',
+            eatenDate: '2026-06-01',
+            mealType: 'lunch',
+            quantity: 200,
+          })
 
           const service = createMealHistoryService(tx)
           const result = (
             await service.query({
-              periodFrom: new Date('2026-06-01T00:00:00Z'),
-              periodTo: new Date('2026-06-02T00:00:00Z'),
+              periodFrom: '2026-06-01',
+              periodTo: '2026-06-02',
             })
           )._unsafeUnwrap()
 
@@ -562,7 +488,7 @@ describeIfDb(
                 id: 'probe_log_1',
                 foodMasterId: 'probe_rice',
                 foodName: 'rice',
-                eatenAt: new Date('2026-06-01T03:00:00Z'),
+                eatenDate: '2026-06-01',
                 mealType: 'lunch',
                 quantity: 200,
                 unit: 'g',

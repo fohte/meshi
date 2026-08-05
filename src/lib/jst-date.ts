@@ -21,3 +21,12 @@ export const isValidJstCalendarDateString = (value: string): boolean => {
 }
 
 export const todayJstDateString = (now: Date): string => toJstDateString(now)
+
+// Advances a JST calendar date string by one day. Pure calendar arithmetic
+// on the date string itself — no instant/timezone conversion, since the
+// input is already a JST calendar date.
+export const nextJstDateString = (date: string): string => {
+  const d = new Date(`${date}T00:00:00Z`)
+  d.setUTCDate(d.getUTCDate() + 1)
+  return d.toISOString().slice(0, 10)
+}

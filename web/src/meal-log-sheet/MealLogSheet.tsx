@@ -22,7 +22,6 @@ export interface MealLogSheetProps {
   readonly setUnit: (unit: string) => void
   readonly setMealType: (mealType: MealType) => void
   readonly setDate: (date: string) => void
-  readonly setTime: (time: string) => void
   readonly save: () => void
   readonly saveAndContinue: () => void
   readonly isSaving: boolean
@@ -89,7 +88,6 @@ export const MealLogSheet = (props: MealLogSheetProps): React.JSX.Element => {
               setUnit={props.setUnit}
               setMealType={props.setMealType}
               setDate={props.setDate}
-              setTime={props.setTime}
             />
           )}
 

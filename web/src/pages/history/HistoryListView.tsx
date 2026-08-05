@@ -7,7 +7,7 @@ import { fetchMealHistory } from '#api/meal-history'
 import { toPromise } from '#api/to-promise'
 import { ErrorRetry } from '#components/ErrorRetry/ErrorRetry'
 import { Skeleton } from '#components/Skeleton/Skeleton'
-import { jstDateOf, shiftDateString, todayJstDate } from '#lib/jst-date'
+import { shiftDateString, todayJstDate } from '#lib/jst-date'
 import { buildListCards } from '#pages/history/build-list-cards'
 import styles from '#pages/history/HistoryListView.module.css'
 
@@ -74,7 +74,7 @@ export const HistoryListView = ({
   const perDay = pages.flatMap((page) => page.perDay)
   const foodNamesByDate = new Map<string, string[]>()
   for (const entry of pages.flatMap((page) => page.entries)) {
-    const date = jstDateOf(entry.eatenAt)
+    const date = entry.eatenDate
     const names = foodNamesByDate.get(date) ?? []
     names.push(entry.foodName)
     foodNamesByDate.set(date, names)

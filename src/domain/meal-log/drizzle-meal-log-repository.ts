@@ -110,7 +110,7 @@ const loadFoodMaster = (
 const toRow = (row: {
   id: string
   foodMasterId: string
-  eatenAt: Date
+  eatenDate: string
   mealType: MealType
   quantity: string
   unit: string
@@ -119,7 +119,7 @@ const toRow = (row: {
 }): MealLogRow => ({
   id: row.id,
   foodMasterId: row.foodMasterId,
-  eatenAt: row.eatenAt,
+  eatenDate: row.eatenDate,
   mealType: row.mealType,
   quantity: Number(row.quantity),
   unit: row.unit,
@@ -143,7 +143,7 @@ export const createDrizzleMealLogRepository = (sql: Sql): MealLogRepository => {
             .values({
               id: input.id,
               foodMasterId: input.foodMasterId,
-              eatenAt: input.eatenAt,
+              eatenDate: input.eatenDate,
               mealType: input.mealType,
               quantity: input.quantity.toString(),
               unit: input.unit,
@@ -172,9 +172,9 @@ export const createDrizzleMealLogRepository = (sql: Sql): MealLogRepository => {
               ...(input.foodMasterId === undefined
                 ? {}
                 : { foodMasterId: input.foodMasterId }),
-              ...(input.eatenAt === undefined
+              ...(input.eatenDate === undefined
                 ? {}
-                : { eatenAt: input.eatenAt }),
+                : { eatenDate: input.eatenDate }),
               ...(input.mealType === undefined
                 ? {}
                 : { mealType: input.mealType }),

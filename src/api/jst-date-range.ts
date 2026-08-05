@@ -2,12 +2,11 @@ import { z } from 'zod'
 
 import { isValidJstCalendarDateString } from '#lib/jst-date'
 
-const JST_OFFSET = '+09:00'
 const DATE_ONLY_RE = /^\d{4}-\d{2}-\d{2}$/
 
-// Parses a YYYY-MM-DD calendar date as midnight in Asia/Tokyo into the UTC
-// instant callers bind to `periodFrom`/`periodTo`.
-const jstCalendarDate = z.string().transform((value, ctx) => {
+// Validates a YYYY-MM-DD calendar date and passes it through unchanged —
+// meal_logs.eaten_date is a plain JST calendar date, not a UTC instant.
+export const jstCalendarDateSchema = z.string().transform((value, ctx) => {
   if (!DATE_ONLY_RE.test(value)) {
     ctx.addIssue({
       code: 'custom',
@@ -26,25 +25,12 @@ const jstCalendarDate = z.string().transform((value, ctx) => {
     })
     return z.NEVER
   }
-  return new Date(`${value}T00:00:00${JST_OFFSET}`)
+  return value
 })
 
 export const jstDateRangeQuerySchema = z.object({
-  from: jstCalendarDate,
-  to: jstCalendarDate,
+  from: jstCalendarDateSchema,
+  to: jstCalendarDateSchema,
 })
 
 export type JstDateRangeQuery = z.infer<typeof jstDateRangeQuerySchema>
-
-const DAY_MS = 24 * 60 * 60 * 1000
-
-// Parses a single YYYY-MM-DD path param (e.g. GET /api/days/:date) into the
-// [from, to) UTC instant range covering that Asia/Tokyo calendar day.
-export const jstDayBoundaryQuerySchema = z
-  .object({ date: jstCalendarDate })
-  .transform(({ date }) => ({
-    from: date,
-    to: new Date(date.getTime() + DAY_MS),
-  }))
-
-export type JstDayBoundaryQuery = z.infer<typeof jstDayBoundaryQuerySchema>

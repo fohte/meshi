@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 
 import type { FoodMatchCandidate } from '#domain/food-matcher/index'
 import { createDrizzleFoodMatcher } from '#domain/food-matcher/index'
+import { toJstDateString } from '#lib/jst-date'
 import { describeIfDb, setupTx } from '#test/db'
 import {
   seedFoodComposition,
@@ -12,14 +13,12 @@ import {
 
 const MS_PER_DAY = 24 * 60 * 60 * 1000
 
-// A Date `daysAgo` days before now, for a meal_log's eaten_at. The scoring
-// formula only reads days_since at ~day granularity, and scores are rounded
-// to 3dp before asserting, so the sub-second gap between this call and the
-// eventual SELECT is negligible.
+// A Date `daysAgo` days before now, converted via toJstDateString into a
+// meal_log's eaten_date.
 const daysAgo = (n: number): Date => new Date(Date.now() - n * MS_PER_DAY)
 
-// Round score to 3 decimal places so the assertion is robust against the tiny
-// drift between INSERT-side now() and SELECT-side now().
+// Round score to 3 decimal places so the assertion is robust against
+// pg_trgm's float32 imprecision in name_sim (see the SIM_* constants below).
 const normalize = (
   rows: ReadonlyArray<FoodMatchCandidate>,
 ): ReadonlyArray<FoodMatchCandidate> =>
@@ -52,13 +51,15 @@ describeIfDb('createDrizzleFoodMatcher', () => {
       await seedMealLog(tx, {
         id: 'ml_ra',
         foodMasterId: 'fm_recent_a',
-        eatenAt: daysAgo(1),
+        eatenDate: toJstDateString(daysAgo(1)),
+        mealType: 'breakfast',
         quantity: 1,
       })
       await seedMealLog(tx, {
         id: 'ml_rb',
         foodMasterId: 'fm_recent_b',
-        eatenAt: daysAgo(5),
+        eatenDate: toJstDateString(daysAgo(5)),
+        mealType: 'breakfast',
         quantity: 1,
       })
 
@@ -105,14 +106,16 @@ describeIfDb('createDrizzleFoodMatcher', () => {
         await seedMealLog(tx, {
           id: `ml_fc_${String(i)}`,
           foodMasterId: 'fm_freq_c',
-          eatenAt: daysAgo(30),
+          eatenDate: toJstDateString(daysAgo(30)),
+          mealType: 'breakfast',
           quantity: 1,
         })
       }
       await seedMealLog(tx, {
         id: 'ml_fd',
         foodMasterId: 'fm_freq_d',
-        eatenAt: daysAgo(30),
+        eatenDate: toJstDateString(daysAgo(30)),
+        mealType: 'breakfast',
         quantity: 1,
       })
 

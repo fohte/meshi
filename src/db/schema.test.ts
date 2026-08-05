@@ -309,8 +309,8 @@ describeIfDb('schema runtime constraints', () => {
     `
     expect(
       await runOutcome(tx`
-        INSERT INTO meal_logs (id, food_master_id, eaten_at, meal_type, quantity, unit, amount_grams)
-        VALUES ('ml_q', 'fm_q', now(), 'breakfast', 0, 'g', 100)
+        INSERT INTO meal_logs (id, food_master_id, eaten_date, meal_type, quantity, unit, amount_grams)
+        VALUES ('ml_q', 'fm_q', CURRENT_DATE, 'breakfast', 0, 'g', 100)
       `),
     ).toEqual({ status: 'error', code: '23514' })
   })
@@ -323,8 +323,8 @@ describeIfDb('schema runtime constraints', () => {
     `
     expect(
       await runOutcome(tx`
-        INSERT INTO meal_logs (id, food_master_id, eaten_at, meal_type, quantity, unit, amount_grams)
-        VALUES ('ml_ag', 'fm_ag', now(), 'breakfast', 1, '個', 0)
+        INSERT INTO meal_logs (id, food_master_id, eaten_date, meal_type, quantity, unit, amount_grams)
+        VALUES ('ml_ag', 'fm_ag', CURRENT_DATE, 'breakfast', 1, '個', 0)
       `),
     ).toEqual({ status: 'error', code: '23514' })
   })
@@ -436,8 +436,8 @@ describeIfDb('schema runtime constraints', () => {
       VALUES ('fm_d', 'natto', 'user_input')
     `
     await tx`
-      INSERT INTO meal_logs (id, food_master_id, eaten_at, meal_type, quantity, unit, amount_grams)
-      VALUES ('ml_d', 'fm_d', now(), 'breakfast', 1, 'パック', 100)
+      INSERT INTO meal_logs (id, food_master_id, eaten_date, meal_type, quantity, unit, amount_grams)
+      VALUES ('ml_d', 'fm_d', CURRENT_DATE, 'breakfast', 1, 'パック', 100)
     `
     expect(
       await runOutcome(tx`DELETE FROM food_masters WHERE id = 'fm_d'`),

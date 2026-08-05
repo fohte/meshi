@@ -33,12 +33,6 @@ export const todayJstDate = (): string => {
   return `${String(year)}-${pad2(month)}-${pad2(day)}`
 }
 
-// eatenAt is a UTC ISO instant; formats its JST wall-clock time as HH:MM.
-export const formatJstTime = (isoDateTime: string): string => {
-  const { hours, minutes } = toJstParts(new Date(isoDateTime))
-  return `${pad2(hours)}:${pad2(minutes)}`
-}
-
 // isoDateTime is a UTC ISO instant; returns the YYYY-MM-DD calendar date it
 // falls on in JST (e.g. to group meal-history entries by JST day).
 export const jstDateOf = (isoDateTime: string): string => {
@@ -103,17 +97,8 @@ export const daysInJstMonth = (monthStart: string): number => {
   return d.getUTCDate()
 }
 
-// isoDateTime is a UTC instant; returns its JST calendar date as YYYY-MM-DD
-// (e.g. to seed the meal log sheet's date input from a DayDetailEntry.eatenAt).
+// isoDateTime is a UTC instant; returns its JST calendar date as YYYY-MM-DD.
 export const formatJstDate = (isoDateTime: string): string => {
   const { year, month, day } = toJstParts(new Date(isoDateTime))
   return `${String(year)}-${pad2(month)}-${pad2(day)}`
 }
-
-export const nowJstTime = (): string => formatJstTime(new Date().toISOString())
-
-// Combines a JST calendar date and HH:MM wall-clock time (the meal log
-// sheet's date/time inputs) back into a UTC instant to send to the API.
-// Asia/Tokyo has no DST, so a fixed +09:00 offset is always correct.
-export const jstWallClockToIsoInstant = (date: string, time: string): string =>
-  new Date(`${date}T${time}:00+09:00`).toISOString()

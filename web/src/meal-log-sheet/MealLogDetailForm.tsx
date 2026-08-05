@@ -1,10 +1,6 @@
 import type { MealType } from '#api/day-detail'
 import styles from '#meal-log-sheet/MealLogDetailForm.module.css'
-import {
-  previewKcal,
-  resolvedMealType,
-  type SheetState,
-} from '#meal-log-sheet/sheet-state'
+import { previewKcal, type SheetState } from '#meal-log-sheet/sheet-state'
 
 const MEAL_OPTIONS: ReadonlyArray<{ value: MealType; label: string }> = [
   { value: 'breakfast', label: '朝食' },
@@ -20,7 +16,6 @@ export interface MealLogDetailFormProps {
   readonly setUnit: (unit: string) => void
   readonly setMealType: (mealType: MealType) => void
   readonly setDate: (date: string) => void
-  readonly setTime: (time: string) => void
 }
 
 export const MealLogDetailForm = ({
@@ -30,11 +25,10 @@ export const MealLogDetailForm = ({
   setUnit,
   setMealType,
   setDate,
-  setTime,
 }: MealLogDetailFormProps): React.JSX.Element => {
   const { selectedFood } = state
   const kcal = previewKcal(state)
-  const activeMealType = resolvedMealType(state)
+  const activeMealType = state.mealType
 
   return (
     <div className={styles.form}>
@@ -87,12 +81,7 @@ export const MealLogDetailForm = ({
       </div>
 
       <div className={styles.field}>
-        <div className={styles.label}>
-          食事区分
-          {state.mealType === null && (
-            <span className={styles.hint}> (時刻から推定)</span>
-          )}
-        </div>
+        <div className={styles.label}>食事区分</div>
         <div className={styles.mealOptions}>
           {MEAL_OPTIONS.map((option) => (
             <button
@@ -113,29 +102,16 @@ export const MealLogDetailForm = ({
         </div>
       </div>
 
-      <div className={styles.dateTimeRow}>
-        <div className={styles.field}>
-          <div className={styles.label}>日付</div>
-          <input
-            type="date"
-            value={state.date}
-            onChange={(e) => {
-              setDate(e.target.value)
-            }}
-            className={styles.dateInput}
-          />
-        </div>
-        <div className={styles.field}>
-          <div className={styles.label}>時刻</div>
-          <input
-            type="time"
-            value={state.time}
-            onChange={(e) => {
-              setTime(e.target.value)
-            }}
-            className={styles.timeInput}
-          />
-        </div>
+      <div className={styles.field}>
+        <div className={styles.label}>日付</div>
+        <input
+          type="date"
+          value={state.date}
+          onChange={(e) => {
+            setDate(e.target.value)
+          }}
+          className={styles.dateInput}
+        />
       </div>
     </div>
   )

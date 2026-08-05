@@ -178,10 +178,8 @@ export const mealLogs = pgTable(
   {
     id: text('id').primaryKey(),
     foodMasterId: text('food_master_id').notNull(),
-    eatenAt: timestamp('eaten_at', {
-      withTimezone: true,
-      mode: 'date',
-    }).notNull(),
+    // JST calendar date, no time component — see src/lib/jst-date.ts.
+    eatenDate: date('eaten_date', { mode: 'string' }).notNull(),
     mealType: mealTypeEnum('meal_type').notNull(),
     quantity: numeric('quantity').notNull(),
     unit: text('unit').notNull(),
@@ -201,10 +199,10 @@ export const mealLogs = pgTable(
     })
       .onUpdate('cascade')
       .onDelete('restrict'),
-    index('meal_logs_eaten_at_idx').on(table.eatenAt.desc()),
-    index('meal_logs_food_master_id_eaten_at_idx').on(
+    index('meal_logs_eaten_date_idx').on(table.eatenDate.desc()),
+    index('meal_logs_food_master_id_eaten_date_idx').on(
       table.foodMasterId,
-      table.eatenAt.desc(),
+      table.eatenDate.desc(),
     ),
     check('meal_logs_quantity_positive', sql`${table.quantity} > 0`),
     check('meal_logs_amount_grams_positive', sql`${table.amountGrams} > 0`),

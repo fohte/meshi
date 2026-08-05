@@ -7,21 +7,20 @@ export type NutrientCode = string
 export type NutritionMap = Readonly<Record<NutrientCode, number>>
 
 export interface QueryMealHistoryInput {
-  readonly periodFrom: Date
-  readonly periodTo: Date
+  // JST calendar date (see src/lib/jst-date.ts), inclusive.
+  readonly periodFrom: string
+  // JST calendar date, exclusive — the period is the half-open range
+  // [periodFrom, periodTo).
+  readonly periodTo: string
   readonly foodFilter?: ReadonlyArray<string>
   readonly nutrientCodes?: ReadonlyArray<NutrientCode>
-  // IANA zone name used to bucket `perDay` entries by calendar day; defaults
-  // to 'UTC' so existing callers (the LLM domain tool) keep their current
-  // day boundaries unchanged.
-  readonly timeZone?: string
 }
 
 export interface MealLogEntry {
   readonly id: string
   readonly foodMasterId: string
   readonly foodName: string
-  readonly eatenAt: Date
+  readonly eatenDate: string
   readonly mealType: MealType
   readonly quantity: number
   readonly unit: string

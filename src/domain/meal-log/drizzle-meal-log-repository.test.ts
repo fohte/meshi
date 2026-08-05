@@ -51,7 +51,7 @@ describeIfDb('createDrizzleMealLogRepository', () => {
       await repo.insertMealLog({
         id: 'ml_round',
         foodMasterId: 'fm_rice',
-        eatenAt: new Date('2026-06-15T03:30:00.000Z'),
+        eatenDate: '2026-06-15',
         mealType: 'breakfast',
         quantity: 150,
         unit: 'g',
@@ -63,7 +63,7 @@ describeIfDb('createDrizzleMealLogRepository', () => {
     const expectedRow: MealLogRow = {
       id: 'ml_round',
       foodMasterId: 'fm_rice',
-      eatenAt: new Date('2026-06-15T03:30:00.000Z'),
+      eatenDate: '2026-06-15',
       mealType: 'breakfast',
       quantity: 150,
       unit: 'g',
@@ -122,7 +122,7 @@ describeIfDb('createDrizzleMealLogRepository', () => {
     await repo.insertMealLog({
       id: 'ml_katsudon',
       foodMasterId: 'fm_katsudon',
-      eatenAt: new Date('2026-06-15T03:30:00.000Z'),
+      eatenDate: '2026-06-15',
       mealType: 'dinner',
       quantity: 1,
       unit: '食',
@@ -161,7 +161,7 @@ describeIfDb('createDrizzleMealLogRepository', () => {
     await repo.insertMealLog({
       id: 'ml_patch',
       foodMasterId: 'fm_rice',
-      eatenAt: new Date('2026-06-15T03:30:00.000Z'),
+      eatenDate: '2026-06-15',
       mealType: 'breakfast',
       quantity: 150,
       unit: 'g',
@@ -182,7 +182,7 @@ describeIfDb('createDrizzleMealLogRepository', () => {
     expect(normalizeRow(updated)).toEqual({
       id: 'ml_patch',
       foodMasterId: 'fm_rice',
-      eatenAt: new Date('2026-06-15T03:30:00.000Z'),
+      eatenDate: '2026-06-15',
       mealType: 'breakfast',
       quantity: 200,
       unit: 'g',
@@ -203,7 +203,7 @@ describeIfDb('createDrizzleMealLogRepository', () => {
     await repo.insertMealLog({
       id: 'ml_patch_grams',
       foodMasterId: 'fm_rice',
-      eatenAt: new Date('2026-06-15T03:30:00.000Z'),
+      eatenDate: '2026-06-15',
       mealType: 'breakfast',
       quantity: 1,
       unit: '杯',
@@ -217,7 +217,7 @@ describeIfDb('createDrizzleMealLogRepository', () => {
     expect(normalizeRow(updated)).toEqual({
       id: 'ml_patch_grams',
       foodMasterId: 'fm_rice',
-      eatenAt: new Date('2026-06-15T03:30:00.000Z'),
+      eatenDate: '2026-06-15',
       mealType: 'breakfast',
       quantity: 1,
       unit: '杯',
@@ -246,7 +246,7 @@ describeIfDb('createDrizzleMealLogRepository', () => {
     await repo.insertMealLog({
       id: 'ml_repoint',
       foodMasterId: 'fm_rice',
-      eatenAt: new Date('2026-06-15T03:30:00.000Z'),
+      eatenDate: '2026-06-15',
       mealType: 'lunch',
       quantity: 100,
       unit: 'g',
@@ -264,7 +264,7 @@ describeIfDb('createDrizzleMealLogRepository', () => {
       log: {
         id: 'ml_repoint',
         foodMasterId: 'fm_karaage',
-        eatenAt: new Date('2026-06-15T03:30:00.000Z'),
+        eatenDate: '2026-06-15',
         mealType: 'lunch',
         quantity: 100,
         unit: 'g',
@@ -309,7 +309,7 @@ describeIfDb('createDrizzleMealLogRepository', () => {
     await repo.insertMealLog({
       id: 'ml_delete',
       foodMasterId: 'fm_rice',
-      eatenAt: new Date('2026-06-15T03:30:00.000Z'),
+      eatenDate: '2026-06-15',
       mealType: 'breakfast',
       quantity: 150,
       unit: 'g',

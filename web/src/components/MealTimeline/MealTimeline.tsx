@@ -72,7 +72,6 @@ export const MealTimeline = ({
                   onItemClick?.(item.id)
                 }}
               >
-                <span className={styles.itemTime}>{item.time}</span>
                 <div className={styles.itemMain}>
                   <div className={styles.itemNameLine}>
                     <span>{item.name}</span>

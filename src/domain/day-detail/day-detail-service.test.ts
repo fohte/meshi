@@ -49,13 +49,15 @@ describeIfDb('DayDetailService.query', () => {
     await seedMealLog(tx, {
       id: 'log-1',
       foodMasterId: 'rice',
-      eatenAt: new Date('2026-06-01T00:00:00Z'),
+      eatenDate: '2026-06-01',
+      mealType: 'breakfast',
       quantity: 200,
     })
     await seedMealLog(tx, {
       id: 'log-2',
       foodMasterId: 'mystery_stew',
-      eatenAt: new Date('2026-06-01T09:00:00Z'),
+      eatenDate: '2026-06-01',
+      mealType: 'dinner',
       quantity: 50,
     })
 
@@ -71,7 +73,7 @@ describeIfDb('DayDetailService.query', () => {
               id: 'log-1',
               foodMasterId: 'rice',
               foodName: 'ごはん',
-              eatenAt: new Date('2026-06-01T00:00:00Z'),
+              eatenDate: '2026-06-01',
               mealType: 'breakfast',
               quantity: 200,
               unit: 'g',
@@ -80,7 +82,7 @@ describeIfDb('DayDetailService.query', () => {
               id: 'log-2',
               foodMasterId: 'mystery_stew',
               foodName: 'なぞのシチュー',
-              eatenAt: new Date('2026-06-01T09:00:00Z'),
+              eatenDate: '2026-06-01',
               mealType: 'dinner',
               quantity: 50,
               unit: 'g',
@@ -92,8 +94,6 @@ describeIfDb('DayDetailService.query', () => {
 
     const result = (
       await service.query({
-        periodFrom: new Date('2026-06-01T00:00:00Z'),
-        periodTo: new Date('2026-06-02T00:00:00Z'),
         date: '2026-06-01',
       })
     )._unsafeUnwrap()
@@ -106,7 +106,7 @@ describeIfDb('DayDetailService.query', () => {
           id: 'log-1',
           foodMasterId: 'rice',
           foodName: 'ごはん',
-          eatenAt: new Date('2026-06-01T00:00:00Z'),
+          eatenDate: '2026-06-01',
           mealType: 'breakfast',
           quantity: 200,
           unit: 'g',
@@ -117,7 +117,7 @@ describeIfDb('DayDetailService.query', () => {
           id: 'log-2',
           foodMasterId: 'mystery_stew',
           foodName: 'なぞのシチュー',
-          eatenAt: new Date('2026-06-01T09:00:00Z'),
+          eatenDate: '2026-06-01',
           mealType: 'dinner',
           quantity: 50,
           unit: 'g',
@@ -142,7 +142,8 @@ describeIfDb('DayDetailService.query', () => {
     await seedMealLog(tx, {
       id: 'log-1',
       foodMasterId: 'egg',
-      eatenAt: new Date('2026-06-01T00:00:00Z'),
+      eatenDate: '2026-06-01',
+      mealType: 'breakfast',
       quantity: 2,
       unit: '個',
       amountGrams: 110,
@@ -159,7 +160,7 @@ describeIfDb('DayDetailService.query', () => {
               id: 'log-1',
               foodMasterId: 'egg',
               foodName: 'たまご',
-              eatenAt: new Date('2026-06-01T00:00:00Z'),
+              eatenDate: '2026-06-01',
               mealType: 'breakfast',
               quantity: 2,
               unit: '個',
@@ -171,8 +172,6 @@ describeIfDb('DayDetailService.query', () => {
 
     const result = (
       await service.query({
-        periodFrom: new Date('2026-06-01T00:00:00Z'),
-        periodTo: new Date('2026-06-02T00:00:00Z'),
         date: '2026-06-01',
       })
     )._unsafeUnwrap()
@@ -185,7 +184,7 @@ describeIfDb('DayDetailService.query', () => {
           id: 'log-1',
           foodMasterId: 'egg',
           foodName: 'たまご',
-          eatenAt: new Date('2026-06-01T00:00:00Z'),
+          eatenDate: '2026-06-01',
           mealType: 'breakfast',
           quantity: 2,
           unit: '個',
@@ -212,8 +211,6 @@ describeIfDb('DayDetailService.query', () => {
 
     const result = (
       await service.query({
-        periodFrom: new Date('2026-06-01T00:00:00Z'),
-        periodTo: new Date('2026-06-02T00:00:00Z'),
         date: '2026-06-01',
       })
     )._unsafeUnwrap()
@@ -237,7 +234,8 @@ describeIfDb('DayDetailService.query', () => {
     await seedMealLog(tx, {
       id: 'log-1',
       foodMasterId: 'rice',
-      eatenAt: new Date('2026-06-01T00:00:00Z'),
+      eatenDate: '2026-06-01',
+      mealType: 'breakfast',
       quantity: 200,
     })
 
@@ -252,7 +250,7 @@ describeIfDb('DayDetailService.query', () => {
               id: 'log-1',
               foodMasterId: 'rice',
               foodName: 'ごはん',
-              eatenAt: new Date('2026-06-01T00:00:00Z'),
+              eatenDate: '2026-06-01',
               mealType: 'breakfast',
               quantity: 200,
               unit: 'g',
@@ -286,8 +284,6 @@ describeIfDb('DayDetailService.query', () => {
 
     const result = (
       await service.query({
-        periodFrom: new Date('2026-06-01T00:00:00Z'),
-        periodTo: new Date('2026-06-02T00:00:00Z'),
         date: '2026-06-01',
       })
     )._unsafeUnwrap()
@@ -300,7 +296,7 @@ describeIfDb('DayDetailService.query', () => {
           id: 'log-1',
           foodMasterId: 'rice',
           foodName: 'ごはん',
-          eatenAt: new Date('2026-06-01T00:00:00Z'),
+          eatenDate: '2026-06-01',
           mealType: 'breakfast',
           quantity: 200,
           unit: 'g',
@@ -325,7 +321,8 @@ describeIfDb('DayDetailService.query', () => {
     await seedMealLog(tx, {
       id: 'log-1',
       foodMasterId: 'katsudon',
-      eatenAt: new Date('2026-06-01T00:00:00Z'),
+      eatenDate: '2026-06-01',
+      mealType: 'breakfast',
       quantity: 1,
       unit: '食',
       amountGrams: 1,
@@ -342,7 +339,7 @@ describeIfDb('DayDetailService.query', () => {
               id: 'log-1',
               foodMasterId: 'katsudon',
               foodName: '味噌ロースかつ丼',
-              eatenAt: new Date('2026-06-01T00:00:00Z'),
+              eatenDate: '2026-06-01',
               mealType: 'breakfast',
               quantity: 1,
               unit: '食',
@@ -354,8 +351,6 @@ describeIfDb('DayDetailService.query', () => {
 
     const result = (
       await service.query({
-        periodFrom: new Date('2026-06-01T00:00:00Z'),
-        periodTo: new Date('2026-06-02T00:00:00Z'),
         date: '2026-06-01',
       })
     )._unsafeUnwrap()
@@ -368,7 +363,7 @@ describeIfDb('DayDetailService.query', () => {
           id: 'log-1',
           foodMasterId: 'katsudon',
           foodName: '味噌ロースかつ丼',
-          eatenAt: new Date('2026-06-01T00:00:00Z'),
+          eatenDate: '2026-06-01',
           mealType: 'breakfast',
           quantity: 1,
           unit: '食',

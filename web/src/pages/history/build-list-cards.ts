@@ -33,7 +33,7 @@ const buildSummary = (foodNames: ReadonlyArray<string>): string => {
 
 // perDay drives which days render a card (only days with at least one meal
 // log ever appear there); foodNamesByDate supplies each day's food names in
-// eaten-time order for the summary text.
+// the API's eatenDate + insertion order for the summary text.
 export const buildListCards = (
   perDay: ReadonlyArray<HistoryListDayTotals>,
   foodNamesByDate: ReadonlyMap<string, ReadonlyArray<string>>,

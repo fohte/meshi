@@ -18,6 +18,7 @@ import type {
 import { MEAL_TYPES } from '#domain/meal-log/types'
 import type { MealSkipService } from '#domain/meal-skip/meal-skip-service'
 import type { MealSkipRow } from '#domain/meal-skip/types'
+import { nextJstDateString } from '#lib/jst-date'
 
 const ENERGY_KCAL_CODE = 'energy_kcal'
 
@@ -46,8 +47,8 @@ export const createDayDetailService = (
     query(input) {
       const historyResult = mealHistoryService
         .query({
-          periodFrom: input.periodFrom,
-          periodTo: input.periodTo,
+          periodFrom: input.date,
+          periodTo: nextJstDateString(input.date),
           nutrientCodes: NUTRIENT_CODES,
         })
         .mapErr(
@@ -149,7 +150,7 @@ const enrichEntries = (
         id: entry.id,
         foodMasterId: entry.foodMasterId,
         foodName: food?.name ?? entry.foodMasterId,
-        eatenAt: entry.eatenAt,
+        eatenDate: entry.eatenDate,
         mealType: entry.mealType,
         quantity: entry.quantity,
         unit: entry.unit,

@@ -54,7 +54,7 @@ export interface MealHistoryAggregateSnapshot {
   readonly entries: ReadonlyArray<{
     readonly mealLogId: string
     readonly foodMasterId: string
-    readonly eatenAtIso: string
+    readonly eatenDate: string
     readonly mealType: MealType
     readonly quantity: number
     readonly unit: string

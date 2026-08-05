@@ -8,7 +8,7 @@ import { requestJson } from '#api/request'
 const mealLogResultSchema = z.object({
   id: z.string(),
   foodMasterId: z.string(),
-  eatenAt: z.iso.datetime(),
+  eatenDate: z.string(),
   mealType: z.enum(MEAL_TYPES),
   quantity: z.number(),
   unit: z.string(),
@@ -22,15 +22,15 @@ export type MealLogResult = z.infer<typeof mealLogResultSchema>
 
 export interface RecordMealLogInput {
   readonly foodMasterId: string
-  readonly eatenAt: string
-  readonly mealType?: MealType
+  readonly eatenDate: string
+  readonly mealType: MealType
   readonly quantity: number
   readonly unit: string
 }
 
 export interface UpdateMealLogInput {
   readonly foodMasterId?: string
-  readonly eatenAt?: string
+  readonly eatenDate?: string
   readonly mealType?: MealType
   readonly quantity?: number
   readonly unit?: string

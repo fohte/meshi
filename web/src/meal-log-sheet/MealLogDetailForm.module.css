@@ -56,10 +56,6 @@
   margin-bottom: 7px;
 }
 
-.hint {
-  color: var(--color-muted-2);
-}
-
 .quantityRow {
   display: flex;
   gap: 8px;
@@ -120,13 +116,7 @@
   background: var(--color-text);
 }
 
-.dateTimeRow {
-  display: flex;
-  gap: 8px;
-}
-
-.dateInput,
-.timeInput {
+.dateInput {
   all: unset;
   width: 100%;
   box-sizing: border-box;

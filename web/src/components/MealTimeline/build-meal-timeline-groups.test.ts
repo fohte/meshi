@@ -7,7 +7,7 @@ const entry = (overrides: Partial<DayDetailEntry>): DayDetailEntry => ({
   id: 'log-1',
   foodMasterId: 'rice',
   foodName: 'ごはん',
-  eatenAt: '2026-07-28T23:00:00.000Z', // 08:00 JST
+  eatenDate: '2026-07-29',
   mealType: 'breakfast',
   quantity: 150,
   unit: 'g',
@@ -21,7 +21,7 @@ describe('buildMealTimelineGroups', () => {
     const entries = [
       entry({
         id: 'l1',
-        eatenAt: '2026-07-28T23:00:00.000Z', // 08:00 JST breakfast
+        eatenDate: '2026-07-29',
         mealType: 'breakfast',
         foodName: '白米',
         quantity: 150,
@@ -38,7 +38,6 @@ describe('buildMealTimelineGroups', () => {
         items: [
           {
             id: 'l1',
-            time: '08:00',
             name: '白米',
             isEstimated: false,
             quantityText: '150 g',
@@ -107,7 +106,7 @@ describe('buildMealTimelineGroups', () => {
     const entries = [
       entry({
         id: 'l1',
-        eatenAt: '2026-07-28T23:00:00.000Z', // 08:00 JST breakfast
+        eatenDate: '2026-07-29',
         mealType: 'breakfast',
         foodName: '白米',
         quantity: 150,
@@ -124,7 +123,6 @@ describe('buildMealTimelineGroups', () => {
         items: [
           {
             id: 'l1',
-            time: '08:00',
             name: '白米',
             isEstimated: false,
             quantityText: '150 g',
@@ -203,7 +201,6 @@ describe('buildMealTimelineGroups', () => {
         items: [
           {
             id: 'l1',
-            time: '08:00',
             name: 'ごはん',
             isEstimated: false,
             quantityText: '1.5 杯',

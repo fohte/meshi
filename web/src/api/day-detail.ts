@@ -11,7 +11,7 @@ const dayDetailEntrySchema = z.object({
   id: z.string(),
   foodMasterId: z.string(),
   foodName: z.string(),
-  eatenAt: z.iso.datetime(),
+  eatenDate: z.string(),
   mealType: z.enum(MEAL_TYPES),
   quantity: z.number(),
   unit: z.string(),

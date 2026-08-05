@@ -6,7 +6,7 @@ import { z } from 'zod'
 import { mountMealLogRoutes } from '#api/meal-log-routes'
 import {
   FoodMasterNotFoundError,
-  FutureEatenAtError,
+  FutureEatenDateError,
   ImplausibleQuantityError,
   InvalidQuantityError,
   MealLogNotFoundError,
@@ -27,7 +27,7 @@ const buildApp = (mealLogService: MealLogService): Hono => {
 const SAMPLE_RESULT: MealLogResult = {
   id: 'ml_1',
   foodMasterId: 'fm_rice',
-  eatenAt: new Date('2026-06-18T00:00:00.000Z'),
+  eatenDate: '2026-06-18',
   mealType: 'lunch',
   quantity: 150,
   unit: 'g',
@@ -40,7 +40,7 @@ const SAMPLE_RESULT: MealLogResult = {
 const SAMPLE_JSON = {
   id: 'ml_1',
   foodMasterId: 'fm_rice',
-  eatenAt: '2026-06-18T00:00:00.000Z',
+  eatenDate: '2026-06-18',
   mealType: 'lunch',
   quantity: 150,
   unit: 'g',
@@ -82,7 +82,8 @@ describe('POST /api/meal-logs', () => {
     const res = await app.request(
       jsonRequest('/api/meal-logs', 'POST', {
         foodMasterId: 'fm_rice',
-        eatenAt: '2026-06-18T00:00:00.000Z',
+        eatenDate: '2026-06-18',
+        mealType: 'lunch',
         quantity: 150,
         unit: 'g',
       }),
@@ -92,36 +93,8 @@ describe('POST /api/meal-logs', () => {
     expect(await res.json()).toEqual(SAMPLE_JSON)
     expect(captured).toEqual({
       foodMasterId: 'fm_rice',
-      eatenAt: new Date('2026-06-18T00:00:00.000Z'),
-      quantity: 150,
-      unit: 'g',
-    })
-  })
-
-  it('forwards mealType when present', async () => {
-    let captured: unknown
-    const app = buildApp({
-      ...notStubbed('service'),
-      record: (input) => {
-        captured = input
-        return okAsync(SAMPLE_RESULT)
-      },
-    })
-
-    await app.request(
-      jsonRequest('/api/meal-logs', 'POST', {
-        foodMasterId: 'fm_rice',
-        eatenAt: '2026-06-18T00:00:00.000Z',
-        mealType: 'breakfast',
-        quantity: 150,
-        unit: 'g',
-      }),
-    )
-
-    expect(captured).toEqual({
-      foodMasterId: 'fm_rice',
-      eatenAt: new Date('2026-06-18T00:00:00.000Z'),
-      mealType: 'breakfast',
+      eatenDate: '2026-06-18',
+      mealType: 'lunch',
       quantity: 150,
       unit: 'g',
     })
@@ -153,8 +126,24 @@ describe('POST /api/meal-logs', () => {
     expect(errorResponseSchema.safeParse(await res.json()).success).toBe(true)
   })
 
+  it('returns 400 when mealType is missing', async () => {
+    const app = buildApp(notStubbed('service'))
+
+    const res = await app.request(
+      jsonRequest('/api/meal-logs', 'POST', {
+        foodMasterId: 'fm_rice',
+        eatenDate: '2026-06-18',
+        quantity: 150,
+        unit: 'g',
+      }),
+    )
+
+    expect(res.status).toBe(400)
+    expect(errorResponseSchema.safeParse(await res.json()).success).toBe(true)
+  })
+
   it.each([
-    [new FutureEatenAtError(new Date('2099-01-01T00:00:00.000Z')), 400],
+    [new FutureEatenDateError('2099-01-01'), 400],
     [new InvalidQuantityError(-1), 400],
     [new UnknownUnitError('cup', []), 400],
     [new ImplausibleQuantityError(50_000), 400],
@@ -169,7 +158,8 @@ describe('POST /api/meal-logs', () => {
     const res = await app.request(
       jsonRequest('/api/meal-logs', 'POST', {
         foodMasterId: 'fm_rice',
-        eatenAt: '2026-06-18T00:00:00.000Z',
+        eatenDate: '2026-06-18',
+        mealType: 'lunch',
         quantity: 150,
         unit: 'g',
       }),

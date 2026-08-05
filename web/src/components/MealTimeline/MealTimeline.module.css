@@ -80,14 +80,6 @@
   background: var(--color-surface);
 }
 
-.itemTime {
-  font-family: var(--font-mono);
-  font-size: 12px;
-  color: var(--color-muted);
-  flex: none;
-  width: 38px;
-}
-
 .itemMain {
   flex: 1;
   min-width: 0;

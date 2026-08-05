@@ -105,7 +105,7 @@ const successMealHistory: MealHistoryResult = {
       {
         mealLogId: 'log-1',
         foodMasterId: 'food-1',
-        eatenAtIso: '2026-06-12T12:30:00+09:00',
+        eatenDate: '2026-06-12',
         mealType: 'lunch',
         quantity: 1,
         unit: '杯',
@@ -578,7 +578,7 @@ describe('query_meals', () => {
               {
                 meal_log_id: 'log-1',
                 food_master_id: 'food-1',
-                eaten_at_iso: '2026-06-12T12:30:00+09:00',
+                eaten_date: '2026-06-12',
                 quantity: 1,
                 unit: '杯',
               },

@@ -2,6 +2,7 @@ import { z } from 'zod'
 
 import type { MealLogService } from '#domain/meal-log/meal-log-service'
 import { MEAL_TYPES } from '#domain/meal-log/types'
+import { isValidJstCalendarDateString } from '#lib/jst-date'
 import { parseToolInput } from '#llm/domain-tools/parse'
 import { toToolError } from '#llm/domain-tools/to-tool-error'
 import {
@@ -16,7 +17,12 @@ const inputSchema = z
   .object({
     meal_log_id: z.string().min(1),
     food_master_id: z.string().min(1).optional(),
-    eaten_at_iso: z.iso.datetime({ offset: true }).optional(),
+    date: z
+      .string()
+      .refine(isValidJstCalendarDateString, {
+        message: 'date must be a valid YYYY-MM-DD JST calendar date',
+      })
+      .optional(),
     meal_type: z.enum(MEAL_TYPES).optional(),
     quantity: z.number().positive().optional(),
     unit: z.string().min(1).optional(),
@@ -24,7 +30,7 @@ const inputSchema = z
   .refine(
     (v) =>
       v.food_master_id !== undefined ||
-      v.eaten_at_iso !== undefined ||
+      v.date !== undefined ||
       v.meal_type !== undefined ||
       v.quantity !== undefined ||
       v.unit !== undefined,
@@ -42,7 +48,7 @@ export const createUpdateMealLogTool = (
 ): DomainTool => ({
   name: 'update_meal_log',
   description:
-    'Patch fields on an already-recorded meal_log identified by meal_log_id (from query_meal_history entries, or a prior record_meal_log/update_meal_log result). Omitted fields are left unchanged. Use this to fix a mistake (wrong quantity, unit, food_master_id, eaten_at, or meal_type) instead of calling record_meal_log again, which would create a duplicate entry. Re-validates the same invariants as record_meal_log: eaten_at_iso must not be in the future, quantity must be positive, and a changed food_master_id must exist. Returns the meal_log_id and the recomputed nutrition for the corrected entry.',
+    'Patch fields on an already-recorded meal_log identified by meal_log_id (from query_meal_history entries, or a prior record_meal_log/update_meal_log result). Omitted fields are left unchanged. Use this to fix a mistake (wrong quantity, unit, food_master_id, date, or meal_type) instead of calling record_meal_log again, which would create a duplicate entry. Re-validates the same invariants as record_meal_log: date must not be in the future, quantity must be positive, and a changed food_master_id must exist. Returns the meal_log_id and the recomputed nutrition for the corrected entry.',
   inputSchema: z.toJSONSchema(inputSchema, { io: 'input' }),
   async execute(
     input: unknown,
@@ -54,9 +60,9 @@ export const createUpdateMealLogTool = (
       ...(parsed.value.food_master_id === undefined
         ? {}
         : { foodMasterId: parsed.value.food_master_id }),
-      ...(parsed.value.eaten_at_iso === undefined
+      ...(parsed.value.date === undefined
         ? {}
-        : { eatenAt: new Date(parsed.value.eaten_at_iso) }),
+        : { eatenDate: parsed.value.date }),
       ...(parsed.value.meal_type === undefined
         ? {}
         : { mealType: parsed.value.meal_type }),
