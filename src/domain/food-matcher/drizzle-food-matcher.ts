@@ -125,7 +125,7 @@ export const createDrizzleFoodMatcher = (
           SELECT
             ml.food_master_id,
             COUNT(*)::int AS cnt,
-            (CURRENT_DATE - MAX(ml.eaten_date)) AS days_since
+            (((CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Tokyo')::date) - MAX(ml.eaten_date)) AS days_since
           FROM meal_logs ml
           JOIN name_matches nm ON nm.id = ml.food_master_id
           GROUP BY ml.food_master_id
