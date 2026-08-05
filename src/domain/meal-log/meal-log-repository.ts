@@ -10,7 +10,7 @@ import type {
 export interface InsertMealLogInput {
   readonly id: string
   readonly foodMasterId: string
-  readonly eatenAt: Date
+  readonly eatenDate: string
   readonly mealType: MealType
   readonly quantity: number
   readonly unit: string
@@ -25,7 +25,7 @@ export interface InsertMealLogInput {
 export interface UpdateMealLogPatch {
   readonly id: string
   readonly foodMasterId?: string
-  readonly eatenAt?: Date
+  readonly eatenDate?: string
   readonly mealType?: MealType
   readonly quantity?: number
   readonly unit?: string

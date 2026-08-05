@@ -22,11 +22,11 @@ const loadHistory = async (
     .select()
     .from(mealLogs)
     .where(eq(mealLogs.foodMasterId, foodMasterId))
-    .orderBy(desc(mealLogs.eatenAt))
+    .orderBy(desc(mealLogs.eatenDate), desc(mealLogs.createdAt))
 
   return rows.map((row) => ({
     id: row.id,
-    eatenAt: row.eatenAt,
+    eatenDate: row.eatenDate,
     mealType: row.mealType,
     amountGrams: Number(row.amountGrams),
     quantity: Number(row.quantity),

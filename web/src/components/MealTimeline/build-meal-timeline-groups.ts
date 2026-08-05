@@ -1,5 +1,4 @@
 import type { DayDetailEntry, MealType } from '#api/day-detail'
-import { formatJstTime } from '#lib/jst-date'
 
 const MEAL_ORDER: ReadonlyArray<MealType> = [
   'breakfast',
@@ -16,7 +15,6 @@ const MEAL_LABELS: Record<MealType, string> = {
 
 export interface MealTimelineItem {
   readonly id: string
-  readonly time: string
   readonly name: string
   readonly isEstimated: boolean
   readonly quantityText: string
@@ -36,8 +34,9 @@ export interface MealTimelineGroup {
 const formatQuantity = (quantity: number): string =>
   Number.isInteger(quantity) ? String(quantity) : quantity.toFixed(1)
 
-// Entries arrive pre-sorted by eatenAt from the API, so items within each
-// group stay time-ordered without a separate sort here.
+// Entries arrive pre-sorted by eatenDate + createdAt (insertion order) from
+// the API, so items within each group stay in that order without a separate
+// sort here.
 //
 // Always returns one group per MEAL_ORDER entry (never dropping empty ones)
 // so "no entries recorded" (unrecorded) is distinguishable from "recorded as
@@ -58,7 +57,6 @@ export const buildMealTimelineGroups = (
         kcalText: `${String(Math.round(kcalTotal))} kcal`,
         items: items.map((entry) => ({
           id: entry.id,
-          time: formatJstTime(entry.eatenAt),
           name: entry.foodName,
           isEstimated: entry.isEstimated,
           quantityText: `${formatQuantity(entry.quantity)} ${entry.unit}`,

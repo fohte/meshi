@@ -10,7 +10,7 @@ import type { MealType } from '#domain/meal-log/types'
 
 export interface FoodEatHistoryEntry {
   readonly id: string
-  readonly eatenAt: Date
+  readonly eatenDate: string
   readonly mealType: MealType
   // The recorded quantity+unit resolved to the food's own basis unit (see
   // src/db/schema.ts's meal_logs.amount_grams and

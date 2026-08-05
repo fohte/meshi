@@ -5,6 +5,7 @@ import {
   createFoodMasterRepository,
   createFoodMasterService,
 } from '#domain/food-master/index'
+import { toJstDateString } from '#lib/jst-date'
 import { describeIfDb, setupDrizzleTx } from '#test/db'
 import { seedFoodMaster, seedFoodMasterAlias, seedMealLog } from '#test/seed'
 
@@ -106,7 +107,7 @@ describeIfDb('createFoodDetailService', () => {
     await seedMealLog(tx, {
       id: 'ml_older',
       foodMasterId: 'fm_bread',
-      eatenAt: olderEatenAt,
+      eatenDate: toJstDateString(olderEatenAt),
       mealType: 'breakfast',
       quantity: 60,
       unit: 'g',
@@ -114,7 +115,7 @@ describeIfDb('createFoodDetailService', () => {
     await seedMealLog(tx, {
       id: 'ml_newer',
       foodMasterId: 'fm_bread',
-      eatenAt: newerEatenAt,
+      eatenDate: toJstDateString(newerEatenAt),
       mealType: 'snack',
       // Non-gram unit: amountGrams (the resolved basis for nutrition) is
       // distinct from quantity (display-only), so this also pins that the
@@ -143,7 +144,7 @@ describeIfDb('createFoodDetailService', () => {
       history: [
         {
           id: 'ml_newer',
-          eatenAt: newerEatenAt,
+          eatenDate: toJstDateString(newerEatenAt),
           mealType: 'snack',
           amountGrams: 45,
           quantity: 1,
@@ -151,7 +152,7 @@ describeIfDb('createFoodDetailService', () => {
         },
         {
           id: 'ml_older',
-          eatenAt: olderEatenAt,
+          eatenDate: toJstDateString(olderEatenAt),
           mealType: 'breakfast',
           amountGrams: 60,
           quantity: 60,

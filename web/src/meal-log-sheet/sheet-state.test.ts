@@ -9,7 +9,6 @@ import {
   buildEditState,
   buildSavePayload,
   previewKcal,
-  resolvedMealType,
   type SelectedFood,
   type SheetState,
 } from '#meal-log-sheet/sheet-state'
@@ -25,7 +24,7 @@ const ENTRY: DayDetailEntry = {
   id: 'ml_1',
   foodMasterId: 'fm_rice',
   foodName: '白米',
-  eatenAt: '2026-07-28T23:05:00.000Z',
+  eatenDate: '2026-07-29',
   mealType: 'breakfast',
   quantity: 150,
   unit: 'g',
@@ -43,7 +42,7 @@ describe('buildCreateState', () => {
     vi.useRealTimers()
   })
 
-  it('defaults to a create/search state seeded with now (JST)', () => {
+  it('defaults to a create/search state seeded with today (JST)', () => {
     expect(buildCreateState()).toEqual({
       mode: 'create',
       mealLogId: null,
@@ -55,18 +54,16 @@ describe('buildCreateState', () => {
       unit: 'g',
       mealType: null,
       date: '2026-07-29',
-      time: '09:30',
       justSaved: false,
     })
   })
 })
 
 describe('buildContinueState', () => {
-  it('resets to search but keeps date/time and marks justSaved', () => {
+  it('resets to search but keeps date and marks justSaved', () => {
     const previous: SheetState = {
       ...buildCreateState(),
       date: '2026-07-20',
-      time: '12:00',
       selectedFood: RICE,
       quantity: '200',
     }
@@ -82,7 +79,6 @@ describe('buildContinueState', () => {
       unit: 'g',
       mealType: null,
       date: '2026-07-20',
-      time: '12:00',
       justSaved: true,
     })
   })
@@ -106,7 +102,6 @@ describe('buildEditState', () => {
       unit: 'g',
       mealType: 'breakfast',
       date: '2026-07-29',
-      time: '08:05',
       justSaved: false,
     })
   })
@@ -191,28 +186,6 @@ describe('backToSearch', () => {
   })
 })
 
-describe('resolvedMealType', () => {
-  it('returns the explicit mealType when set', () => {
-    expect(
-      resolvedMealType({
-        ...buildCreateState(),
-        mealType: 'dinner',
-        time: '08:00',
-      }),
-    ).toBe('dinner')
-  })
-
-  it('infers from time when mealType is null', () => {
-    expect(
-      resolvedMealType({
-        ...buildCreateState(),
-        mealType: null,
-        time: '08:00',
-      }),
-    ).toBe('breakfast')
-  })
-})
-
 describe('buildSavePayload', () => {
   it('returns null when no food is selected', () => {
     expect(buildSavePayload(buildCreateState())).toBeNull()
@@ -224,9 +197,13 @@ describe('buildSavePayload', () => {
     ).toBeNull()
   })
 
-  it('returns null when time is empty', () => {
+  it('returns null when mealType is not chosen', () => {
     expect(
-      buildSavePayload({ ...buildCreateState(), selectedFood: RICE, time: '' }),
+      buildSavePayload({
+        ...buildCreateState(),
+        selectedFood: RICE,
+        mealType: null,
+      }),
     ).toBeNull()
   })
 
@@ -237,33 +214,14 @@ describe('buildSavePayload', () => {
         buildSavePayload({
           ...buildCreateState(),
           selectedFood: RICE,
+          mealType: 'breakfast',
           quantity,
         }),
       ).toBeNull()
     },
   )
 
-  it('builds a payload with an inferred mealType', () => {
-    const state: SheetState = {
-      ...buildCreateState(),
-      selectedFood: RICE,
-      quantity: '150',
-      unit: 'g',
-      mealType: null,
-      date: '2026-07-29',
-      time: '08:05',
-    }
-
-    expect(buildSavePayload(state)).toEqual({
-      foodMasterId: 'fm_1',
-      eatenAt: '2026-07-28T23:05:00.000Z',
-      mealType: 'breakfast',
-      quantity: 150,
-      unit: 'g',
-    })
-  })
-
-  it('includes an explicit mealType when set', () => {
+  it('builds a payload with the chosen mealType', () => {
     const state: SheetState = {
       ...buildCreateState(),
       selectedFood: RICE,
@@ -271,12 +229,11 @@ describe('buildSavePayload', () => {
       unit: 'g',
       mealType: 'dinner',
       date: '2026-07-29',
-      time: '08:05',
     }
 
     expect(buildSavePayload(state)).toEqual({
       foodMasterId: 'fm_1',
-      eatenAt: '2026-07-28T23:05:00.000Z',
+      eatenDate: '2026-07-29',
       mealType: 'dinner',
       quantity: 150,
       unit: 'g',

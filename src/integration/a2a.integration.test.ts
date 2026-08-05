@@ -230,7 +230,8 @@ describeIfDb('A2A integration', () => {
           args: {
             food_master_id: 'fm_rice_happy',
             food_name: '白米 happy-path',
-            eaten_at_iso: '2026-06-12T12:30:00+09:00',
+            date: '2026-06-12',
+            meal_type: 'lunch',
             quantity: 200,
             unit: 'g',
           },
@@ -325,7 +326,8 @@ describeIfDb('A2A integration', () => {
           args: {
             food_master_id: 'fm_rice_mixed',
             food_name: '白米 mixed-item',
-            eaten_at_iso: '2026-06-12T12:30:00+09:00',
+            date: '2026-06-12',
+            meal_type: 'lunch',
             quantity: 200,
             unit: 'g',
           },
@@ -450,7 +452,8 @@ describeIfDb('A2A integration', () => {
           args: {
             food_master_id: 'fm_salmon_resume',
             food_name: 'salmon sushi resume',
-            eaten_at_iso: '2026-06-12T19:00:00+09:00',
+            date: '2026-06-12',
+            meal_type: 'dinner',
             quantity: 180,
             unit: 'g',
           },
@@ -601,7 +604,8 @@ describeIfDb('A2A integration', () => {
     await seedMealLog(domainTx, {
       id: 'ml_history_a2a',
       foodMasterId: 'fm_rice_history',
-      eatenAt: new Date('2026-06-12T03:30:00+00:00'),
+      eatenDate: '2026-06-12',
+      mealType: 'lunch',
       quantity: 200,
       unit: 'g',
     })
@@ -611,8 +615,8 @@ describeIfDb('A2A integration', () => {
         {
           name: 'query_meal_history',
           args: {
-            period_from_iso: '2026-06-12T00:00:00+00:00',
-            period_to_iso: '2026-06-13T00:00:00+00:00',
+            period_from: '2026-06-12',
+            period_to: '2026-06-13',
           },
           id: 'call_1',
         },
@@ -651,7 +655,7 @@ describeIfDb('A2A integration', () => {
           '2026-06-12 の食事履歴をお伝えしました。',
           '',
           '明細 (1 件):',
-          '- 2026-06-12 03:30 昼食 fm_rice_history: 200g',
+          '- 2026-06-12 昼食 fm_rice_history: 200g',
         ].join('\n'),
       )
       expect(normalizeTask(task)).toEqual({

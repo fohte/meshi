@@ -163,7 +163,7 @@ const formatTotalsLine = (totals: Readonly<Record<string, number>>): string => {
 // can build this shape without needing an orchestrator-internal id.
 export interface MealHistoryEntryDisplay {
   readonly foodMasterId: string
-  readonly eatenAtIso: string
+  readonly eatenDate: string
   readonly mealType: MealType
   readonly quantity: number
   readonly unit: string
@@ -176,17 +176,8 @@ const MEAL_TYPE_LABEL: Readonly<Record<MealType, string>> = {
   snack: '間食',
 }
 
-// eatenAtIso is always UTC (mealHistoryService renders it via `AT TIME ZONE
-// 'UTC'`), and neither caller of this formatter (the MCP/orchestrator path's
-// `timezone` input, the A2A path with no timezone input at all) threads a
-// user timezone through to structured data — only into the LLM's own prompt
-// as a hint string. So this displays the UTC date/time as-is rather than
-// converting to a timezone this layer doesn't actually have.
-const formatMealHistoryEntry = (entry: MealHistoryEntryDisplay): string => {
-  const date = entry.eatenAtIso.slice(0, 10)
-  const time = entry.eatenAtIso.slice(11, 16)
-  return `- ${date} ${time} ${MEAL_TYPE_LABEL[entry.mealType]} ${entry.foodMasterId}: ${formatNumber(entry.quantity)}${entry.unit}`
-}
+const formatMealHistoryEntry = (entry: MealHistoryEntryDisplay): string =>
+  `- ${entry.eatenDate} ${MEAL_TYPE_LABEL[entry.mealType]} ${entry.foodMasterId}: ${formatNumber(entry.quantity)}${entry.unit}`
 
 // Itemizes meal-history entries deterministically from structured data,
 // mirroring formatMealRecordTemplate's per-item bullet list — shared between

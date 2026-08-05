@@ -7,7 +7,7 @@ export interface DayDetailEntry {
   readonly id: string
   readonly foodMasterId: string
   readonly foodName: string
-  readonly eatenAt: Date
+  readonly eatenDate: string
   readonly mealType: MealType
   readonly quantity: number
   readonly unit: string
@@ -23,11 +23,7 @@ export interface DayDetail {
 }
 
 export interface QueryDayDetailInput {
-  readonly periodFrom: Date
-  readonly periodTo: Date
-  // The JST calendar date (see src/lib/jst-date.ts),
-  // separate from periodFrom/periodTo's UTC instant range — meal_skips key
-  // off this exact string.
+  // JST calendar date (see src/lib/jst-date.ts).
   readonly date: string
 }
 

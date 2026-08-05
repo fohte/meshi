@@ -171,16 +171,16 @@ export const createFoodBrowseService = (
           SELECT fm.id, fm.name, fm.is_estimated, fm.source, fmn.value AS energy_kcal,
             fm.basis_quantity, fm.basis_unit
           FROM (
-            SELECT food_master_id, MAX(eaten_at) AS last_eaten_at
+            SELECT food_master_id, MAX(eaten_date) AS last_eaten_date
             FROM meal_logs
             GROUP BY food_master_id
-            ORDER BY last_eaten_at DESC, food_master_id ASC
+            ORDER BY last_eaten_date DESC, food_master_id ASC
             LIMIT ${limit}
           ) recent
           JOIN food_masters fm ON fm.id = recent.food_master_id
           LEFT JOIN food_master_nutrients fmn
             ON fmn.food_master_id = fm.id AND fmn.nutrient_code = ${ENERGY_KCAL_CODE}
-          ORDER BY recent.last_eaten_at DESC, fm.id ASC
+          ORDER BY recent.last_eaten_date DESC, fm.id ASC
         `,
         (caughtErr) =>
           new FoodBrowseQueryError('recent foods query failed', caughtErr),

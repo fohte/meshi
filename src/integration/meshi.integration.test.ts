@@ -24,8 +24,8 @@ import {
 import { createDrizzleFoodMatcher } from '#domain/food-matcher/index'
 import { createMealHistoryService } from '#domain/meal-history/index'
 import { createDrizzleMealLogRepository } from '#domain/meal-log/drizzle-meal-log-repository'
-import { inferMealType } from '#domain/meal-log/infer-meal-type'
 import { createMealLogService } from '#domain/meal-log/meal-log-service'
+import type { MealType } from '#domain/meal-log/types'
 import { createDrizzleMealSkipRepository } from '#domain/meal-skip/drizzle-meal-skip-repository'
 import { createMealSkipService } from '#domain/meal-skip/meal-skip-service'
 import { createUserProfileService } from '#domain/user-profile/user-profile-service'
@@ -141,7 +141,7 @@ const startHarness = async (opts: HarnessOptions): Promise<Harness> => {
   const mealLogService = createMealLogService({
     repository: mealLogRepository,
     idGenerator,
-    // pin to a fixed point in time so eaten_at validation is deterministic
+    // pin to a fixed point in time so eaten_date validation is deterministic
     now: () => new Date('2026-06-12T22:00:00+09:00'),
   })
   const mealSkipService = createMealSkipService({
@@ -248,19 +248,19 @@ const seedMealLog = async (
   args: {
     readonly id: string
     readonly foodMasterId: string
-    readonly eatenAt: string
+    readonly eatenDate: string
+    readonly mealType: MealType
     readonly quantity: number
     readonly unit: string
   },
 ): Promise<void> => {
-  const eatenAt = new Date(args.eatenAt)
   await tx`
-    INSERT INTO meal_logs (id, food_master_id, eaten_at, meal_type, quantity, unit, amount_grams)
+    INSERT INTO meal_logs (id, food_master_id, eaten_date, meal_type, quantity, unit, amount_grams)
     VALUES (
       ${args.id},
       ${args.foodMasterId},
-      ${eatenAt},
-      ${inferMealType(eatenAt)},
+      ${args.eatenDate},
+      ${args.mealType},
       ${String(args.quantity)},
       ${args.unit},
       ${String(args.quantity)}
@@ -398,7 +398,8 @@ describeIfDb('meshi integration', () => {
           args: {
             food_master_id: 'fm_rice',
             food_name: '白米',
-            eaten_at_iso: '2026-06-12T12:30:00+09:00',
+            date: '2026-06-12',
+            meal_type: 'lunch',
             quantity: 200,
             unit: 'g',
           },
@@ -497,7 +498,8 @@ describeIfDb('meshi integration', () => {
           args: {
             food_master_id: 'fm_test_0001',
             food_name: 'スターバックス抹茶ラテ',
-            eaten_at_iso: '2026-06-12T15:00:00+09:00',
+            date: '2026-06-12',
+            meal_type: 'lunch',
             quantity: 350,
             unit: 'g',
           },
@@ -618,7 +620,8 @@ describeIfDb('meshi integration', () => {
           args: {
             food_master_id: 'fm_test_0001',
             food_name: 'かつ丼 並',
-            eaten_at_iso: '2026-06-12T12:00:00+09:00',
+            date: '2026-06-12',
+            meal_type: 'lunch',
             quantity: 1,
             unit: '食',
           },
@@ -769,7 +772,8 @@ describeIfDb('meshi integration', () => {
     await seedMealLog(tx, {
       id: 'ml_history_1',
       foodMasterId: 'fm_rice',
-      eatenAt: '2026-06-12T03:30:00+00:00',
+      eatenDate: '2026-06-12',
+      mealType: 'lunch',
       quantity: 200,
       unit: 'g',
     })
@@ -780,8 +784,8 @@ describeIfDb('meshi integration', () => {
         {
           name: 'query_meal_history',
           args: {
-            period_from_iso: '2026-06-12T00:00:00+00:00',
-            period_to_iso: '2026-06-13T00:00:00+00:00',
+            period_from: '2026-06-12',
+            period_to: '2026-06-13',
           },
         },
       ],
@@ -821,7 +825,7 @@ describeIfDb('meshi integration', () => {
               {
                 meal_log_id: 'ml_history_1',
                 food_master_id: 'fm_rice',
-                eaten_at_iso: '2026-06-12T03:30:00.000Z',
+                eaten_date: '2026-06-12',
                 quantity: 200,
                 unit: 'g',
               },
@@ -840,7 +844,7 @@ describeIfDb('meshi integration', () => {
               '- 期間内の日数: 1 日',
               '- 記録件数: 1 件',
               '明細 (1 件):',
-              '- 2026-06-12 03:30 昼食 fm_rice: 200g',
+              '- 2026-06-12 昼食 fm_rice: 200g',
             ].join('\n'),
           },
         ],
@@ -865,8 +869,8 @@ describeIfDb('meshi integration', () => {
         {
           name: 'query_meal_history',
           args: {
-            period_from_iso: '2026-06-11T00:00:00+00:00',
-            period_to_iso: '2026-06-13T00:00:00+00:00',
+            period_from: '2026-06-11',
+            period_to: '2026-06-13',
           },
         },
       ],
@@ -915,7 +919,8 @@ describeIfDb('meshi integration', () => {
           args: {
             food_master_id: 'fm_rice',
             food_name: '白米',
-            eaten_at_iso: '2026-06-12T19:30:00+09:00',
+            date: '2026-06-12',
+            meal_type: 'dinner',
             quantity: 150,
             unit: 'g',
           },

@@ -65,7 +65,7 @@ describe('fetchFoodSuggestions', () => {
 })
 
 describe('fetchFoodDetail', () => {
-  it('resolves with the parsed detail, converting eatenAt to a Date', async () => {
+  it('resolves with the parsed detail', async () => {
     mockFetchOk({
       id: 'fm_1',
       name: 'rice',
@@ -80,7 +80,7 @@ describe('fetchFoodDetail', () => {
       history: [
         {
           id: 'ml_1',
-          eatenAt: '2026-07-29T03:00:00.000Z',
+          eatenDate: '2026-07-29',
           mealType: 'breakfast',
           amountGrams: 100,
           quantity: 100,
@@ -105,7 +105,7 @@ describe('fetchFoodDetail', () => {
       history: [
         {
           id: 'ml_1',
-          eatenAt: new Date('2026-07-29T03:00:00.000Z'),
+          eatenDate: '2026-07-29',
           mealType: 'breakfast',
           amountGrams: 100,
           quantity: 100,

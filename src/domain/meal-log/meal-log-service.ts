@@ -10,12 +10,11 @@ import {
 import {
   type DomainError,
   FoodNameMismatchError,
-  FutureEatenAtError,
+  FutureEatenDateError,
   ImplausibleQuantityError,
   InvalidQuantityError,
   MealLogNotFoundError,
 } from '#domain/meal-log/errors'
-import { inferMealType } from '#domain/meal-log/infer-meal-type'
 import type { MealLogRepository } from '#domain/meal-log/meal-log-repository'
 import { resolveAmountGrams } from '#domain/meal-log/resolve-amount-grams'
 import type {
@@ -26,6 +25,7 @@ import type {
   RecordMealLogInput,
   UpdateMealLogInput,
 } from '#domain/meal-log/types'
+import { todayJstDateString } from '#lib/jst-date'
 
 // A resolved amount larger than this isn't a realistic single meal; reject
 // it rather than silently recording it (e.g. a unit mixup inflating the
@@ -80,8 +80,8 @@ export const createMealLogService = (
   deps: MealLogServiceDeps,
 ): MealLogService => ({
   record(input) {
-    if (input.eatenAt.getTime() > deps.now().getTime()) {
-      return errAsync(new FutureEatenAtError(input.eatenAt))
+    if (input.eatenDate > todayJstDateString(deps.now())) {
+      return errAsync(new FutureEatenDateError(input.eatenDate))
     }
     if (!Number.isFinite(input.quantity) || input.quantity <= 0) {
       return errAsync(new InvalidQuantityError(input.quantity))
@@ -103,8 +103,8 @@ export const createMealLogService = (
           .insertMealLog({
             id: deps.idGenerator(),
             foodMasterId: input.foodMasterId,
-            eatenAt: input.eatenAt,
-            mealType: input.mealType ?? inferMealType(input.eatenAt),
+            eatenDate: input.eatenDate,
+            mealType: input.mealType,
             quantity: input.quantity,
             unit: input.unit,
             amountGrams,
@@ -114,10 +114,10 @@ export const createMealLogService = (
   },
   update(input) {
     if (
-      input.eatenAt !== undefined &&
-      input.eatenAt.getTime() > deps.now().getTime()
+      input.eatenDate !== undefined &&
+      input.eatenDate > todayJstDateString(deps.now())
     ) {
-      return errAsync(new FutureEatenAtError(input.eatenAt))
+      return errAsync(new FutureEatenDateError(input.eatenDate))
     }
     if (
       input.quantity !== undefined &&
@@ -131,7 +131,7 @@ export const createMealLogService = (
       // `.set({})` would reach the repository with nothing to assign.
       if (
         input.foodMasterId === undefined &&
-        input.eatenAt === undefined &&
+        input.eatenDate === undefined &&
         input.mealType === undefined &&
         input.quantity === undefined &&
         input.unit === undefined
@@ -172,7 +172,9 @@ export const createMealLogService = (
             ...(input.foodMasterId === undefined
               ? {}
               : { foodMasterId: input.foodMasterId }),
-            ...(input.eatenAt === undefined ? {} : { eatenAt: input.eatenAt }),
+            ...(input.eatenDate === undefined
+              ? {}
+              : { eatenDate: input.eatenDate }),
             ...(input.mealType === undefined
               ? {}
               : { mealType: input.mealType }),

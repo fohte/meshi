@@ -1,7 +1,7 @@
 import type { Hono } from 'hono'
 
 import { jsonBadRequest, jsonServerError } from '#api/errors'
-import { jstDayBoundaryQuerySchema } from '#api/jst-date-range'
+import { jstCalendarDateSchema } from '#api/jst-date-range'
 import type { DayDetailService } from '#domain/day-detail/types'
 
 export const mountDayDetailRoutes = (
@@ -10,7 +10,7 @@ export const mountDayDetailRoutes = (
 ): void => {
   app.get('/api/days/:date', async (c) => {
     const dateParam = c.req.param('date')
-    const parsed = jstDayBoundaryQuerySchema.safeParse({ date: dateParam })
+    const parsed = jstCalendarDateSchema.safeParse(dateParam)
     if (!parsed.success) {
       return jsonBadRequest(
         c,
@@ -18,11 +18,7 @@ export const mountDayDetailRoutes = (
       )
     }
 
-    const result = await dayDetailService.query({
-      periodFrom: parsed.data.from,
-      periodTo: parsed.data.to,
-      date: dateParam,
-    })
+    const result = await dayDetailService.query({ date: parsed.data })
 
     return result.match(
       (detail) =>
@@ -35,7 +31,7 @@ export const mountDayDetailRoutes = (
             id: entry.id,
             foodMasterId: entry.foodMasterId,
             foodName: entry.foodName,
-            eatenAt: entry.eatenAt.toISOString(),
+            eatenDate: entry.eatenDate,
             mealType: entry.mealType,
             quantity: entry.quantity,
             unit: entry.unit,

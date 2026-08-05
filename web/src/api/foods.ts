@@ -54,18 +54,9 @@ export interface FoodSuggestions {
   readonly frequent: ReadonlyArray<FoodListItem>
 }
 
-const isoDateTime = z.string().transform((s, ctx) => {
-  const d = new Date(s)
-  if (Number.isNaN(d.getTime())) {
-    ctx.addIssue({ code: 'custom', message: `not a valid timestamp: ${s}` })
-    return z.NEVER
-  }
-  return d
-})
-
 const foodEatHistoryEntrySchema = z.object({
   id: z.string(),
-  eatenAt: isoDateTime,
+  eatenDate: z.string(),
   mealType: mealTypeSchema,
   // The resolved gram amount this entry's quantity+unit was converted to at
   // record time — the basis for this entry's kcal, not `quantity` (which is

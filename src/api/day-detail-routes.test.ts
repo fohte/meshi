@@ -31,7 +31,7 @@ describe('GET /api/days/:date', () => {
     expect(res.status).toBe(400)
   })
 
-  it('converts the date param into a JST-bounded [from, to) service query', async () => {
+  it('converts the date param into a service query', async () => {
     let capturedInput: unknown
     const dayDetailService: DayDetailService = {
       query: (input) => {
@@ -48,11 +48,7 @@ describe('GET /api/days/:date', () => {
 
     await app.request('/api/days/2026-07-29')
 
-    expect(capturedInput).toEqual({
-      periodFrom: new Date('2026-07-28T15:00:00.000Z'),
-      periodTo: new Date('2026-07-29T15:00:00.000Z'),
-      date: '2026-07-29',
-    })
+    expect(capturedInput).toEqual({ date: '2026-07-29' })
   })
 
   it('renders the service detail as the response body', async () => {
@@ -66,7 +62,7 @@ describe('GET /api/days/:date', () => {
               id: 'log-1',
               foodMasterId: 'rice',
               foodName: 'ごはん',
-              eatenAt: new Date('2026-07-29T03:00:00Z'),
+              eatenDate: '2026-07-29',
               mealType: 'breakfast',
               quantity: 200,
               unit: 'g',
@@ -92,7 +88,7 @@ describe('GET /api/days/:date', () => {
           id: 'log-1',
           foodMasterId: 'rice',
           foodName: 'ごはん',
-          eatenAt: '2026-07-29T03:00:00.000Z',
+          eatenDate: '2026-07-29',
           mealType: 'breakfast',
           quantity: 200,
           unit: 'g',

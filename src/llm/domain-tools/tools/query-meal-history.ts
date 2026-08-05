@@ -3,6 +3,7 @@ import { z } from 'zod'
 import { NUTRIENT_CODES } from '#db/seed/nutrient-definitions'
 import type { MealHistoryService } from '#domain/meal-history/types'
 import { MEAL_TYPES, type MealType } from '#domain/meal-log/types'
+import { isValidJstCalendarDateString } from '#lib/jst-date'
 import { internalErr } from '#llm/domain-tools/internal-error'
 import { parseToolInput } from '#llm/domain-tools/parse'
 import {
@@ -14,8 +15,12 @@ import {
 } from '#llm/domain-tools/types'
 
 const inputSchema = z.object({
-  period_from_iso: z.iso.datetime({ offset: true }),
-  period_to_iso: z.iso.datetime({ offset: true }),
+  period_from: z.string().refine(isValidJstCalendarDateString, {
+    message: 'period_from must be a valid YYYY-MM-DD JST calendar date',
+  }),
+  period_to: z.string().refine(isValidJstCalendarDateString, {
+    message: 'period_to must be a valid YYYY-MM-DD JST calendar date',
+  }),
   food_master_ids: z.array(z.string().min(1)).optional(),
   nutrient_codes: z.array(z.enum(NUTRIENT_CODES)).optional(),
 })
@@ -23,7 +28,7 @@ const inputSchema = z.object({
 const queryMealHistoryEntrySchema = z.object({
   meal_log_id: z.string(),
   food_master_id: z.string(),
-  eaten_at_iso: z.string(),
+  eaten_date: z.string(),
   meal_type: z.enum(MEAL_TYPES),
   quantity: z.number(),
   unit: z.string(),
@@ -55,13 +60,13 @@ export const toMealHistoryEntryFields = (
   entry: QueryMealHistoryEntry,
 ): {
   readonly foodMasterId: string
-  readonly eatenAtIso: string
+  readonly eatenDate: string
   readonly mealType: MealType
   readonly quantity: number
   readonly unit: string
 } => ({
   foodMasterId: entry.food_master_id,
-  eatenAtIso: entry.eaten_at_iso,
+  eatenDate: entry.eaten_date,
   mealType: entry.meal_type,
   quantity: entry.quantity,
   unit: entry.unit,
@@ -72,7 +77,7 @@ export const createQueryMealHistoryTool = (
 ): DomainTool => ({
   name: 'query_meal_history',
   description:
-    'Aggregate meal_logs over a half-open [period_from_iso, period_to_iso) window. Returns per-nutrient totals, per-day breakdown, raw entries, and whether any aggregated values come from estimated food_master rows.',
+    'Aggregate meal_logs over a half-open [period_from, period_to) window of JST calendar dates. Returns per-nutrient totals, per-day breakdown, raw entries, and whether any aggregated values come from estimated food_master rows.',
   inputSchema: z.toJSONSchema(inputSchema, { io: 'input' }),
   async execute(
     input: unknown,
@@ -81,8 +86,8 @@ export const createQueryMealHistoryTool = (
     if (parsed.isErr()) return err(parsed.error)
 
     const queryResult = await service.query({
-      periodFrom: new Date(parsed.value.period_from_iso),
-      periodTo: new Date(parsed.value.period_to_iso),
+      periodFrom: parsed.value.period_from,
+      periodTo: parsed.value.period_to,
       ...(parsed.value.food_master_ids === undefined
         ? {}
         : { foodFilter: parsed.value.food_master_ids }),
@@ -102,7 +107,7 @@ export const createQueryMealHistoryTool = (
       entries: aggregate.entries.map((entry) => ({
         meal_log_id: entry.id,
         food_master_id: entry.foodMasterId,
-        eaten_at_iso: entry.eatenAt.toISOString(),
+        eaten_date: entry.eatenDate,
         meal_type: entry.mealType,
         quantity: entry.quantity,
         unit: entry.unit,

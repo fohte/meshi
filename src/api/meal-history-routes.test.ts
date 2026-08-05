@@ -27,7 +27,7 @@ describe('GET /api/meal-history', () => {
     expect(res.status).toBe(400)
   })
 
-  it('converts from/to query params into a JST-bounded service query', async () => {
+  it('converts from/to query params into a service query', async () => {
     let capturedInput: unknown
     const mealHistoryService: MealHistoryService = {
       query: (input) => {
@@ -45,10 +45,9 @@ describe('GET /api/meal-history', () => {
     await app.request('/api/meal-history?from=2026-07-29&to=2026-07-30')
 
     expect(capturedInput).toEqual({
-      periodFrom: new Date('2026-07-28T15:00:00.000Z'),
-      periodTo: new Date('2026-07-29T15:00:00.000Z'),
+      periodFrom: '2026-07-29',
+      periodTo: '2026-07-30',
       nutrientCodes: NUTRIENT_CODES,
-      timeZone: 'Asia/Tokyo',
     })
   })
 
@@ -63,7 +62,7 @@ describe('GET /api/meal-history', () => {
               id: 'log-1',
               foodMasterId: 'rice',
               foodName: 'rice',
-              eatenAt: new Date('2026-07-29T03:00:00Z'),
+              eatenDate: '2026-07-29',
               mealType: 'breakfast',
               quantity: 100,
               unit: 'g',
@@ -87,7 +86,7 @@ describe('GET /api/meal-history', () => {
           id: 'log-1',
           foodMasterId: 'rice',
           foodName: 'rice',
-          eatenAt: '2026-07-29T03:00:00.000Z',
+          eatenDate: '2026-07-29',
           mealType: 'breakfast',
           quantity: 100,
           unit: 'g',

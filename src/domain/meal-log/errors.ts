@@ -8,13 +8,13 @@ export class DomainError extends Error {
   }
 }
 
-export class FutureEatenAtError extends DomainError {
-  constructor(public readonly eatenAt: Date) {
+export class FutureEatenDateError extends DomainError {
+  constructor(public readonly eatenDate: string) {
     super(
-      `eaten_at must not be in the future: ${eatenAt.toISOString()}`,
-      'meal_log/future_eaten_at',
+      `eaten_date must not be in the future: ${eatenDate}`,
+      'meal_log/future_eaten_date',
     )
-    this.name = 'FutureEatenAtError'
+    this.name = 'FutureEatenDateError'
   }
 }
 

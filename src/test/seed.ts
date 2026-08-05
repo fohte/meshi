@@ -10,7 +10,6 @@ import type {
   mealSkips,
   nutrientDefinitions,
 } from '#db/schema'
-import { inferMealType } from '#domain/meal-log/infer-meal-type'
 
 export const seedNutrientDefinition = async (
   sql: Sql,
@@ -97,9 +96,8 @@ export const seedMealLog = async (
   sql: Sql,
   values: Omit<
     typeof mealLogs.$inferInsert,
-    'mealType' | 'quantity' | 'unit' | 'amountGrams' | 'createdAt'
+    'quantity' | 'unit' | 'amountGrams' | 'createdAt'
   > & {
-    mealType?: (typeof mealLogs.$inferInsert)['mealType']
     quantity: number
     unit?: string
     // Defaults to quantity, which is only correct for the default 'g' unit
@@ -108,12 +106,12 @@ export const seedMealLog = async (
   },
 ): Promise<void> => {
   await sql`
-    INSERT INTO meal_logs (id, food_master_id, eaten_at, meal_type, quantity, unit, amount_grams)
+    INSERT INTO meal_logs (id, food_master_id, eaten_date, meal_type, quantity, unit, amount_grams)
     VALUES (
       ${values.id},
       ${values.foodMasterId},
-      ${values.eatenAt},
-      ${values.mealType ?? inferMealType(values.eatenAt)},
+      ${values.eatenDate},
+      ${values.mealType},
       ${values.quantity},
       ${values.unit ?? 'g'},
       ${values.amountGrams ?? values.quantity}

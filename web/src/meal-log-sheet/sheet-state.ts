@@ -1,13 +1,6 @@
 import type { DayDetailEntry, MealType } from '#api/day-detail'
 import type { RecordMealLogInput } from '#api/meal-logs'
-import { inferMealType } from '#lib/infer-meal-type'
-import {
-  formatJstDate,
-  formatJstTime,
-  jstWallClockToIsoInstant,
-  nowJstTime,
-  todayJstDate,
-} from '#lib/jst-date'
+import { todayJstDate } from '#lib/jst-date'
 
 export type SheetPhase = 'search' | 'detail'
 export type SheetMode = 'create' | 'edit'
@@ -32,10 +25,10 @@ export interface SheetState {
   readonly isNewFood: boolean
   readonly quantity: string
   readonly unit: string
-  // null means "infer from time" — set once the user explicitly picks one.
+  // null means the user hasn't picked one yet — save stays disabled until
+  // they do (mealType is never inferred).
   readonly mealType: MealType | null
   readonly date: string
-  readonly time: string
   readonly justSaved: boolean
 }
 
@@ -50,17 +43,14 @@ export const buildCreateState = (): SheetState => ({
   unit: 'g',
   mealType: null,
   date: todayJstDate(),
-  time: nowJstTime(),
   justSaved: false,
 })
 
-// Continuing after a save keeps the date/time the user was working with
-// (e.g. logging several items from the same meal) instead of resetting to
-// "now".
+// Continuing after a save keeps the date the user was working with (e.g.
+// logging several items from the same meal) instead of resetting to today.
 export const buildContinueState = (previous: SheetState): SheetState => ({
   ...buildCreateState(),
   date: previous.date,
-  time: previous.time,
   justSaved: true,
 })
 
@@ -79,8 +69,7 @@ export const buildEditState = (entry: DayDetailEntry): SheetState => ({
   quantity: String(entry.quantity),
   unit: entry.unit,
   mealType: entry.mealType,
-  date: formatJstDate(entry.eatenAt),
-  time: formatJstTime(entry.eatenAt),
+  date: entry.eatenDate,
   justSaved: false,
 })
 
@@ -104,9 +93,6 @@ export const previewKcal = (state: SheetState): number | null => {
   const grams = quantity * multiplier
   return (energyKcalPer100g * grams) / 100
 }
-
-export const resolvedMealType = (state: SheetState): MealType =>
-  state.mealType ?? inferMealType(state.time)
 
 // A newly-registered composition candidate defaults to g/100 (it has no
 // food_master_unit yet — see registerFromComposition on the backend), so
@@ -133,22 +119,22 @@ export const backToSearch = (state: SheetState): SheetState => ({
 })
 
 // Returns null when the form isn't ready to submit (no food selected, an
-// empty date/time — the <input type="date"|"time"> controls allow clearing
-// to '', which `new Date(...)` in jstWallClockToIsoInstant would otherwise
-// throw a RangeError on — or a non-positive/non-numeric quantity). The sheet
+// empty date — the <input type="date"> control allows clearing to '' — no
+// mealType chosen yet, or a non-positive/non-numeric quantity). The sheet
 // disables its save button on the same condition, so this doubles as the
 // canSave check.
 export const buildSavePayload = (
   state: SheetState,
 ): RecordMealLogInput | null => {
   if (state.selectedFood === null) return null
-  if (state.date === '' || state.time === '') return null
+  if (state.date === '') return null
+  if (state.mealType === null) return null
   const quantity = Number(state.quantity)
   if (!Number.isFinite(quantity) || quantity <= 0) return null
   return {
     foodMasterId: state.selectedFood.foodMasterId,
-    eatenAt: jstWallClockToIsoInstant(state.date, state.time),
-    mealType: resolvedMealType(state),
+    eatenDate: state.date,
+    mealType: state.mealType,
     quantity,
     unit: state.unit.trim(),
   }

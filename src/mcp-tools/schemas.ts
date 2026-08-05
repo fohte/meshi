@@ -56,7 +56,7 @@ export const mealHistoryStructuredOutput = {
         z.object({
           meal_log_id: z.string(),
           food_master_id: z.string(),
-          eaten_at_iso: z.string(),
+          eaten_date: z.string(),
           quantity: z.number(),
           unit: z.string(),
         }),

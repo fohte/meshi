@@ -69,7 +69,7 @@ export const buildMealHistoryPayload = (
           entries: result.aggregate.entries.map((e) => ({
             meal_log_id: e.mealLogId,
             food_master_id: e.foodMasterId,
-            eaten_at_iso: e.eatenAtIso,
+            eaten_date: e.eatenDate,
             quantity: e.quantity,
             unit: e.unit,
           })),
