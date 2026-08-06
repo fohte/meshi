@@ -414,14 +414,14 @@ describe('register_food_master tool', () => {
         okAsync([
           {
             foodMasterId: 'fm_existing_1',
-            name: 'ザバス ウェイトダウン チョコレート',
+            name: 'ごろごろ野菜カレー 中辛',
             score: 0.33,
           },
         ]),
     })
 
     const result = await tool.execute({
-      name: 'ザバス（プロテイン飲料）',
+      name: 'ごろごろ野菜カレー（レトルト）',
       nutrition_per_basis: { energy_kcal: 89 },
       source: 'user_input',
       is_estimated: false,
@@ -435,7 +435,7 @@ describe('register_food_master tool', () => {
         candidates: [
           {
             food_master_id: 'fm_existing_1',
-            name: 'ザバス ウェイトダウン チョコレート',
+            name: 'ごろごろ野菜カレー 中辛',
             score: 0.33,
           },
         ],
@@ -450,14 +450,14 @@ describe('register_food_master tool', () => {
         okAsync([
           {
             foodMasterId: 'fm_existing_1',
-            name: 'ザバス ウェイトダウン チョコレート',
+            name: 'ごろごろ野菜カレー 中辛',
             score: 0.9,
           },
         ]),
     })
 
     const result = await tool.execute({
-      name: 'ザバス（プロテイン飲料）',
+      name: 'ごろごろ野菜カレー（レトルト）',
       nutrition_per_basis: { energy_kcal: 89 },
       source: 'user_input',
       is_estimated: false,
@@ -468,7 +468,7 @@ describe('register_food_master tool', () => {
       ok: true,
       value: {
         food_master_id: 'fm_new',
-        name: 'ザバス（プロテイン飲料）',
+        name: 'ごろごろ野菜カレー（レトルト）',
         source: 'user_input',
         source_url: null,
         nutrition_per_100g: { energy_kcal: 89 },
@@ -478,7 +478,7 @@ describe('register_food_master tool', () => {
     })
     expect(calls).toEqual([
       {
-        name: 'ザバス（プロテイン飲料）',
+        name: 'ごろごろ野菜カレー（レトルト）',
         nutrition: { energy_kcal: 89 },
         source: 'user_input',
         isEstimated: false,

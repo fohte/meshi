@@ -819,19 +819,19 @@ describeIfDb('FoodMasterService + Repository', () => {
     ;(
       await service.register({
         ...baseInput,
-        name: 'ザバス ウェイトダウン チョコレート',
+        name: 'ごろごろ野菜カレー 中辛',
       })
     )._unsafeUnwrap()
 
     const result = (
-      await service.findSimilarNames('ザバス（プロテイン飲料）')
+      await service.findSimilarNames('ごろごろ野菜カレー（レトルト）')
     )._unsafeUnwrap()
 
     expect(normalizeScores(result)).toEqual([
       {
         foodMasterId: 'fm_test_0001',
-        name: 'ザバス ウェイトダウン チョコレート',
-        score: 0.33,
+        name: 'ごろごろ野菜カレー 中辛',
+        score: 0.77,
       },
     ])
   })
@@ -840,12 +840,12 @@ describeIfDb('FoodMasterService + Repository', () => {
     ;(
       await service.register({
         ...baseInput,
-        name: 'ザバス ウェイトダウン チョコレート',
+        name: 'ごろごろ野菜カレー 中辛',
       })
     )._unsafeUnwrap()
 
     const result = (
-      await service.findSimilarNames('ザバス ウェイトダウン チョコレート')
+      await service.findSimilarNames('ごろごろ野菜カレー 中辛')
     )._unsafeUnwrap()
 
     expect(result).toEqual([])
@@ -863,30 +863,30 @@ describeIfDb('FoodMasterService + Repository', () => {
     ;(
       await service.register({
         ...baseInput,
-        name: 'ザバス ウェイトダウン チョコレート',
+        name: 'ごろごろ野菜カレー 中辛',
       })
     )._unsafeUnwrap()
     ;(
       await service.register({
         ...baseInput,
-        name: 'ザバスプロテインバー チョコ',
+        name: 'ごろごろ野菜カレーパン 中辛',
       })
     )._unsafeUnwrap()
 
     const result = (
-      await service.findSimilarNames('ザバス（プロテイン飲料）')
+      await service.findSimilarNames('ごろごろ野菜カレー（レトルト）')
     )._unsafeUnwrap()
 
     expect(normalizeScores(result)).toEqual([
       {
-        foodMasterId: 'fm_test_0003',
-        name: 'ザバスプロテインバー チョコ',
-        score: 0.43,
+        foodMasterId: 'fm_test_0001',
+        name: 'ごろごろ野菜カレー 中辛',
+        score: 0.77,
       },
       {
-        foodMasterId: 'fm_test_0001',
-        name: 'ザバス ウェイトダウン チョコレート',
-        score: 0.33,
+        foodMasterId: 'fm_test_0003',
+        name: 'ごろごろ野菜カレーパン 中辛',
+        score: 0.6,
       },
     ])
   })
