@@ -655,7 +655,7 @@ describeIfDb('A2A integration', () => {
           '2026-06-12 の食事履歴をお伝えしました。',
           '',
           '明細 (1 件):',
-          '- 2026-06-12 昼食 fm_rice_history: 200g',
+          '- 2026-06-12 昼食 白米 history: 200g',
         ].join('\n'),
       )
       expect(normalizeTask(task)).toEqual({

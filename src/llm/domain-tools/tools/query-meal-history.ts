@@ -28,6 +28,7 @@ const inputSchema = z.object({
 const queryMealHistoryEntrySchema = z.object({
   meal_log_id: z.string(),
   food_master_id: z.string(),
+  food_name: z.string(),
   eaten_date: z.string(),
   meal_type: z.enum(MEAL_TYPES),
   quantity: z.number(),
@@ -60,12 +61,14 @@ export const toMealHistoryEntryFields = (
   entry: QueryMealHistoryEntry,
 ): {
   readonly foodMasterId: string
+  readonly foodName: string
   readonly eatenDate: string
   readonly mealType: MealType
   readonly quantity: number
   readonly unit: string
 } => ({
   foodMasterId: entry.food_master_id,
+  foodName: entry.food_name,
   eatenDate: entry.eaten_date,
   mealType: entry.meal_type,
   quantity: entry.quantity,
@@ -107,6 +110,7 @@ export const createQueryMealHistoryTool = (
       entries: aggregate.entries.map((entry) => ({
         meal_log_id: entry.id,
         food_master_id: entry.foodMasterId,
+        food_name: entry.foodName,
         eaten_date: entry.eatenDate,
         meal_type: entry.mealType,
         quantity: entry.quantity,

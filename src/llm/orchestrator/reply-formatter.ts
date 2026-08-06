@@ -162,7 +162,7 @@ const formatTotalsLine = (totals: Readonly<Record<string, number>>): string => {
 // the orchestrator (e.g. the A2A path re-deriving entries from a tool result)
 // can build this shape without needing an orchestrator-internal id.
 export interface MealHistoryEntryDisplay {
-  readonly foodMasterId: string
+  readonly foodName: string
   readonly eatenDate: string
   readonly mealType: MealType
   readonly quantity: number
@@ -177,7 +177,7 @@ const MEAL_TYPE_LABEL: Readonly<Record<MealType, string>> = {
 }
 
 const formatMealHistoryEntry = (entry: MealHistoryEntryDisplay): string =>
-  `- ${entry.eatenDate} ${MEAL_TYPE_LABEL[entry.mealType]} ${entry.foodMasterId}: ${formatNumber(entry.quantity)}${entry.unit}`
+  `- ${entry.eatenDate} ${MEAL_TYPE_LABEL[entry.mealType]} ${entry.foodName}: ${formatNumber(entry.quantity)}${entry.unit}`
 
 // Itemizes meal-history entries deterministically from structured data,
 // mirroring formatMealRecordTemplate's per-item bullet list — shared between
