@@ -27,9 +27,6 @@ export interface FoodMaster {
   readonly createdAt: Date
 }
 
-// A candidate returned by findSimilarNames — an existing food_masters row
-// whose name is a plausible near-duplicate of a name about to be
-// registered, ranked by name similarity (see repository.ts).
 export interface SimilarFoodMasterCandidate {
   readonly foodMasterId: FoodMasterId
   readonly name: string

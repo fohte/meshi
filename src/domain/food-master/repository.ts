@@ -44,9 +44,6 @@ export interface FoodMasterRepository {
   findComposition(
     code: string,
   ): ResultAsync<FoodComposition | null, FoodMasterDomainError>
-  // Existing food_masters rows whose name plausibly refers to the same
-  // product as `name` — a last-resort guard against the register_food_master
-  // tool creating a near-duplicate master when search missed an existing one.
   findSimilarNames(
     name: string,
   ): ResultAsync<
@@ -67,12 +64,10 @@ export interface CreateRepositoryOptions {
 const FOOD_MASTERS_NAME_CONSTRAINT = 'food_masters_name_key'
 const FOOD_MASTER_ALIASES_ALIAS_CONSTRAINT = 'food_master_aliases_alias_key'
 
-// word_similarity() >= 0.2 catches every shared-brand duplicate pair found in
-// production (e.g. 'ザバス（プロテイン飲料）' vs 'ザバス ウェイトダウン
-// チョコレート' scores 0.33, 'nosh「極み鳥」…' vs the correct nosh product
-// scores 0.22) while unrelated names score 0. Plain similarity() scores those
-// same duplicate pairs as low as 0.10 — indistinguishable from noise — because
-// it dilutes over the whole string instead of the best-matching substring.
+// word_similarity(), not similarity(): it scores the best-matching substring
+// instead of diluting over the whole string, so a name that shares a brand
+// prefix with an existing one but differs in trailing qualifiers still scores
+// high enough to be flagged.
 const SIMILAR_NAME_SCORE_THRESHOLD = 0.2
 const SIMILAR_NAME_LIMIT = 5
 
@@ -543,6 +538,9 @@ export const createFoodMasterRepository = (
     FoodMasterDomainError
   > =>
     ResultAsync.fromPromise(
+      // ponytail: scans every food_masters row (no trigram pre-filter to
+      // narrow it first) — negligible at production's current few-dozen-row
+      // scale; add an index-friendly pre-filter if this table grows large.
       sql`
         WITH scored AS (
           SELECT id, name,

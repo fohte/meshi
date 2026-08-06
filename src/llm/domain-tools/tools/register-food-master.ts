@@ -106,6 +106,12 @@ export const createRegisterFoodMasterTool = (
     const parsed = parseToolInput(inputSchema, input)
     if (parsed.isErr()) return err(parsed.error)
 
+    // ponytail: this check and the register() call below aren't in one
+    // transaction, so two concurrent registrations of near-duplicate names
+    // can both pass it — food_masters_name_key (exact match only) is the
+    // only hard backstop for that race. Acceptable for a bot that processes
+    // one conversation at a time; serialize both calls in one transaction if
+    // that changes.
     const similar = await service.findSimilarNames(parsed.value.name)
     if (similar.isErr()) {
       return err({

@@ -79,6 +79,14 @@ describeIfDb('FoodMasterService + Repository', () => {
     compositionName: registered.compositionName,
   })
 
+  // word_similarity() scores carry more float precision than is worth
+  // pinning in a test; round to 2 decimal places so the expected value can
+  // still be a plain literal.
+  const normalizeScores = <T extends { score: number }>(
+    candidates: ReadonlyArray<T>,
+  ): ReadonlyArray<Omit<T, 'score'> & { score: number }> =>
+    candidates.map((c) => ({ ...c, score: Math.round(c.score * 100) / 100 }))
+
   it('registers a confirmed food master and round-trips it through getById', async () => {
     const registered = (
       await service.register({
@@ -819,12 +827,11 @@ describeIfDb('FoodMasterService + Repository', () => {
       await service.findSimilarNames('ザバス（プロテイン飲料）')
     )._unsafeUnwrap()
 
-    expect(result).toEqual([
+    expect(normalizeScores(result)).toEqual([
       {
         foodMasterId: 'fm_test_0001',
         name: 'ザバス ウェイトダウン チョコレート',
-        // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment -- vitest types expect.closeTo()'s return as `any`
-        score: expect.closeTo(0.33, 2),
+        score: 0.33,
       },
     ])
   })
@@ -870,18 +877,16 @@ describeIfDb('FoodMasterService + Repository', () => {
       await service.findSimilarNames('ザバス（プロテイン飲料）')
     )._unsafeUnwrap()
 
-    expect(result).toEqual([
+    expect(normalizeScores(result)).toEqual([
       {
         foodMasterId: 'fm_test_0003',
         name: 'ザバスプロテインバー チョコ',
-        // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment -- vitest types expect.closeTo()'s return as `any`
-        score: expect.closeTo(0.43, 2),
+        score: 0.43,
       },
       {
         foodMasterId: 'fm_test_0001',
         name: 'ザバス ウェイトダウン チョコレート',
-        // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment -- vitest types expect.closeTo()'s return as `any`
-        score: expect.closeTo(0.33, 2),
+        score: 0.33,
       },
     ])
   })
