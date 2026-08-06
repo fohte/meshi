@@ -162,7 +162,6 @@ const formatTotalsLine = (totals: Readonly<Record<string, number>>): string => {
 // the orchestrator (e.g. the A2A path re-deriving entries from a tool result)
 // can build this shape without needing an orchestrator-internal id.
 export interface MealHistoryEntryDisplay {
-  readonly foodMasterId: string
   readonly foodName: string
   readonly eatenDate: string
   readonly mealType: MealType
