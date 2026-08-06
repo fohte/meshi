@@ -84,6 +84,13 @@ const stubDeps = (override: Partial<DomainToolsDeps> = {}): DomainToolsDeps => {
           'foodMasterService.registerFromComposition not stubbed',
         ),
       ),
+    addAlias: () =>
+      errAsync(
+        new FoodMasterDomainError(
+          'persistence_failed',
+          'foodMasterService.addAlias not stubbed',
+        ),
+      ),
   }
   const foodMasterUnitService: FoodMasterUnitService = {
     register: (input) =>

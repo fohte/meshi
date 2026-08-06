@@ -788,4 +788,70 @@ describeIfDb('FoodMasterService + Repository', () => {
 
     expect(captured).toEqual({ code: 'empty_basis_unit', details: {} })
   })
+
+  it('adds an alias to an existing food_master, visible through getById', async () => {
+    await service.register(baseInput)
+
+    const added = await service.addAlias('fm_test_0001', 'ご飯')
+
+    expect(added.isOk()).toBe(true)
+    const fetched = (await service.getById('fm_test_0001'))._unsafeUnwrap()
+    expect(fetched === null ? null : normalize(fetched)).toEqual({
+      id: 'fm_test_0001',
+      name: 'rice',
+      aliases: ['ご飯'],
+      isEstimated: false,
+      source: 'user_input',
+      sourceUrl: null,
+      sourceCompositionCode: null,
+      nutrition: baseInput.nutrition,
+      units: [],
+      basisQuantity: 100,
+      basisUnit: 'g',
+      createdAt: '<date>',
+    })
+  })
+
+  it('does not error, and does not move the alias, when it already belongs to another food_master', async () => {
+    const rice = (
+      await service.register({ ...baseInput, name: 'rice', aliases: ['ご飯'] })
+    )._unsafeUnwrap()
+    const friedRice = (
+      await service.register({ ...baseInput, name: 'fried rice' })
+    )._unsafeUnwrap()
+
+    const added = await service.addAlias(friedRice.id, 'ご飯')
+
+    expect(added.isOk()).toBe(true)
+    const owner = (await service.getById(rice.id))._unsafeUnwrap()
+    const other = (await service.getById(friedRice.id))._unsafeUnwrap()
+    expect(owner === null ? null : normalize(owner)).toEqual({
+      id: rice.id,
+      name: 'rice',
+      aliases: ['ご飯'],
+      isEstimated: false,
+      source: 'user_input',
+      sourceUrl: null,
+      sourceCompositionCode: null,
+      nutrition: baseInput.nutrition,
+      units: [],
+      basisQuantity: 100,
+      basisUnit: 'g',
+      createdAt: '<date>',
+    })
+    expect(other === null ? null : normalize(other)).toEqual({
+      id: friedRice.id,
+      name: 'fried rice',
+      aliases: [],
+      isEstimated: false,
+      source: 'user_input',
+      sourceUrl: null,
+      sourceCompositionCode: null,
+      nutrition: baseInput.nutrition,
+      units: [],
+      basisQuantity: 100,
+      basisUnit: 'g',
+      createdAt: '<date>',
+    })
+  })
 })

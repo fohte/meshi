@@ -36,6 +36,10 @@ export interface FoodMasterService {
   registerFromComposition(
     input: RegisterFromCompositionInput,
   ): ResultAsync<RegisteredFromComposition, FoodMasterDomainError>
+  addAlias(
+    id: FoodMasterId,
+    alias: string,
+  ): ResultAsync<void, FoodMasterDomainError>
 }
 
 export const createFoodMasterService = (
@@ -43,6 +47,7 @@ export const createFoodMasterService = (
 ): FoodMasterService => ({
   register: (input) => repo.register(input),
   getById: (id) => repo.findById(id),
+  addAlias: (id, alias) => repo.addAlias(id, alias),
   registerFromComposition: (input) =>
     repo.findComposition(input.compositionCode).andThen((composition) => {
       if (composition === null) {

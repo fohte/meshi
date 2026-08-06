@@ -61,20 +61,22 @@ const stubWebSearchClient = (): WebSearchClient => ({
 // src/integration/meshi.integration.test.ts but without the MCP/orchestrator
 // layer — the A2A path invokes createMeshiDomainAgent directly.
 const buildRegistry = (tx: Sql): DomainToolsRegistry => {
-  let mealLogIdCursor = 0
-  const mealLogService = createMealLogService({
-    repository: createDrizzleMealLogRepository(tx),
-    idGenerator: () => {
-      mealLogIdCursor += 1
-      return `ml_a2a_test_${String(mealLogIdCursor).padStart(4, '0')}`
-    },
-    now: () => new Date('2026-06-12T22:00:00+09:00'),
-  })
   const foodMasterRepository = createFoodMasterRepository(tx, {
     generateId: (prefix) => `${prefix}_a2a_test`,
     // The outer per-test transaction already provides atomicity; postgres-js
     // rejects a nested BEGIN inside it.
     wrapInTransaction: false,
+  })
+  const foodMasterService = createFoodMasterService(foodMasterRepository)
+  let mealLogIdCursor = 0
+  const mealLogService = createMealLogService({
+    repository: createDrizzleMealLogRepository(tx),
+    foodMasterService,
+    idGenerator: () => {
+      mealLogIdCursor += 1
+      return `ml_a2a_test_${String(mealLogIdCursor).padStart(4, '0')}`
+    },
+    now: () => new Date('2026-06-12T22:00:00+09:00'),
   })
   const mealSkipService = createMealSkipService({
     repository: createDrizzleMealSkipRepository(tx),
@@ -83,7 +85,7 @@ const buildRegistry = (tx: Sql): DomainToolsRegistry => {
   })
   return createDomainToolsRegistry({
     mealLogService,
-    foodMasterService: createFoodMasterService(foodMasterRepository),
+    foodMasterService,
     foodMasterUnitService: createFoodMasterUnitService(
       createFoodMasterUnitRepository(tx),
     ),
