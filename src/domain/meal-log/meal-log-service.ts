@@ -15,6 +15,7 @@ import {
   ImplausibleQuantityError,
   InvalidQuantityError,
   MealLogNotFoundError,
+  MealLogPersistenceError,
 } from '#domain/meal-log/errors'
 import type { MealLogRepository } from '#domain/meal-log/meal-log-repository'
 import { resolveAmountGrams } from '#domain/meal-log/resolve-amount-grams'
@@ -192,12 +193,19 @@ export const createMealLogService = (
               : // Learn from the correction: the old food's name is what the
                 // user's phrasing actually matched to the wrong food_master.
                 // Recording it as an alias on the corrected one means the
-                // same phrasing finds the right food next time. Best-effort —
-                // a collision with an existing alias must not fail the
-                // correction itself.
+                // same phrasing finds the right food next time. addAlias
+                // never errors on an alias collision (ON CONFLICT DO
+                // NOTHING) — an error here is a genuine persistence failure,
+                // which should surface rather than be silently discarded.
                 deps.foodMasterService
                   .addAlias(newFoodMasterId, found.food.name)
-                  .orElse(() => okAsync(undefined))
+                  .mapErr(
+                    (e) =>
+                      new MealLogPersistenceError(
+                        'failed to learn food_master alias',
+                        e,
+                      ),
+                  )
                   .map(() => buildResult(log, food)),
           )
       })

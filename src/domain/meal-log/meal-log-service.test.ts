@@ -11,6 +11,7 @@ import {
   ImplausibleQuantityError,
   InvalidQuantityError,
   MealLogNotFoundError,
+  MealLogPersistenceError,
   UnknownUnitError,
 } from '#domain/meal-log/errors'
 import type {
@@ -104,8 +105,9 @@ const createFakeRepository = (
 }
 
 interface FakeFoodMasterServiceOptions {
-  // Simulates addAlias hitting an alias already claimed elsewhere, to prove
-  // the correction still succeeds.
+  // A real addAlias never errors on an alias collision (ON CONFLICT DO
+  // NOTHING); this simulates the one thing it can still fail on — a genuine
+  // persistence error — to prove that surfaces instead of being swallowed.
   readonly failAddAlias?: boolean
 }
 
@@ -127,7 +129,7 @@ const createFakeFoodMasterService = (
       learnedAliases.push({ id, alias })
       return options.failAddAlias === true
         ? errAsync(
-            new FoodMasterDomainError('duplicate_alias', 'already claimed'),
+            new FoodMasterDomainError('persistence_failed', 'connection lost'),
           )
         : okAsync(undefined)
     },
@@ -749,39 +751,21 @@ describe('MealLogService.update', () => {
     expect(updated).toEqual([
       { id: 'ml_1', foodMasterId: 'fm_karaage', amountGrams: 100 },
     ])
-    // The old food's name (RICE's) is learned as an alias on the corrected
-    // food_master, so the same phrasing matches it next time.
     expect(learnedAliases).toEqual([{ id: 'fm_karaage', alias: '白米' }])
   })
 
-  it('still succeeds when the learned alias collides with one claimed elsewhere', async () => {
+  it('fails the update when learning the alias hits a genuine persistence error', async () => {
     const { service, updated, learnedAliases } = buildService(
       [RICE, KARAAGE_GUESS],
       [EXISTING_RICE_LOG],
       { failAddAlias: true },
     )
 
-    const result = (
+    const error = (
       await service.update({ id: 'ml_1', foodMasterId: 'fm_karaage' })
-    )._unsafeUnwrap()
+    )._unsafeUnwrapErr()
 
-    expect(result).toEqual({
-      id: 'ml_1',
-      foodMasterId: 'fm_karaage',
-      eatenDate: EATEN_DATE,
-      mealType: 'dinner',
-      quantity: 100,
-      unit: 'g',
-      amountGrams: 100,
-      createdAt: CREATED_AT,
-      nutrition: {
-        energy_kcal: 290,
-        protein_g: 24.2,
-        fat_g: 18.1,
-        carb_g: 7.9,
-      },
-      isEstimated: true,
-    })
+    expect(error).toBeInstanceOf(MealLogPersistenceError)
     expect(updated).toEqual([
       { id: 'ml_1', foodMasterId: 'fm_karaage', amountGrams: 100 },
     ])
@@ -819,7 +803,6 @@ describe('MealLogService.update', () => {
       isEstimated: false,
     })
     expect(updated).toEqual([{ id: 'ml_1', foodMasterId: 'fm_rice' }])
-    // foodMasterId didn't actually change, so no alias should be learned.
     expect(learnedAliases).toEqual([])
   })
 

@@ -796,7 +796,20 @@ describeIfDb('FoodMasterService + Repository', () => {
 
     expect(added.isOk()).toBe(true)
     const fetched = (await service.getById('fm_test_0001'))._unsafeUnwrap()
-    expect(fetched === null ? null : fetched.aliases).toEqual(['ご飯'])
+    expect(fetched === null ? null : normalize(fetched)).toEqual({
+      id: 'fm_test_0001',
+      name: 'rice',
+      aliases: ['ご飯'],
+      isEstimated: false,
+      source: 'user_input',
+      sourceUrl: null,
+      sourceCompositionCode: null,
+      nutrition: baseInput.nutrition,
+      units: [],
+      basisQuantity: 100,
+      basisUnit: 'g',
+      createdAt: '<date>',
+    })
   })
 
   it('does not error, and does not move the alias, when it already belongs to another food_master', async () => {
@@ -808,7 +821,33 @@ describeIfDb('FoodMasterService + Repository', () => {
     expect(added.isOk()).toBe(true)
     const owner = (await service.getById('fm_test_0001'))._unsafeUnwrap()
     const other = (await service.getById('fm_test_0002'))._unsafeUnwrap()
-    expect(owner === null ? null : owner.aliases).toEqual(['ご飯'])
-    expect(other === null ? null : other.aliases).toEqual([])
+    expect(owner === null ? null : normalize(owner)).toEqual({
+      id: 'fm_test_0001',
+      name: 'rice',
+      aliases: ['ご飯'],
+      isEstimated: false,
+      source: 'user_input',
+      sourceUrl: null,
+      sourceCompositionCode: null,
+      nutrition: baseInput.nutrition,
+      units: [],
+      basisQuantity: 100,
+      basisUnit: 'g',
+      createdAt: '<date>',
+    })
+    expect(other === null ? null : normalize(other)).toEqual({
+      id: 'fm_test_0002',
+      name: 'fried rice',
+      aliases: [],
+      isEstimated: false,
+      source: 'user_input',
+      sourceUrl: null,
+      sourceCompositionCode: null,
+      nutrition: baseInput.nutrition,
+      units: [],
+      basisQuantity: 100,
+      basisUnit: 'g',
+      createdAt: '<date>',
+    })
   })
 })
