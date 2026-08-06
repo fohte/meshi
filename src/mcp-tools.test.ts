@@ -105,6 +105,7 @@ const successMealHistory: MealHistoryResult = {
       {
         mealLogId: 'log-1',
         foodMasterId: 'food-1',
+        foodName: '白米',
         eatenDate: '2026-06-12',
         mealType: 'lunch',
         quantity: 1,

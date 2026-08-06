@@ -565,6 +565,7 @@ describe('createDomainAgentOrchestrator', () => {
                 {
                   meal_log_id: 'ml_1',
                   food_master_id: 'fm_rice',
+                  food_name: '白米',
                   eaten_date: '2026-06-12',
                   meal_type: 'lunch',
                   quantity: 200,
@@ -604,6 +605,7 @@ describe('createDomainAgentOrchestrator', () => {
             {
               mealLogId: 'ml_1',
               foodMasterId: 'fm_rice',
+              foodName: '白米',
               eatenDate: '2026-06-12',
               mealType: 'lunch',
               quantity: 200,

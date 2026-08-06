@@ -897,6 +897,7 @@ const QUERY_MEAL_HISTORY_OUTPUT = {
     {
       meal_log_id: 'ml_1',
       food_master_id: 'fm_rice',
+      food_name: '白米',
       eaten_date: '2026-06-12',
       meal_type: 'lunch',
       quantity: 200,
@@ -939,7 +940,7 @@ describe('runAgentTurn meal history itemization', () => {
         '直近の食事履歴をお伝えしました。',
         '',
         '明細 (1 件):',
-        '- 2026-06-12 昼食 fm_rice: 200g',
+        '- 2026-06-12 昼食 白米: 200g',
       ].join('\n'),
     )
     expect(normalizeEvent(task)).toEqual({
