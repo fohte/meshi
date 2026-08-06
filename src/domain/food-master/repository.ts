@@ -1,5 +1,6 @@
 import { err, errAsync, ok, type Result, ResultAsync } from 'neverthrow'
 import type postgres from 'postgres'
+import { z } from 'zod'
 
 import type { Sql } from '#db/index'
 import { getConstraintName, isUniqueViolation } from '#db/pg-error'
@@ -12,9 +13,11 @@ import type {
   FoodSource,
   NutritionMap,
   RegisterFoodMasterInput,
+  SimilarFoodMasterCandidate,
 } from '#domain/food-master/types'
 import {
   hasDuplicateAfterTrim,
+  isEmptyNutrition,
   isInvalidSourceCombination,
   type SourceEvidenceViolation,
   validateSourceEvidence,
@@ -41,6 +44,15 @@ export interface FoodMasterRepository {
   findComposition(
     code: string,
   ): ResultAsync<FoodComposition | null, FoodMasterDomainError>
+  // Existing food_masters rows whose name plausibly refers to the same
+  // product as `name` — a last-resort guard against the register_food_master
+  // tool creating a near-duplicate master when search missed an existing one.
+  findSimilarNames(
+    name: string,
+  ): ResultAsync<
+    ReadonlyArray<SimilarFoodMasterCandidate>,
+    FoodMasterDomainError
+  >
 }
 
 export interface CreateRepositoryOptions {
@@ -54,6 +66,21 @@ export interface CreateRepositoryOptions {
 
 const FOOD_MASTERS_NAME_CONSTRAINT = 'food_masters_name_key'
 const FOOD_MASTER_ALIASES_ALIAS_CONSTRAINT = 'food_master_aliases_alias_key'
+
+// word_similarity() >= 0.2 catches every shared-brand duplicate pair found in
+// production (e.g. 'ザバス（プロテイン飲料）' vs 'ザバス ウェイトダウン
+// チョコレート' scores 0.33, 'nosh「極み鳥」…' vs the correct nosh product
+// scores 0.22) while unrelated names score 0. Plain similarity() scores those
+// same duplicate pairs as low as 0.10 — indistinguishable from noise — because
+// it dilutes over the whole string instead of the best-matching substring.
+const SIMILAR_NAME_SCORE_THRESHOLD = 0.2
+const SIMILAR_NAME_LIMIT = 5
+
+const similarNameRowSchema = z.object({
+  id: z.string(),
+  name: z.string(),
+  score: z.number(),
+})
 
 const errorMessage = (e: unknown): string =>
   e instanceof Error ? e.message : String(e)
@@ -114,6 +141,14 @@ const normalizeAndValidate = (
         evidenceViolation,
         SOURCE_EVIDENCE_VIOLATION_MESSAGE[evidenceViolation],
         { source: input.source, sourceUrl, sourceCompositionCode },
+      ),
+    )
+  }
+  if (isEmptyNutrition(input.nutrition)) {
+    return err(
+      new FoodMasterDomainError(
+        'empty_nutrition',
+        'nutrition must include at least one nutrient value',
       ),
     )
   }
@@ -501,5 +536,54 @@ export const createFoodMasterRepository = (
         ),
     )
 
-  return { register, findById, findComposition }
+  const findSimilarNames = (
+    name: string,
+  ): ResultAsync<
+    ReadonlyArray<SimilarFoodMasterCandidate>,
+    FoodMasterDomainError
+  > =>
+    ResultAsync.fromPromise(
+      sql`
+        WITH scored AS (
+          SELECT id, name,
+                 GREATEST(
+                   word_similarity(${name}, name),
+                   word_similarity(name, ${name})
+                 ) AS score
+          FROM food_masters
+          WHERE name <> ${name}
+        )
+        SELECT id, name, score
+        FROM scored
+        WHERE score >= ${SIMILAR_NAME_SCORE_THRESHOLD}
+        ORDER BY score DESC
+        LIMIT ${SIMILAR_NAME_LIMIT}
+      `,
+      (caughtErr) =>
+        new FoodMasterDomainError(
+          'persistence_failed',
+          errorMessage(caughtErr),
+          {},
+          caughtErr,
+        ),
+    ).andThen((raw) => {
+      const parsed = z.array(similarNameRowSchema).safeParse(raw)
+      if (!parsed.success) {
+        return err(
+          new FoodMasterDomainError(
+            'persistence_failed',
+            `findSimilarNames returned an invalid row: ${parsed.error.message}`,
+          ),
+        )
+      }
+      return ok(
+        parsed.data.map((r) => ({
+          foodMasterId: r.id,
+          name: r.name,
+          score: r.score,
+        })),
+      )
+    })
+
+  return { register, findById, findComposition, findSimilarNames }
 }

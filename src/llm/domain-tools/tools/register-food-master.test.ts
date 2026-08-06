@@ -42,6 +42,7 @@ const setup = (
       return okAsync(sampleMaster('fm_new', input))
     },
     getById: () => okAsync(null),
+    findSimilarNames: () => okAsync([]),
     registerFromComposition: () =>
       errAsync(
         new FoodMasterDomainError(
@@ -89,6 +90,10 @@ describe('register_food_master tool', () => {
             },
             required: ['unit', 'grams_per_unit'],
           },
+        },
+        confirmed_distinct_from_master_ids: {
+          type: 'array',
+          items: { type: 'string', minLength: 1 },
         },
       },
       required: ['name', 'nutrition_per_basis', 'source', 'is_estimated'],
@@ -212,6 +217,15 @@ describe('register_food_master tool', () => {
   })
 
   it.each([
+    {
+      label: 'empty nutrition_per_basis',
+      input: {
+        name: 'X',
+        nutrition_per_basis: {},
+        source: 'user_input',
+        is_estimated: false,
+      },
+    },
     {
       label: 'an unknown source value',
       input: {
@@ -392,5 +406,112 @@ describe('register_food_master tool', () => {
         details: { name: 'バナナ' },
       },
     })
+  })
+
+  it('blocks registration and reports every unconfirmed similar-name candidate when confirmed_distinct_from_master_ids is omitted', async () => {
+    const { tool, calls } = setup({
+      findSimilarNames: () =>
+        okAsync([
+          {
+            foodMasterId: 'fm_existing_1',
+            name: 'ザバス ウェイトダウン チョコレート',
+            score: 0.33,
+          },
+        ]),
+    })
+
+    const result = await tool.execute({
+      name: 'ザバス（プロテイン飲料）',
+      nutrition_per_basis: { energy_kcal: 89 },
+      source: 'user_input',
+      is_estimated: false,
+    })
+
+    expect(result._unsafeUnwrapErr()).toEqual({
+      code: 'food_master/similar_name_exists',
+      message:
+        'existing food_master(s) with a similar name were found; reuse one of them if it is the same product, gather stronger evidence and retry if unsure, ask the user to disambiguate, or retry with confirmed_distinct_from_master_ids listing exactly these food_master_id values once you have verified this is a different product',
+      details: {
+        candidates: [
+          {
+            food_master_id: 'fm_existing_1',
+            name: 'ザバス ウェイトダウン チョコレート',
+            score: 0.33,
+          },
+        ],
+      },
+    })
+    expect(calls).toEqual([])
+  })
+
+  it('proceeds to register once every candidate id is listed in confirmed_distinct_from_master_ids, regardless of score or name', async () => {
+    const { tool, calls } = setup({
+      findSimilarNames: () =>
+        okAsync([
+          {
+            foodMasterId: 'fm_existing_1',
+            name: 'ザバス ウェイトダウン チョコレート',
+            score: 0.9,
+          },
+        ]),
+    })
+
+    const result = await tool.execute({
+      name: 'ザバス（プロテイン飲料）',
+      nutrition_per_basis: { energy_kcal: 89 },
+      source: 'user_input',
+      is_estimated: false,
+      confirmed_distinct_from_master_ids: ['fm_existing_1'],
+    })
+
+    expect(normalizeResult(result)).toEqual({
+      ok: true,
+      value: {
+        food_master_id: 'fm_new',
+        name: 'ザバス（プロテイン飲料）',
+        source: 'user_input',
+        source_url: null,
+        nutrition_per_100g: { energy_kcal: 89 },
+        basis_quantity: 100,
+        basis_unit: 'g',
+      },
+    })
+    expect(calls).toEqual([
+      {
+        name: 'ザバス（プロテイン飲料）',
+        nutrition: { energy_kcal: 89 },
+        source: 'user_input',
+        isEstimated: false,
+      },
+    ])
+  })
+
+  it('maps a findSimilarNames FoodMasterDomainError to a namespaced tool error code without calling register', async () => {
+    const { tool, calls } = setup({
+      findSimilarNames: () =>
+        errAsync(
+          new FoodMasterDomainError(
+            'persistence_failed',
+            'similarity lookup failed',
+          ),
+        ),
+    })
+
+    const result = await tool.execute({
+      name: 'バナナ',
+      nutrition_per_basis: { energy_kcal: 89 },
+      source: 'user_input',
+      is_estimated: false,
+    })
+
+    expect(normalizeResult(result)).toEqual({
+      ok: false,
+      error: {
+        code: 'food_master/persistence_failed',
+        message: '<dynamic>',
+        details: {},
+      },
+    })
+    expect(calls).toEqual([])
   })
 })

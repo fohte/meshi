@@ -5,6 +5,7 @@ export type FoodMasterErrorCode =
   | 'empty_alias'
   | 'duplicate_alias_in_input'
   | 'invalid_source_combination'
+  | 'empty_nutrition'
   | 'missing_source_url'
   | 'unexpected_source_url'
   | 'missing_composition_code'

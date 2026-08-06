@@ -53,6 +53,7 @@ const setup = (
       const result: RegisteredFromComposition = { foodMaster, compositionName }
       return okAsync(result)
     },
+    findSimilarNames: () => okAsync([]),
     ...override,
   }
   return { tool: createRegisterFoodMasterFromCompositionTool(service), calls }

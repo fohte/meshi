@@ -377,6 +377,20 @@ describeIfDb('FoodMasterService + Repository', () => {
     expect(captured).toEqual({ code: 'empty_name', details: {} })
   })
 
+  it('rejects empty nutrition', async () => {
+    const tx = getTx()
+    const captured = await captureDomainError(
+      service.register({ ...baseInput, name: 'no-nutrition', nutrition: {} }),
+    )
+
+    expect(captured).toEqual({ code: 'empty_nutrition', details: {} })
+
+    const rows = await tx<{ count: string }[]>`
+      SELECT count(*)::text AS count FROM food_masters
+    `
+    expect(rows).toEqual([{ count: '0' }])
+  })
+
   it('rejects negative nutrient values', async () => {
     const captured = await captureDomainError(
       service.register({
@@ -654,6 +668,10 @@ describeIfDb('FoodMasterService + Repository', () => {
   it('rejects registerFromComposition when the name already exists', async () => {
     const tx = getTx()
     await seedFoodComposition(tx, { code: '01088', name: baseInput.name })
+    await tx`
+      INSERT INTO food_composition_nutrients (food_composition_code, nutrient_code, value)
+      VALUES ('01088', 'energy_kcal', '130')
+    `
     ;(await service.register(baseInput))._unsafeUnwrap()
 
     const captured = await captureDomainError(
@@ -787,5 +805,84 @@ describeIfDb('FoodMasterService + Repository', () => {
     )
 
     expect(captured).toEqual({ code: 'empty_basis_unit', details: {} })
+  })
+
+  it('finds an existing food_master whose name is a plausible near-duplicate, scored above the threshold', async () => {
+    ;(
+      await service.register({
+        ...baseInput,
+        name: 'ザバス ウェイトダウン チョコレート',
+      })
+    )._unsafeUnwrap()
+
+    const result = (
+      await service.findSimilarNames('ザバス（プロテイン飲料）')
+    )._unsafeUnwrap()
+
+    expect(result).toEqual([
+      {
+        foodMasterId: 'fm_test_0001',
+        name: 'ザバス ウェイトダウン チョコレート',
+        // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment -- vitest types expect.closeTo()'s return as `any`
+        score: expect.closeTo(0.33, 2),
+      },
+    ])
+  })
+
+  it('excludes an exact name match from findSimilarNames results', async () => {
+    ;(
+      await service.register({
+        ...baseInput,
+        name: 'ザバス ウェイトダウン チョコレート',
+      })
+    )._unsafeUnwrap()
+
+    const result = (
+      await service.findSimilarNames('ザバス ウェイトダウン チョコレート')
+    )._unsafeUnwrap()
+
+    expect(result).toEqual([])
+  })
+
+  it('returns no candidates when nothing registered scores above the threshold', async () => {
+    ;(await service.register({ ...baseInput, name: 'バナナ' }))._unsafeUnwrap()
+
+    const result = (await service.findSimilarNames('ラーメン'))._unsafeUnwrap()
+
+    expect(result).toEqual([])
+  })
+
+  it('orders findSimilarNames results by score, highest first', async () => {
+    ;(
+      await service.register({
+        ...baseInput,
+        name: 'ザバス ウェイトダウン チョコレート',
+      })
+    )._unsafeUnwrap()
+    ;(
+      await service.register({
+        ...baseInput,
+        name: 'ザバスプロテインバー チョコ',
+      })
+    )._unsafeUnwrap()
+
+    const result = (
+      await service.findSimilarNames('ザバス（プロテイン飲料）')
+    )._unsafeUnwrap()
+
+    expect(result).toEqual([
+      {
+        foodMasterId: 'fm_test_0003',
+        name: 'ザバスプロテインバー チョコ',
+        // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment -- vitest types expect.closeTo()'s return as `any`
+        score: expect.closeTo(0.43, 2),
+      },
+      {
+        foodMasterId: 'fm_test_0001',
+        name: 'ザバス ウェイトダウン チョコレート',
+        // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment -- vitest types expect.closeTo()'s return as `any`
+        score: expect.closeTo(0.33, 2),
+      },
+    ])
   })
 })
