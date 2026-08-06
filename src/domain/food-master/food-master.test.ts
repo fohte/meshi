@@ -813,16 +813,20 @@ describeIfDb('FoodMasterService + Repository', () => {
   })
 
   it('does not error, and does not move the alias, when it already belongs to another food_master', async () => {
-    await service.register({ ...baseInput, name: 'rice', aliases: ['ご飯'] })
-    await service.register({ ...baseInput, name: 'fried rice' })
+    const rice = (
+      await service.register({ ...baseInput, name: 'rice', aliases: ['ご飯'] })
+    )._unsafeUnwrap()
+    const friedRice = (
+      await service.register({ ...baseInput, name: 'fried rice' })
+    )._unsafeUnwrap()
 
-    const added = await service.addAlias('fm_test_0002', 'ご飯')
+    const added = await service.addAlias(friedRice.id, 'ご飯')
 
     expect(added.isOk()).toBe(true)
-    const owner = (await service.getById('fm_test_0001'))._unsafeUnwrap()
-    const other = (await service.getById('fm_test_0002'))._unsafeUnwrap()
+    const owner = (await service.getById(rice.id))._unsafeUnwrap()
+    const other = (await service.getById(friedRice.id))._unsafeUnwrap()
     expect(owner === null ? null : normalize(owner)).toEqual({
-      id: 'fm_test_0001',
+      id: rice.id,
       name: 'rice',
       aliases: ['ご飯'],
       isEstimated: false,
@@ -836,7 +840,7 @@ describeIfDb('FoodMasterService + Repository', () => {
       createdAt: '<date>',
     })
     expect(other === null ? null : normalize(other)).toEqual({
-      id: 'fm_test_0002',
+      id: friedRice.id,
       name: 'fried rice',
       aliases: [],
       isEstimated: false,
