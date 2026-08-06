@@ -190,6 +190,7 @@ describe('createDomainToolsRegistry', () => {
                 compositionCode: null,
                 name: '白米',
                 isEstimated: false,
+                matchedQueries: ['白米'],
               },
             ]),
         },
@@ -199,7 +200,7 @@ describe('createDomainToolsRegistry', () => {
     const result = await registry.executeToolUse({
       id: 'call_1',
       name: 'search_food_master',
-      input: { query: '白米', limit: 1 },
+      input: { queries: ['白米'], limit: 1 },
     })
 
     expect(result).toEqual({
@@ -212,6 +213,7 @@ describe('createDomainToolsRegistry', () => {
             is_estimated: false,
             score: 0.9,
             reason: 'history_recent',
+            matched_queries: ['白米'],
           },
         ],
       }),

@@ -222,7 +222,11 @@ describeIfDb('A2A integration', () => {
 
     const model = fakeModel()
       .respondWithTools([
-        { name: 'search_food_master', args: { query: '白米' }, id: 'call_1' },
+        {
+          name: 'search_food_master',
+          args: { queries: ['白米'] },
+          id: 'call_1',
+        },
       ])
       .respondWithTools([
         {
@@ -335,7 +339,11 @@ describeIfDb('A2A integration', () => {
         },
       ])
       .respondWithTools([
-        { name: 'search_food_master', args: { query: 'salmon' }, id: 'call_2' },
+        {
+          name: 'search_food_master',
+          args: { queries: ['salmon'] },
+          id: 'call_2',
+        },
       ])
       .respond(
         new AIMessage({
@@ -431,7 +439,11 @@ describeIfDb('A2A integration', () => {
 
     const model = fakeModel()
       .respondWithTools([
-        { name: 'search_food_master', args: { query: 'salmon' }, id: 'call_1' },
+        {
+          name: 'search_food_master',
+          args: { queries: ['salmon'] },
+          id: 'call_1',
+        },
       ])
       .respond(
         new AIMessage({

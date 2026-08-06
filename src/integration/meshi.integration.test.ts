@@ -392,7 +392,7 @@ describeIfDb('meshi integration', () => {
       tx,
       mealLogIds: ['ml_scenario1'],
       toolCalls: [
-        { name: 'search_food_master', args: { query: '白米' } },
+        { name: 'search_food_master', args: { queries: ['白米'] } },
         {
           name: 'record_meal_log',
           args: {
@@ -477,11 +477,11 @@ describeIfDb('meshi integration', () => {
       toolCalls: [
         {
           name: 'search_food_master',
-          args: { query: 'スターバックス抹茶ラテ' },
+          args: { queries: ['スターバックス抹茶ラテ'] },
         },
         {
           name: 'web_search',
-          args: { query: 'スターバックス 抹茶ラテ 栄養成分' },
+          args: { queries: ['スターバックス 抹茶ラテ 栄養成分'] },
         },
         {
           name: 'register_food_master',
@@ -592,11 +592,11 @@ describeIfDb('meshi integration', () => {
       toolCalls: [
         {
           name: 'search_food_master',
-          args: { query: 'かつ丼 並' },
+          args: { queries: ['かつ丼 並'] },
         },
         {
           name: 'web_search',
-          args: { query: 'とんかつ亭 かつ丼 並盛 栄養成分' },
+          args: { queries: ['とんかつ亭 かつ丼 並盛 栄養成分'] },
         },
         {
           name: 'register_food_master',
@@ -702,7 +702,9 @@ describeIfDb('meshi integration', () => {
 
     const harness = await startHarness({
       tx,
-      toolCalls: [{ name: 'search_food_master', args: { query: 'salmon' } }],
+      toolCalls: [
+        { name: 'search_food_master', args: { queries: ['salmon'] } },
+      ],
       final: {
         status: 'input_required',
         message: 'どの salmon メニューか特定できませんでした。',
@@ -913,7 +915,7 @@ describeIfDb('meshi integration', () => {
       tx,
       mealLogIds: ['ml_image_1'],
       toolCalls: [
-        { name: 'search_food_master', args: { query: '白米' } },
+        { name: 'search_food_master', args: { queries: ['白米'] } },
         {
           name: 'record_meal_log',
           args: {

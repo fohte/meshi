@@ -19,10 +19,14 @@ export interface FoodMatchCandidate {
   readonly compositionCode: string | null
   readonly name: string
   readonly isEstimated: boolean
+  // Which of SearchFoodInput.queries matched this candidate (by name or by
+  // alias), so a caller juggling several phrasings of the same food can tell
+  // which one actually hit.
+  readonly matchedQueries: ReadonlyArray<string>
 }
 
 export interface SearchFoodInput {
-  readonly query: string
+  readonly queries: ReadonlyArray<string>
   readonly limit: number
 }
 
