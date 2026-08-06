@@ -123,23 +123,23 @@ describe('search_food_master tool', () => {
     it('retries once with per-word queries not already tried when the first call returns no candidates', async () => {
       const { tool, calls } = setup({
         search: (input) =>
-          input.queries.includes('ザバス プロテイン')
+          input.queries.includes('ゲンキ プロテイン')
             ? okAsync([])
             : okAsync([
                 {
                   reason: 'fuzzy_name',
                   score: 1,
-                  foodMasterId: 'fm_zabas',
+                  foodMasterId: 'fm_genki',
                   compositionCode: null,
-                  name: 'ザバス ウェイトダウン チョコレート',
+                  name: 'ゲンキ ウェイトダウン チョコレート',
                   isEstimated: false,
-                  matchedQueries: ['ザバス'],
+                  matchedQueries: ['ゲンキ'],
                 },
               ]),
       })
 
       const result = await tool.execute({
-        queries: ['ザバス プロテイン'],
+        queries: ['ゲンキ プロテイン'],
         limit: 5,
       })
 
@@ -148,20 +148,20 @@ describe('search_food_master tool', () => {
         value: {
           candidates: [
             {
-              food_master_id: 'fm_zabas',
+              food_master_id: 'fm_genki',
               composition_code: null,
-              name: 'ザバス ウェイトダウン チョコレート',
+              name: 'ゲンキ ウェイトダウン チョコレート',
               is_estimated: false,
               score: 1,
               reason: 'fuzzy_name',
-              matched_queries: ['ザバス'],
+              matched_queries: ['ゲンキ'],
             },
           ],
         },
       })
       expect(calls).toEqual([
-        { queries: ['ザバス プロテイン'], limit: 5 },
-        { queries: ['ザバス', 'プロテイン'], limit: 5 },
+        { queries: ['ゲンキ プロテイン'], limit: 5 },
+        { queries: ['ゲンキ', 'プロテイン'], limit: 5 },
       ])
     })
 

@@ -272,25 +272,25 @@ describeIfDb('createDrizzleFoodMatcher', () => {
     it('finds a food_master by its bare brand name alone even though the registered name is much longer (regression: a short brand query scored below threshold against a long multi-word name)', async () => {
       const tx = getTx()
       await seedFoodMaster(tx, {
-        id: 'fm_brand_zabas',
-        name: 'ザバス ウェイトダウン チョコレート',
+        id: 'fm_brand_genki',
+        name: 'ゲンキ ウェイトダウン チョコレート',
         source: 'user_input',
       })
 
       const matcher = createDrizzleFoodMatcher(tx)
       const result = (
-        await matcher.search({ queries: ['ザバス'], limit: 5 })
+        await matcher.search({ queries: ['ゲンキ'], limit: 5 })
       )._unsafeUnwrap()
 
       expect(normalize(result)).toEqual([
         {
           reason: 'fuzzy_name',
           score: 1,
-          foodMasterId: 'fm_brand_zabas',
+          foodMasterId: 'fm_brand_genki',
           compositionCode: null,
-          name: 'ザバス ウェイトダウン チョコレート',
+          name: 'ゲンキ ウェイトダウン チョコレート',
           isEstimated: false,
-          matchedQueries: ['ザバス'],
+          matchedQueries: ['ゲンキ'],
         },
       ])
     })

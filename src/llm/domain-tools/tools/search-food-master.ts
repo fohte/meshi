@@ -50,9 +50,9 @@ const toOutput = (
 })
 
 // A query the LLM padded with words the registered name doesn't have (e.g.
-// "ザバス プロテイン飲料" for a master named "ザバス ウェイトダウン
+// "ゲンキ プロテイン飲料" for a master named "ゲンキ ウェイトダウン
 // チョコレート") can miss every match condition at once, even though a
-// shorter fragment of it ("ザバス") would hit. Splitting on whitespace and
+// shorter fragment of it ("ゲンキ") would hit. Splitting on whitespace and
 // retrying with only the fragments not already tried gives the matcher a
 // second, cheaper shot without depending on the LLM to reformulate on its
 // own — skipped when splitting yields nothing new (a single-token query has
