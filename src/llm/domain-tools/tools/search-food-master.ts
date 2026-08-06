@@ -67,7 +67,10 @@ const deriveShortQueries = (
       if (token !== '' && !original.has(token)) short.add(token)
     }
   }
-  return [...short]
+  // Bounded the same as the original input (MAX_QUERIES) — an adversarial or
+  // malformed query with many whitespace-separated tokens would otherwise
+  // uncap the retry's query count.
+  return [...short].slice(0, MAX_QUERIES)
 }
 
 export const createSearchFoodMasterTool = (

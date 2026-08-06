@@ -240,7 +240,7 @@ describeIfDb('createDrizzleFoodMatcher', () => {
       const tx = getTx()
       await seedFoodMaster(tx, {
         id: 'fm_merge_h',
-        name: 'grain_h',
+        name: 'cereal_h',
         source: 'user_input',
       })
       await seedFoodMasterAlias(tx, {
@@ -251,7 +251,7 @@ describeIfDb('createDrizzleFoodMatcher', () => {
 
       const matcher = createDrizzleFoodMatcher(tx)
       const result = (
-        await matcher.search({ queries: ['grain', 'grain_alias'], limit: 5 })
+        await matcher.search({ queries: ['cereal', 'grain_alias'], limit: 5 })
       )._unsafeUnwrap()
 
       expect(normalize(result)).toEqual([
@@ -260,9 +260,9 @@ describeIfDb('createDrizzleFoodMatcher', () => {
           score: 1,
           foodMasterId: 'fm_merge_h',
           compositionCode: null,
-          name: 'grain_h',
+          name: 'cereal_h',
           isEstimated: false,
-          matchedQueries: ['grain', 'grain_alias'],
+          matchedQueries: ['cereal', 'grain_alias'],
         },
       ])
     })

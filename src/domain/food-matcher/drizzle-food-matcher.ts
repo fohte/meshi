@@ -118,11 +118,10 @@ export const createDrizzleFoodMatcher = (
         -- Two index-friendly seeks (name trgm + alias trgm) UNION-ed and
         -- aggregated. Mixing the non-trgm-indexable substring check into the
         -- same OR predicate means Postgres can no longer prove the GIN index
-        -- covers every case, so each branch falls back to a sequential scan
-        -- (confirmed via EXPLAIN) — harmless at this table's current size
-        -- (~60 rows). If it grows large enough to matter, split the
-        -- substring check into its own UNION ALL branch to restore index
-        -- pushdown for the % / %> conditions.
+        -- covers every case, so each branch falls back to a sequential scan.
+        -- Splitting the substring check into its own UNION ALL branch
+        -- restores index pushdown for the % / %> conditions if that scan
+        -- ever needs to be avoided.
         name_matches AS (
           SELECT id, name, is_estimated,
                  MAX(name_sim) AS name_sim,

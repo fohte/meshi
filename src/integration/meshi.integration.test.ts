@@ -481,7 +481,7 @@ describeIfDb('meshi integration', () => {
         },
         {
           name: 'web_search',
-          args: { queries: ['スターバックス 抹茶ラテ 栄養成分'] },
+          args: { query: 'スターバックス 抹茶ラテ 栄養成分' },
         },
         {
           name: 'register_food_master',
@@ -596,7 +596,7 @@ describeIfDb('meshi integration', () => {
         },
         {
           name: 'web_search',
-          args: { queries: ['とんかつ亭 かつ丼 並盛 栄養成分'] },
+          args: { query: 'とんかつ亭 かつ丼 並盛 栄養成分' },
         },
         {
           name: 'register_food_master',
