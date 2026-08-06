@@ -53,6 +53,13 @@ const notStubbed = (name: string): FoodMasterService => ({
         `${name}.registerFromComposition not stubbed`,
       ),
     ),
+  addAlias: () =>
+    errAsync(
+      new FoodMasterDomainError(
+        'persistence_failed',
+        `${name}.addAlias not stubbed`,
+      ),
+    ),
 })
 
 const jsonRequest = (path: string, body: unknown): Request =>

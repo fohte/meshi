@@ -130,27 +130,6 @@ const startHarness = async (opts: HarnessOptions): Promise<Harness> => {
   const tx = prepareTxForDrizzle(opts.tx)
   const timestampSnapshot = snapshotTimestampHandlers(tx)
 
-  const mealLogRepository = createDrizzleMealLogRepository(tx)
-  const mealLogIds = opts.mealLogIds ?? []
-  let mealLogIdCursor = 0
-  const idGenerator = (): string => {
-    const id = mealLogIds[mealLogIdCursor]
-    mealLogIdCursor += 1
-    return id ?? `ml_test_${String(mealLogIdCursor).padStart(4, '0')}`
-  }
-  const mealLogService = createMealLogService({
-    repository: mealLogRepository,
-    idGenerator,
-    // pin to a fixed point in time so eaten_date validation is deterministic
-    now: () => new Date('2026-06-12T22:00:00+09:00'),
-  })
-  const mealSkipService = createMealSkipService({
-    repository: createDrizzleMealSkipRepository(tx),
-    idGenerator: () => randomUUID(),
-    // pin to a fixed point in time so date validation is deterministic
-    now: () => new Date('2026-06-12T22:00:00+09:00'),
-  })
-
   let foodMasterIdCursor = 0
   const foodMasterIdGen = (prefix: string): string => {
     foodMasterIdCursor += 1
@@ -163,6 +142,28 @@ const startHarness = async (opts: HarnessOptions): Promise<Harness> => {
     wrapInTransaction: false,
   })
   const foodMasterService = createFoodMasterService(foodMasterRepository)
+
+  const mealLogRepository = createDrizzleMealLogRepository(tx)
+  const mealLogIds = opts.mealLogIds ?? []
+  let mealLogIdCursor = 0
+  const idGenerator = (): string => {
+    const id = mealLogIds[mealLogIdCursor]
+    mealLogIdCursor += 1
+    return id ?? `ml_test_${String(mealLogIdCursor).padStart(4, '0')}`
+  }
+  const mealLogService = createMealLogService({
+    repository: mealLogRepository,
+    foodMasterService,
+    idGenerator,
+    // pin to a fixed point in time so eaten_date validation is deterministic
+    now: () => new Date('2026-06-12T22:00:00+09:00'),
+  })
+  const mealSkipService = createMealSkipService({
+    repository: createDrizzleMealSkipRepository(tx),
+    idGenerator: () => randomUUID(),
+    // pin to a fixed point in time so date validation is deterministic
+    now: () => new Date('2026-06-12T22:00:00+09:00'),
+  })
   const foodMasterUnitService = createFoodMasterUnitService(
     createFoodMasterUnitRepository(tx),
   )

@@ -788,4 +788,27 @@ describeIfDb('FoodMasterService + Repository', () => {
 
     expect(captured).toEqual({ code: 'empty_basis_unit', details: {} })
   })
+
+  it('adds an alias to an existing food_master, visible through getById', async () => {
+    await service.register(baseInput)
+
+    const added = await service.addAlias('fm_test_0001', 'ご飯')
+
+    expect(added.isOk()).toBe(true)
+    const fetched = (await service.getById('fm_test_0001'))._unsafeUnwrap()
+    expect(fetched === null ? null : fetched.aliases).toEqual(['ご飯'])
+  })
+
+  it('does not error, and does not move the alias, when it already belongs to another food_master', async () => {
+    await service.register({ ...baseInput, name: 'rice', aliases: ['ご飯'] })
+    await service.register({ ...baseInput, name: 'fried rice' })
+
+    const added = await service.addAlias('fm_test_0002', 'ご飯')
+
+    expect(added.isOk()).toBe(true)
+    const owner = (await service.getById('fm_test_0001'))._unsafeUnwrap()
+    const other = (await service.getById('fm_test_0002'))._unsafeUnwrap()
+    expect(owner === null ? null : owner.aliases).toEqual(['ご飯'])
+    expect(other === null ? null : other.aliases).toEqual([])
+  })
 })

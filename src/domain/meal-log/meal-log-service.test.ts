@@ -1,6 +1,8 @@
 import { errAsync, okAsync } from 'neverthrow'
 import { describe, expect, it } from 'vitest'
 
+import { FoodMasterDomainError } from '#domain/food-master/errors'
+import type { FoodMasterService } from '#domain/food-master/service'
 import {
   DomainError,
   FoodMasterNotFoundError,
@@ -101,6 +103,38 @@ const createFakeRepository = (
   return { repository, inserted, updated }
 }
 
+interface FakeFoodMasterServiceOptions {
+  // Simulates addAlias hitting an alias already claimed elsewhere, to prove
+  // the correction still succeeds.
+  readonly failAddAlias?: boolean
+}
+
+const createFakeFoodMasterService = (
+  options: FakeFoodMasterServiceOptions = {},
+): {
+  foodMasterService: FoodMasterService
+  learnedAliases: Array<{ id: string; alias: string }>
+} => {
+  const learnedAliases: Array<{ id: string; alias: string }> = []
+  const unused = (): never => {
+    throw new Error('unused in this test')
+  }
+  const foodMasterService: FoodMasterService = {
+    register: unused,
+    getById: unused,
+    registerFromComposition: unused,
+    addAlias: (id, alias) => {
+      learnedAliases.push({ id, alias })
+      return options.failAddAlias === true
+        ? errAsync(
+            new FoodMasterDomainError('duplicate_alias', 'already claimed'),
+          )
+        : okAsync(undefined)
+    },
+  }
+  return { foodMasterService, learnedAliases }
+}
+
 const RICE: FoodMasterRef = {
   id: 'fm_rice',
   name: '白米',
@@ -165,19 +199,24 @@ const EXISTING_RICE_LOG: FoundMealLog = {
 const buildService = (
   foodMasters: ReadonlyArray<FoodMasterRef>,
   existingLogs: ReadonlyArray<FoundMealLog> = [],
+  foodMasterServiceOptions: FakeFoodMasterServiceOptions = {},
 ) => {
   const { repository, inserted, updated } = createFakeRepository({
     foodMasters,
     existingLogs,
   })
+  const { foodMasterService, learnedAliases } = createFakeFoodMasterService(
+    foodMasterServiceOptions,
+  )
   const ids = ['ml_1', 'ml_2', 'ml_3']
   let idx = 0
   const service = createMealLogService({
     repository,
+    foodMasterService,
     idGenerator: () => ids[idx++] ?? 'ml_overflow',
     now: () => NOW,
   })
-  return { service, inserted, updated }
+  return { service, inserted, updated, learnedAliases }
 }
 
 describe('MealLogService.record', () => {
@@ -681,7 +720,7 @@ describe('MealLogService.update', () => {
   })
 
   it('changes food_master_id and recomputes nutrition against the new food', async () => {
-    const { service, updated } = buildService(
+    const { service, updated, learnedAliases } = buildService(
       [RICE, KARAAGE_GUESS],
       [EXISTING_RICE_LOG],
     )
@@ -710,13 +749,53 @@ describe('MealLogService.update', () => {
     expect(updated).toEqual([
       { id: 'ml_1', foodMasterId: 'fm_karaage', amountGrams: 100 },
     ])
+    // The old food's name (RICE's) is learned as an alias on the corrected
+    // food_master, so the same phrasing matches it next time.
+    expect(learnedAliases).toEqual([{ id: 'fm_karaage', alias: '白米' }])
+  })
+
+  it('still succeeds when the learned alias collides with one claimed elsewhere', async () => {
+    const { service, updated, learnedAliases } = buildService(
+      [RICE, KARAAGE_GUESS],
+      [EXISTING_RICE_LOG],
+      { failAddAlias: true },
+    )
+
+    const result = (
+      await service.update({ id: 'ml_1', foodMasterId: 'fm_karaage' })
+    )._unsafeUnwrap()
+
+    expect(result).toEqual({
+      id: 'ml_1',
+      foodMasterId: 'fm_karaage',
+      eatenDate: EATEN_DATE,
+      mealType: 'dinner',
+      quantity: 100,
+      unit: 'g',
+      amountGrams: 100,
+      createdAt: CREATED_AT,
+      nutrition: {
+        energy_kcal: 290,
+        protein_g: 24.2,
+        fat_g: 18.1,
+        carb_g: 7.9,
+      },
+      isEstimated: true,
+    })
+    expect(updated).toEqual([
+      { id: 'ml_1', foodMasterId: 'fm_karaage', amountGrams: 100 },
+    ])
+    expect(learnedAliases).toEqual([{ id: 'fm_karaage', alias: '白米' }])
   })
 
   it('does not re-fetch food_master when foodMasterId equals the current value', async () => {
     // RICE is deliberately absent from foodMasters: if the service mistakenly
     // called findFoodMaster for an unchanged id, this would fail with
     // FoodMasterNotFoundError instead of reusing the already-loaded food.
-    const { service, updated } = buildService([], [EXISTING_RICE_LOG])
+    const { service, updated, learnedAliases } = buildService(
+      [],
+      [EXISTING_RICE_LOG],
+    )
 
     const result = (
       await service.update({ id: 'ml_1', foodMasterId: 'fm_rice' })
@@ -740,6 +819,8 @@ describe('MealLogService.update', () => {
       isEstimated: false,
     })
     expect(updated).toEqual([{ id: 'ml_1', foodMasterId: 'fm_rice' }])
+    // foodMasterId didn't actually change, so no alias should be learned.
+    expect(learnedAliases).toEqual([])
   })
 
   it('updates multiple fields together, recomputing amountGrams for the changed unit', async () => {
@@ -931,6 +1012,7 @@ describe('MealLogService.getById', () => {
     }
     const service = createMealLogService({
       repository,
+      foodMasterService: createFakeFoodMasterService().foodMasterService,
       idGenerator: () => 'unused',
       now: () => NOW,
     })

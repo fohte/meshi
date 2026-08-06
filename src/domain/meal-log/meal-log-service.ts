@@ -7,6 +7,7 @@ import {
   type ResultAsync,
 } from 'neverthrow'
 
+import type { FoodMasterService } from '#domain/food-master/service'
 import {
   type DomainError,
   FoodNameMismatchError,
@@ -72,6 +73,7 @@ export interface MealLogService {
 
 export interface MealLogServiceDeps {
   readonly repository: MealLogRepository
+  readonly foodMasterService: FoodMasterService
   readonly idGenerator: () => string
   readonly now: () => Date
 }
@@ -184,7 +186,20 @@ export const createMealLogService = (
             ...(input.unit === undefined ? {} : { unit: input.unit }),
             ...(amountGrams === undefined ? {} : { amountGrams }),
           })
-          .map((log) => buildResult(log, food))
+          .andThen((log) =>
+            newFoodMasterId === undefined
+              ? okAsync(buildResult(log, food))
+              : // Learn from the correction: the old food's name is what the
+                // user's phrasing actually matched to the wrong food_master.
+                // Recording it as an alias on the corrected one means the
+                // same phrasing finds the right food next time. Best-effort —
+                // a collision with an existing alias must not fail the
+                // correction itself.
+                deps.foodMasterService
+                  .addAlias(newFoodMasterId, found.food.name)
+                  .orElse(() => okAsync(undefined))
+                  .map(() => buildResult(log, food)),
+          )
       })
     })
   },
