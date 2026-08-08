@@ -19,3 +19,5 @@ minimumReleaseAgeExclude:
   - '@hono/node-server@2.0.10'
   # Renovate security update: hono@4.12.34
   - hono@4.12.34
+  # Renovate security update: react-router@8.3.0
+  - react-router@8.3.0
