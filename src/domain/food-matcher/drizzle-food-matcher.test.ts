@@ -18,19 +18,11 @@ const MS_PER_DAY = 24 * 60 * 60 * 1000
 const daysAgo = (n: number): Date => new Date(Date.now() - n * MS_PER_DAY)
 
 // Round score to 3 decimal places so the assertion is robust against
-// pg_trgm's float32 imprecision in name_sim (see the SIM_* constants below).
+// pg_trgm's float32 imprecision in name_sim.
 const normalize = (
   rows: ReadonlyArray<FoodMatchCandidate>,
 ): ReadonlyArray<FoodMatchCandidate> =>
   rows.map((r) => ({ ...r, score: Number(r.score.toFixed(3)) }))
-
-// pg_trgm similarity is deterministic for fixed inputs. These constants are
-// the values returned by `similarity()` in Postgres 17 with default settings;
-// rounding to 3dp absorbs the float32 imprecision in the comparison.
-const SIM_RICE_RICE_X = 0.714
-const SIM_SOUP_SOUP_X = 0.714
-const SIM_BREAD_BREAD_E = 0.75
-const SIM_CURRY_CURRY_F = 0.75
 
 describeIfDb('createDrizzleFoodMatcher', () => {
   const getTx = setupTx()
@@ -65,11 +57,11 @@ describeIfDb('createDrizzleFoodMatcher', () => {
 
       const matcher = createDrizzleFoodMatcher(tx)
       const result = (
-        await matcher.search({ query: 'rice', limit: 5 })
+        await matcher.search({ queries: ['rice'], limit: 5 })
       )._unsafeUnwrap()
 
-      const expectedA = Number((2 + SIM_RICE_RICE_X * 0.5).toFixed(3))
-      const expectedB = Number((2 + SIM_RICE_RICE_X * (1 / (1 + 5))).toFixed(3))
+      const expectedA = Number((2 + 1 * 0.5).toFixed(3))
+      const expectedB = Number((2 + 1 * (1 / (1 + 5))).toFixed(3))
       expect(normalize(result)).toEqual([
         {
           reason: 'history_recent',
@@ -78,6 +70,7 @@ describeIfDb('createDrizzleFoodMatcher', () => {
           compositionCode: null,
           name: 'rice_a',
           isEstimated: false,
+          matchedQueries: ['rice'],
         },
         {
           reason: 'history_recent',
@@ -86,6 +79,7 @@ describeIfDb('createDrizzleFoodMatcher', () => {
           compositionCode: null,
           name: 'rice_b',
           isEstimated: false,
+          matchedQueries: ['rice'],
         },
       ])
     })
@@ -121,12 +115,10 @@ describeIfDb('createDrizzleFoodMatcher', () => {
 
       const matcher = createDrizzleFoodMatcher(tx)
       const result = (
-        await matcher.search({ query: 'soup', limit: 5 })
+        await matcher.search({ queries: ['soup'], limit: 5 })
       )._unsafeUnwrap()
 
-      const expectedC = Number(
-        (1 + SIM_SOUP_SOUP_X * (1 - Math.exp(-5 / 3))).toFixed(3),
-      )
+      const expectedC = Number((1 + 1 * (1 - Math.exp(-5 / 3))).toFixed(3))
       expect(normalize(result)).toEqual([
         {
           reason: 'history_frequent',
@@ -135,14 +127,16 @@ describeIfDb('createDrizzleFoodMatcher', () => {
           compositionCode: null,
           name: 'soup_c',
           isEstimated: false,
+          matchedQueries: ['soup'],
         },
         {
           reason: 'fuzzy_name',
-          score: Number(SIM_SOUP_SOUP_X.toFixed(3)),
+          score: 1,
           foodMasterId: 'fm_freq_d',
           compositionCode: null,
           name: 'soup_d',
           isEstimated: false,
+          matchedQueries: ['soup'],
         },
       ])
     })
@@ -159,17 +153,18 @@ describeIfDb('createDrizzleFoodMatcher', () => {
 
       const matcher = createDrizzleFoodMatcher(tx)
       const result = (
-        await matcher.search({ query: 'bread', limit: 5 })
+        await matcher.search({ queries: ['bread'], limit: 5 })
       )._unsafeUnwrap()
 
       expect(normalize(result)).toEqual([
         {
           reason: 'fuzzy_name',
-          score: Number(SIM_BREAD_BREAD_E.toFixed(3)),
+          score: 1,
           foodMasterId: 'fm_fuzz',
           compositionCode: null,
           name: 'bread_e',
           isEstimated: false,
+          matchedQueries: ['bread'],
         },
       ])
     })
@@ -180,7 +175,7 @@ describeIfDb('createDrizzleFoodMatcher', () => {
 
       const matcher = createDrizzleFoodMatcher(tx)
       const result = (
-        await matcher.search({ query: 'noodle', limit: 5 })
+        await matcher.search({ queries: ['noodle'], limit: 5 })
       )._unsafeUnwrap()
 
       expect(normalize(result)).toEqual([
@@ -191,6 +186,7 @@ describeIfDb('createDrizzleFoodMatcher', () => {
           compositionCode: 'comp_noodle',
           name: 'noodle',
           isEstimated: true,
+          matchedQueries: ['noodle'],
         },
       ])
     })
@@ -206,22 +202,23 @@ describeIfDb('createDrizzleFoodMatcher', () => {
 
       const matcher = createDrizzleFoodMatcher(tx)
       const result = (
-        await matcher.search({ query: 'curry', limit: 5 })
+        await matcher.search({ queries: ['curry'], limit: 5 })
       )._unsafeUnwrap()
 
       expect(normalize(result)).toEqual([
         {
           reason: 'fuzzy_name',
-          score: Number(SIM_CURRY_CURRY_F.toFixed(3)),
+          score: 1,
           foodMasterId: 'fm_curry',
           compositionCode: null,
           name: 'curry_f',
           isEstimated: false,
+          matchedQueries: ['curry'],
         },
       ])
     })
 
-    it('returns an empty array when nothing matches', async () => {
+    it('returns an empty array when nothing matches any query', async () => {
       const tx = getTx()
       await seedFoodMaster(tx, {
         id: 'fm_other',
@@ -231,10 +228,126 @@ describeIfDb('createDrizzleFoodMatcher', () => {
 
       const matcher = createDrizzleFoodMatcher(tx)
       const result = (
-        await matcher.search({ query: 'tofu', limit: 5 })
+        await matcher.search({ queries: ['tofu'], limit: 5 })
       )._unsafeUnwrap()
 
       expect(result).toEqual([])
+    })
+  })
+
+  describe('multi-query batches', () => {
+    it('merges two queries that each match the same food (one via name, one via alias) into a single candidate', async () => {
+      const tx = getTx()
+      await seedFoodMaster(tx, {
+        id: 'fm_merge_h',
+        name: 'cereal_h',
+        source: 'user_input',
+      })
+      await seedFoodMasterAlias(tx, {
+        id: 'alias_merge_i',
+        foodMasterId: 'fm_merge_h',
+        alias: 'grain_alias_i',
+      })
+
+      const matcher = createDrizzleFoodMatcher(tx)
+      const result = (
+        await matcher.search({ queries: ['cereal', 'grain_alias'], limit: 5 })
+      )._unsafeUnwrap()
+
+      expect(normalize(result)).toEqual([
+        {
+          reason: 'fuzzy_name',
+          score: 1,
+          foodMasterId: 'fm_merge_h',
+          compositionCode: null,
+          name: 'cereal_h',
+          isEstimated: false,
+          matchedQueries: ['cereal', 'grain_alias'],
+        },
+      ])
+    })
+  })
+
+  describe('regression: short/padded queries against a long registered name', () => {
+    it('finds a food_master by its bare brand name alone even though the registered name is much longer (regression: a short brand query scored below threshold against a long multi-word name)', async () => {
+      const tx = getTx()
+      await seedFoodMaster(tx, {
+        id: 'fm_brand_genki',
+        name: 'ゲンキ ウェイトダウン チョコレート',
+        source: 'user_input',
+      })
+
+      const matcher = createDrizzleFoodMatcher(tx)
+      const result = (
+        await matcher.search({ queries: ['ゲンキ'], limit: 5 })
+      )._unsafeUnwrap()
+
+      expect(normalize(result)).toEqual([
+        {
+          reason: 'fuzzy_name',
+          score: 1,
+          foodMasterId: 'fm_brand_genki',
+          compositionCode: null,
+          name: 'ゲンキ ウェイトダウン チョコレート',
+          isEstimated: false,
+          matchedQueries: ['ゲンキ'],
+        },
+      ])
+    })
+
+    it('still returns the match, with a strong score, when the query is padded with an extra word the registered name does not contain', async () => {
+      const tx = getTx()
+      await seedFoodMaster(tx, {
+        id: 'fm_brand_padded_j',
+        name: 'protein_bar_j',
+        source: 'user_input',
+      })
+
+      const matcher = createDrizzleFoodMatcher(tx)
+      const result = (
+        await matcher.search({
+          queries: ['protein_bar extra'],
+          limit: 5,
+        })
+      )._unsafeUnwrap()
+
+      expect(normalize(result)).toEqual([
+        {
+          reason: 'fuzzy_name',
+          score: 0.667,
+          foodMasterId: 'fm_brand_padded_j',
+          compositionCode: null,
+          name: 'protein_bar_j',
+          isEstimated: false,
+          matchedQueries: ['protein_bar extra'],
+        },
+      ])
+    })
+
+    it('finds a query substring embedded in the middle of a name with no surrounding word boundary', async () => {
+      const tx = getTx()
+      await seedFoodMaster(tx, {
+        id: 'fm_compound_k',
+        name: 'newgrainmix',
+        source: 'user_input',
+      })
+
+      const matcher = createDrizzleFoodMatcher(tx)
+      const result = (
+        await matcher.search({ queries: ['grain'], limit: 5 })
+      )._unsafeUnwrap()
+
+      expect(normalize(result)).toEqual([
+        {
+          reason: 'fuzzy_name',
+          score: 0.5,
+          foodMasterId: 'fm_compound_k',
+          compositionCode: null,
+          name: 'newgrainmix',
+          isEstimated: false,
+          matchedQueries: ['grain'],
+        },
+      ])
     })
   })
 
@@ -255,7 +368,7 @@ describeIfDb('createDrizzleFoodMatcher', () => {
 
       const matcher = createDrizzleFoodMatcher(tx)
       const result = (
-        await matcher.search({ query: '味噌汁', limit: 5 })
+        await matcher.search({ queries: ['味噌汁'], limit: 5 })
       )._unsafeUnwrap()
 
       expect(normalize(result)).toEqual([
@@ -266,6 +379,7 @@ describeIfDb('createDrizzleFoodMatcher', () => {
           compositionCode: null,
           name: '味噌汁',
           isEstimated: false,
+          matchedQueries: ['味噌汁'],
         },
       ])
     })
@@ -285,7 +399,7 @@ describeIfDb('createDrizzleFoodMatcher', () => {
 
       const matcher = createDrizzleFoodMatcher(tx)
       const result = (
-        await matcher.search({ query: '絹ごし豆腐', limit: 5 })
+        await matcher.search({ queries: ['絹ごし豆腐'], limit: 5 })
       )._unsafeUnwrap()
 
       expect(normalize(result)).toEqual([
@@ -296,6 +410,7 @@ describeIfDb('createDrizzleFoodMatcher', () => {
           compositionCode: null,
           name: '木綿豆腐',
           isEstimated: false,
+          matchedQueries: ['絹ごし豆腐'],
         },
       ])
     })
