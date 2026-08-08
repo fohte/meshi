@@ -130,27 +130,6 @@ const startHarness = async (opts: HarnessOptions): Promise<Harness> => {
   const tx = prepareTxForDrizzle(opts.tx)
   const timestampSnapshot = snapshotTimestampHandlers(tx)
 
-  const mealLogRepository = createDrizzleMealLogRepository(tx)
-  const mealLogIds = opts.mealLogIds ?? []
-  let mealLogIdCursor = 0
-  const idGenerator = (): string => {
-    const id = mealLogIds[mealLogIdCursor]
-    mealLogIdCursor += 1
-    return id ?? `ml_test_${String(mealLogIdCursor).padStart(4, '0')}`
-  }
-  const mealLogService = createMealLogService({
-    repository: mealLogRepository,
-    idGenerator,
-    // pin to a fixed point in time so eaten_date validation is deterministic
-    now: () => new Date('2026-06-12T22:00:00+09:00'),
-  })
-  const mealSkipService = createMealSkipService({
-    repository: createDrizzleMealSkipRepository(tx),
-    idGenerator: () => randomUUID(),
-    // pin to a fixed point in time so date validation is deterministic
-    now: () => new Date('2026-06-12T22:00:00+09:00'),
-  })
-
   let foodMasterIdCursor = 0
   const foodMasterIdGen = (prefix: string): string => {
     foodMasterIdCursor += 1
@@ -163,6 +142,28 @@ const startHarness = async (opts: HarnessOptions): Promise<Harness> => {
     wrapInTransaction: false,
   })
   const foodMasterService = createFoodMasterService(foodMasterRepository)
+
+  const mealLogRepository = createDrizzleMealLogRepository(tx)
+  const mealLogIds = opts.mealLogIds ?? []
+  let mealLogIdCursor = 0
+  const idGenerator = (): string => {
+    const id = mealLogIds[mealLogIdCursor]
+    mealLogIdCursor += 1
+    return id ?? `ml_test_${String(mealLogIdCursor).padStart(4, '0')}`
+  }
+  const mealLogService = createMealLogService({
+    repository: mealLogRepository,
+    foodMasterService,
+    idGenerator,
+    // pin to a fixed point in time so eaten_date validation is deterministic
+    now: () => new Date('2026-06-12T22:00:00+09:00'),
+  })
+  const mealSkipService = createMealSkipService({
+    repository: createDrizzleMealSkipRepository(tx),
+    idGenerator: () => randomUUID(),
+    // pin to a fixed point in time so date validation is deterministic
+    now: () => new Date('2026-06-12T22:00:00+09:00'),
+  })
   const foodMasterUnitService = createFoodMasterUnitService(
     createFoodMasterUnitRepository(tx),
   )
@@ -392,7 +393,7 @@ describeIfDb('meshi integration', () => {
       tx,
       mealLogIds: ['ml_scenario1'],
       toolCalls: [
-        { name: 'search_food_master', args: { query: '白米' } },
+        { name: 'search_food_master', args: { queries: ['白米'] } },
         {
           name: 'record_meal_log',
           args: {
@@ -477,7 +478,7 @@ describeIfDb('meshi integration', () => {
       toolCalls: [
         {
           name: 'search_food_master',
-          args: { query: 'スターバックス抹茶ラテ' },
+          args: { queries: ['スターバックス抹茶ラテ'] },
         },
         {
           name: 'web_search',
@@ -592,7 +593,7 @@ describeIfDb('meshi integration', () => {
       toolCalls: [
         {
           name: 'search_food_master',
-          args: { query: 'かつ丼 並' },
+          args: { queries: ['かつ丼 並'] },
         },
         {
           name: 'web_search',
@@ -702,7 +703,9 @@ describeIfDb('meshi integration', () => {
 
     const harness = await startHarness({
       tx,
-      toolCalls: [{ name: 'search_food_master', args: { query: 'salmon' } }],
+      toolCalls: [
+        { name: 'search_food_master', args: { queries: ['salmon'] } },
+      ],
       final: {
         status: 'input_required',
         message: 'どの salmon メニューか特定できませんでした。',
@@ -844,7 +847,7 @@ describeIfDb('meshi integration', () => {
               '- 期間内の日数: 1 日',
               '- 記録件数: 1 件',
               '明細 (1 件):',
-              '- 2026-06-12 昼食 fm_rice: 200g',
+              '- 2026-06-12 昼食 白米: 200g',
             ].join('\n'),
           },
         ],
@@ -913,7 +916,7 @@ describeIfDb('meshi integration', () => {
       tx,
       mealLogIds: ['ml_image_1'],
       toolCalls: [
-        { name: 'search_food_master', args: { query: '白米' } },
+        { name: 'search_food_master', args: { queries: ['白米'] } },
         {
           name: 'record_meal_log',
           args: {

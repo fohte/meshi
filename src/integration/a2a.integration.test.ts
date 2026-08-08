@@ -61,20 +61,22 @@ const stubWebSearchClient = (): WebSearchClient => ({
 // src/integration/meshi.integration.test.ts but without the MCP/orchestrator
 // layer — the A2A path invokes createMeshiDomainAgent directly.
 const buildRegistry = (tx: Sql): DomainToolsRegistry => {
-  let mealLogIdCursor = 0
-  const mealLogService = createMealLogService({
-    repository: createDrizzleMealLogRepository(tx),
-    idGenerator: () => {
-      mealLogIdCursor += 1
-      return `ml_a2a_test_${String(mealLogIdCursor).padStart(4, '0')}`
-    },
-    now: () => new Date('2026-06-12T22:00:00+09:00'),
-  })
   const foodMasterRepository = createFoodMasterRepository(tx, {
     generateId: (prefix) => `${prefix}_a2a_test`,
     // The outer per-test transaction already provides atomicity; postgres-js
     // rejects a nested BEGIN inside it.
     wrapInTransaction: false,
+  })
+  const foodMasterService = createFoodMasterService(foodMasterRepository)
+  let mealLogIdCursor = 0
+  const mealLogService = createMealLogService({
+    repository: createDrizzleMealLogRepository(tx),
+    foodMasterService,
+    idGenerator: () => {
+      mealLogIdCursor += 1
+      return `ml_a2a_test_${String(mealLogIdCursor).padStart(4, '0')}`
+    },
+    now: () => new Date('2026-06-12T22:00:00+09:00'),
   })
   const mealSkipService = createMealSkipService({
     repository: createDrizzleMealSkipRepository(tx),
@@ -83,7 +85,7 @@ const buildRegistry = (tx: Sql): DomainToolsRegistry => {
   })
   return createDomainToolsRegistry({
     mealLogService,
-    foodMasterService: createFoodMasterService(foodMasterRepository),
+    foodMasterService,
     foodMasterUnitService: createFoodMasterUnitService(
       createFoodMasterUnitRepository(tx),
     ),
@@ -222,7 +224,11 @@ describeIfDb('A2A integration', () => {
 
     const model = fakeModel()
       .respondWithTools([
-        { name: 'search_food_master', args: { query: '白米' }, id: 'call_1' },
+        {
+          name: 'search_food_master',
+          args: { queries: ['白米'] },
+          id: 'call_1',
+        },
       ])
       .respondWithTools([
         {
@@ -335,7 +341,11 @@ describeIfDb('A2A integration', () => {
         },
       ])
       .respondWithTools([
-        { name: 'search_food_master', args: { query: 'salmon' }, id: 'call_2' },
+        {
+          name: 'search_food_master',
+          args: { queries: ['salmon'] },
+          id: 'call_2',
+        },
       ])
       .respond(
         new AIMessage({
@@ -431,7 +441,11 @@ describeIfDb('A2A integration', () => {
 
     const model = fakeModel()
       .respondWithTools([
-        { name: 'search_food_master', args: { query: 'salmon' }, id: 'call_1' },
+        {
+          name: 'search_food_master',
+          args: { queries: ['salmon'] },
+          id: 'call_1',
+        },
       ])
       .respond(
         new AIMessage({
@@ -655,7 +669,7 @@ describeIfDb('A2A integration', () => {
           '2026-06-12 の食事履歴をお伝えしました。',
           '',
           '明細 (1 件):',
-          '- 2026-06-12 昼食 fm_rice_history: 200g',
+          '- 2026-06-12 昼食 白米 history: 200g',
         ].join('\n'),
       )
       expect(normalizeTask(task)).toEqual({

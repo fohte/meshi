@@ -7,6 +7,7 @@ import {
   type ResultAsync,
 } from 'neverthrow'
 
+import type { FoodMasterService } from '#domain/food-master/service'
 import {
   type DomainError,
   FoodNameMismatchError,
@@ -14,6 +15,7 @@ import {
   ImplausibleQuantityError,
   InvalidQuantityError,
   MealLogNotFoundError,
+  MealLogPersistenceError,
 } from '#domain/meal-log/errors'
 import type { MealLogRepository } from '#domain/meal-log/meal-log-repository'
 import { resolveAmountGrams } from '#domain/meal-log/resolve-amount-grams'
@@ -72,6 +74,7 @@ export interface MealLogService {
 
 export interface MealLogServiceDeps {
   readonly repository: MealLogRepository
+  readonly foodMasterService: FoodMasterService
   readonly idGenerator: () => string
   readonly now: () => Date
 }
@@ -184,7 +187,27 @@ export const createMealLogService = (
             ...(input.unit === undefined ? {} : { unit: input.unit }),
             ...(amountGrams === undefined ? {} : { amountGrams }),
           })
-          .map((log) => buildResult(log, food))
+          .andThen((log) =>
+            newFoodMasterId === undefined
+              ? okAsync(buildResult(log, food))
+              : // Learn from the correction: the old food's name is what the
+                // user's phrasing actually matched to the wrong food_master.
+                // Recording it as an alias on the corrected one means the
+                // same phrasing finds the right food next time. addAlias
+                // never errors on an alias collision (ON CONFLICT DO
+                // NOTHING) — an error here is a genuine persistence failure,
+                // which should surface rather than be silently discarded.
+                deps.foodMasterService
+                  .addAlias(newFoodMasterId, found.food.name)
+                  .mapErr(
+                    (e) =>
+                      new MealLogPersistenceError(
+                        'failed to learn food_master alias',
+                        e,
+                      ),
+                  )
+                  .map(() => buildResult(log, food)),
+          )
       })
     })
   },

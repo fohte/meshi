@@ -43,6 +43,10 @@ export interface FoodMasterService {
     ReadonlyArray<SimilarFoodMasterCandidate>,
     FoodMasterDomainError
   >
+  addAlias(
+    id: FoodMasterId,
+    alias: string,
+  ): ResultAsync<void, FoodMasterDomainError>
 }
 
 export const createFoodMasterService = (
@@ -51,6 +55,7 @@ export const createFoodMasterService = (
   register: (input) => repo.register(input),
   getById: (id) => repo.findById(id),
   findSimilarNames: (name) => repo.findSimilarNames(name),
+  addAlias: (id, alias) => repo.addAlias(id, alias),
   registerFromComposition: (input) =>
     repo.findComposition(input.compositionCode).andThen((composition) => {
       if (composition === null) {

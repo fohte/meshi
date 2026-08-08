@@ -91,14 +91,15 @@ export const main = async (): Promise<void> => {
   await runMigrations(sql)
   await seedNutrientDefinitions(sql)
 
-  const mealLogService = createMealLogService({
-    repository: createDrizzleMealLogRepository(sql),
-    idGenerator: () => randomUUID(),
-    now: () => new Date(),
-  })
   const foodMasterService = createFoodMasterService(
     createFoodMasterRepository(sql),
   )
+  const mealLogService = createMealLogService({
+    repository: createDrizzleMealLogRepository(sql),
+    foodMasterService,
+    idGenerator: () => randomUUID(),
+    now: () => new Date(),
+  })
   const foodMasterUnitService = createFoodMasterUnitService(
     createFoodMasterUnitRepository(sql),
   )

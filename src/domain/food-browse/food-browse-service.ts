@@ -135,7 +135,7 @@ export const createFoodBrowseService = (
 
   return {
     search: (query, limit) =>
-      foodMatcher.search({ query, limit }).andThen((candidates) =>
+      foodMatcher.search({ queries: [query], limit }).andThen((candidates) =>
         ResultAsync.fromPromise(
           loadEnrichment(
             db,

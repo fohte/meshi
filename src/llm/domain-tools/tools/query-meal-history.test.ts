@@ -87,6 +87,7 @@ describe('query_meal_history tool', () => {
           {
             meal_log_id: 'ml_1',
             food_master_id: 'fm_rice',
+            food_name: 'ごはん',
             eaten_date: '2026-05-19',
             meal_type: 'lunch',
             quantity: 1,

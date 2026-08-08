@@ -50,6 +50,14 @@ export interface FoodMasterRepository {
     ReadonlyArray<SimilarFoodMasterCandidate>,
     FoodMasterDomainError
   >
+  // Best-effort: silently no-ops (via ON CONFLICT DO NOTHING) instead of
+  // erroring when `alias` already belongs to any food_master, including this
+  // one — callers that learn an alias from user behavior (e.g. a corrected
+  // meal_log) shouldn't fail on a collision they have no way to resolve.
+  addAlias(
+    foodMasterId: FoodMasterId,
+    alias: string,
+  ): ResultAsync<void, FoodMasterDomainError>
 }
 
 export interface CreateRepositoryOptions {
@@ -583,5 +591,24 @@ export const createFoodMasterRepository = (
       )
     })
 
-  return { register, findById, findComposition, findSimilarNames }
+  const addAlias = (
+    foodMasterId: FoodMasterId,
+    alias: string,
+  ): ResultAsync<void, FoodMasterDomainError> =>
+    ResultAsync.fromPromise(
+      sql`
+        INSERT INTO food_master_aliases (id, food_master_id, alias)
+        VALUES (${generateId('fma')}, ${foodMasterId}, ${alias})
+        ON CONFLICT (alias) DO NOTHING
+      `,
+      (caughtErr) =>
+        new FoodMasterDomainError(
+          'persistence_failed',
+          errorMessage(caughtErr),
+          {},
+          caughtErr,
+        ),
+    ).map(() => undefined)
+
+  return { register, findById, findComposition, findSimilarNames, addAlias }
 }

@@ -50,6 +50,13 @@ const setup = (
           'foodMasterService.registerFromComposition not stubbed',
         ),
       ),
+    addAlias: () =>
+      errAsync(
+        new FoodMasterDomainError(
+          'persistence_failed',
+          'foodMasterService.addAlias not stubbed',
+        ),
+      ),
     ...override,
   }
   return { tool: createRegisterFoodMasterTool(service), calls }

@@ -32,6 +32,7 @@ const rowSchema = z.object({
   name: z.string(),
   is_estimated: z.boolean(),
   reason: reasonSchema,
+  matched_queries: z.array(z.string()),
   // postgres-js returns numeric / float as string for safety; accept both.
   // Reject NaN / Infinity instead of silently propagating them through the
   // pipeline (Number("abc") is NaN, which the score-based ORDER BY hides).
@@ -95,29 +96,49 @@ export const createDrizzleFoodMatcher = (
       ReadonlyArray<FoodMatchCandidate>,
       FoodMatcherInvalidRowError | FoodMatcherQueryError
     > {
-      const { query, limit } = input
-      if (query.trim() === '' || limit <= 0) return okAsync([])
+      const { limit } = input
+      const queries = input.queries.map((q) => q.trim()).filter((q) => q !== '')
+      if (queries.length === 0 || limit <= 0) return okAsync([])
 
       return ResultAsync.fromPromise(
         sql`
         WITH
+        -- Each candidate is matched against every input query via three
+        -- OR'd conditions: similarity's % operator (catches near-typos, but
+        -- its score drops as the query grows longer than the registered
+        -- name), word_similarity's indexable %> commutator (catches a short
+        -- or partial query, e.g. a bare brand name, fully contained in a
+        -- longer registered name), and a plain substring check (catches a
+        -- query with no natural word boundary in the name). name_sim then
+        -- takes the strongest of similarity/word_similarity across whichever
+        -- condition matched, so a query padded with extra words the name
+        -- doesn't have still scores by its best-contained fragment instead
+        -- of being diluted by the whole-string similarity.
+        --
         -- Two index-friendly seeks (name trgm + alias trgm) UNION-ed and
-        -- aggregated. A single LATERAL with an OR predicate across name and
-        -- alias defeats the planner's ability to push either trigram
-        -- predicate into its GIN index, forcing an O(N) scan of food_masters.
+        -- aggregated. Mixing the non-trgm-indexable substring check into the
+        -- same OR predicate means Postgres can no longer prove the GIN index
+        -- covers every case, so each branch falls back to a sequential scan.
+        -- Splitting the substring check into its own UNION ALL branch
+        -- restores index pushdown for the % / %> conditions if that scan
+        -- ever needs to be avoided.
         name_matches AS (
-          SELECT id, name, is_estimated, MAX(name_sim) AS name_sim
+          SELECT id, name, is_estimated,
+                 MAX(name_sim) AS name_sim,
+                 array_agg(DISTINCT matched_query ORDER BY matched_query) AS matched_queries
           FROM (
-            SELECT fm.id, fm.name, fm.is_estimated,
-                   similarity(fm.name, ${query}) AS name_sim
+            SELECT fm.id, fm.name, fm.is_estimated, q AS matched_query,
+                   GREATEST(similarity(fm.name, q), word_similarity(q, fm.name)) AS name_sim
             FROM food_masters fm
-            WHERE fm.name % ${query}
+            CROSS JOIN unnest(${queries}::text[]) AS q
+            WHERE fm.name % q OR fm.name %> q OR strpos(lower(fm.name), lower(q)) > 0
             UNION ALL
-            SELECT fm.id, fm.name, fm.is_estimated,
-                   similarity(fma.alias, ${query}) AS name_sim
+            SELECT fm.id, fm.name, fm.is_estimated, q AS matched_query,
+                   GREATEST(similarity(fma.alias, q), word_similarity(q, fma.alias)) AS name_sim
             FROM food_master_aliases fma
             JOIN food_masters fm ON fm.id = fma.food_master_id
-            WHERE fma.alias % ${query}
+            CROSS JOIN unnest(${queries}::text[]) AS q
+            WHERE fma.alias % q OR fma.alias %> q OR strpos(lower(fma.alias), lower(q)) > 0
           ) _
           GROUP BY id, name, is_estimated
         ),
@@ -136,6 +157,7 @@ export const createDrizzleFoodMatcher = (
             NULL::text AS composition_code,
             nm.name,
             nm.is_estimated,
+            nm.matched_queries,
             CASE
               WHEN hs.cnt IS NULL THEN 'fuzzy_name'
               WHEN hs.days_since <= ${recentDays} THEN 'history_recent'
@@ -156,21 +178,29 @@ export const createDrizzleFoodMatcher = (
         composition_candidates AS (
           SELECT
             NULL::text AS food_master_id,
-            fc.code AS composition_code,
-            fc.name,
+            code AS composition_code,
+            name,
             true AS is_estimated,
+            matched_queries,
             'composition_table'::text AS reason,
-            similarity(fc.name, ${query})::float AS score
-          FROM food_compositions fc
-          WHERE fc.name % ${query}
-            AND NOT EXISTS (SELECT 1 FROM master_candidates)
+            name_sim::float AS score
+          FROM (
+            SELECT fc.code, fc.name,
+                   MAX(GREATEST(similarity(fc.name, q), word_similarity(q, fc.name))) AS name_sim,
+                   array_agg(DISTINCT q ORDER BY q) AS matched_queries
+            FROM food_compositions fc
+            CROSS JOIN unnest(${queries}::text[]) AS q
+            WHERE fc.name % q OR fc.name %> q OR strpos(lower(fc.name), lower(q)) > 0
+            GROUP BY fc.code, fc.name
+          ) _
+          WHERE NOT EXISTS (SELECT 1 FROM master_candidates)
         )
         SELECT food_master_id, composition_code, name, is_estimated,
-               reason, score
+               reason, score, matched_queries
         FROM master_candidates
         UNION ALL
         SELECT food_master_id, composition_code, name, is_estimated,
-               reason, score
+               reason, score, matched_queries
         FROM composition_candidates
         ORDER BY score DESC, name ASC
         LIMIT ${limit}
@@ -190,6 +220,7 @@ export const createDrizzleFoodMatcher = (
             compositionCode: r.composition_code,
             name: r.name,
             isEstimated: r.is_estimated,
+            matchedQueries: r.matched_queries,
           })),
         )
       })

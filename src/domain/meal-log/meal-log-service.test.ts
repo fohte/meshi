@@ -1,6 +1,8 @@
 import { errAsync, okAsync } from 'neverthrow'
 import { describe, expect, it } from 'vitest'
 
+import { FoodMasterDomainError } from '#domain/food-master/errors'
+import type { FoodMasterService } from '#domain/food-master/service'
 import {
   DomainError,
   FoodMasterNotFoundError,
@@ -9,6 +11,7 @@ import {
   ImplausibleQuantityError,
   InvalidQuantityError,
   MealLogNotFoundError,
+  MealLogPersistenceError,
   UnknownUnitError,
 } from '#domain/meal-log/errors'
 import type {
@@ -101,6 +104,39 @@ const createFakeRepository = (
   return { repository, inserted, updated }
 }
 
+interface FakeFoodMasterServiceOptions {
+  // A real addAlias never errors on an alias collision (ON CONFLICT DO
+  // NOTHING); this simulates the one thing it can still fail on — a genuine
+  // persistence error — to prove that surfaces instead of being swallowed.
+  readonly failAddAlias?: boolean
+}
+
+const createFakeFoodMasterService = (
+  options: FakeFoodMasterServiceOptions = {},
+): {
+  foodMasterService: FoodMasterService
+  learnedAliases: Array<{ id: string; alias: string }>
+} => {
+  const learnedAliases: Array<{ id: string; alias: string }> = []
+  const unused = (): never => {
+    throw new Error('unused in this test')
+  }
+  const foodMasterService: FoodMasterService = {
+    register: unused,
+    getById: unused,
+    registerFromComposition: unused,
+    addAlias: (id, alias) => {
+      learnedAliases.push({ id, alias })
+      return options.failAddAlias === true
+        ? errAsync(
+            new FoodMasterDomainError('persistence_failed', 'connection lost'),
+          )
+        : okAsync(undefined)
+    },
+  }
+  return { foodMasterService, learnedAliases }
+}
+
 const RICE: FoodMasterRef = {
   id: 'fm_rice',
   name: '白米',
@@ -165,19 +201,24 @@ const EXISTING_RICE_LOG: FoundMealLog = {
 const buildService = (
   foodMasters: ReadonlyArray<FoodMasterRef>,
   existingLogs: ReadonlyArray<FoundMealLog> = [],
+  foodMasterServiceOptions: FakeFoodMasterServiceOptions = {},
 ) => {
   const { repository, inserted, updated } = createFakeRepository({
     foodMasters,
     existingLogs,
   })
+  const { foodMasterService, learnedAliases } = createFakeFoodMasterService(
+    foodMasterServiceOptions,
+  )
   const ids = ['ml_1', 'ml_2', 'ml_3']
   let idx = 0
   const service = createMealLogService({
     repository,
+    foodMasterService,
     idGenerator: () => ids[idx++] ?? 'ml_overflow',
     now: () => NOW,
   })
-  return { service, inserted, updated }
+  return { service, inserted, updated, learnedAliases }
 }
 
 describe('MealLogService.record', () => {
@@ -681,7 +722,7 @@ describe('MealLogService.update', () => {
   })
 
   it('changes food_master_id and recomputes nutrition against the new food', async () => {
-    const { service, updated } = buildService(
+    const { service, updated, learnedAliases } = buildService(
       [RICE, KARAAGE_GUESS],
       [EXISTING_RICE_LOG],
     )
@@ -710,13 +751,35 @@ describe('MealLogService.update', () => {
     expect(updated).toEqual([
       { id: 'ml_1', foodMasterId: 'fm_karaage', amountGrams: 100 },
     ])
+    expect(learnedAliases).toEqual([{ id: 'fm_karaage', alias: '白米' }])
+  })
+
+  it('fails the update when learning the alias hits a genuine persistence error', async () => {
+    const { service, updated, learnedAliases } = buildService(
+      [RICE, KARAAGE_GUESS],
+      [EXISTING_RICE_LOG],
+      { failAddAlias: true },
+    )
+
+    const error = (
+      await service.update({ id: 'ml_1', foodMasterId: 'fm_karaage' })
+    )._unsafeUnwrapErr()
+
+    expect(error).toBeInstanceOf(MealLogPersistenceError)
+    expect(updated).toEqual([
+      { id: 'ml_1', foodMasterId: 'fm_karaage', amountGrams: 100 },
+    ])
+    expect(learnedAliases).toEqual([{ id: 'fm_karaage', alias: '白米' }])
   })
 
   it('does not re-fetch food_master when foodMasterId equals the current value', async () => {
     // RICE is deliberately absent from foodMasters: if the service mistakenly
     // called findFoodMaster for an unchanged id, this would fail with
     // FoodMasterNotFoundError instead of reusing the already-loaded food.
-    const { service, updated } = buildService([], [EXISTING_RICE_LOG])
+    const { service, updated, learnedAliases } = buildService(
+      [],
+      [EXISTING_RICE_LOG],
+    )
 
     const result = (
       await service.update({ id: 'ml_1', foodMasterId: 'fm_rice' })
@@ -740,6 +803,7 @@ describe('MealLogService.update', () => {
       isEstimated: false,
     })
     expect(updated).toEqual([{ id: 'ml_1', foodMasterId: 'fm_rice' }])
+    expect(learnedAliases).toEqual([])
   })
 
   it('updates multiple fields together, recomputing amountGrams for the changed unit', async () => {
@@ -931,6 +995,7 @@ describe('MealLogService.getById', () => {
     }
     const service = createMealLogService({
       repository,
+      foodMasterService: createFakeFoodMasterService().foodMasterService,
       idGenerator: () => 'unused',
       now: () => NOW,
     })
