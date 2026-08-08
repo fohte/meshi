@@ -22,4 +22,5 @@ export type {
   NutrientCode,
   NutritionMap,
   RegisterFoodMasterInput,
+  SimilarFoodMasterCandidate,
 } from '#domain/food-master/types'

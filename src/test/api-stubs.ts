@@ -71,6 +71,7 @@ export const createStubApiDeps = (): ApiDeps => ({
           'foodMasterService.registerFromComposition not stubbed',
         ),
       ),
+    findSimilarNames: () => okAsync([]),
     addAlias: () =>
       errAsync(
         new FoodMasterDomainError(

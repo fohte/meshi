@@ -7,6 +7,7 @@ import type {
   FoodMasterId,
   FoodMasterUnitDefinition,
   RegisterFoodMasterInput,
+  SimilarFoodMasterCandidate,
 } from '#domain/food-master/types'
 
 export interface RegisterFromCompositionInput {
@@ -36,6 +37,12 @@ export interface FoodMasterService {
   registerFromComposition(
     input: RegisterFromCompositionInput,
   ): ResultAsync<RegisteredFromComposition, FoodMasterDomainError>
+  findSimilarNames(
+    name: string,
+  ): ResultAsync<
+    ReadonlyArray<SimilarFoodMasterCandidate>,
+    FoodMasterDomainError
+  >
   addAlias(
     id: FoodMasterId,
     alias: string,
@@ -47,6 +54,7 @@ export const createFoodMasterService = (
 ): FoodMasterService => ({
   register: (input) => repo.register(input),
   getById: (id) => repo.findById(id),
+  findSimilarNames: (name) => repo.findSimilarNames(name),
   addAlias: (id, alias) => repo.addAlias(id, alias),
   registerFromComposition: (input) =>
     repo.findComposition(input.compositionCode).andThen((composition) => {
