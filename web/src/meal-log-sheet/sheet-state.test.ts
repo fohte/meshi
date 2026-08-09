@@ -35,9 +35,13 @@ const ENTRY: DayDetailEntry = {
 describe('buildCreateState', () => {
   beforeEach(() => {
     // vi.setSystemTime only fakes Date; Temporal.Now reads the system clock
-    // directly, so it has to be stubbed on its own.
-    vi.spyOn(Temporal.Now, 'plainDateISO').mockReturnValue(
-      Temporal.PlainDate.from('2026-07-29'),
+    // directly, so it has to be stubbed on its own. The instant is one whose
+    // calendar date differs outside JST, so a missing/wrong time zone
+    // argument fails here rather than passing by coincidence.
+    vi.spyOn(Temporal.Now, 'plainDateISO').mockImplementation((timeZone) =>
+      Temporal.Instant.from('2026-07-28T15:30:00Z')
+        .toZonedDateTimeISO(timeZone ?? 'UTC')
+        .toPlainDate(),
     )
   })
 
