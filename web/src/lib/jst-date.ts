@@ -1,7 +1,6 @@
 // meshi has a single user, always in Japan; every day-view date boundary is
 // Asia/Tokyo. Asia/Tokyo has no DST, so shifting a UTC instant by a fixed
-// +9h and reading its UTC calendar/clock fields gives the exact JST wall
-// clock (same technique as the backend's src/domain/meal-log/infer-meal-type.ts).
+// +9h and reading its UTC calendar fields gives the exact JST calendar date.
 const JST_OFFSET_MS = 9 * 60 * 60 * 1000
 const WEEKDAY_LABELS_JA = ['日', '月', '火', '水', '木', '金', '土']
 
@@ -13,30 +12,17 @@ const toJstParts = (
   year: number
   month: number
   day: number
-  hours: number
-  minutes: number
-  weekday: number
 } => {
   const shifted = new Date(instant.getTime() + JST_OFFSET_MS)
   return {
     year: shifted.getUTCFullYear(),
     month: shifted.getUTCMonth() + 1,
     day: shifted.getUTCDate(),
-    hours: shifted.getUTCHours(),
-    minutes: shifted.getUTCMinutes(),
-    weekday: shifted.getUTCDay(),
   }
 }
 
 export const todayJstDate = (): string => {
   const { year, month, day } = toJstParts(new Date())
-  return `${String(year)}-${pad2(month)}-${pad2(day)}`
-}
-
-// isoDateTime is a UTC ISO instant; returns the YYYY-MM-DD calendar date it
-// falls on in JST (e.g. to group meal-history entries by JST day).
-export const jstDateOf = (isoDateTime: string): string => {
-  const { year, month, day } = toJstParts(new Date(isoDateTime))
   return `${String(year)}-${pad2(month)}-${pad2(day)}`
 }
 
@@ -95,10 +81,4 @@ export const daysInJstMonth = (monthStart: string): number => {
   d.setUTCMonth(d.getUTCMonth() + 1)
   d.setUTCDate(0)
   return d.getUTCDate()
-}
-
-// isoDateTime is a UTC instant; returns its JST calendar date as YYYY-MM-DD.
-export const formatJstDate = (isoDateTime: string): string => {
-  const { year, month, day } = toJstParts(new Date(isoDateTime))
-  return `${String(year)}-${pad2(month)}-${pad2(day)}`
 }
