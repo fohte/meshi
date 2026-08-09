@@ -57,8 +57,12 @@ export const startOfJstMonth = (dateOnly: string): string =>
 
 // monthStart must be a month's first day (e.g. from startOfJstMonth).
 export const shiftMonthString = (monthStart: string, months: number): string =>
-  Temporal.PlainDate.from(monthStart).add({ months }).toString()
+  tryParsePlainDate(monthStart)
+    .map((plainDate) => plainDate.add({ months }).toString())
+    .unwrapOr(monthStart)
 
 // monthStart must be a month's first day (e.g. from startOfJstMonth).
 export const daysInJstMonth = (monthStart: string): number =>
-  Temporal.PlainDate.from(monthStart).daysInMonth
+  tryParsePlainDate(monthStart)
+    .map((plainDate) => plainDate.daysInMonth)
+    .unwrapOr(NaN)
