@@ -70,12 +70,13 @@ describe('merge_food_master tool', () => {
     })
   })
 
-  it('defaults dry_run to true, forwards camelCase args to service.merge, and maps the result to snake_case', async () => {
-    const { tool, calls } = setup()
+  it('forwards camelCase args to service.merge and maps the result to snake_case', async () => {
+    const { tool } = setup()
 
     const result = await tool.execute({
       survivor_food_master_id: 'fm_survivor',
       loser_food_master_id: 'fm_loser',
+      dry_run: false,
     })
 
     expect(normalizeResult(result)).toEqual({
@@ -92,6 +93,16 @@ describe('merge_food_master tool', () => {
         moved_meal_log_count: 3,
       },
     })
+  })
+
+  it('defaults dry_run to true when not supplied', async () => {
+    const { tool, calls } = setup()
+
+    await tool.execute({
+      survivor_food_master_id: 'fm_survivor',
+      loser_food_master_id: 'fm_loser',
+    })
+
     expect(calls).toEqual([
       { survivorId: 'fm_survivor', loserId: 'fm_loser', dryRun: true },
     ])

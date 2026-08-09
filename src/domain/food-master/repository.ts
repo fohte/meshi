@@ -1,5 +1,4 @@
 import { err, errAsync, ok, type Result, ResultAsync } from 'neverthrow'
-import type postgres from 'postgres'
 import { z } from 'zod'
 
 import type { Sql } from '#db/index'
@@ -7,6 +6,7 @@ import { getConstraintName, isUniqueViolation } from '#db/pg-error'
 import { FoodMasterDomainError } from '#domain/food-master/errors'
 import { defaultIdGenerator, type IdGenerator } from '#domain/food-master/id'
 import { mergeFoodMasters } from '#domain/food-master/merge-repository'
+import { toNutritionMap, type TxSql } from '#domain/food-master/rows'
 import { runInSavepoint } from '#domain/food-master/savepoint'
 import type {
   FoodMaster,
@@ -279,18 +279,6 @@ const normalizeAndValidate = (
     basisUnit: resolvedBasisUnit,
   })
 }
-
-const toNutritionMap = (
-  rows: ReadonlyArray<{ nutrient_code: string; value: string }>,
-): NutritionMap => {
-  const map: Record<string, number> = {}
-  for (const row of rows) {
-    map[row.nutrient_code] = Number(row.value)
-  }
-  return map
-}
-
-type TxSql = postgres.TransactionSql<Record<string, never>>
 
 interface FoodMasterRow {
   readonly id: string
@@ -605,14 +593,10 @@ export const createFoodMasterRepository = (
     loserId: FoodMasterId,
     dryRun: boolean,
   ): ResultAsync<MergeFoodMasterResult, FoodMasterDomainError> =>
-    mergeFoodMasters(
-      sql,
-      generateId,
-      survivorId,
-      loserId,
+    mergeFoodMasters(sql, generateId, survivorId, loserId, {
       dryRun,
       wrapInTransaction,
-    )
+    })
 
   return {
     register,

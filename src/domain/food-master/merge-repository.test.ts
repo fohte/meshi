@@ -6,6 +6,7 @@ import {
 } from '#domain/food-master/index'
 import { captureDomainError } from '#test/capture-domain-error'
 import { describeIfDb, setupTx } from '#test/db'
+import { createCountingIdGenerator, type IdCounter } from '#test/id-counter'
 import { jstDate } from '#test/jst-date'
 import {
   seedFoodMaster,
@@ -13,16 +14,6 @@ import {
   seedFoodMasterUnit,
   seedMealLog,
 } from '#test/seed'
-
-interface IdCounter {
-  next(): number
-}
-
-const createCountingIdGenerator = (
-  counter: IdCounter,
-): ((prefix: string) => string) => {
-  return (prefix) => `${prefix}_test_${String(counter.next()).padStart(4, '0')}`
-}
 
 describeIfDb('mergeFoodMasters (merge-repository)', () => {
   const getTx = setupTx()
@@ -45,9 +36,9 @@ describeIfDb('mergeFoodMasters (merge-repository)', () => {
     })
   })
 
-  // Full seed shared by the "normal" scenarios (1-2): survivor and loser
-  // each with their own alias, unit, nutrient and meal_log, and no
-  // unit/alias conflicts between them.
+  // Full seed for the no-conflict case: survivor and loser each with their
+  // own alias, unit, nutrient and meal_log, and no unit/alias conflicts
+  // between them.
   const seedBasicPair = async (): Promise<void> => {
     const tx = getTx()
     await seedFoodMaster(tx, {
@@ -106,26 +97,35 @@ describeIfDb('mergeFoodMasters (merge-repository)', () => {
       unit: string
       gramsPerUnit: number
     }>
+    readonly nutrients: ReadonlyArray<{
+      foodMasterId: string
+      nutrientCode: string
+    }>
     readonly mealLogs: ReadonlyArray<{ id: string; foodMasterId: string }>
   }
 
   const snapshot = async (): Promise<DbSnapshot> => {
     const tx = getTx()
-    const [foodMasters, aliases, units, mealLogs] = await Promise.all([
-      tx<{ id: string; name: string }[]>`
+    const [foodMasters, aliases, units, nutrients, mealLogs] =
+      await Promise.all([
+        tx<{ id: string; name: string }[]>`
         SELECT id, name FROM food_masters ORDER BY id
       `,
-      tx<{ food_master_id: string; alias: string }[]>`
+        tx<{ food_master_id: string; alias: string }[]>`
         SELECT food_master_id, alias FROM food_master_aliases ORDER BY alias
       `,
-      tx<{ food_master_id: string; unit: string; grams_per_unit: string }[]>`
+        tx<{ food_master_id: string; unit: string; grams_per_unit: string }[]>`
         SELECT food_master_id, unit, grams_per_unit FROM food_master_units
         ORDER BY food_master_id, unit
       `,
-      tx<{ id: string; food_master_id: string }[]>`
+        tx<{ food_master_id: string; nutrient_code: string }[]>`
+        SELECT food_master_id, nutrient_code FROM food_master_nutrients
+        ORDER BY food_master_id, nutrient_code
+      `,
+        tx<{ id: string; food_master_id: string }[]>`
         SELECT id, food_master_id FROM meal_logs ORDER BY id
       `,
-    ])
+      ])
     return {
       foodMasters,
       aliases: aliases.map((r) => ({
@@ -136,6 +136,10 @@ describeIfDb('mergeFoodMasters (merge-repository)', () => {
         foodMasterId: r.food_master_id,
         unit: r.unit,
         gramsPerUnit: Number(r.grams_per_unit),
+      })),
+      nutrients: nutrients.map((r) => ({
+        foodMasterId: r.food_master_id,
+        nutrientCode: r.nutrient_code,
       })),
       mealLogs: mealLogs.map((r) => ({
         id: r.id,
@@ -197,18 +201,14 @@ describeIfDb('mergeFoodMasters (merge-repository)', () => {
         { foodMasterId: 'fm_survivor', unit: '個', gramsPerUnit: 50 },
         { foodMasterId: 'fm_survivor', unit: '杯', gramsPerUnit: 150 },
       ],
+      // The loser's own nutrients (energy_kcal, protein_g) are gone —
+      // cascade-deleted with the loser row, never moved to the survivor.
+      nutrients: [{ foodMasterId: 'fm_survivor', nutrientCode: 'energy_kcal' }],
       mealLogs: [
         { id: 'ml_loser', foodMasterId: 'fm_survivor' },
         { id: 'ml_survivor', foodMasterId: 'fm_survivor' },
       ],
     })
-
-    const tx = getTx()
-    const loserNutrients = await tx<{ food_master_id: string }[]>`
-      SELECT food_master_id FROM food_master_nutrients
-      WHERE food_master_id = 'fm_loser'
-    `
-    expect(loserNutrients).toEqual([])
   })
 
   // survivor and loser both define the same unit name with a different
