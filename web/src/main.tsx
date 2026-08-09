@@ -8,6 +8,12 @@ import { BrowserRouter } from 'react-router'
 
 import { App } from '#App'
 
+// Safari doesn't support Temporal natively yet (https://caniuse.com/temporal);
+// browsers that already do skip fetching the polyfill chunk entirely.
+if (!('Temporal' in globalThis)) {
+  await import('temporal-polyfill/global')
+}
+
 const queryClient = new QueryClient()
 
 const rootElement = document.getElementById('root')
