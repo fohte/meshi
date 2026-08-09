@@ -180,6 +180,7 @@ const TOOL_PROGRESS_MESSAGES: Record<DomainToolName, string> = {
   register_food_master_from_composition:
     'Registering a new food entry from the composition table...',
   register_food_master_unit: 'Registering a unit for a food entry...',
+  merge_food_master: 'Merging duplicate food entries...',
   record_meal_log: 'Recording your meal...',
   update_meal_log: 'Updating your meal record...',
   record_meal_skip: 'Recording that you skipped a meal...',

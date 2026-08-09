@@ -33,6 +33,29 @@ export interface SimilarFoodMasterCandidate {
   readonly score: number
 }
 
+// Same shape for a dry-run plan and an applied merge — `applied` is the only
+// discriminator, so a caller can preview a merge and later apply it while
+// rendering the result the same way both times. On any conflict the
+// survivor's data always wins: `discardedUnits` is loser units whose unit
+// name the survivor already defines (with a possibly different
+// gramsPerUnit), and `discardedNutrition` is the loser's entire nutrition —
+// nutrients are never moved, only ever discarded via the loser row's
+// ON DELETE CASCADE.
+export interface MergeFoodMasterResult {
+  readonly survivorId: FoodMasterId
+  readonly loserId: FoodMasterId
+  readonly applied: boolean
+  readonly movedAliases: ReadonlyArray<string>
+  // The loser's own name, added as an alias on the survivor so old
+  // references to it still resolve — null when that exact string is already
+  // an alias elsewhere (INSERT ... ON CONFLICT (alias) DO NOTHING no-ops).
+  readonly nameMovedAsAlias: string | null
+  readonly movedUnits: ReadonlyArray<FoodMasterUnitDefinition>
+  readonly discardedUnits: ReadonlyArray<FoodMasterUnitDefinition>
+  readonly discardedNutrition: NutritionMap
+  readonly movedMealLogCount: number
+}
+
 export interface RegisterFoodMasterInput {
   readonly name: string
   readonly aliases?: ReadonlyArray<string>

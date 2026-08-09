@@ -67,6 +67,13 @@ const notStubbed = (name: string): FoodMasterService => ({
         `${name}.addAlias not stubbed`,
       ),
     ),
+  merge: () =>
+    errAsync(
+      new FoodMasterDomainError(
+        'persistence_failed',
+        `${name}.merge not stubbed`,
+      ),
+    ),
 })
 
 const jsonRequest = (path: string, body: unknown): Request =>

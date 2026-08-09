@@ -21,6 +21,8 @@ export type FoodMasterErrorCode =
   | 'duplicate_name'
   | 'duplicate_alias'
   | 'composition_not_found'
+  | 'food_master_not_found'
+  | 'same_food_master'
   | 'persistence_failed'
 
 export class FoodMasterDomainError extends CodedDomainError<FoodMasterErrorCode> {

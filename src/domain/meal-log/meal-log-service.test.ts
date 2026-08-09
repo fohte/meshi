@@ -135,6 +135,7 @@ const createFakeFoodMasterService = (
           )
         : okAsync(undefined)
     },
+    merge: unused,
   }
   return { foodMasterService, learnedAliases }
 }
