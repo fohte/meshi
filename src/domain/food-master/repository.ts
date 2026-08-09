@@ -1,5 +1,6 @@
 import { err, errAsync, ok, type Result, ResultAsync } from 'neverthrow'
 import type postgres from 'postgres'
+import { z } from 'zod'
 
 import type { Sql } from '#db/index'
 import { getConstraintName, isUniqueViolation } from '#db/pg-error'
@@ -12,9 +13,11 @@ import type {
   FoodSource,
   NutritionMap,
   RegisterFoodMasterInput,
+  SimilarFoodMasterCandidate,
 } from '#domain/food-master/types'
 import {
   hasDuplicateAfterTrim,
+  isEmptyNutrition,
   isInvalidSourceCombination,
   type SourceEvidenceViolation,
   validateSourceEvidence,
@@ -41,6 +44,12 @@ export interface FoodMasterRepository {
   findComposition(
     code: string,
   ): ResultAsync<FoodComposition | null, FoodMasterDomainError>
+  findSimilarNames(
+    name: string,
+  ): ResultAsync<
+    ReadonlyArray<SimilarFoodMasterCandidate>,
+    FoodMasterDomainError
+  >
   // Best-effort: silently no-ops (via ON CONFLICT DO NOTHING) instead of
   // erroring when `alias` already belongs to any food_master, including this
   // one — callers that learn an alias from user behavior (e.g. a corrected
@@ -62,6 +71,19 @@ export interface CreateRepositoryOptions {
 
 const FOOD_MASTERS_NAME_CONSTRAINT = 'food_masters_name_key'
 const FOOD_MASTER_ALIASES_ALIAS_CONSTRAINT = 'food_master_aliases_alias_key'
+
+// word_similarity(), not similarity(): it scores the best-matching substring
+// instead of diluting over the whole string, so a name that shares a brand
+// prefix with an existing one but differs in trailing qualifiers still scores
+// high enough to be flagged.
+const SIMILAR_NAME_SCORE_THRESHOLD = 0.2
+const SIMILAR_NAME_LIMIT = 5
+
+const similarNameRowSchema = z.object({
+  id: z.string(),
+  name: z.string(),
+  score: z.number(),
+})
 
 const errorMessage = (e: unknown): string =>
   e instanceof Error ? e.message : String(e)
@@ -122,6 +144,14 @@ const normalizeAndValidate = (
         evidenceViolation,
         SOURCE_EVIDENCE_VIOLATION_MESSAGE[evidenceViolation],
         { source: input.source, sourceUrl, sourceCompositionCode },
+      ),
+    )
+  }
+  if (isEmptyNutrition(input.nutrition)) {
+    return err(
+      new FoodMasterDomainError(
+        'empty_nutrition',
+        'nutrition must include at least one nutrient value',
       ),
     )
   }
@@ -509,6 +539,58 @@ export const createFoodMasterRepository = (
         ),
     )
 
+  const findSimilarNames = (
+    name: string,
+  ): ResultAsync<
+    ReadonlyArray<SimilarFoodMasterCandidate>,
+    FoodMasterDomainError
+  > =>
+    ResultAsync.fromPromise(
+      // ponytail: scans every food_masters row (no trigram pre-filter to
+      // narrow it first) — negligible at production's current few-dozen-row
+      // scale; add an index-friendly pre-filter if this table grows large.
+      sql`
+        WITH scored AS (
+          SELECT id, name,
+                 GREATEST(
+                   word_similarity(${name}, name),
+                   word_similarity(name, ${name})
+                 ) AS score
+          FROM food_masters
+          WHERE name <> ${name}
+        )
+        SELECT id, name, score
+        FROM scored
+        WHERE score >= ${SIMILAR_NAME_SCORE_THRESHOLD}
+        ORDER BY score DESC
+        LIMIT ${SIMILAR_NAME_LIMIT}
+      `,
+      (caughtErr) =>
+        new FoodMasterDomainError(
+          'persistence_failed',
+          errorMessage(caughtErr),
+          {},
+          caughtErr,
+        ),
+    ).andThen((raw) => {
+      const parsed = z.array(similarNameRowSchema).safeParse(raw)
+      if (!parsed.success) {
+        return err(
+          new FoodMasterDomainError(
+            'persistence_failed',
+            `findSimilarNames returned an invalid row: ${parsed.error.message}`,
+          ),
+        )
+      }
+      return ok(
+        parsed.data.map((r) => ({
+          foodMasterId: r.id,
+          name: r.name,
+          score: r.score,
+        })),
+      )
+    })
+
   const addAlias = (
     foodMasterId: FoodMasterId,
     alias: string,
@@ -528,5 +610,5 @@ export const createFoodMasterRepository = (
         ),
     ).map(() => undefined)
 
-  return { register, findById, findComposition, addAlias }
+  return { register, findById, findComposition, findSimilarNames, addAlias }
 }

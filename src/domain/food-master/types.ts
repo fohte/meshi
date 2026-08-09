@@ -27,6 +27,12 @@ export interface FoodMaster {
   readonly createdAt: Date
 }
 
+export interface SimilarFoodMasterCandidate {
+  readonly foodMasterId: FoodMasterId
+  readonly name: string
+  readonly score: number
+}
+
 export interface RegisterFoodMasterInput {
   readonly name: string
   readonly aliases?: ReadonlyArray<string>

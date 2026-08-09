@@ -4,6 +4,7 @@ import { NUTRIENT_CODES } from '#db/seed/nutrient-definitions'
 import type { FoodMasterService } from '#domain/food-master/service'
 import {
   hasDuplicateAfterTrim,
+  isEmptyNutrition,
   isInvalidSourceCombination,
   validateSourceEvidence,
 } from '#domain/food-master/validation'
@@ -43,6 +44,11 @@ const inputSchema = z
       })
       .optional(),
     units: z.array(unitDefinitionInput).optional(),
+    confirmed_distinct_from_master_ids: z.array(z.string().min(1)).optional(),
+  })
+  .refine((v) => !isEmptyNutrition(v.nutrition_per_basis), {
+    message: 'nutrition_per_basis must include at least one nutrient value',
+    path: ['nutrition_per_basis'],
   })
   .refine((v) => !isInvalidSourceCombination(v.source, v.is_estimated), {
     message: "is_estimated=true must not be combined with source='web_search'",
@@ -92,13 +98,49 @@ export const createRegisterFoodMasterTool = (
 ): DomainTool => ({
   name: 'register_food_master',
   description:
-    "Register a new food_master row, source=web_search or source=user_input only — never fabricate nutrition values or a serving-size gram amount from your own general knowledge. Pass nutrition_per_basis at whatever quantity your evidence actually states (per 100g, per serving, per meal, ...) together with matching basis_quantity/basis_unit — set both or neither; omitting both defaults to (100, 'g'). When evidence gives a per-serving or per-meal figure without stating that serving's weight (e.g. a restaurant menu's \"1食913kcal\"), register it at that basis directly — basis_quantity=1, basis_unit='食' or whatever serving noun the evidence itself uses — instead of searching for or estimating that serving's weight in grams to force a per-100g conversion; record_meal_log then records this food using that same basis unit. If the food is backed by a food_compositions row (search_food_master returned a candidate with a composition_code), use register_food_master_from_composition instead, which copies the composition's own per-100g nutrition verbatim. source=web_search requires is_estimated=false and source_url set to the page you found the values on. source=user_input is for values the user themselves stated in their message; is_estimated may be true or false, but source_url must not be set. If web_search fails or is rate-limited and the user hasn't stated values themselves, do not guess — call request_user_input instead. Pass units for every non-mass unit (個/杯/ml/...), other than basis_unit itself, this food might later be recorded with — record_meal_log rejects a unit it can't resolve to grams, so add every unit the user is likely to use (g/kg/mg need no entry). If a unit is missing later, use register_food_master_unit to add it instead of re-registering the food. Returns the registered name alongside food_master_id — pass that exact name as record_meal_log's food_name for this item.",
+    "Register a new food_master row, source=web_search or source=user_input only — never fabricate nutrition values or a serving-size gram amount from your own general knowledge. nutrition_per_basis must include at least one nutrient value; a food with no usable evidence at all belongs to request_user_input, not an empty registration. Pass nutrition_per_basis at whatever quantity your evidence actually states (per 100g, per serving, per meal, ...) together with matching basis_quantity/basis_unit — set both or neither; omitting both defaults to (100, 'g'). When evidence gives a per-serving or per-meal figure without stating that serving's weight (e.g. a restaurant menu's \"1食913kcal\"), register it at that basis directly — basis_quantity=1, basis_unit='食' or whatever serving noun the evidence itself uses — instead of searching for or estimating that serving's weight in grams to force a per-100g conversion; record_meal_log then records this food using that same basis unit. If the food is backed by a food_compositions row (search_food_master returned a candidate with a composition_code), use register_food_master_from_composition instead, which copies the composition's own per-100g nutrition verbatim. source=web_search requires is_estimated=false, source_url set to the page you found the values on, and name copied verbatim from that page's own product/menu name — including qualifiers like a seasonal or edition name — never paraphrased, abbreviated, or shortened by dropping a word. source=user_input is for values the user themselves stated in their message; is_estimated may be true or false, but source_url must not be set. If web_search fails or is rate-limited and the user hasn't stated values themselves, do not guess — call request_user_input instead. Pass units for every non-mass unit (個/杯/ml/...), other than basis_unit itself, this food might later be recorded with — record_meal_log rejects a unit it can't resolve to grams, so add every unit the user is likely to use (g/kg/mg need no entry). If a unit is missing later, use register_food_master_unit to add it instead of re-registering the food. Before inserting, this tool checks name against every existing food_master's name and fails with food_master/similar_name_exists if one looks like a plausible match for the same product — the error lists each candidate's food_master_id, name, and score. On that error: reuse an existing candidate's food_master_id instead of registering (via record_meal_log or register_food_master_from_composition), retry web_search with a more specific query if you're not actually sure this is a new product, ask the user to disambiguate, or — only once you've genuinely confirmed via evidence that this is a different product from every listed candidate — retry this same call unchanged except for confirmed_distinct_from_master_ids listing exactly those candidates' food_master_id values. Returns the registered name alongside food_master_id — pass that exact name as record_meal_log's food_name for this item.",
   inputSchema: z.toJSONSchema(inputSchema, { io: 'input' }),
   async execute(
     input: unknown,
   ): Promise<Result<RegisterFoodMasterOutput, ToolError>> {
     const parsed = parseToolInput(inputSchema, input)
     if (parsed.isErr()) return err(parsed.error)
+
+    // ponytail: this check and the register() call below aren't in one
+    // transaction, so two concurrent registrations of near-duplicate names
+    // can both pass it — food_masters_name_key (exact match only) is the
+    // only hard backstop for that race. Acceptable for a bot that processes
+    // one conversation at a time; serialize both calls in one transaction if
+    // that changes.
+    const similar = await service.findSimilarNames(parsed.value.name)
+    if (similar.isErr()) {
+      return err({
+        code: `food_master/${similar.error.code}`,
+        message: similar.error.message,
+        details: similar.error.details,
+      })
+    }
+    const acknowledged = new Set(
+      parsed.value.confirmed_distinct_from_master_ids ?? [],
+    )
+    const blocking = similar.value.filter(
+      (c) => !acknowledged.has(c.foodMasterId),
+    )
+    if (blocking.length > 0) {
+      return err({
+        code: 'food_master/similar_name_exists',
+        message:
+          'existing food_master(s) with a similar name were found; reuse one of them if it is the same product, gather stronger evidence and retry if unsure, ask the user to disambiguate, or retry with confirmed_distinct_from_master_ids listing exactly these food_master_id values once you have verified this is a different product',
+        details: {
+          candidates: blocking.map((c) => ({
+            food_master_id: c.foodMasterId,
+            name: c.name,
+            score: c.score,
+          })),
+        },
+      })
+    }
+
     return await service
       .register({
         name: parsed.value.name,

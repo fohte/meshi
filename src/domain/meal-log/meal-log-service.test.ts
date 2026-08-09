@@ -125,6 +125,7 @@ const createFakeFoodMasterService = (
     register: unused,
     getById: unused,
     registerFromComposition: unused,
+    findSimilarNames: unused,
     addAlias: (id, alias) => {
       learnedAliases.push({ id, alias })
       return options.failAddAlias === true

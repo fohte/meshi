@@ -1,7 +1,10 @@
-import type { FoodSource } from '#domain/food-master/types'
+import type { FoodSource, NutritionMap } from '#domain/food-master/types'
 
 // Shared by repository.ts's normalizeAndValidate and the register_food_master
 // tool's zod schema so the two layers can't silently drift apart.
+
+export const isEmptyNutrition = (nutrition: NutritionMap): boolean =>
+  Object.keys(nutrition).length === 0
 
 export const isInvalidSourceCombination = (
   source: FoodSource,

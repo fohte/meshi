@@ -84,6 +84,7 @@ const stubDeps = (override: Partial<DomainToolsDeps> = {}): DomainToolsDeps => {
           'foodMasterService.registerFromComposition not stubbed',
         ),
       ),
+    findSimilarNames: () => okAsync([]),
     addAlias: () =>
       errAsync(
         new FoodMasterDomainError(
