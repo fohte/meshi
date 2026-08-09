@@ -11,6 +11,7 @@ import type {
 } from '#domain/meal-skip/meal-skip-service'
 import { normalizeResult } from '#llm/domain-tools/test-helpers'
 import { createCancelMealSkipTool } from '#llm/domain-tools/tools/cancel-meal-skip'
+import { jstDate } from '#test/jst-date'
 
 interface Calls {
   cancel: CancelMealSkipInput[]
@@ -94,7 +95,7 @@ describe('cancel_meal_skip tool', () => {
   it('maps a DomainError from MealSkipService.cancel to its code/message', async () => {
     const { tool, calls } = setup({
       cancel: () =>
-        errAsync(new MealSkipNotFoundError('2026-07-29', 'breakfast')),
+        errAsync(new MealSkipNotFoundError(jstDate('2026-07-29'), 'breakfast')),
     })
 
     const result = await tool.execute({

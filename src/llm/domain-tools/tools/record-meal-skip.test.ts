@@ -106,7 +106,8 @@ describe('record_meal_skip tool', () => {
 
   it('maps a DomainError from MealSkipService.record to its code/message', async () => {
     const { tool, calls } = setup({
-      record: () => errAsync(new FutureMealSkipDateError('2099-01-01')),
+      record: () =>
+        errAsync(new FutureMealSkipDateError(jstDate('2099-01-01'))),
     })
 
     const result = await tool.execute({

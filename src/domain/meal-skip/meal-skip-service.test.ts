@@ -14,6 +14,10 @@ import { jstDate } from '#test/jst-date'
 
 const NOW = new Date('2026-07-30T00:00:00+09:00')
 const CREATED_AT = new Date('2026-07-30T00:00:00.500Z')
+// Deliberately malformed — JstDate can't type a value the runtime format
+// guard under test is meant to reject.
+// eslint-disable-next-line @typescript-eslint/no-unsafe-type-assertion -- see comment above.
+const INVALID_DATE_FORMAT = '2026/07/29' as JstDate
 
 const skipKey = (date: string, mealType: MealType): string =>
   `${date}:${mealType}`
@@ -64,15 +68,12 @@ describe('MealSkipService.record', () => {
     const { service } = buildService()
 
     const result = await service.record({
-      // Deliberately malformed — JstDate can't type a value the runtime
-      // format guard under test is meant to reject.
-      // eslint-disable-next-line @typescript-eslint/no-unsafe-type-assertion -- see comment above.
-      date: '2026/07/29' as JstDate,
+      date: INVALID_DATE_FORMAT,
       mealType: 'breakfast',
     })
 
     expect(result._unsafeUnwrapErr()).toEqual(
-      new InvalidMealSkipDateError('2026/07/29'),
+      new InvalidMealSkipDateError(INVALID_DATE_FORMAT),
     )
   })
 
@@ -85,7 +86,7 @@ describe('MealSkipService.record', () => {
     })
 
     expect(result._unsafeUnwrapErr()).toEqual(
-      new FutureMealSkipDateError('2026-07-31'),
+      new FutureMealSkipDateError(jstDate('2026-07-31')),
     )
   })
 
@@ -139,15 +140,12 @@ describe('MealSkipService.cancel', () => {
     const { service } = buildService()
 
     const result = await service.cancel({
-      // Deliberately malformed — JstDate can't type a value the runtime
-      // format guard under test is meant to reject.
-      // eslint-disable-next-line @typescript-eslint/no-unsafe-type-assertion -- see comment above.
-      date: '2026/07/29' as JstDate,
+      date: INVALID_DATE_FORMAT,
       mealType: 'breakfast',
     })
 
     expect(result._unsafeUnwrapErr()).toEqual(
-      new InvalidMealSkipDateError('2026/07/29'),
+      new InvalidMealSkipDateError(INVALID_DATE_FORMAT),
     )
   })
 
@@ -160,7 +158,7 @@ describe('MealSkipService.cancel', () => {
     })
 
     expect(result._unsafeUnwrapErr()).toEqual(
-      new MealSkipNotFoundError('2026-07-29', 'breakfast'),
+      new MealSkipNotFoundError(jstDate('2026-07-29'), 'breakfast'),
     )
   })
 

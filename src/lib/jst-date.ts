@@ -47,9 +47,8 @@ export const nextJstDateString = (date: JstDate): JstDate => {
 }
 
 // The single validating boundary for a JST calendar date coming from
-// outside the process (HTTP query/body, MCP tool input, raw SQL row) — every
-// call site that used to inline z.string().refine(isValidJstCalendarDateString)
-// should use this instead.
+// outside the process (HTTP query/body, MCP tool input, raw SQL row).
 export const jstDateSchema = z.string().refine(isValidJstCalendarDateString, {
-  message: 'must be a valid YYYY-MM-DD JST calendar date',
+  error: (issue) =>
+    `must be a valid YYYY-MM-DD JST calendar date, got: ${JSON.stringify(issue.input)}`,
 })

@@ -84,7 +84,8 @@ describe('PUT /api/meal-skips/:date/:mealType', () => {
   it('returns 400 when the service rejects a future date', async () => {
     const app = buildApp({
       ...notStubbed('service'),
-      record: () => errAsync(new FutureMealSkipDateError('2099-01-01')),
+      record: () =>
+        errAsync(new FutureMealSkipDateError(jstDate('2099-01-01'))),
     })
 
     const res = await app.request('/api/meal-skips/2026-07-29/breakfast', {
@@ -135,7 +136,7 @@ describe('DELETE /api/meal-skips/:date/:mealType', () => {
     const app = buildApp({
       ...notStubbed('service'),
       cancel: () =>
-        errAsync(new MealSkipNotFoundError('2026-07-29', 'breakfast')),
+        errAsync(new MealSkipNotFoundError(jstDate('2026-07-29'), 'breakfast')),
     })
 
     const res = await app.request('/api/meal-skips/2026-07-29/breakfast', {
