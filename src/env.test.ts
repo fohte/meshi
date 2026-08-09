@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest'
 import { EnvError, loadEnv, requireDatabaseUrl } from '#env'
 
 const fullSource = {
-  OPENCODE_API_KEY: 'k',
+  MESHI_LLM_API_KEY: 'k',
   MESHI_LLM_MODEL: 'm',
   MESHI_LLM_BASE_URL: 'https://litellm.example.com/v1',
   DATABASE_URL: 'postgres://localhost/meshi',
@@ -15,7 +15,7 @@ const fullSource = {
 } as const
 
 const fullEnv = {
-  OPENCODE_API_KEY: 'k',
+  MESHI_LLM_API_KEY: 'k',
   MESHI_LLM_MODEL: 'm',
   MESHI_LLM_BASE_URL: 'https://litellm.example.com/v1',
   DATABASE_URL: 'postgres://localhost/meshi',
@@ -108,7 +108,7 @@ describe('loadEnv', () => {
 
   it('fails fast listing every missing required key', () => {
     expect(captureIssues(() => loadEnv({}))).toEqual([
-      'missing required env: OPENCODE_API_KEY',
+      'missing required env: MESHI_LLM_API_KEY',
       'missing required env: MESHI_LLM_MODEL',
       'missing required env: DATABASE_URL',
       'missing required env: WEB_SEARCH_API_KEY',

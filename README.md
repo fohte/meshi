@@ -36,7 +36,7 @@ The server fails fast on missing required env at startup. This table covers ever
 
 | Name                                                 | Required                   | Description                                                                                                                                                       | Example                                                             |
 | ---------------------------------------------------- | -------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------- |
-| `OPENCODE_API_KEY`                                   | Required                   | API key sent to the endpoint the domain agent talks to (OpenCode Go by default; see `MESHI_LLM_BASE_URL`)                                                         | `dev`                                                               |
+| `MESHI_LLM_API_KEY`                                  | Required                   | API key for the endpoint `MESHI_LLM_BASE_URL` points at                                                                                                           | `dev`                                                               |
 | `MESHI_LLM_MODEL`                                    | Required                   | LLM model id for the domain agent (must support tool use + vision)                                                                                                | `...`                                                               |
 | `MESHI_LLM_BASE_URL`                                 | Optional                   | OpenAI-compatible endpoint the domain agent talks to; unset falls back to OpenCode Go (`https://opencode.ai/zen/go/v1`)                                           | `https://litellm.example.com/v1`                                    |
 | `DATABASE_URL`                                       | Required                   | Postgres connection string (verified with `SELECT 1` at startup); also required to run `src/db/migrate.ts` directly                                               | `postgres://meshi:meshi@127.0.0.1:<port from docker compose>/meshi` |
@@ -58,7 +58,7 @@ pnpm dev                   # tsx watch, no build step
 Or run it in a container instead (source is bind-mounted, so it hot-reloads the same way):
 
 ```sh
-OPENCODE_API_KEY=dev MESHI_LLM_MODEL=... WEB_SEARCH_API_KEY=dev A2A_AGENT_URL=http://localhost:8080/a2a \
+MESHI_LLM_API_KEY=dev MESHI_LLM_MODEL=... WEB_SEARCH_API_KEY=dev A2A_AGENT_URL=http://localhost:8080/a2a \
   docker compose up app
 ```
 
