@@ -19,6 +19,7 @@ export type {
   FoodMasterId,
   FoodMasterUnitDefinition,
   FoodSource,
+  MergeFoodMasterResult,
   NutrientCode,
   NutritionMap,
   RegisterFoodMasterInput,

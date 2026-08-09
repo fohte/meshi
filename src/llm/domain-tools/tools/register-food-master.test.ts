@@ -57,6 +57,13 @@ const setup = (
           'foodMasterService.addAlias not stubbed',
         ),
       ),
+    merge: () =>
+      errAsync(
+        new FoodMasterDomainError(
+          'persistence_failed',
+          'foodMasterService.merge not stubbed',
+        ),
+      ),
     ...override,
   }
   return { tool: createRegisterFoodMasterTool(service), calls }

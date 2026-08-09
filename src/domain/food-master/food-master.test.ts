@@ -9,17 +9,8 @@ import {
 import type { RegisteredFromComposition } from '#domain/food-master/service'
 import { captureDomainError } from '#test/capture-domain-error'
 import { describeIfDb, setupTx } from '#test/db'
+import { createCountingIdGenerator, type IdCounter } from '#test/id-counter'
 import { seedFoodComposition } from '#test/seed'
-
-interface IdCounter {
-  next(): number
-}
-
-const createCountingIdGenerator = (
-  counter: IdCounter,
-): ((prefix: string) => string) => {
-  return (prefix) => `${prefix}_test_${String(counter.next()).padStart(4, '0')}`
-}
 
 const baseInput: RegisterFoodMasterInput = {
   name: 'rice',

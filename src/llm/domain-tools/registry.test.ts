@@ -92,6 +92,13 @@ const stubDeps = (override: Partial<DomainToolsDeps> = {}): DomainToolsDeps => {
           'foodMasterService.addAlias not stubbed',
         ),
       ),
+    merge: () =>
+      errAsync(
+        new FoodMasterDomainError(
+          'persistence_failed',
+          'foodMasterService.merge not stubbed',
+        ),
+      ),
   }
   const foodMasterUnitService: FoodMasterUnitService = {
     register: (input) =>
@@ -163,7 +170,7 @@ const stubDeps = (override: Partial<DomainToolsDeps> = {}): DomainToolsDeps => {
 }
 
 describe('createDomainToolsRegistry', () => {
-  it('registers all twelve internal tools and exposes them via toLlmSchemas in the same order', () => {
+  it('registers all thirteen internal tools and exposes them via toLlmSchemas in the same order', () => {
     const registry = createDomainToolsRegistry(stubDeps())
 
     const expectedNames = [
@@ -175,6 +182,7 @@ describe('createDomainToolsRegistry', () => {
       'register_food_master',
       'register_food_master_from_composition',
       'register_food_master_unit',
+      'merge_food_master',
       'query_meal_history',
       'get_user_profile',
       'update_user_profile',

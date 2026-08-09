@@ -79,6 +79,13 @@ export const createStubApiDeps = (): ApiDeps => ({
           'foodMasterService.addAlias not stubbed',
         ),
       ),
+    merge: () =>
+      errAsync(
+        new FoodMasterDomainError(
+          'persistence_failed',
+          'foodMasterService.merge not stubbed',
+        ),
+      ),
   },
   mealSkipService: {
     record: () =>

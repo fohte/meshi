@@ -6,6 +6,7 @@ import type {
   FoodMaster,
   FoodMasterId,
   FoodMasterUnitDefinition,
+  MergeFoodMasterResult,
   RegisterFoodMasterInput,
   SimilarFoodMasterCandidate,
 } from '#domain/food-master/types'
@@ -47,6 +48,11 @@ export interface FoodMasterService {
     id: FoodMasterId,
     alias: string,
   ): ResultAsync<void, FoodMasterDomainError>
+  merge(
+    survivorId: FoodMasterId,
+    loserId: FoodMasterId,
+    dryRun: boolean,
+  ): ResultAsync<MergeFoodMasterResult, FoodMasterDomainError>
 }
 
 export const createFoodMasterService = (
@@ -56,6 +62,8 @@ export const createFoodMasterService = (
   getById: (id) => repo.findById(id),
   findSimilarNames: (name) => repo.findSimilarNames(name),
   addAlias: (id, alias) => repo.addAlias(id, alias),
+  merge: (survivorId, loserId, dryRun) =>
+    repo.merge(survivorId, loserId, dryRun),
   registerFromComposition: (input) =>
     repo.findComposition(input.compositionCode).andThen((composition) => {
       if (composition === null) {

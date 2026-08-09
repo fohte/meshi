@@ -1,16 +1,19 @@
 import { err, errAsync, ok, type Result, ResultAsync } from 'neverthrow'
-import type postgres from 'postgres'
 import { z } from 'zod'
 
 import type { Sql } from '#db/index'
 import { getConstraintName, isUniqueViolation } from '#db/pg-error'
 import { FoodMasterDomainError } from '#domain/food-master/errors'
 import { defaultIdGenerator, type IdGenerator } from '#domain/food-master/id'
+import { mergeFoodMasters } from '#domain/food-master/merge-repository'
+import { toNutritionMap, type TxSql } from '#domain/food-master/rows'
+import { runInSavepoint } from '#domain/food-master/savepoint'
 import type {
   FoodMaster,
   FoodMasterId,
   FoodMasterUnitDefinition,
   FoodSource,
+  MergeFoodMasterResult,
   NutritionMap,
   RegisterFoodMasterInput,
   SimilarFoodMasterCandidate,
@@ -58,6 +61,13 @@ export interface FoodMasterRepository {
     foodMasterId: FoodMasterId,
     alias: string,
   ): ResultAsync<void, FoodMasterDomainError>
+  // dryRun=true only SELECTs and predicts the plan; dryRun=false performs it
+  // in one transaction. See MergeFoodMasterResult for what's reported.
+  merge(
+    survivorId: FoodMasterId,
+    loserId: FoodMasterId,
+    dryRun: boolean,
+  ): ResultAsync<MergeFoodMasterResult, FoodMasterDomainError>
 }
 
 export interface CreateRepositoryOptions {
@@ -270,18 +280,6 @@ const normalizeAndValidate = (
   })
 }
 
-const toNutritionMap = (
-  rows: ReadonlyArray<{ nutrient_code: string; value: string }>,
-): NutritionMap => {
-  const map: Record<string, number> = {}
-  for (const row of rows) {
-    map[row.nutrient_code] = Number(row.value)
-  }
-  return map
-}
-
-type TxSql = postgres.TransactionSql<Record<string, never>>
-
 interface FoodMasterRow {
   readonly id: string
   readonly name: string
@@ -322,26 +320,6 @@ const toRegisterError = (
     errorMessage(caughtErr),
     {},
     caughtErr,
-  )
-}
-
-const runInSavepoint = (
-  sql: Sql,
-  generateId: IdGenerator,
-  fn: (tx: Sql) => Promise<Result<FoodMaster, FoodMasterDomainError>>,
-): Promise<Result<FoodMaster, FoodMasterDomainError>> => {
-  const savepoint = `fm_register_${generateId('sp').replace(/[^A-Za-z0-9_]/g, '_')}`
-  return sql.unsafe(`SAVEPOINT ${savepoint}`).then(() =>
-    fn(sql)
-      .then((result) =>
-        sql.unsafe(`RELEASE SAVEPOINT ${savepoint}`).then(() => result),
-      )
-      .catch((caughtErr: unknown) =>
-        sql.unsafe(`ROLLBACK TO SAVEPOINT ${savepoint}`).then(() =>
-          // eslint-disable-next-line @typescript-eslint/prefer-promise-reject-errors -- re-propagating the original rejection reason (a real Error from postgres.js) without a throw statement; this file may not use throw/try.
-          Promise.reject(caughtErr),
-        ),
-      ),
   )
 }
 
@@ -610,5 +588,22 @@ export const createFoodMasterRepository = (
         ),
     ).map(() => undefined)
 
-  return { register, findById, findComposition, findSimilarNames, addAlias }
+  const merge = (
+    survivorId: FoodMasterId,
+    loserId: FoodMasterId,
+    dryRun: boolean,
+  ): ResultAsync<MergeFoodMasterResult, FoodMasterDomainError> =>
+    mergeFoodMasters(sql, generateId, survivorId, loserId, {
+      dryRun,
+      wrapInTransaction,
+    })
+
+  return {
+    register,
+    findById,
+    findComposition,
+    findSimilarNames,
+    addAlias,
+    merge,
+  }
 }

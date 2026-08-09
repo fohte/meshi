@@ -13,6 +13,7 @@ import type { MealSkipService } from '#domain/meal-skip/meal-skip-service'
 import type { UserProfileService } from '#domain/user-profile/user-profile-service'
 import { createCancelMealSkipTool } from '#llm/domain-tools/tools/cancel-meal-skip'
 import { createGetUserProfileTool } from '#llm/domain-tools/tools/get-user-profile'
+import { createMergeFoodMasterTool } from '#llm/domain-tools/tools/merge-food-master'
 import { createQueryMealHistoryTool } from '#llm/domain-tools/tools/query-meal-history'
 import { createRecordMealLogTool } from '#llm/domain-tools/tools/record-meal-log'
 import { createRecordMealSkipTool } from '#llm/domain-tools/tools/record-meal-skip'
@@ -89,6 +90,7 @@ export const createDomainToolsRegistry = (
     createRegisterFoodMasterTool(deps.foodMasterService),
     createRegisterFoodMasterFromCompositionTool(deps.foodMasterService),
     createRegisterFoodMasterUnitTool(deps.foodMasterUnitService),
+    createMergeFoodMasterTool(deps.foodMasterService),
     createQueryMealHistoryTool(deps.mealHistoryService),
     createGetUserProfileTool(deps.userProfileService),
     createUpdateUserProfileTool(deps.userProfileService),
