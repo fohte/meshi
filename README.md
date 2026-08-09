@@ -8,7 +8,7 @@
 
 ### Prerequisites
 
-- Node.js (LTS, see `.mise.toml`)
+- Node.js (Current, see `.mise.toml`)
 - pnpm (via Corepack or mise)
 - Docker (for local Postgres, and optionally for running the app itself)
 

@@ -6,7 +6,7 @@ export default defineConfig({
   entry: ['src/index.ts', 'src/db/migrate.ts'],
   format: ['esm'],
   // Keep in sync with the node version in .mise.toml.
-  target: 'node24',
+  target: 'node26',
   platform: 'node',
   outDir: 'dist',
   clean: true,
