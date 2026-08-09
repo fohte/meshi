@@ -47,6 +47,7 @@ import {
   setupTx,
   TEST_DATABASE_URL,
 } from '#test/db'
+import { jstDate } from '#test/jst-date'
 import { seedFoodMaster, seedMealLog } from '#test/seed'
 
 const AGENT_CARD_URL = 'http://localhost/a2a'
@@ -618,7 +619,7 @@ describeIfDb('A2A integration', () => {
     await seedMealLog(domainTx, {
       id: 'ml_history_a2a',
       foodMasterId: 'fm_rice_history',
-      eatenDate: '2026-06-12',
+      eatenDate: jstDate('2026-06-12'),
       mealType: 'lunch',
       quantity: 200,
       unit: 'g',

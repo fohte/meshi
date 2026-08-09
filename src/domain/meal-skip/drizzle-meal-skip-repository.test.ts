@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest'
 import { createDrizzleMealSkipRepository } from '#domain/meal-skip/drizzle-meal-skip-repository'
 import type { MealSkipRow } from '#domain/meal-skip/types'
 import { describeIfDb, setupDrizzleTx } from '#test/db'
+import { jstDate } from '#test/jst-date'
 
 const CREATED_AT_PLACEHOLDER = new Date('2000-01-01T00:00:00.000Z')
 
@@ -22,7 +23,7 @@ describeIfDb('DrizzleMealSkipRepository', () => {
       const result = (
         await repository.recordSkip({
           id: 'skip_1',
-          date: '2026-07-29',
+          date: jstDate('2026-07-29'),
           mealType: 'breakfast',
         })
       )._unsafeUnwrap()
@@ -42,14 +43,14 @@ describeIfDb('DrizzleMealSkipRepository', () => {
       const first = (
         await repository.recordSkip({
           id: 'skip_1',
-          date: '2026-07-29',
+          date: jstDate('2026-07-29'),
           mealType: 'lunch',
         })
       )._unsafeUnwrap()
       const second = (
         await repository.recordSkip({
           id: 'skip_2',
-          date: '2026-07-29',
+          date: jstDate('2026-07-29'),
           mealType: 'lunch',
         })
       )._unsafeUnwrap()
@@ -57,7 +58,7 @@ describeIfDb('DrizzleMealSkipRepository', () => {
       expect(second).toEqual(first)
 
       const all = (
-        await repository.findSkipsForDate('2026-07-29')
+        await repository.findSkipsForDate(jstDate('2026-07-29'))
       )._unsafeUnwrap()
       expect(all.map(normalizeRow)).toEqual([normalizeRow(first)])
     })
@@ -69,17 +70,17 @@ describeIfDb('DrizzleMealSkipRepository', () => {
       const repository = createDrizzleMealSkipRepository(tx)
       await repository.recordSkip({
         id: 'skip_1',
-        date: '2026-07-29',
+        date: jstDate('2026-07-29'),
         mealType: 'dinner',
       })
 
       const deleted = (
-        await repository.cancelSkip('2026-07-29', 'dinner')
+        await repository.cancelSkip(jstDate('2026-07-29'), 'dinner')
       )._unsafeUnwrap()
       expect(deleted).toBe(true)
 
       const remaining = (
-        await repository.findSkipsForDate('2026-07-29')
+        await repository.findSkipsForDate(jstDate('2026-07-29'))
       )._unsafeUnwrap()
       expect(remaining).toEqual([])
     })
@@ -89,7 +90,7 @@ describeIfDb('DrizzleMealSkipRepository', () => {
       const repository = createDrizzleMealSkipRepository(tx)
 
       const deleted = (
-        await repository.cancelSkip('2026-07-29', 'snack')
+        await repository.cancelSkip(jstDate('2026-07-29'), 'snack')
       )._unsafeUnwrap()
 
       expect(deleted).toBe(false)
@@ -103,18 +104,18 @@ describeIfDb('DrizzleMealSkipRepository', () => {
       const seeded = (
         await repository.recordSkip({
           id: 'skip_1',
-          date: '2026-07-29',
+          date: jstDate('2026-07-29'),
           mealType: 'breakfast',
         })
       )._unsafeUnwrap()
       await repository.recordSkip({
         id: 'skip_2',
-        date: '2026-07-30',
+        date: jstDate('2026-07-30'),
         mealType: 'breakfast',
       })
 
       const result = (
-        await repository.findSkipsForDate('2026-07-29')
+        await repository.findSkipsForDate(jstDate('2026-07-29'))
       )._unsafeUnwrap()
 
       expect(result.map(normalizeRow)).toEqual([normalizeRow(seeded)])

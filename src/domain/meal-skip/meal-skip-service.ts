@@ -8,15 +8,19 @@ import {
 } from '#domain/meal-skip/errors'
 import type { MealSkipRepository } from '#domain/meal-skip/meal-skip-repository'
 import type { MealSkipRow, MealType } from '#domain/meal-skip/types'
-import { isValidJstCalendarDateString, todayJstDateString } from '#lib/jst-date'
+import {
+  isValidJstCalendarDateString,
+  type JstDate,
+  todayJstDateString,
+} from '#lib/jst-date'
 
 export interface RecordMealSkipInput {
-  readonly date: string
+  readonly date: JstDate
   readonly mealType: MealType
 }
 
 export interface CancelMealSkipInput {
-  readonly date: string
+  readonly date: JstDate
   readonly mealType: MealType
 }
 
@@ -26,7 +30,7 @@ export interface MealSkipService {
   ): ResultAsync<MealSkipRow, MealSkipDomainError>
   cancel(input: CancelMealSkipInput): ResultAsync<void, MealSkipDomainError>
   findForDate(
-    date: string,
+    date: JstDate,
   ): ResultAsync<ReadonlyArray<MealSkipRow>, MealSkipDomainError>
 }
 

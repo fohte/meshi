@@ -5,6 +5,7 @@ import { describe, expect, it } from 'vitest'
 import { mountDayDetailRoutes } from '#api/day-detail-routes'
 import type { DayDetailService } from '#domain/day-detail/types'
 import { DayDetailQueryError } from '#domain/day-detail/types'
+import { jstDate } from '#test/jst-date'
 
 const buildApp = (dayDetailService: DayDetailService): Hono => {
   const app = new Hono()
@@ -62,7 +63,7 @@ describe('GET /api/days/:date', () => {
               id: 'log-1',
               foodMasterId: 'rice',
               foodName: 'ごはん',
-              eatenDate: '2026-07-29',
+              eatenDate: jstDate('2026-07-29'),
               mealType: 'breakfast',
               quantity: 200,
               unit: 'g',

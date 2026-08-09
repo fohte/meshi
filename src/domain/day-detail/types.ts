@@ -2,12 +2,13 @@ import type { ResultAsync } from 'neverthrow'
 
 import type { NutritionMap } from '#domain/meal-history/types'
 import type { MealType } from '#domain/meal-log/types'
+import type { JstDate } from '#lib/jst-date'
 
 export interface DayDetailEntry {
   readonly id: string
   readonly foodMasterId: string
   readonly foodName: string
-  readonly eatenDate: string
+  readonly eatenDate: JstDate
   readonly mealType: MealType
   readonly quantity: number
   readonly unit: string
@@ -23,8 +24,7 @@ export interface DayDetail {
 }
 
 export interface QueryDayDetailInput {
-  // JST calendar date (see src/lib/jst-date.ts).
-  readonly date: string
+  readonly date: JstDate
 }
 
 export class DayDetailQueryError extends Error {

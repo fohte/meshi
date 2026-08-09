@@ -4,6 +4,7 @@ import { expect, it } from 'vitest'
 
 import { createMealHistoryService } from '#domain/meal-history/mealHistoryService'
 import { describeIfDb, setupTx, TEST_DATABASE_URL } from '#test/db'
+import { jstDate } from '#test/jst-date'
 import { seedFoodMaster, seedMealLog, seedNutrientDefinition } from '#test/seed'
 
 const seedNutrientDefinitions = async (sql: postgres.Sql): Promise<void> => {
@@ -51,21 +52,21 @@ describeIfDb('MealHistoryService.query', () => {
     await seedMealLog(tx, {
       id: 'log-1',
       foodMasterId: 'rice',
-      eatenDate: '2026-06-01',
+      eatenDate: jstDate('2026-06-01'),
       mealType: 'lunch',
       quantity: 200,
     })
     await seedMealLog(tx, {
       id: 'log-2',
       foodMasterId: 'egg',
-      eatenDate: '2026-06-01',
+      eatenDate: jstDate('2026-06-01'),
       mealType: 'dinner',
       quantity: 50,
     })
     await seedMealLog(tx, {
       id: 'log-3',
       foodMasterId: 'rice',
-      eatenDate: '2026-06-02',
+      eatenDate: jstDate('2026-06-02'),
       mealType: 'breakfast',
       quantity: 100,
     })
@@ -73,8 +74,8 @@ describeIfDb('MealHistoryService.query', () => {
     const service = createMealHistoryService(tx)
     const result = (
       await service.query({
-        periodFrom: '2026-06-01',
-        periodTo: '2026-06-02',
+        periodFrom: jstDate('2026-06-01'),
+        periodTo: jstDate('2026-06-02'),
       })
     )._unsafeUnwrap()
 
@@ -130,7 +131,7 @@ describeIfDb('MealHistoryService.query', () => {
     await seedMealLog(tx, {
       id: 'log-1',
       foodMasterId: 'egg',
-      eatenDate: '2026-06-01',
+      eatenDate: jstDate('2026-06-01'),
       mealType: 'lunch',
       quantity: 2,
       unit: '個',
@@ -140,8 +141,8 @@ describeIfDb('MealHistoryService.query', () => {
     const service = createMealHistoryService(tx)
     const result = (
       await service.query({
-        periodFrom: '2026-06-01',
-        periodTo: '2026-06-02',
+        periodFrom: jstDate('2026-06-01'),
+        periodTo: jstDate('2026-06-02'),
       })
     )._unsafeUnwrap()
 
@@ -192,14 +193,14 @@ describeIfDb('MealHistoryService.query', () => {
     await seedMealLog(tx, {
       id: 'log-1',
       foodMasterId: 'rice',
-      eatenDate: '2026-06-01',
+      eatenDate: jstDate('2026-06-01'),
       mealType: 'lunch',
       quantity: 200,
     })
     await seedMealLog(tx, {
       id: 'log-2',
       foodMasterId: 'egg',
-      eatenDate: '2026-06-01',
+      eatenDate: jstDate('2026-06-01'),
       mealType: 'dinner',
       quantity: 50,
     })
@@ -207,8 +208,8 @@ describeIfDb('MealHistoryService.query', () => {
     const service = createMealHistoryService(tx)
     const result = (
       await service.query({
-        periodFrom: '2026-06-01',
-        periodTo: '2026-06-02',
+        periodFrom: jstDate('2026-06-01'),
+        periodTo: jstDate('2026-06-02'),
         foodFilter: ['egg'],
       })
     )._unsafeUnwrap()
@@ -248,7 +249,7 @@ describeIfDb('MealHistoryService.query', () => {
     await seedMealLog(tx, {
       id: 'log-1',
       foodMasterId: 'spinach',
-      eatenDate: '2026-06-01',
+      eatenDate: jstDate('2026-06-01'),
       mealType: 'lunch',
       quantity: 100,
     })
@@ -256,8 +257,8 @@ describeIfDb('MealHistoryService.query', () => {
     const service = createMealHistoryService(tx)
     const result = (
       await service.query({
-        periodFrom: '2026-06-01',
-        periodTo: '2026-06-02',
+        periodFrom: jstDate('2026-06-01'),
+        periodTo: jstDate('2026-06-02'),
         nutrientCodes: ['iron_mg'],
       })
     )._unsafeUnwrap()
@@ -297,7 +298,7 @@ describeIfDb('MealHistoryService.query', () => {
     await seedMealLog(tx, {
       id: 'log-1',
       foodMasterId: 'rice',
-      eatenDate: '2026-06-01',
+      eatenDate: jstDate('2026-06-01'),
       mealType: 'lunch',
       quantity: 100,
     })
@@ -305,8 +306,8 @@ describeIfDb('MealHistoryService.query', () => {
     const service = createMealHistoryService(tx)
     const result = (
       await service.query({
-        periodFrom: '2026-06-01',
-        periodTo: '2026-06-02',
+        periodFrom: jstDate('2026-06-01'),
+        periodTo: jstDate('2026-06-02'),
         nutrientCodes: [],
       })
     )._unsafeUnwrap()
@@ -348,14 +349,14 @@ describeIfDb('MealHistoryService.query', () => {
     await seedMealLog(tx, {
       id: 'log-1',
       foodMasterId: 'rice',
-      eatenDate: '2026-06-01',
+      eatenDate: jstDate('2026-06-01'),
       mealType: 'lunch',
       quantity: 100,
     })
     await seedMealLog(tx, {
       id: 'log-2',
       foodMasterId: 'mystery_stew',
-      eatenDate: '2026-06-01',
+      eatenDate: jstDate('2026-06-01'),
       mealType: 'dinner',
       quantity: 250,
     })
@@ -363,8 +364,8 @@ describeIfDb('MealHistoryService.query', () => {
     const service = createMealHistoryService(tx)
     const result = (
       await service.query({
-        periodFrom: '2026-06-01',
-        periodTo: '2026-06-02',
+        periodFrom: jstDate('2026-06-01'),
+        periodTo: jstDate('2026-06-02'),
       })
     )._unsafeUnwrap()
 
@@ -462,7 +463,7 @@ describeIfDb(
           await seedMealLog(tx, {
             id: 'probe_log_1',
             foodMasterId: 'probe_rice',
-            eatenDate: '2026-06-01',
+            eatenDate: jstDate('2026-06-01'),
             mealType: 'lunch',
             quantity: 200,
           })
@@ -470,8 +471,8 @@ describeIfDb(
           const service = createMealHistoryService(tx)
           const result = (
             await service.query({
-              periodFrom: '2026-06-01',
-              periodTo: '2026-06-02',
+              periodFrom: jstDate('2026-06-01'),
+              periodTo: jstDate('2026-06-02'),
             })
           )._unsafeUnwrap()
 

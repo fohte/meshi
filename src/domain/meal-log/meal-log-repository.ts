@@ -6,11 +6,12 @@ import type {
   MealLogRow,
   MealType,
 } from '#domain/meal-log/types'
+import type { JstDate } from '#lib/jst-date'
 
 export interface InsertMealLogInput {
   readonly id: string
   readonly foodMasterId: string
-  readonly eatenDate: string
+  readonly eatenDate: JstDate
   readonly mealType: MealType
   readonly quantity: number
   readonly unit: string
@@ -25,7 +26,7 @@ export interface InsertMealLogInput {
 export interface UpdateMealLogPatch {
   readonly id: string
   readonly foodMasterId?: string
-  readonly eatenDate?: string
+  readonly eatenDate?: JstDate
   readonly mealType?: MealType
   readonly quantity?: number
   readonly unit?: string

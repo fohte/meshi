@@ -11,6 +11,7 @@ import type { MealLogService } from '#domain/meal-log/meal-log-service'
 import type { MealLogResult, RecordMealLogInput } from '#domain/meal-log/types'
 import { normalizeResult } from '#llm/domain-tools/test-helpers'
 import { createRecordMealLogTool } from '#llm/domain-tools/tools/record-meal-log'
+import { jstDate } from '#test/jst-date'
 
 interface Calls {
   record: RecordMealLogInput[]
@@ -227,7 +228,7 @@ describe('record_meal_log tool', () => {
 
   it('maps FutureEatenDateError to its DomainError code', async () => {
     const { tool, calls } = setup({
-      record: () => errAsync(new FutureEatenDateError('2099-01-01')),
+      record: () => errAsync(new FutureEatenDateError(jstDate('2099-01-01'))),
     })
 
     const result = await tool.execute({

@@ -10,6 +10,7 @@ import {
 } from '#domain/meal-skip/errors'
 import type { MealSkipService } from '#domain/meal-skip/meal-skip-service'
 import type { MealSkipRow } from '#domain/meal-skip/types'
+import { jstDate } from '#test/jst-date'
 
 const buildApp = (mealSkipService: MealSkipService): Hono => {
   const app = new Hono()
@@ -19,7 +20,7 @@ const buildApp = (mealSkipService: MealSkipService): Hono => {
 
 const SAMPLE_ROW: MealSkipRow = {
   id: 'skip_1',
-  date: '2026-07-29',
+  date: jstDate('2026-07-29'),
   mealType: 'breakfast',
   createdAt: new Date('2026-07-29T00:00:00.000Z'),
 }

@@ -6,7 +6,7 @@ import type { DomainError } from '#domain/meal-log/errors'
 import type { MealLogService } from '#domain/meal-log/meal-log-service'
 import type { MealLogResult } from '#domain/meal-log/types'
 import { MEAL_TYPES } from '#domain/meal-log/types'
-import { isValidJstCalendarDateString } from '#lib/jst-date'
+import { jstDateSchema } from '#lib/jst-date'
 
 const NOT_FOUND_CODES = new Set([
   'meal_log/food_master_not_found',
@@ -36,9 +36,7 @@ const mealLogErrorResponse = (c: Context, error: DomainError): Response => {
 
 const recordMealLogBodySchema = z.object({
   foodMasterId: z.string().min(1),
-  eatenDate: z.string().refine(isValidJstCalendarDateString, {
-    message: 'eatenDate must be a valid YYYY-MM-DD JST calendar date',
-  }),
+  eatenDate: jstDateSchema,
   mealType: z.enum(MEAL_TYPES),
   quantity: z.number().positive(),
   unit: z.string().min(1),
@@ -46,12 +44,7 @@ const recordMealLogBodySchema = z.object({
 
 const updateMealLogBodySchema = z.object({
   foodMasterId: z.string().min(1).optional(),
-  eatenDate: z
-    .string()
-    .refine(isValidJstCalendarDateString, {
-      message: 'eatenDate must be a valid YYYY-MM-DD JST calendar date',
-    })
-    .optional(),
+  eatenDate: jstDateSchema.optional(),
   mealType: z.enum(MEAL_TYPES).optional(),
   quantity: z.number().positive().optional(),
   unit: z.string().min(1).optional(),

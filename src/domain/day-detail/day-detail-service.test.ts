@@ -6,6 +6,7 @@ import type { MealHistoryService } from '#domain/meal-history/types'
 import { MealSkipPersistenceError } from '#domain/meal-skip/errors'
 import type { MealSkipService } from '#domain/meal-skip/meal-skip-service'
 import { describeIfDb, setupDrizzleTx } from '#test/db'
+import { jstDate } from '#test/jst-date'
 import { seedFoodMaster, seedMealLog } from '#test/seed'
 
 const stubNoSkips: MealSkipService = {
@@ -49,14 +50,14 @@ describeIfDb('DayDetailService.query', () => {
     await seedMealLog(tx, {
       id: 'log-1',
       foodMasterId: 'rice',
-      eatenDate: '2026-06-01',
+      eatenDate: jstDate('2026-06-01'),
       mealType: 'breakfast',
       quantity: 200,
     })
     await seedMealLog(tx, {
       id: 'log-2',
       foodMasterId: 'mystery_stew',
-      eatenDate: '2026-06-01',
+      eatenDate: jstDate('2026-06-01'),
       mealType: 'dinner',
       quantity: 50,
     })
@@ -73,7 +74,7 @@ describeIfDb('DayDetailService.query', () => {
               id: 'log-1',
               foodMasterId: 'rice',
               foodName: 'ごはん',
-              eatenDate: '2026-06-01',
+              eatenDate: jstDate('2026-06-01'),
               mealType: 'breakfast',
               quantity: 200,
               unit: 'g',
@@ -82,7 +83,7 @@ describeIfDb('DayDetailService.query', () => {
               id: 'log-2',
               foodMasterId: 'mystery_stew',
               foodName: 'なぞのシチュー',
-              eatenDate: '2026-06-01',
+              eatenDate: jstDate('2026-06-01'),
               mealType: 'dinner',
               quantity: 50,
               unit: 'g',
@@ -94,7 +95,7 @@ describeIfDb('DayDetailService.query', () => {
 
     const result = (
       await service.query({
-        date: '2026-06-01',
+        date: jstDate('2026-06-01'),
       })
     )._unsafeUnwrap()
 
@@ -142,7 +143,7 @@ describeIfDb('DayDetailService.query', () => {
     await seedMealLog(tx, {
       id: 'log-1',
       foodMasterId: 'egg',
-      eatenDate: '2026-06-01',
+      eatenDate: jstDate('2026-06-01'),
       mealType: 'breakfast',
       quantity: 2,
       unit: '個',
@@ -160,7 +161,7 @@ describeIfDb('DayDetailService.query', () => {
               id: 'log-1',
               foodMasterId: 'egg',
               foodName: 'たまご',
-              eatenDate: '2026-06-01',
+              eatenDate: jstDate('2026-06-01'),
               mealType: 'breakfast',
               quantity: 2,
               unit: '個',
@@ -172,7 +173,7 @@ describeIfDb('DayDetailService.query', () => {
 
     const result = (
       await service.query({
-        date: '2026-06-01',
+        date: jstDate('2026-06-01'),
       })
     )._unsafeUnwrap()
 
@@ -211,7 +212,7 @@ describeIfDb('DayDetailService.query', () => {
 
     const result = (
       await service.query({
-        date: '2026-06-01',
+        date: jstDate('2026-06-01'),
       })
     )._unsafeUnwrap()
 
@@ -234,7 +235,7 @@ describeIfDb('DayDetailService.query', () => {
     await seedMealLog(tx, {
       id: 'log-1',
       foodMasterId: 'rice',
-      eatenDate: '2026-06-01',
+      eatenDate: jstDate('2026-06-01'),
       mealType: 'breakfast',
       quantity: 200,
     })
@@ -250,7 +251,7 @@ describeIfDb('DayDetailService.query', () => {
               id: 'log-1',
               foodMasterId: 'rice',
               foodName: 'ごはん',
-              eatenDate: '2026-06-01',
+              eatenDate: jstDate('2026-06-01'),
               mealType: 'breakfast',
               quantity: 200,
               unit: 'g',
@@ -264,13 +265,13 @@ describeIfDb('DayDetailService.query', () => {
         okAsync([
           {
             id: 'skip-breakfast',
-            date: '2026-06-01',
+            date: jstDate('2026-06-01'),
             mealType: 'breakfast',
             createdAt: new Date('2026-06-01T00:00:00Z'),
           },
           {
             id: 'skip-lunch',
-            date: '2026-06-01',
+            date: jstDate('2026-06-01'),
             mealType: 'lunch',
             createdAt: new Date('2026-06-01T00:00:00Z'),
           },
@@ -284,7 +285,7 @@ describeIfDb('DayDetailService.query', () => {
 
     const result = (
       await service.query({
-        date: '2026-06-01',
+        date: jstDate('2026-06-01'),
       })
     )._unsafeUnwrap()
 
@@ -321,7 +322,7 @@ describeIfDb('DayDetailService.query', () => {
     await seedMealLog(tx, {
       id: 'log-1',
       foodMasterId: 'katsudon',
-      eatenDate: '2026-06-01',
+      eatenDate: jstDate('2026-06-01'),
       mealType: 'breakfast',
       quantity: 1,
       unit: '食',
@@ -339,7 +340,7 @@ describeIfDb('DayDetailService.query', () => {
               id: 'log-1',
               foodMasterId: 'katsudon',
               foodName: '味噌ロースかつ丼',
-              eatenDate: '2026-06-01',
+              eatenDate: jstDate('2026-06-01'),
               mealType: 'breakfast',
               quantity: 1,
               unit: '食',
@@ -351,7 +352,7 @@ describeIfDb('DayDetailService.query', () => {
 
     const result = (
       await service.query({
-        date: '2026-06-01',
+        date: jstDate('2026-06-01'),
       })
     )._unsafeUnwrap()
 
