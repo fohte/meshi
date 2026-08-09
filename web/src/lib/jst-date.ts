@@ -10,11 +10,7 @@ const tryParsePlainDate = Result.fromThrowable((value: string) =>
 )
 
 export const todayJstDate = (): string =>
-  new Date()
-    .toTemporalInstant()
-    .toZonedDateTimeISO(JST_TIME_ZONE)
-    .toPlainDate()
-    .toString()
+  Temporal.Now.plainDateISO(JST_TIME_ZONE).toString()
 
 // dateOnly may be an unvalidated route param (e.g. /days/:date typed by
 // hand); an unparseable value yields NaN rather than throwing, same as the

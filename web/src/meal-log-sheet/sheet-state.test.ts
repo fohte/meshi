@@ -34,12 +34,15 @@ const ENTRY: DayDetailEntry = {
 
 describe('buildCreateState', () => {
   beforeEach(() => {
-    vi.useFakeTimers()
-    vi.setSystemTime(new Date('2026-07-29T00:30:00.000Z'))
+    // vi.setSystemTime only fakes Date; Temporal.Now reads the system clock
+    // directly, so it has to be stubbed on its own.
+    vi.spyOn(Temporal.Now, 'plainDateISO').mockReturnValue(
+      Temporal.PlainDate.from('2026-07-29'),
+    )
   })
 
   afterEach(() => {
-    vi.useRealTimers()
+    vi.restoreAllMocks()
   })
 
   it('defaults to a create/search state seeded with today (JST)', () => {
