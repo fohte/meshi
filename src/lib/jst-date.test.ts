@@ -5,6 +5,7 @@ import {
   nextJstDateString,
   todayJstDateString,
 } from '#lib/jst-date'
+import { jstDate } from '#test/jst-date'
 
 describe('isValidJstCalendarDateString', () => {
   it('accepts a valid YYYY-MM-DD date', () => {
@@ -30,10 +31,10 @@ describe('todayJstDateString', () => {
 
 describe('nextJstDateString', () => {
   it('advances to the next day', () => {
-    expect(nextJstDateString('2026-06-30')).toBe('2026-07-01')
+    expect(nextJstDateString(jstDate('2026-06-30'))).toBe('2026-07-01')
   })
 
   it('rolls over a leap day at month-end', () => {
-    expect(nextJstDateString('2028-02-29')).toBe('2028-03-01')
+    expect(nextJstDateString(jstDate('2028-02-29'))).toBe('2028-03-01')
   })
 })

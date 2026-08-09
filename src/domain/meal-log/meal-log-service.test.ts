@@ -22,12 +22,13 @@ import type {
 } from '#domain/meal-log/meal-log-repository'
 import { createMealLogService } from '#domain/meal-log/meal-log-service'
 import type { FoodMasterRef, MealLogRow } from '#domain/meal-log/types'
+import { jstDate } from '#test/jst-date'
 
 const NOW = new Date('2026-06-16T12:00:00.000Z')
 const CREATED_AT = new Date('2026-06-16T12:00:00.500Z')
 // JST calendar date of NOW — deps.now() returns NOW, so this doubles as
 // "today" for the future-date boundary tests below.
-const EATEN_DATE = '2026-06-16'
+const EATEN_DATE = jstDate('2026-06-16')
 
 interface FakeRepoOptions {
   readonly foodMasters: ReadonlyArray<FoodMasterRef>
@@ -414,7 +415,7 @@ describe('MealLogService.record', () => {
 
   it('rejects an eatenDate strictly in the future with FutureEatenDateError', async () => {
     const { service, inserted } = buildService([RICE])
-    const future = '2026-06-17'
+    const future = jstDate('2026-06-17')
 
     const error = (
       await service.record({
@@ -885,7 +886,7 @@ describe('MealLogService.update', () => {
 
   it('rejects an eatenDate strictly in the future with FutureEatenDateError', async () => {
     const { service, updated } = buildService([RICE], [EXISTING_RICE_LOG])
-    const future = '2026-06-17'
+    const future = jstDate('2026-06-17')
 
     const error = (
       await service.update({ id: 'ml_1', eatenDate: future })
@@ -983,7 +984,7 @@ describe('MealLogService.getById', () => {
           log: {
             id,
             foodMasterId: KARAAGE_GUESS.id,
-            eatenDate: '2026-06-15',
+            eatenDate: jstDate('2026-06-15'),
             mealType: 'lunch',
             quantity: 200,
             unit: 'g',

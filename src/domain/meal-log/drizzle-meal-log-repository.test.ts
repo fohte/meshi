@@ -7,6 +7,7 @@ import {
 } from '#domain/meal-log/errors'
 import type { MealLogRow } from '#domain/meal-log/types'
 import { describeIfDb, setupDrizzleTx } from '#test/db'
+import { jstDate } from '#test/jst-date'
 import { seedFoodMaster, seedFoodMasterUnit } from '#test/seed'
 
 const CREATED_AT_PLACEHOLDER = new Date('2000-01-01T00:00:00.000Z')
@@ -51,7 +52,7 @@ describeIfDb('createDrizzleMealLogRepository', () => {
       await repo.insertMealLog({
         id: 'ml_round',
         foodMasterId: 'fm_rice',
-        eatenDate: '2026-06-15',
+        eatenDate: jstDate('2026-06-15'),
         mealType: 'breakfast',
         quantity: 150,
         unit: 'g',
@@ -63,7 +64,7 @@ describeIfDb('createDrizzleMealLogRepository', () => {
     const expectedRow: MealLogRow = {
       id: 'ml_round',
       foodMasterId: 'fm_rice',
-      eatenDate: '2026-06-15',
+      eatenDate: jstDate('2026-06-15'),
       mealType: 'breakfast',
       quantity: 150,
       unit: 'g',
@@ -122,7 +123,7 @@ describeIfDb('createDrizzleMealLogRepository', () => {
     await repo.insertMealLog({
       id: 'ml_katsudon',
       foodMasterId: 'fm_katsudon',
-      eatenDate: '2026-06-15',
+      eatenDate: jstDate('2026-06-15'),
       mealType: 'dinner',
       quantity: 1,
       unit: '食',
@@ -161,7 +162,7 @@ describeIfDb('createDrizzleMealLogRepository', () => {
     await repo.insertMealLog({
       id: 'ml_patch',
       foodMasterId: 'fm_rice',
-      eatenDate: '2026-06-15',
+      eatenDate: jstDate('2026-06-15'),
       mealType: 'breakfast',
       quantity: 150,
       unit: 'g',
@@ -203,7 +204,7 @@ describeIfDb('createDrizzleMealLogRepository', () => {
     await repo.insertMealLog({
       id: 'ml_patch_grams',
       foodMasterId: 'fm_rice',
-      eatenDate: '2026-06-15',
+      eatenDate: jstDate('2026-06-15'),
       mealType: 'breakfast',
       quantity: 1,
       unit: '杯',
@@ -246,7 +247,7 @@ describeIfDb('createDrizzleMealLogRepository', () => {
     await repo.insertMealLog({
       id: 'ml_repoint',
       foodMasterId: 'fm_rice',
-      eatenDate: '2026-06-15',
+      eatenDate: jstDate('2026-06-15'),
       mealType: 'lunch',
       quantity: 100,
       unit: 'g',
@@ -309,7 +310,7 @@ describeIfDb('createDrizzleMealLogRepository', () => {
     await repo.insertMealLog({
       id: 'ml_delete',
       foodMasterId: 'fm_rice',
-      eatenDate: '2026-06-15',
+      eatenDate: jstDate('2026-06-15'),
       mealType: 'breakfast',
       quantity: 150,
       unit: 'g',

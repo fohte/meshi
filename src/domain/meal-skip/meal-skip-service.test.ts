@@ -9,9 +9,15 @@ import {
 import type { MealSkipRepository } from '#domain/meal-skip/meal-skip-repository'
 import { createMealSkipService } from '#domain/meal-skip/meal-skip-service'
 import type { MealSkipRow, MealType } from '#domain/meal-skip/types'
+import type { JstDate } from '#lib/jst-date'
+import { jstDate } from '#test/jst-date'
 
 const NOW = new Date('2026-07-30T00:00:00+09:00')
 const CREATED_AT = new Date('2026-07-30T00:00:00.500Z')
+// Deliberately malformed — JstDate can't type a value the runtime format
+// guard under test is meant to reject.
+// eslint-disable-next-line @typescript-eslint/no-unsafe-type-assertion -- see comment above.
+const INVALID_DATE_FORMAT = '2026/07/29' as JstDate
 
 const skipKey = (date: string, mealType: MealType): string =>
   `${date}:${mealType}`
@@ -62,12 +68,12 @@ describe('MealSkipService.record', () => {
     const { service } = buildService()
 
     const result = await service.record({
-      date: '2026/07/29',
+      date: INVALID_DATE_FORMAT,
       mealType: 'breakfast',
     })
 
     expect(result._unsafeUnwrapErr()).toEqual(
-      new InvalidMealSkipDateError('2026/07/29'),
+      new InvalidMealSkipDateError(INVALID_DATE_FORMAT),
     )
   })
 
@@ -75,12 +81,12 @@ describe('MealSkipService.record', () => {
     const { service } = buildService()
 
     const result = await service.record({
-      date: '2026-07-31',
+      date: jstDate('2026-07-31'),
       mealType: 'breakfast',
     })
 
     expect(result._unsafeUnwrapErr()).toEqual(
-      new FutureMealSkipDateError('2026-07-31'),
+      new FutureMealSkipDateError(jstDate('2026-07-31')),
     )
   })
 
@@ -88,7 +94,7 @@ describe('MealSkipService.record', () => {
     const { service, rows } = buildService()
 
     const result = await service.record({
-      date: '2026-07-29',
+      date: jstDate('2026-07-29'),
       mealType: 'breakfast',
     })
 
@@ -110,7 +116,7 @@ describe('MealSkipService.record', () => {
     const { service, rows } = buildService()
 
     const result = await service.record({
-      date: '2026-07-30',
+      date: jstDate('2026-07-30'),
       mealType: 'breakfast',
     })
 
@@ -134,12 +140,12 @@ describe('MealSkipService.cancel', () => {
     const { service } = buildService()
 
     const result = await service.cancel({
-      date: '2026/07/29',
+      date: INVALID_DATE_FORMAT,
       mealType: 'breakfast',
     })
 
     expect(result._unsafeUnwrapErr()).toEqual(
-      new InvalidMealSkipDateError('2026/07/29'),
+      new InvalidMealSkipDateError(INVALID_DATE_FORMAT),
     )
   })
 
@@ -147,21 +153,21 @@ describe('MealSkipService.cancel', () => {
     const { service } = buildService()
 
     const result = await service.cancel({
-      date: '2026-07-29',
+      date: jstDate('2026-07-29'),
       mealType: 'breakfast',
     })
 
     expect(result._unsafeUnwrapErr()).toEqual(
-      new MealSkipNotFoundError('2026-07-29', 'breakfast'),
+      new MealSkipNotFoundError(jstDate('2026-07-29'), 'breakfast'),
     )
   })
 
   it('succeeds and removes the row when a skip was previously recorded', async () => {
     const { service, rows } = buildService()
-    await service.record({ date: '2026-07-29', mealType: 'breakfast' })
+    await service.record({ date: jstDate('2026-07-29'), mealType: 'breakfast' })
 
     const result = await service.cancel({
-      date: '2026-07-29',
+      date: jstDate('2026-07-29'),
       mealType: 'breakfast',
     })
 
@@ -173,10 +179,10 @@ describe('MealSkipService.cancel', () => {
 describe('MealSkipService.findForDate', () => {
   it('returns skips previously recorded for that date, excluding other dates', async () => {
     const { service } = buildService()
-    await service.record({ date: '2026-07-29', mealType: 'breakfast' })
-    await service.record({ date: '2026-07-30', mealType: 'dinner' })
+    await service.record({ date: jstDate('2026-07-29'), mealType: 'breakfast' })
+    await service.record({ date: jstDate('2026-07-30'), mealType: 'dinner' })
 
-    const result = await service.findForDate('2026-07-29')
+    const result = await service.findForDate(jstDate('2026-07-29'))
 
     expect(result._unsafeUnwrap()).toEqual([
       {

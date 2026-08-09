@@ -7,6 +7,7 @@ import type { FoodBrowseService, FoodListItem } from '#domain/food-browse/types'
 import { FoodBrowseQueryError } from '#domain/food-browse/types'
 import type { FoodDetail, FoodDetailService } from '#domain/food-detail/types'
 import { FoodDetailQueryError } from '#domain/food-detail/types'
+import { jstDate } from '#test/jst-date'
 
 const stubItem: FoodListItem = {
   foodMasterId: 'fm_1',
@@ -204,7 +205,7 @@ describe('GET /api/foods/:id', () => {
       history: [
         {
           id: 'ml_1',
-          eatenDate: '2026-07-29',
+          eatenDate: jstDate('2026-07-29'),
           mealType: 'breakfast',
           amountGrams: 100,
           quantity: 100,

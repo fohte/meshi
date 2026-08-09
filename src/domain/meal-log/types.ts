@@ -1,3 +1,5 @@
+import type { JstDate } from '#lib/jst-date'
+
 export type NutritionMap = Readonly<Record<string, number>>
 
 export const MEAL_TYPES = ['breakfast', 'lunch', 'dinner', 'snack'] as const
@@ -23,7 +25,7 @@ export interface FoodMasterRef {
 export interface MealLogRow {
   readonly id: string
   readonly foodMasterId: string
-  readonly eatenDate: string
+  readonly eatenDate: JstDate
   readonly mealType: MealType
   readonly quantity: number
   readonly unit: string
@@ -35,7 +37,7 @@ export interface MealLogRow {
 
 export interface RecordMealLogInput {
   readonly foodMasterId: string
-  readonly eatenDate: string
+  readonly eatenDate: JstDate
   readonly mealType: MealType
   readonly quantity: number
   readonly unit: string
@@ -49,7 +51,7 @@ export interface RecordMealLogInput {
 export interface UpdateMealLogInput {
   readonly id: string
   readonly foodMasterId?: string
-  readonly eatenDate?: string
+  readonly eatenDate?: JstDate
   readonly mealType?: MealType
   readonly quantity?: number
   readonly unit?: string

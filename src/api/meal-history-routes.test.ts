@@ -6,6 +6,7 @@ import { mountMealHistoryRoutes } from '#api/meal-history-routes'
 import { NUTRIENT_CODES } from '#db/seed/nutrient-definitions'
 import type { MealHistoryService } from '#domain/meal-history/types'
 import { MealHistoryQueryError } from '#domain/meal-history/types'
+import { jstDate } from '#test/jst-date'
 
 const buildApp = (mealHistoryService: MealHistoryService): Hono => {
   const app = new Hono()
@@ -56,13 +57,15 @@ describe('GET /api/meal-history', () => {
       query: () =>
         okAsync({
           totals: { energy_kcal: 100 },
-          perDay: [{ date: '2026-07-29', totals: { energy_kcal: 100 } }],
+          perDay: [
+            { date: jstDate('2026-07-29'), totals: { energy_kcal: 100 } },
+          ],
           entries: [
             {
               id: 'log-1',
               foodMasterId: 'rice',
               foodName: 'rice',
-              eatenDate: '2026-07-29',
+              eatenDate: jstDate('2026-07-29'),
               mealType: 'breakfast',
               quantity: 100,
               unit: 'g',

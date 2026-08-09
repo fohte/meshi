@@ -15,6 +15,7 @@ import {
 } from '#domain/meal-log/errors'
 import type { MealLogService } from '#domain/meal-log/meal-log-service'
 import type { MealLogResult } from '#domain/meal-log/types'
+import { jstDate } from '#test/jst-date'
 
 const errorResponseSchema = z.object({ error: z.string() })
 
@@ -27,7 +28,7 @@ const buildApp = (mealLogService: MealLogService): Hono => {
 const SAMPLE_RESULT: MealLogResult = {
   id: 'ml_1',
   foodMasterId: 'fm_rice',
-  eatenDate: '2026-06-18',
+  eatenDate: jstDate('2026-06-18'),
   mealType: 'lunch',
   quantity: 150,
   unit: 'g',
@@ -143,7 +144,7 @@ describe('POST /api/meal-logs', () => {
   })
 
   it.each([
-    [new FutureEatenDateError('2099-01-01'), 400],
+    [new FutureEatenDateError(jstDate('2099-01-01')), 400],
     [new InvalidQuantityError(-1), 400],
     [new UnknownUnitError('cup', []), 400],
     [new ImplausibleQuantityError(50_000), 400],

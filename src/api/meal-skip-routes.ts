@@ -7,7 +7,7 @@ import { MEAL_TYPES } from '#domain/meal-log/types'
 import type { MealSkipDomainError } from '#domain/meal-skip/errors'
 import type { MealSkipService } from '#domain/meal-skip/meal-skip-service'
 import type { MealSkipRow } from '#domain/meal-skip/types'
-import { isValidJstCalendarDateString } from '#lib/jst-date'
+import { jstDateSchema } from '#lib/jst-date'
 
 const NOT_FOUND_CODES = new Set(['meal_skip/not_found'])
 const CLIENT_ERROR_CODES = new Set([
@@ -27,9 +27,7 @@ const mealSkipErrorResponse = (
 }
 
 const paramsSchema = z.object({
-  date: z.string().refine(isValidJstCalendarDateString, {
-    message: 'date must be a valid YYYY-MM-DD JST calendar date',
-  }),
+  date: jstDateSchema,
   mealType: z.enum(MEAL_TYPES),
 })
 

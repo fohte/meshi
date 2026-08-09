@@ -1,4 +1,5 @@
 import { CodedDomainError } from '#domain/errors'
+import type { JstDate } from '#lib/jst-date'
 
 export type MealSkipErrorCode =
   | 'meal_skip/invalid_date'
@@ -19,7 +20,7 @@ export class MealSkipDomainError extends CodedDomainError<MealSkipErrorCode> {
 }
 
 export class InvalidMealSkipDateError extends MealSkipDomainError {
-  constructor(public readonly date: string) {
+  constructor(public readonly date: JstDate) {
     super(
       'meal_skip/invalid_date',
       `date must be a valid YYYY-MM-DD JST calendar date: ${date}`,
@@ -30,7 +31,7 @@ export class InvalidMealSkipDateError extends MealSkipDomainError {
 }
 
 export class FutureMealSkipDateError extends MealSkipDomainError {
-  constructor(public readonly date: string) {
+  constructor(public readonly date: JstDate) {
     super('meal_skip/future_date', `date must not be in the future: ${date}`, {
       date,
     })
@@ -40,7 +41,7 @@ export class FutureMealSkipDateError extends MealSkipDomainError {
 
 export class MealSkipNotFoundError extends MealSkipDomainError {
   constructor(
-    public readonly date: string,
+    public readonly date: JstDate,
     public readonly mealType: string,
   ) {
     super('meal_skip/not_found', `meal_skip not found: ${date} ${mealType}`, {

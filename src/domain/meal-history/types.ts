@@ -1,6 +1,7 @@
 import type { ResultAsync } from 'neverthrow'
 
 import type { MealType } from '#domain/meal-log/types'
+import type { JstDate } from '#lib/jst-date'
 
 export type NutrientCode = string
 
@@ -8,10 +9,10 @@ export type NutritionMap = Readonly<Record<NutrientCode, number>>
 
 export interface QueryMealHistoryInput {
   // JST calendar date (see src/lib/jst-date.ts), inclusive.
-  readonly periodFrom: string
+  readonly periodFrom: JstDate
   // JST calendar date, exclusive — the period is the half-open range
   // [periodFrom, periodTo).
-  readonly periodTo: string
+  readonly periodTo: JstDate
   readonly foodFilter?: ReadonlyArray<string>
   readonly nutrientCodes?: ReadonlyArray<NutrientCode>
 }
@@ -20,14 +21,14 @@ export interface MealLogEntry {
   readonly id: string
   readonly foodMasterId: string
   readonly foodName: string
-  readonly eatenDate: string
+  readonly eatenDate: JstDate
   readonly mealType: MealType
   readonly quantity: number
   readonly unit: string
 }
 
 export interface MealHistoryDayTotals {
-  readonly date: string
+  readonly date: JstDate
   readonly totals: NutritionMap
 }
 

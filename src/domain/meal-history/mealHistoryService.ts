@@ -11,6 +11,7 @@ import type {
 } from '#domain/meal-history/types'
 import { MealHistoryQueryError } from '#domain/meal-history/types'
 import { MEAL_TYPES } from '#domain/meal-log/types'
+import { type JstDate, jstDateSchema } from '#lib/jst-date'
 
 const numericString = z.union([
   z.number().refine(Number.isFinite),
@@ -25,7 +26,7 @@ const numericString = z.union([
 ])
 
 const aggregateRowSchema = z.object({
-  day: z.string(),
+  day: jstDateSchema,
   nutrient_code: z.string(),
   value: numericString,
 })
@@ -34,7 +35,7 @@ const entryRowSchema = z.object({
   id: z.string(),
   food_master_id: z.string(),
   food_name: z.string(),
-  eaten_date: z.string(),
+  eaten_date: jstDateSchema,
   meal_type: z.enum(MEAL_TYPES),
   quantity: numericString,
   unit: z.string(),
@@ -163,12 +164,12 @@ export const createMealHistoryService = (sql: Sql): MealHistoryService => {
 
 const buildPerDay = (
   rows: ReadonlyArray<{
-    day: string
+    day: JstDate
     nutrient_code: NutrientCode
     value: number
   }>,
 ): ReadonlyArray<MealHistoryDayTotals> => {
-  const byDay = new Map<string, Record<NutrientCode, number>>()
+  const byDay = new Map<JstDate, Record<NutrientCode, number>>()
   for (const row of rows) {
     const day = byDay.get(row.day) ?? {}
     day[row.nutrient_code] = row.value

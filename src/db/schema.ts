@@ -17,6 +17,8 @@ import {
   uniqueIndex,
 } from 'drizzle-orm/pg-core'
 
+import type { JstDate } from '#lib/jst-date'
+
 export const foodSourceEnum = pgEnum('food_source', [
   'web_search',
   'composition_table_estimate',
@@ -179,7 +181,9 @@ export const mealLogs = pgTable(
     id: text('id').primaryKey(),
     foodMasterId: text('food_master_id').notNull(),
     // JST calendar date, no time component — see src/lib/jst-date.ts.
-    eatenDate: date('eaten_date', { mode: 'string' }).notNull(),
+    eatenDate: date('eaten_date', { mode: 'string' })
+      .$type<JstDate>()
+      .notNull(),
     mealType: mealTypeEnum('meal_type').notNull(),
     quantity: numeric('quantity').notNull(),
     unit: text('unit').notNull(),
@@ -217,7 +221,7 @@ export const mealSkips = pgTable(
     // API responses and LLM tool output.
     id: text('id').notNull(),
     // JST calendar date, no time component — see src/lib/jst-date.ts.
-    date: date('date', { mode: 'string' }).notNull(),
+    date: date('date', { mode: 'string' }).$type<JstDate>().notNull(),
     mealType: mealTypeEnum('meal_type').notNull(),
     createdAt: timestamp('created_at', { withTimezone: true, mode: 'date' })
       .notNull()

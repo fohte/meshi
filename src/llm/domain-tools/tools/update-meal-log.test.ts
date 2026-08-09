@@ -11,6 +11,7 @@ import type { MealLogService } from '#domain/meal-log/meal-log-service'
 import type { MealLogResult, UpdateMealLogInput } from '#domain/meal-log/types'
 import { normalizeResult } from '#llm/domain-tools/test-helpers'
 import { createUpdateMealLogTool } from '#llm/domain-tools/tools/update-meal-log'
+import { jstDate } from '#test/jst-date'
 
 interface Calls {
   update: UpdateMealLogInput[]
@@ -33,7 +34,7 @@ const setup = (
       const result: MealLogResult = {
         id: input.id,
         foodMasterId: input.foodMasterId ?? 'fm_rice',
-        eatenDate: input.eatenDate ?? '2026-06-18',
+        eatenDate: input.eatenDate ?? jstDate('2026-06-18'),
         mealType: input.mealType ?? 'lunch',
         quantity: input.quantity ?? 100,
         unit: input.unit ?? 'g',
@@ -191,7 +192,7 @@ describe('update_meal_log tool', () => {
 
   it('maps FutureEatenDateError to its DomainError code', async () => {
     const { tool, calls } = setup({
-      update: () => errAsync(new FutureEatenDateError('2099-01-01')),
+      update: () => errAsync(new FutureEatenDateError(jstDate('2099-01-01'))),
     })
 
     const result = await tool.execute({

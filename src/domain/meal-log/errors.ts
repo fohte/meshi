@@ -1,3 +1,5 @@
+import type { JstDate } from '#lib/jst-date'
+
 export class DomainError extends Error {
   constructor(
     message: string,
@@ -9,7 +11,7 @@ export class DomainError extends Error {
 }
 
 export class FutureEatenDateError extends DomainError {
-  constructor(public readonly eatenDate: string) {
+  constructor(public readonly eatenDate: JstDate) {
     super(
       `eaten_date must not be in the future: ${eatenDate}`,
       'meal_log/future_eaten_date',

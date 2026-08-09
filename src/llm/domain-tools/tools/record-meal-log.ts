@@ -2,7 +2,7 @@ import { z } from 'zod'
 
 import type { MealLogService } from '#domain/meal-log/meal-log-service'
 import { MEAL_TYPES } from '#domain/meal-log/types'
-import { isValidJstCalendarDateString } from '#lib/jst-date'
+import { jstDateSchema } from '#lib/jst-date'
 import { NON_BLANK, parseToolInput } from '#llm/domain-tools/parse'
 import { toToolError } from '#llm/domain-tools/to-tool-error'
 import {
@@ -16,9 +16,7 @@ import {
 const inputSchema = z.object({
   food_master_id: z.string().min(1),
   food_name: z.string().min(1).regex(NON_BLANK),
-  date: z.string().refine(isValidJstCalendarDateString, {
-    message: 'date must be a valid YYYY-MM-DD JST calendar date',
-  }),
+  date: jstDateSchema,
   meal_type: z.enum(MEAL_TYPES),
   quantity: z.number().positive(),
   unit: z.string().min(1),

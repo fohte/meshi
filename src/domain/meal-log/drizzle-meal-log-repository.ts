@@ -25,6 +25,7 @@ import type {
   MealLogRow,
   MealType,
 } from '#domain/meal-log/types'
+import type { JstDate } from '#lib/jst-date'
 
 type Db = ReturnType<typeof drizzle>
 
@@ -110,7 +111,7 @@ const loadFoodMaster = (
 const toRow = (row: {
   id: string
   foodMasterId: string
-  eatenDate: string
+  eatenDate: JstDate
   mealType: MealType
   quantity: string
   unit: string

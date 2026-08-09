@@ -11,6 +11,7 @@ import type {
   MealSkipRepository,
 } from '#domain/meal-skip/meal-skip-repository'
 import type { MealSkipRow, MealType } from '#domain/meal-skip/types'
+import type { JstDate } from '#lib/jst-date'
 
 type Db = ReturnType<typeof drizzle>
 
@@ -54,7 +55,7 @@ export const createDrizzleMealSkipRepository = (
       ).andThen((result) => result),
 
     cancelSkip: (
-      date: string,
+      date: JstDate,
       mealType: MealType,
     ): ResultAsync<boolean, MealSkipDomainError> =>
       ResultAsync.fromPromise(
@@ -69,7 +70,7 @@ export const createDrizzleMealSkipRepository = (
       ).map((deleted) => deleted.length > 0),
 
     findSkipsForDate: (
-      date: string,
+      date: JstDate,
     ): ResultAsync<ReadonlyArray<MealSkipRow>, MealSkipDomainError> =>
       ResultAsync.fromPromise(
         db.select().from(mealSkips).where(eq(mealSkips.date, date)),

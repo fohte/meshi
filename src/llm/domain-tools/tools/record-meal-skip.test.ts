@@ -12,6 +12,7 @@ import type {
 import type { MealSkipRow } from '#domain/meal-skip/types'
 import { normalizeResult } from '#llm/domain-tools/test-helpers'
 import { createRecordMealSkipTool } from '#llm/domain-tools/tools/record-meal-skip'
+import { jstDate } from '#test/jst-date'
 
 interface Calls {
   record: RecordMealSkipInput[]
@@ -19,7 +20,7 @@ interface Calls {
 
 const SAMPLE_ROW: MealSkipRow = {
   id: 'skip_1',
-  date: '2026-07-29',
+  date: jstDate('2026-07-29'),
   mealType: 'breakfast',
   createdAt: new Date('2026-07-29T00:00:00.000Z'),
 }
@@ -105,7 +106,8 @@ describe('record_meal_skip tool', () => {
 
   it('maps a DomainError from MealSkipService.record to its code/message', async () => {
     const { tool, calls } = setup({
-      record: () => errAsync(new FutureMealSkipDateError('2099-01-01')),
+      record: () =>
+        errAsync(new FutureMealSkipDateError(jstDate('2099-01-01'))),
     })
 
     const result = await tool.execute({

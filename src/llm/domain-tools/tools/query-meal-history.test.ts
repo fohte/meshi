@@ -9,16 +9,17 @@ import type {
 } from '#domain/meal-history/types'
 import { normalizeResult } from '#llm/domain-tools/test-helpers'
 import { createQueryMealHistoryTool } from '#llm/domain-tools/tools/query-meal-history'
+import { jstDate } from '#test/jst-date'
 
 const AGGREGATE: MealHistoryAggregate = {
   totals: { energy_kcal: 1850 },
-  perDay: [{ date: '2026-05-19', totals: { energy_kcal: 1850 } }],
+  perDay: [{ date: jstDate('2026-05-19'), totals: { energy_kcal: 1850 } }],
   entries: [
     {
       id: 'ml_1',
       foodMasterId: 'fm_rice',
       foodName: 'ごはん',
-      eatenDate: '2026-05-19',
+      eatenDate: jstDate('2026-05-19'),
       mealType: 'lunch',
       quantity: 1,
       unit: '杯',

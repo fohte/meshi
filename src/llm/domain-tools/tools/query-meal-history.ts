@@ -3,7 +3,7 @@ import { z } from 'zod'
 import { NUTRIENT_CODES } from '#db/seed/nutrient-definitions'
 import type { MealHistoryService } from '#domain/meal-history/types'
 import { MEAL_TYPES, type MealType } from '#domain/meal-log/types'
-import { isValidJstCalendarDateString } from '#lib/jst-date'
+import { jstDateSchema } from '#lib/jst-date'
 import { internalErr } from '#llm/domain-tools/internal-error'
 import { parseToolInput } from '#llm/domain-tools/parse'
 import {
@@ -15,12 +15,8 @@ import {
 } from '#llm/domain-tools/types'
 
 const inputSchema = z.object({
-  period_from: z.string().refine(isValidJstCalendarDateString, {
-    message: 'period_from must be a valid YYYY-MM-DD JST calendar date',
-  }),
-  period_to: z.string().refine(isValidJstCalendarDateString, {
-    message: 'period_to must be a valid YYYY-MM-DD JST calendar date',
-  }),
+  period_from: jstDateSchema,
+  period_to: jstDateSchema,
   food_master_ids: z.array(z.string().min(1)).optional(),
   nutrient_codes: z.array(z.enum(NUTRIENT_CODES)).optional(),
 })
