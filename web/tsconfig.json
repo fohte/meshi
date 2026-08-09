@@ -9,7 +9,7 @@
     "module": "preserve",
     "moduleResolution": "bundler",
     "noEmit": true,
-    "lib": ["es2024", "DOM", "DOM.Iterable"],
+    "lib": ["es2024", "DOM", "DOM.Iterable", "ESNext.Temporal", "ESNext.Date"],
     "jsx": "react-jsx",
     "types": ["vite/client"],
     // vite/client types *.module.css imports as a plain index signature, so

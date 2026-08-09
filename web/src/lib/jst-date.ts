@@ -1,36 +1,28 @@
+import { Result } from 'neverthrow'
+
 // meshi has a single user, always in Japan; every day-view date boundary is
-// Asia/Tokyo. Asia/Tokyo has no DST, so shifting a UTC instant by a fixed
-// +9h and reading its UTC calendar fields gives the exact JST calendar date.
-const JST_OFFSET_MS = 9 * 60 * 60 * 1000
+// Asia/Tokyo.
+const JST_TIME_ZONE = 'Asia/Tokyo'
 const WEEKDAY_LABELS_JA = ['日', '月', '火', '水', '木', '金', '土']
 
-const pad2 = (n: number): string => String(n).padStart(2, '0')
+const tryParsePlainDate = Result.fromThrowable((value: string) =>
+  Temporal.PlainDate.from(value),
+)
 
-const toJstParts = (
-  instant: Date,
-): {
-  year: number
-  month: number
-  day: number
-} => {
-  const shifted = new Date(instant.getTime() + JST_OFFSET_MS)
-  return {
-    year: shifted.getUTCFullYear(),
-    month: shifted.getUTCMonth() + 1,
-    day: shifted.getUTCDate(),
-  }
-}
+export const todayJstDate = (): string =>
+  new Date()
+    .toTemporalInstant()
+    .toZonedDateTimeISO(JST_TIME_ZONE)
+    .toPlainDate()
+    .toString()
 
-export const todayJstDate = (): string => {
-  const { year, month, day } = toJstParts(new Date())
-  return `${String(year)}-${pad2(month)}-${pad2(day)}`
-}
-
-// dateOnly is a YYYY-MM-DD calendar date (already a JST date, not an
-// instant needing conversion), so this reads its fields directly rather
-// than going through toJstParts.
+// dateOnly may be an unvalidated route param (e.g. /days/:date typed by
+// hand); an unparseable value yields NaN rather than throwing, same as the
+// return-as-is fallback in shiftDateString below.
 export const jstWeekdayIndex = (dateOnly: string): number =>
-  new Date(`${dateOnly}T00:00:00Z`).getUTCDay()
+  tryParsePlainDate(dateOnly)
+    .map((plainDate) => plainDate.dayOfWeek % 7)
+    .unwrapOr(NaN)
 
 export const weekdayLabelJa = (dateOnly: string): string =>
   WEEKDAY_LABELS_JA[jstWeekdayIndex(dateOnly)] ?? ''
@@ -38,12 +30,10 @@ export const weekdayLabelJa = (dateOnly: string): string =>
 // dateOnly may be an unvalidated route param (e.g. /days/:date typed by
 // hand), so an unparseable value is returned as-is rather than throwing —
 // callers' subsequent API call then surfaces it as a normal 400 error state.
-export const shiftDateString = (dateOnly: string, days: number): string => {
-  const d = new Date(`${dateOnly}T00:00:00Z`)
-  if (Number.isNaN(d.getTime())) return dateOnly
-  d.setUTCDate(d.getUTCDate() + days)
-  return d.toISOString().slice(0, 10)
-}
+export const shiftDateString = (dateOnly: string, days: number): string =>
+  tryParsePlainDate(dateOnly)
+    .map((plainDate) => plainDate.add({ days }).toString())
+    .unwrapOr(dateOnly)
 
 // Returns `count` consecutive calendar dates starting at `start`, ascending.
 export const jstDateRange = (start: string, count: number): readonly string[] =>
@@ -66,19 +56,9 @@ export const startOfJstMonth = (dateOnly: string): string =>
   `${dateOnly.slice(0, 7)}-01`
 
 // monthStart must be a month's first day (e.g. from startOfJstMonth).
-export const shiftMonthString = (
-  monthStart: string,
-  months: number,
-): string => {
-  const d = new Date(`${monthStart}T00:00:00Z`)
-  d.setUTCMonth(d.getUTCMonth() + months)
-  return d.toISOString().slice(0, 10)
-}
+export const shiftMonthString = (monthStart: string, months: number): string =>
+  Temporal.PlainDate.from(monthStart).add({ months }).toString()
 
 // monthStart must be a month's first day (e.g. from startOfJstMonth).
-export const daysInJstMonth = (monthStart: string): number => {
-  const d = new Date(`${monthStart}T00:00:00Z`)
-  d.setUTCMonth(d.getUTCMonth() + 1)
-  d.setUTCDate(0)
-  return d.getUTCDate()
-}
+export const daysInJstMonth = (monthStart: string): number =>
+  Temporal.PlainDate.from(monthStart).daysInMonth
