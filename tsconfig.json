@@ -7,6 +7,18 @@
   "compilerOptions": {
     "module": "preserve",
     "moduleResolution": "bundler",
-    "noEmit": true
+    "noEmit": true,
+    // @tsconfig/node-lts's lib array, plus ESNext.Temporal/ESNext.Date for
+    // Node 26's native Temporal (tsconfig `lib` doesn't merge with `extends`,
+    // so the base entries have to be repeated here).
+    "lib": [
+      "es2024",
+      "ESNext.Array",
+      "ESNext.Collection",
+      "ESNext.Iterator",
+      "ESNext.Promise",
+      "ESNext.Temporal",
+      "ESNext.Date"
+    ]
   }
 }
