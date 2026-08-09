@@ -77,7 +77,7 @@ describe('shiftMonthString', () => {
     expect(shiftMonthString('2026-01-01', -1)).toBe('2025-12-01')
   })
 
-  it('constrains a mid-month date into the shorter target month instead of overflowing', () => {
+  it('constrains a month-end overflow into the shorter target month instead of overflowing', () => {
     expect(shiftMonthString('2026-01-31', 1)).toBe('2026-02-28')
   })
 })
