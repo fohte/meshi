@@ -76,6 +76,10 @@ describe('shiftMonthString', () => {
   it('shifts a month start backward across a year boundary', () => {
     expect(shiftMonthString('2026-01-01', -1)).toBe('2025-12-01')
   })
+
+  it('constrains a month-end overflow into the shorter target month instead of overflowing', () => {
+    expect(shiftMonthString('2026-01-31', 1)).toBe('2026-02-28')
+  })
 })
 
 describe('daysInJstMonth', () => {
@@ -89,5 +93,9 @@ describe('daysInJstMonth', () => {
 
   it('returns 29 for a leap February', () => {
     expect(daysInJstMonth('2028-02-01')).toBe(29)
+  })
+
+  it('returns the same result for a mid-month date as for the month start', () => {
+    expect(daysInJstMonth('2026-02-15')).toBe(28)
   })
 })

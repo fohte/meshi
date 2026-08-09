@@ -51,13 +51,11 @@ export const formatJstYearMonth = (monthStart: string): string => {
 export const startOfJstMonth = (dateOnly: string): string =>
   `${dateOnly.slice(0, 7)}-01`
 
-// monthStart must be a month's first day (e.g. from startOfJstMonth).
 export const shiftMonthString = (monthStart: string, months: number): string =>
   tryParsePlainDate(monthStart)
     .map((plainDate) => plainDate.add({ months }).toString())
     .unwrapOr(monthStart)
 
-// monthStart must be a month's first day (e.g. from startOfJstMonth).
 export const daysInJstMonth = (monthStart: string): number =>
   tryParsePlainDate(monthStart)
     .map((plainDate) => plainDate.daysInMonth)
