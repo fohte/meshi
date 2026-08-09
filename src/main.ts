@@ -137,7 +137,7 @@ export const main = async (): Promise<void> => {
   })
 
   const model = createMeshiChatModel({
-    apiKey: env.OPENCODE_API_KEY,
+    apiKey: env.MESHI_LLM_API_KEY,
     model: env.MESHI_LLM_MODEL,
     ...(env.MESHI_LLM_BASE_URL === undefined
       ? {}
