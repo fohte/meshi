@@ -232,12 +232,12 @@ describeIfDb('A2A integration', () => {
             food_name: '白米 happy-path',
             date: '2026-06-12',
             meal_type: 'lunch',
-            quantity: 200,
+            quantity: 2,
           },
           id: 'call_2',
         },
       ])
-      .respond(new AIMessage('白米 200g を記録しました。'))
+      .respond(new AIMessage('白米を記録しました。'))
 
     const registry = buildRegistry(domainTx)
     const contextId = `ctx-${randomUUID()}`
@@ -267,7 +267,7 @@ describeIfDb('A2A integration', () => {
       const agentMessage = buildAgentMessage(
         task.id,
         contextId,
-        '白米 200g を記録しました。',
+        '白米を記録しました。',
       )
       expect(normalizeTask(task)).toEqual({
         kind: 'task',
@@ -288,7 +288,7 @@ describeIfDb('A2A integration', () => {
         {
           id: 'ml_a2a_test_0001',
           food_master_id: 'fm_rice_happy',
-          quantity: '200',
+          quantity: '2',
         },
       ])
     } finally {
@@ -326,7 +326,7 @@ describeIfDb('A2A integration', () => {
             food_name: '白米 mixed-item',
             date: '2026-06-12',
             meal_type: 'lunch',
-            quantity: 200,
+            quantity: 2,
           },
           id: 'call_1',
         },
@@ -409,7 +409,7 @@ describeIfDb('A2A integration', () => {
         {
           id: 'ml_a2a_test_0001',
           food_master_id: 'fm_rice_mixed',
-          quantity: '200',
+          quantity: '2',
         },
       ])
     } finally {
@@ -458,7 +458,7 @@ describeIfDb('A2A integration', () => {
             food_name: 'salmon sushi resume',
             date: '2026-06-12',
             meal_type: 'dinner',
-            quantity: 180,
+            quantity: 1.8,
           },
           id: 'call_3',
         },
@@ -575,7 +575,7 @@ describeIfDb('A2A integration', () => {
           {
             id: 'ml_a2a_test_0001',
             food_master_id: 'fm_salmon_resume',
-            quantity: '180',
+            quantity: '1.8',
           },
         ])
       } finally {
@@ -607,7 +607,7 @@ describeIfDb('A2A integration', () => {
       foodMasterId: 'fm_rice_history',
       eatenDate: jstDate('2026-06-12'),
       mealType: 'lunch',
-      quantity: 200,
+      quantity: 2,
     })
 
     const model = fakeModel()
@@ -655,7 +655,7 @@ describeIfDb('A2A integration', () => {
           '2026-06-12 の食事履歴をお伝えしました。',
           '',
           '明細 (1 件):',
-          '- 2026-06-12 昼食 白米 history × 200',
+          '- 2026-06-12 昼食 白米 history × 2',
         ].join('\n'),
       )
       expect(normalizeTask(task)).toEqual({

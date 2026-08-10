@@ -8,6 +8,7 @@ import {
   FoodMasterNotFoundError,
   FoodNameMismatchError,
   FutureEatenDateError,
+  ImplausibleQuantityError,
   InvalidQuantityError,
   MealLogNotFoundError,
   MealLogPersistenceError,
@@ -162,7 +163,7 @@ const EXISTING_RICE_LOG: FoundMealLog = {
     foodMasterId: 'fm_rice',
     eatenDate: EATEN_DATE,
     mealType: 'dinner',
-    quantity: 100,
+    quantity: 1,
     createdAt: CREATED_AT,
   },
   food: RICE,
@@ -200,7 +201,7 @@ describe('MealLogService.record', () => {
         foodMasterId: 'fm_rice',
         eatenDate: EATEN_DATE,
         mealType: 'dinner',
-        quantity: 100,
+        quantity: 1,
       })
     )._unsafeUnwrap()
 
@@ -209,13 +210,13 @@ describe('MealLogService.record', () => {
       foodMasterId: 'fm_rice',
       eatenDate: EATEN_DATE,
       mealType: 'dinner',
-      quantity: 100,
+      quantity: 1,
       createdAt: CREATED_AT,
       nutrition: {
-        energy_kcal: 15600,
-        protein_g: 250,
-        fat_g: 30,
-        carb_g: 3710,
+        energy_kcal: 156,
+        protein_g: 2.5,
+        fat_g: 0.3,
+        carb_g: 37.1,
       },
       isEstimated: false,
     })
@@ -225,12 +226,12 @@ describe('MealLogService.record', () => {
         foodMasterId: 'fm_rice',
         eatenDate: EATEN_DATE,
         mealType: 'dinner',
-        quantity: 100,
+        quantity: 1,
       },
     ])
   })
 
-  it('scales nutrition linearly for quantity=200', async () => {
+  it('scales nutrition linearly for quantity=2', async () => {
     const { service } = buildService([RICE])
 
     const result = (
@@ -238,7 +239,7 @@ describe('MealLogService.record', () => {
         foodMasterId: 'fm_rice',
         eatenDate: EATEN_DATE,
         mealType: 'dinner',
-        quantity: 200,
+        quantity: 2,
       })
     )._unsafeUnwrap()
 
@@ -247,13 +248,13 @@ describe('MealLogService.record', () => {
       foodMasterId: 'fm_rice',
       eatenDate: EATEN_DATE,
       mealType: 'dinner',
-      quantity: 200,
+      quantity: 2,
       createdAt: CREATED_AT,
       nutrition: {
-        energy_kcal: 31200,
-        protein_g: 500,
-        fat_g: 60,
-        carb_g: 7420,
+        energy_kcal: 312,
+        protein_g: 5,
+        fat_g: 0.6,
+        carb_g: 74.2,
       },
       isEstimated: false,
     })
@@ -267,7 +268,7 @@ describe('MealLogService.record', () => {
         foodMasterId: 'fm_rice',
         eatenDate: EATEN_DATE,
         mealType: 'dinner',
-        quantity: 100,
+        quantity: 1,
       })
     )._unsafeUnwrap()
     const estimated = (
@@ -275,7 +276,7 @@ describe('MealLogService.record', () => {
         foodMasterId: 'fm_karaage',
         eatenDate: EATEN_DATE,
         mealType: 'dinner',
-        quantity: 100,
+        quantity: 1,
       })
     )._unsafeUnwrap()
 
@@ -284,13 +285,13 @@ describe('MealLogService.record', () => {
       foodMasterId: 'fm_rice',
       eatenDate: EATEN_DATE,
       mealType: 'dinner',
-      quantity: 100,
+      quantity: 1,
       createdAt: CREATED_AT,
       nutrition: {
-        energy_kcal: 15600,
-        protein_g: 250,
-        fat_g: 30,
-        carb_g: 3710,
+        energy_kcal: 156,
+        protein_g: 2.5,
+        fat_g: 0.3,
+        carb_g: 37.1,
       },
       isEstimated: false,
     })
@@ -299,14 +300,13 @@ describe('MealLogService.record', () => {
       foodMasterId: 'fm_karaage',
       eatenDate: EATEN_DATE,
       mealType: 'dinner',
-      quantity: 100,
+      quantity: 1,
       createdAt: CREATED_AT,
       nutrition: {
-        energy_kcal: 29000,
-        protein_g: 2420,
-        // 18.1 * 100 in floating point, not the mathematical 1810.
-        fat_g: 1810.0000000000002,
-        carb_g: 790,
+        energy_kcal: 290,
+        protein_g: 24.2,
+        fat_g: 18.1,
+        carb_g: 7.9,
       },
       isEstimated: true,
     })
@@ -321,7 +321,7 @@ describe('MealLogService.record', () => {
         foodMasterId: 'fm_rice',
         eatenDate: future,
         mealType: 'dinner',
-        quantity: 100,
+        quantity: 1,
       })
     )._unsafeUnwrapErr()
 
@@ -341,7 +341,7 @@ describe('MealLogService.record', () => {
         foodMasterId: 'fm_rice',
         eatenDate: today,
         mealType: 'dinner',
-        quantity: 100,
+        quantity: 1,
       })
     )._unsafeUnwrap()
 
@@ -350,13 +350,13 @@ describe('MealLogService.record', () => {
       foodMasterId: 'fm_rice',
       eatenDate: today,
       mealType: 'dinner',
-      quantity: 100,
+      quantity: 1,
       createdAt: CREATED_AT,
       nutrition: {
-        energy_kcal: 15600,
-        protein_g: 250,
-        fat_g: 30,
-        carb_g: 3710,
+        energy_kcal: 156,
+        protein_g: 2.5,
+        fat_g: 0.3,
+        carb_g: 37.1,
       },
       isEstimated: false,
     })
@@ -392,7 +392,7 @@ describe('MealLogService.record', () => {
         foodMasterId: 'fm_missing',
         eatenDate: EATEN_DATE,
         mealType: 'dinner',
-        quantity: 100,
+        quantity: 1,
       })
     )._unsafeUnwrapErr()
 
@@ -411,7 +411,7 @@ describe('MealLogService.record', () => {
         foodMasterId: 'fm_rice',
         eatenDate: EATEN_DATE,
         mealType: 'snack',
-        quantity: 100,
+        quantity: 1,
       })
     )._unsafeUnwrap()
 
@@ -420,13 +420,13 @@ describe('MealLogService.record', () => {
       foodMasterId: 'fm_rice',
       eatenDate: EATEN_DATE,
       mealType: 'snack',
-      quantity: 100,
+      quantity: 1,
       createdAt: CREATED_AT,
       nutrition: {
-        energy_kcal: 15600,
-        protein_g: 250,
-        fat_g: 30,
-        carb_g: 3710,
+        energy_kcal: 156,
+        protein_g: 2.5,
+        fat_g: 0.3,
+        carb_g: 37.1,
       },
       isEstimated: false,
     })
@@ -436,7 +436,7 @@ describe('MealLogService.record', () => {
         foodMasterId: 'fm_rice',
         eatenDate: EATEN_DATE,
         mealType: 'snack',
-        quantity: 100,
+        quantity: 1,
       },
     ])
   })
@@ -450,7 +450,7 @@ describe('MealLogService.record', () => {
         foodName: '唐揚げ',
         eatenDate: EATEN_DATE,
         mealType: 'dinner',
-        quantity: 100,
+        quantity: 1,
       })
     )._unsafeUnwrapErr()
 
@@ -468,7 +468,7 @@ describe('MealLogService.record', () => {
         foodName: ' 白米 ',
         eatenDate: EATEN_DATE,
         mealType: 'dinner',
-        quantity: 100,
+        quantity: 1,
       })
     )._unsafeUnwrap()
 
@@ -477,13 +477,13 @@ describe('MealLogService.record', () => {
       foodMasterId: 'fm_rice',
       eatenDate: EATEN_DATE,
       mealType: 'dinner',
-      quantity: 100,
+      quantity: 1,
       createdAt: CREATED_AT,
       nutrition: {
-        energy_kcal: 15600,
-        protein_g: 250,
-        fat_g: 30,
-        carb_g: 3710,
+        energy_kcal: 156,
+        protein_g: 2.5,
+        fat_g: 0.3,
+        carb_g: 37.1,
       },
       isEstimated: false,
     })
@@ -493,7 +493,63 @@ describe('MealLogService.record', () => {
         foodMasterId: 'fm_rice',
         eatenDate: EATEN_DATE,
         mealType: 'dinner',
-        quantity: 100,
+        quantity: 1,
+      },
+    ])
+  })
+
+  it('rejects a quantity that resolves to an implausible energy_kcal with ImplausibleQuantityError', async () => {
+    const { service, inserted } = buildService([RICE])
+
+    const error = (
+      await service.record({
+        foodMasterId: 'fm_rice',
+        eatenDate: EATEN_DATE,
+        mealType: 'dinner',
+        quantity: 40,
+      })
+    )._unsafeUnwrapErr()
+
+    expect(error).toBeInstanceOf(ImplausibleQuantityError)
+    expect(error).toEqual(new ImplausibleQuantityError(6240))
+    expect(inserted).toEqual([])
+  })
+
+  it('skips the plausibility check when the food has no energy_kcal value, even for a huge quantity', async () => {
+    const WATER: FoodMasterRef = {
+      id: 'fm_water',
+      name: '水',
+      isEstimated: false,
+      nutritionPerUnit: { protein_g: 0 },
+    }
+    const { service, inserted } = buildService([WATER])
+
+    const result = (
+      await service.record({
+        foodMasterId: 'fm_water',
+        eatenDate: EATEN_DATE,
+        mealType: 'dinner',
+        quantity: 1_000_000,
+      })
+    )._unsafeUnwrap()
+
+    expect(result).toEqual({
+      id: 'ml_1',
+      foodMasterId: 'fm_water',
+      eatenDate: EATEN_DATE,
+      mealType: 'dinner',
+      quantity: 1_000_000,
+      createdAt: CREATED_AT,
+      nutrition: { protein_g: 0 },
+      isEstimated: false,
+    })
+    expect(inserted).toEqual([
+      {
+        id: 'ml_1',
+        foodMasterId: 'fm_water',
+        eatenDate: EATEN_DATE,
+        mealType: 'dinner',
+        quantity: 1_000_000,
       },
     ])
   })
@@ -513,13 +569,13 @@ describe('MealLogService.update', () => {
       foodMasterId: 'fm_rice',
       eatenDate: EATEN_DATE,
       mealType: 'dinner',
-      quantity: 100,
+      quantity: 1,
       createdAt: CREATED_AT,
       nutrition: {
-        energy_kcal: 15600,
-        protein_g: 250,
-        fat_g: 30,
-        carb_g: 3710,
+        energy_kcal: 156,
+        protein_g: 2.5,
+        fat_g: 0.3,
+        carb_g: 37.1,
       },
       isEstimated: false,
     })
@@ -533,7 +589,7 @@ describe('MealLogService.update', () => {
     )
 
     const result = (
-      await service.update({ id: 'ml_1', quantity: 200 })
+      await service.update({ id: 'ml_1', quantity: 2 })
     )._unsafeUnwrap()
 
     expect(result).toEqual({
@@ -541,17 +597,17 @@ describe('MealLogService.update', () => {
       foodMasterId: 'fm_rice',
       eatenDate: EATEN_DATE,
       mealType: 'dinner',
-      quantity: 200,
+      quantity: 2,
       createdAt: CREATED_AT,
       nutrition: {
-        energy_kcal: 31200,
-        protein_g: 500,
-        fat_g: 60,
-        carb_g: 7420,
+        energy_kcal: 312,
+        protein_g: 5,
+        fat_g: 0.6,
+        carb_g: 74.2,
       },
       isEstimated: false,
     })
-    expect(updated).toEqual([{ id: 'ml_1', quantity: 200 }])
+    expect(updated).toEqual([{ id: 'ml_1', quantity: 2 }])
   })
 
   it('changes food_master_id and recomputes nutrition against the new food', async () => {
@@ -569,14 +625,13 @@ describe('MealLogService.update', () => {
       foodMasterId: 'fm_karaage',
       eatenDate: EATEN_DATE,
       mealType: 'dinner',
-      quantity: 100,
+      quantity: 1,
       createdAt: CREATED_AT,
       nutrition: {
-        energy_kcal: 29000,
-        protein_g: 2420,
-        // 18.1 * 100 in floating point, not the mathematical 1810.
-        fat_g: 1810.0000000000002,
-        carb_g: 790,
+        energy_kcal: 290,
+        protein_g: 24.2,
+        fat_g: 18.1,
+        carb_g: 7.9,
       },
       isEstimated: true,
     })
@@ -618,13 +673,13 @@ describe('MealLogService.update', () => {
       foodMasterId: 'fm_rice',
       eatenDate: EATEN_DATE,
       mealType: 'dinner',
-      quantity: 100,
+      quantity: 1,
       createdAt: CREATED_AT,
       nutrition: {
-        energy_kcal: 15600,
-        protein_g: 250,
-        fat_g: 30,
-        carb_g: 3710,
+        energy_kcal: 156,
+        protein_g: 2.5,
+        fat_g: 0.3,
+        carb_g: 37.1,
       },
       isEstimated: false,
     })
@@ -650,7 +705,7 @@ describe('MealLogService.update', () => {
     const { service, updated } = buildService([RICE], [])
 
     const error = (
-      await service.update({ id: 'ml_missing', quantity: 100 })
+      await service.update({ id: 'ml_missing', quantity: 1 })
     )._unsafeUnwrapErr()
 
     expect(error).toBeInstanceOf(MealLogNotFoundError)
@@ -703,6 +758,18 @@ describe('MealLogService.update', () => {
       expect(updated).toEqual([])
     },
   )
+
+  it('rejects a quantity update that resolves to an implausible energy_kcal with ImplausibleQuantityError', async () => {
+    const { service, updated } = buildService([RICE], [EXISTING_RICE_LOG])
+
+    const error = (
+      await service.update({ id: 'ml_1', quantity: 40 })
+    )._unsafeUnwrapErr()
+
+    expect(error).toBeInstanceOf(ImplausibleQuantityError)
+    expect(error).toEqual(new ImplausibleQuantityError(6240))
+    expect(updated).toEqual([])
+  })
 })
 
 describe('MealLogService.getById', () => {
@@ -723,7 +790,7 @@ describe('MealLogService.getById', () => {
             foodMasterId: KARAAGE_GUESS.id,
             eatenDate: jstDate('2026-06-15'),
             mealType: 'lunch',
-            quantity: 200,
+            quantity: 2,
             createdAt: CREATED_AT,
           },
           food: KARAAGE_GUESS,
@@ -742,14 +809,13 @@ describe('MealLogService.getById', () => {
       foodMasterId: KARAAGE_GUESS.id,
       eatenDate: '2026-06-15',
       mealType: 'lunch',
-      quantity: 200,
+      quantity: 2,
       createdAt: CREATED_AT,
       nutrition: {
-        energy_kcal: 58000,
-        protein_g: 4840,
-        // 18.1 * 200 in floating point, not the mathematical 3620.
-        fat_g: 3620.0000000000005,
-        carb_g: 1580,
+        energy_kcal: 580,
+        protein_g: 48.4,
+        fat_g: 36.2,
+        carb_g: 15.8,
       },
       isEstimated: true,
     })

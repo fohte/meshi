@@ -390,11 +390,11 @@ describeIfDb('meshi integration', () => {
             food_name: '白米',
             date: '2026-06-12',
             meal_type: 'lunch',
-            quantity: 200,
+            quantity: 2,
           },
         },
       ],
-      final: { status: 'completed', message: '白米 200g を記録しました。' },
+      final: { status: 'completed', message: '白米を記録しました。' },
     })
 
     try {
@@ -411,7 +411,7 @@ describeIfDb('meshi integration', () => {
             type: 'text',
             text: [
               '記録しました (1 件)。',
-              '- fm_rice: 33600 kcal / P 500g / C 7400g',
+              '- fm_rice: 336 kcal / P 5g / C 74g',
             ].join('\n'),
           },
         ],
@@ -421,9 +421,9 @@ describeIfDb('meshi integration', () => {
               meal_log_id: 'ml_scenario1',
               food_master_id: 'fm_rice',
               nutrition: {
-                energy_kcal: 33600,
-                protein_g: 500,
-                carbohydrate_g: 7400,
+                energy_kcal: 336,
+                protein_g: 5,
+                carbohydrate_g: 74,
               },
               is_estimated: false,
             },
@@ -443,7 +443,7 @@ describeIfDb('meshi integration', () => {
         {
           id: 'ml_scenario1',
           food_master_id: 'fm_rice',
-          quantity: '200',
+          quantity: '2',
         },
       ])
     } finally {
@@ -492,7 +492,7 @@ describeIfDb('meshi integration', () => {
             food_name: 'スターバックス抹茶ラテ',
             date: '2026-06-12',
             meal_type: 'lunch',
-            quantity: 350,
+            quantity: 3.5,
           },
         },
       ],
@@ -515,7 +515,7 @@ describeIfDb('meshi integration', () => {
             {
               meal_log_id: 'ml_scenario2',
               food_master_id: 'fm_test_0001',
-              nutrition: { energy_kcal: 21000, protein_g: 700 },
+              nutrition: { energy_kcal: 210, protein_g: 7 },
               is_estimated: false,
             },
           ],
@@ -528,7 +528,7 @@ describeIfDb('meshi integration', () => {
             type: 'text',
             text: [
               '記録しました (1 件)。',
-              '- fm_test_0001: 21000 kcal / P 700g',
+              '- fm_test_0001: 210 kcal / P 7g',
             ].join('\n'),
           },
         ],
@@ -643,7 +643,7 @@ describeIfDb('meshi integration', () => {
       foodMasterId: 'fm_rice',
       eatenDate: '2026-06-12',
       mealType: 'lunch',
-      quantity: 200,
+      quantity: 2,
     })
 
     const harness = await startHarness({
@@ -679,17 +679,17 @@ describeIfDb('meshi integration', () => {
         structuredContent: {
           aggregate: {
             totals: {
-              energy_kcal: 33600,
-              protein_g: 500,
-              carbohydrate_g: 7400,
+              energy_kcal: 336,
+              protein_g: 5,
+              carbohydrate_g: 74,
             },
             per_day: [
               {
                 date: '2026-06-12',
                 totals: {
-                  energy_kcal: 33600,
-                  protein_g: 500,
-                  carbohydrate_g: 7400,
+                  energy_kcal: 336,
+                  protein_g: 5,
+                  carbohydrate_g: 74,
                 },
               },
             ],
@@ -698,7 +698,7 @@ describeIfDb('meshi integration', () => {
                 meal_log_id: 'ml_history_1',
                 food_master_id: 'fm_rice',
                 eaten_date: '2026-06-12',
-                quantity: 200,
+                quantity: 2,
               },
             ],
             has_estimated_values: false,
@@ -711,11 +711,11 @@ describeIfDb('meshi integration', () => {
             type: 'text',
             text: [
               '集計結果:',
-              '- 合計: 33600 kcal / P 500g / C 7400g',
+              '- 合計: 336 kcal / P 5g / C 74g',
               '- 期間内の日数: 1 日',
               '- 記録件数: 1 件',
               '明細 (1 件):',
-              '- 2026-06-12 昼食 白米 × 200',
+              '- 2026-06-12 昼食 白米 × 2',
             ].join('\n'),
           },
         ],
@@ -792,13 +792,13 @@ describeIfDb('meshi integration', () => {
             food_name: '白米',
             date: '2026-06-12',
             meal_type: 'dinner',
-            quantity: 150,
+            quantity: 1.5,
           },
         },
       ],
       final: {
         status: 'completed',
-        message: '写真から白米 150g を記録しました。',
+        message: '写真から白米を記録しました。',
       },
     })
 
@@ -824,9 +824,9 @@ describeIfDb('meshi integration', () => {
               meal_log_id: 'ml_image_1',
               food_master_id: 'fm_rice',
               nutrition: {
-                energy_kcal: 25200,
-                protein_g: 375,
-                carbohydrate_g: 5550,
+                energy_kcal: 252,
+                protein_g: 3.75,
+                carbohydrate_g: 55.5,
               },
               is_estimated: false,
             },
@@ -840,7 +840,7 @@ describeIfDb('meshi integration', () => {
             type: 'text',
             text: [
               '記録しました (1 件)。',
-              '- fm_rice: 25200 kcal / P 375g / C 5550g',
+              '- fm_rice: 252 kcal / P 3.8g / C 55.5g',
             ].join('\n'),
           },
         ],
@@ -849,7 +849,7 @@ describeIfDb('meshi integration', () => {
       const logs = await tx<
         { id: string; quantity: string }[]
       >`SELECT id, quantity FROM meal_logs`
-      expect(logs).toEqual([{ id: 'ml_image_1', quantity: '150' }])
+      expect(logs).toEqual([{ id: 'ml_image_1', quantity: '1.5' }])
     } finally {
       await harness.close()
     }

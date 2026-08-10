@@ -54,21 +54,21 @@ describeIfDb('MealHistoryService.query', () => {
       foodMasterId: 'rice',
       eatenDate: jstDate('2026-06-01'),
       mealType: 'lunch',
-      quantity: 200,
+      quantity: 2,
     })
     await seedMealLog(tx, {
       id: 'log-2',
       foodMasterId: 'egg',
       eatenDate: jstDate('2026-06-01'),
       mealType: 'dinner',
-      quantity: 50,
+      quantity: 0.5,
     })
     await seedMealLog(tx, {
       id: 'log-3',
       foodMasterId: 'rice',
       eatenDate: jstDate('2026-06-02'),
       mealType: 'breakfast',
-      quantity: 100,
+      quantity: 1,
     })
 
     const service = createMealHistoryService(tx)
@@ -81,15 +81,15 @@ describeIfDb('MealHistoryService.query', () => {
 
     expect(result).toEqual({
       totals: {
-        energy_kcal: 156 * 200 + 142 * 50,
-        protein_g: 2.5 * 200 + 12 * 50,
+        energy_kcal: 156 * 2 + 142 * 0.5,
+        protein_g: 2.5 * 2 + 12 * 0.5,
       },
       perDay: [
         {
           date: '2026-06-01',
           totals: {
-            energy_kcal: 156 * 200 + 142 * 50,
-            protein_g: 2.5 * 200 + 12 * 50,
+            energy_kcal: 156 * 2 + 142 * 0.5,
+            protein_g: 2.5 * 2 + 12 * 0.5,
           },
         },
       ],
@@ -100,7 +100,7 @@ describeIfDb('MealHistoryService.query', () => {
           foodName: 'rice',
           eatenDate: '2026-06-01',
           mealType: 'lunch',
-          quantity: 200,
+          quantity: 2,
         },
         {
           id: 'log-2',
@@ -108,7 +108,7 @@ describeIfDb('MealHistoryService.query', () => {
           foodName: 'egg',
           eatenDate: '2026-06-01',
           mealType: 'dinner',
-          quantity: 50,
+          quantity: 0.5,
         },
       ],
       hasEstimatedValues: false,
@@ -135,14 +135,14 @@ describeIfDb('MealHistoryService.query', () => {
       foodMasterId: 'rice',
       eatenDate: jstDate('2026-06-01'),
       mealType: 'lunch',
-      quantity: 200,
+      quantity: 2,
     })
     await seedMealLog(tx, {
       id: 'log-2',
       foodMasterId: 'egg',
       eatenDate: jstDate('2026-06-01'),
       mealType: 'dinner',
-      quantity: 50,
+      quantity: 0.5,
     })
 
     const service = createMealHistoryService(tx)
@@ -155,11 +155,11 @@ describeIfDb('MealHistoryService.query', () => {
     )._unsafeUnwrap()
 
     expect(result).toEqual({
-      totals: { energy_kcal: 142 * 50, protein_g: 12 * 50 },
+      totals: { energy_kcal: 142 * 0.5, protein_g: 12 * 0.5 },
       perDay: [
         {
           date: '2026-06-01',
-          totals: { energy_kcal: 142 * 50, protein_g: 12 * 50 },
+          totals: { energy_kcal: 142 * 0.5, protein_g: 12 * 0.5 },
         },
       ],
       entries: [
@@ -169,7 +169,7 @@ describeIfDb('MealHistoryService.query', () => {
           foodName: 'egg',
           eatenDate: '2026-06-01',
           mealType: 'dinner',
-          quantity: 50,
+          quantity: 0.5,
         },
       ],
       hasEstimatedValues: false,
@@ -190,7 +190,7 @@ describeIfDb('MealHistoryService.query', () => {
       foodMasterId: 'spinach',
       eatenDate: jstDate('2026-06-01'),
       mealType: 'lunch',
-      quantity: 100,
+      quantity: 1,
     })
 
     const service = createMealHistoryService(tx)
@@ -203,11 +203,11 @@ describeIfDb('MealHistoryService.query', () => {
     )._unsafeUnwrap()
 
     expect(result).toEqual({
-      totals: { iron_mg: 2 * 100 },
+      totals: { iron_mg: 2 * 1 },
       perDay: [
         {
           date: '2026-06-01',
-          totals: { iron_mg: 2 * 100 },
+          totals: { iron_mg: 2 * 1 },
         },
       ],
       entries: [
@@ -217,7 +217,7 @@ describeIfDb('MealHistoryService.query', () => {
           foodName: 'spinach',
           eatenDate: '2026-06-01',
           mealType: 'lunch',
-          quantity: 100,
+          quantity: 1,
         },
       ],
       hasEstimatedValues: false,
@@ -238,7 +238,7 @@ describeIfDb('MealHistoryService.query', () => {
       foodMasterId: 'rice',
       eatenDate: jstDate('2026-06-01'),
       mealType: 'lunch',
-      quantity: 100,
+      quantity: 1,
     })
 
     const service = createMealHistoryService(tx)
@@ -260,7 +260,7 @@ describeIfDb('MealHistoryService.query', () => {
           foodName: 'rice',
           eatenDate: '2026-06-01',
           mealType: 'lunch',
-          quantity: 100,
+          quantity: 1,
         },
       ],
       hasEstimatedValues: false,
@@ -288,14 +288,14 @@ describeIfDb('MealHistoryService.query', () => {
       foodMasterId: 'rice',
       eatenDate: jstDate('2026-06-01'),
       mealType: 'lunch',
-      quantity: 100,
+      quantity: 1,
     })
     await seedMealLog(tx, {
       id: 'log-2',
       foodMasterId: 'mystery_stew',
       eatenDate: jstDate('2026-06-01'),
       mealType: 'dinner',
-      quantity: 250,
+      quantity: 2.5,
     })
 
     const service = createMealHistoryService(tx)
@@ -308,15 +308,15 @@ describeIfDb('MealHistoryService.query', () => {
 
     expect(result).toEqual({
       totals: {
-        energy_kcal: 156 * 100 + 200 * 250,
-        protein_g: 2.5 * 100 + 8 * 250,
+        energy_kcal: 156 * 1 + 200 * 2.5,
+        protein_g: 2.5 * 1 + 8 * 2.5,
       },
       perDay: [
         {
           date: '2026-06-01',
           totals: {
-            energy_kcal: 156 * 100 + 200 * 250,
-            protein_g: 2.5 * 100 + 8 * 250,
+            energy_kcal: 156 * 1 + 200 * 2.5,
+            protein_g: 2.5 * 1 + 8 * 2.5,
           },
         },
       ],
@@ -327,7 +327,7 @@ describeIfDb('MealHistoryService.query', () => {
           foodName: 'rice',
           eatenDate: '2026-06-01',
           mealType: 'lunch',
-          quantity: 100,
+          quantity: 1,
         },
         {
           id: 'log-2',
@@ -335,7 +335,7 @@ describeIfDb('MealHistoryService.query', () => {
           foodName: 'mystery stew',
           eatenDate: '2026-06-01',
           mealType: 'dinner',
-          quantity: 250,
+          quantity: 2.5,
         },
       ],
       hasEstimatedValues: true,
@@ -400,7 +400,7 @@ describeIfDb(
             foodMasterId: 'probe_rice',
             eatenDate: jstDate('2026-06-01'),
             mealType: 'lunch',
-            quantity: 200,
+            quantity: 2,
           })
 
           const service = createMealHistoryService(tx)
@@ -412,11 +412,11 @@ describeIfDb(
           )._unsafeUnwrap()
 
           expect(result).toEqual({
-            totals: { probe_energy_kcal: 156 * 200 },
+            totals: { probe_energy_kcal: 156 * 2 },
             perDay: [
               {
                 date: '2026-06-01',
-                totals: { probe_energy_kcal: 156 * 200 },
+                totals: { probe_energy_kcal: 156 * 2 },
               },
             ],
             entries: [
@@ -426,7 +426,7 @@ describeIfDb(
                 foodName: 'rice',
                 eatenDate: '2026-06-01',
                 mealType: 'lunch',
-                quantity: 200,
+                quantity: 2,
               },
             ],
             hasEstimatedValues: false,

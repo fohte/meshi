@@ -12,6 +12,7 @@ import {
   type DomainError,
   FoodNameMismatchError,
   FutureEatenDateError,
+  ImplausibleQuantityError,
   InvalidQuantityError,
   MealLogNotFoundError,
   MealLogPersistenceError,
@@ -43,6 +44,24 @@ const checkFoodNameMatches = (
     ? ok(undefined)
     : err(new FoodNameMismatchError(foodName, actualName))
 
+// A single meal_log's resolved energy shouldn't exceed this — catches a
+// quantity mixup (e.g. passing a raw gram count as quantity against a food
+// registered per serving) before it's silently recorded. Skipped when the
+// food has no energy_kcal value to check against.
+const MAX_PLAUSIBLE_ENERGY_KCAL = 5_000
+
+const checkPlausibleQuantity = (
+  nutritionPerUnit: NutritionMap,
+  quantity: number,
+): Result<void, DomainError> => {
+  const energyKcalPerUnit = nutritionPerUnit['energy_kcal']
+  if (energyKcalPerUnit === undefined) return ok(undefined)
+  const resolvedEnergyKcal = energyKcalPerUnit * quantity
+  return resolvedEnergyKcal > MAX_PLAUSIBLE_ENERGY_KCAL
+    ? err(new ImplausibleQuantityError(resolvedEnergyKcal))
+    : ok(undefined)
+}
+
 export interface MealLogService {
   record(input: RecordMealLogInput): ResultAsync<MealLogResult, DomainError>
   update(input: UpdateMealLogInput): ResultAsync<MealLogResult, DomainError>
@@ -72,6 +91,11 @@ export const createMealLogService = (
       .andThen((food) => {
         const nameCheck = checkFoodNameMatches(input.foodName, food.name)
         if (nameCheck.isErr()) return errAsync(nameCheck.error)
+        const plausibility = checkPlausibleQuantity(
+          food.nutritionPerUnit,
+          input.quantity,
+        )
+        if (plausibility.isErr()) return errAsync(plausibility.error)
         return deps.repository
           .insertMealLog({
             id: deps.idGenerator(),
@@ -117,8 +141,14 @@ export const createMealLogService = (
         newFoodMasterId === undefined
           ? okAsync(found.food)
           : deps.repository.findFoodMaster(newFoodMasterId)
-      return foodRef.andThen((food) =>
-        deps.repository
+      return foodRef.andThen((food) => {
+        const effectiveQuantity = input.quantity ?? found.log.quantity
+        const plausibility = checkPlausibleQuantity(
+          food.nutritionPerUnit,
+          effectiveQuantity,
+        )
+        if (plausibility.isErr()) return errAsync(plausibility.error)
+        return deps.repository
           .updateMealLog({
             id: input.id,
             ...(input.foodMasterId === undefined
@@ -154,8 +184,8 @@ export const createMealLogService = (
                       ),
                   )
                   .map(() => buildResult(log, food)),
-          ),
-      )
+          )
+      })
     })
   },
   getById(id) {

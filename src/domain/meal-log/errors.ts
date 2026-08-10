@@ -55,6 +55,16 @@ export class MealLogPersistenceError extends DomainError {
   }
 }
 
+export class ImplausibleQuantityError extends DomainError {
+  constructor(public readonly resolvedEnergyKcal: number) {
+    super(
+      `resolved nutrition is implausible for a single meal: ${String(resolvedEnergyKcal)}kcal`,
+      'meal_log/implausible_quantity',
+    )
+    this.name = 'ImplausibleQuantityError'
+  }
+}
+
 export class FoodNameMismatchError extends DomainError {
   constructor(
     public readonly providedName: string,

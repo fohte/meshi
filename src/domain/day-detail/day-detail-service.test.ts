@@ -52,14 +52,14 @@ describeIfDb('DayDetailService.query', () => {
       foodMasterId: 'rice',
       eatenDate: jstDate('2026-06-01'),
       mealType: 'breakfast',
-      quantity: 200,
+      quantity: 2,
     })
     await seedMealLog(tx, {
       id: 'log-2',
       foodMasterId: 'mystery_stew',
       eatenDate: jstDate('2026-06-01'),
       mealType: 'dinner',
-      quantity: 50,
+      quantity: 0.5,
     })
 
     const stubTotals = { energy_kcal: 412 }
@@ -76,7 +76,7 @@ describeIfDb('DayDetailService.query', () => {
               foodName: 'ごはん',
               eatenDate: jstDate('2026-06-01'),
               mealType: 'breakfast',
-              quantity: 200,
+              quantity: 2,
             },
             {
               id: 'log-2',
@@ -84,7 +84,7 @@ describeIfDb('DayDetailService.query', () => {
               foodName: 'なぞのシチュー',
               eatenDate: jstDate('2026-06-01'),
               mealType: 'dinner',
-              quantity: 50,
+              quantity: 0.5,
             },
           ],
         }),
@@ -107,8 +107,8 @@ describeIfDb('DayDetailService.query', () => {
           foodName: 'ごはん',
           eatenDate: '2026-06-01',
           mealType: 'breakfast',
-          quantity: 200,
-          kcal: 31200,
+          quantity: 2,
+          kcal: 312,
           isEstimated: false,
         },
         {
@@ -117,8 +117,8 @@ describeIfDb('DayDetailService.query', () => {
           foodName: 'なぞのシチュー',
           eatenDate: '2026-06-01',
           mealType: 'dinner',
-          quantity: 50,
-          kcal: 10000,
+          quantity: 0.5,
+          kcal: 100,
           isEstimated: true,
         },
       ],
@@ -166,7 +166,7 @@ describeIfDb('DayDetailService.query', () => {
       foodMasterId: 'rice',
       eatenDate: jstDate('2026-06-01'),
       mealType: 'breakfast',
-      quantity: 200,
+      quantity: 2,
     })
 
     const mealHistoryService: MealHistoryService = {
@@ -182,7 +182,7 @@ describeIfDb('DayDetailService.query', () => {
               foodName: 'ごはん',
               eatenDate: jstDate('2026-06-01'),
               mealType: 'breakfast',
-              quantity: 200,
+              quantity: 2,
             },
           ],
         }),
@@ -227,8 +227,8 @@ describeIfDb('DayDetailService.query', () => {
           foodName: 'ごはん',
           eatenDate: '2026-06-01',
           mealType: 'breakfast',
-          quantity: 200,
-          kcal: 31200,
+          quantity: 2,
+          kcal: 312,
           isEstimated: false,
         },
       ],
