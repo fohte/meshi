@@ -35,7 +35,7 @@ const foodListItemSchema = z.object({
   isEstimated: z.boolean(),
   reason: foodMatchReasonSchema,
   source: foodSourceSchema.nullable(),
-  energyKcalPer100g: z.number().nullable(),
+  energyKcalPerUnit: z.number().nullable(),
 })
 
 export type FoodListItem = z.infer<typeof foodListItemSchema>
@@ -58,12 +58,7 @@ const foodEatHistoryEntrySchema = z.object({
   id: z.string(),
   eatenDate: z.string(),
   mealType: mealTypeSchema,
-  // The resolved gram amount this entry's quantity+unit was converted to at
-  // record time — the basis for this entry's kcal, not `quantity` (which is
-  // for display only; see src/db/schema.ts's meal_logs.amount_grams).
-  amountGrams: z.number(),
   quantity: z.number(),
-  unit: z.string(),
 })
 
 const foodDetailSchema = z.object({
@@ -73,9 +68,7 @@ const foodDetailSchema = z.object({
   source: foodSourceSchema,
   sourceUrl: z.string().nullable(),
   aliases: z.array(z.string()),
-  basisQuantity: z.number(),
-  basisUnit: z.string(),
-  nutritionPerBasis: z.record(z.string(), z.number()),
+  nutrition: z.record(z.string(), z.number()),
   totalEatenCount: z.number(),
   history: z.array(foodEatHistoryEntrySchema),
 })

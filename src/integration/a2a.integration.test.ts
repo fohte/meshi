@@ -21,10 +21,6 @@ import {
   createFoodMasterRepository,
   createFoodMasterService,
 } from '#domain/food-master/index'
-import {
-  createFoodMasterUnitRepository,
-  createFoodMasterUnitService,
-} from '#domain/food-master-unit/index'
 import { createDrizzleFoodMatcher } from '#domain/food-matcher/index'
 import { createMealHistoryService } from '#domain/meal-history/index'
 import { createDrizzleMealLogRepository } from '#domain/meal-log/drizzle-meal-log-repository'
@@ -87,9 +83,6 @@ const buildRegistry = (tx: Sql): DomainToolsRegistry => {
   return createDomainToolsRegistry({
     mealLogService,
     foodMasterService,
-    foodMasterUnitService: createFoodMasterUnitService(
-      createFoodMasterUnitRepository(tx),
-    ),
     foodMatcher: createDrizzleFoodMatcher(tx),
     mealHistoryService: createMealHistoryService(tx),
     userProfileService: createUserProfileService(
@@ -240,7 +233,6 @@ describeIfDb('A2A integration', () => {
             date: '2026-06-12',
             meal_type: 'lunch',
             quantity: 200,
-            unit: 'g',
           },
           id: 'call_2',
         },
@@ -290,14 +282,13 @@ describeIfDb('A2A integration', () => {
       })
 
       const rows = await domainTx<
-        { id: string; food_master_id: string; quantity: string; unit: string }[]
-      >`SELECT id, food_master_id, quantity, unit FROM meal_logs`
+        { id: string; food_master_id: string; quantity: string }[]
+      >`SELECT id, food_master_id, quantity FROM meal_logs`
       expect(rows).toEqual([
         {
           id: 'ml_a2a_test_0001',
           food_master_id: 'fm_rice_happy',
           quantity: '200',
-          unit: 'g',
         },
       ])
     } finally {
@@ -336,7 +327,6 @@ describeIfDb('A2A integration', () => {
             date: '2026-06-12',
             meal_type: 'lunch',
             quantity: 200,
-            unit: 'g',
           },
           id: 'call_1',
         },
@@ -413,14 +403,13 @@ describeIfDb('A2A integration', () => {
       // The ambiguous salmon item must not be force-recorded — only the
       // already-resolved rice item should have written a meal_logs row.
       const rows = await domainTx<
-        { id: string; food_master_id: string; quantity: string; unit: string }[]
-      >`SELECT id, food_master_id, quantity, unit FROM meal_logs`
+        { id: string; food_master_id: string; quantity: string }[]
+      >`SELECT id, food_master_id, quantity FROM meal_logs`
       expect(rows).toEqual([
         {
           id: 'ml_a2a_test_0001',
           food_master_id: 'fm_rice_mixed',
           quantity: '200',
-          unit: 'g',
         },
       ])
     } finally {
@@ -470,7 +459,6 @@ describeIfDb('A2A integration', () => {
             date: '2026-06-12',
             meal_type: 'dinner',
             quantity: 180,
-            unit: 'g',
           },
           id: 'call_3',
         },
@@ -581,15 +569,13 @@ describeIfDb('A2A integration', () => {
             id: string
             food_master_id: string
             quantity: string
-            unit: string
           }[]
-        >`SELECT id, food_master_id, quantity, unit FROM meal_logs`
+        >`SELECT id, food_master_id, quantity FROM meal_logs`
         expect(rows).toEqual([
           {
             id: 'ml_a2a_test_0001',
             food_master_id: 'fm_salmon_resume',
             quantity: '180',
-            unit: 'g',
           },
         ])
       } finally {
@@ -622,7 +608,6 @@ describeIfDb('A2A integration', () => {
       eatenDate: jstDate('2026-06-12'),
       mealType: 'lunch',
       quantity: 200,
-      unit: 'g',
     })
 
     const model = fakeModel()
@@ -670,7 +655,7 @@ describeIfDb('A2A integration', () => {
           '2026-06-12 の食事履歴をお伝えしました。',
           '',
           '明細 (1 件):',
-          '- 2026-06-12 昼食 白米 history: 200g',
+          '- 2026-06-12 昼食 白米 history × 200',
         ].join('\n'),
       )
       expect(normalizeTask(task)).toEqual({

@@ -23,9 +23,6 @@ const sampleMaster = (
   sourceUrl: input.sourceUrl ?? null,
   sourceCompositionCode: input.sourceCompositionCode ?? null,
   nutrition: input.nutrition,
-  units: input.units ?? [],
-  basisQuantity: input.basisQuantity ?? 100,
-  basisUnit: input.basisUnit ?? 'g',
   createdAt: new Date('2026-06-18T00:00:00.000Z'),
 })
 
@@ -70,7 +67,7 @@ const setup = (
 }
 
 describe('register_food_master tool', () => {
-  it('exposes the registered nutrient codes as a closed enum in nutrition_per_basis, plus basis_quantity/basis_unit, so the LLM never has to guess one', () => {
+  it('exposes the registered nutrient codes as a closed enum in nutrition_per_basis so the LLM never has to guess one', () => {
     const { tool } = setup()
 
     const nameField = { type: 'string', minLength: 1, pattern: '\\S' }
@@ -86,25 +83,12 @@ describe('register_food_master tool', () => {
           propertyNames: { type: 'string', enum: [...NUTRIENT_CODES] },
           additionalProperties: { type: 'number', minimum: 0 },
         },
-        basis_quantity: { type: 'number', exclusiveMinimum: 0 },
-        basis_unit: nameField,
         source: {
           type: 'string',
           enum: ['web_search', 'user_input'],
         },
         is_estimated: { type: 'boolean' },
         source_url: { type: 'string', format: 'uri' },
-        units: {
-          type: 'array',
-          items: {
-            type: 'object',
-            properties: {
-              unit: nameField,
-              grams_per_unit: { type: 'number', exclusiveMinimum: 0 },
-            },
-            required: ['unit', 'grams_per_unit'],
-          },
-        },
         confirmed_distinct_from_master_ids: {
           type: 'array',
           items: { type: 'string', minLength: 1 },
@@ -134,8 +118,6 @@ describe('register_food_master tool', () => {
         source: 'web_search',
         source_url: 'https://example.test/banana',
         nutrition_per_100g: { energy_kcal: 89, protein_g: 1.1 },
-        basis_quantity: 100,
-        basis_unit: 'g',
       },
     })
     expect(calls).toEqual([
@@ -146,66 +128,6 @@ describe('register_food_master tool', () => {
         source: 'web_search',
         isEstimated: false,
         sourceUrl: 'https://example.test/banana',
-      },
-    ])
-  })
-
-  it('bridges basis_quantity/basis_unit to FoodMasterService.register and echoes the resolved basis back', async () => {
-    const { tool, calls } = setup()
-
-    const result = await tool.execute({
-      name: '味噌ロースかつ丼 並',
-      nutrition_per_basis: { energy_kcal: 913, protein_g: 28.5 },
-      basis_quantity: 1,
-      basis_unit: '食',
-      source: 'web_search',
-      is_estimated: false,
-      source_url: 'https://example.test/katsudon',
-    })
-
-    expect(normalizeResult(result)).toEqual({
-      ok: true,
-      value: {
-        food_master_id: 'fm_new',
-        name: '味噌ロースかつ丼 並',
-        source: 'web_search',
-        source_url: 'https://example.test/katsudon',
-        nutrition_per_100g: { energy_kcal: 913, protein_g: 28.5 },
-        basis_quantity: 1,
-        basis_unit: '食',
-      },
-    })
-    expect(calls).toEqual([
-      {
-        name: '味噌ロースかつ丼 並',
-        nutrition: { energy_kcal: 913, protein_g: 28.5 },
-        source: 'web_search',
-        isEstimated: false,
-        sourceUrl: 'https://example.test/katsudon',
-        basisQuantity: 1,
-        basisUnit: '食',
-      },
-    ])
-  })
-
-  it('bridges units to gramsPerUnit-shaped input for FoodMasterService.register', async () => {
-    const { tool, calls } = setup()
-
-    await tool.execute({
-      name: '卵',
-      nutrition_per_basis: { energy_kcal: 151 },
-      source: 'user_input',
-      is_estimated: false,
-      units: [{ unit: '個', grams_per_unit: 55 }],
-    })
-
-    expect(calls).toEqual([
-      {
-        name: '卵',
-        nutrition: { energy_kcal: 151 },
-        source: 'user_input',
-        isEstimated: false,
-        units: [{ unit: '個', gramsPerUnit: 55 }],
       },
     ])
   })
@@ -327,58 +249,6 @@ describe('register_food_master tool', () => {
         is_estimated: false,
       },
     },
-    {
-      label: 'a non-positive grams_per_unit',
-      input: {
-        name: 'X',
-        nutrition_per_basis: { energy_kcal: 1 },
-        source: 'user_input',
-        is_estimated: false,
-        units: [{ unit: '個', grams_per_unit: 0 }],
-      },
-    },
-    {
-      label: 'a non-positive basis_quantity',
-      input: {
-        name: 'X',
-        nutrition_per_basis: { energy_kcal: 1 },
-        basis_quantity: 0,
-        basis_unit: '食',
-        source: 'user_input',
-        is_estimated: false,
-      },
-    },
-    {
-      label: 'a whitespace-only basis_unit',
-      input: {
-        name: 'X',
-        nutrition_per_basis: { energy_kcal: 1 },
-        basis_quantity: 1,
-        basis_unit: '  ',
-        source: 'user_input',
-        is_estimated: false,
-      },
-    },
-    {
-      label: 'basis_quantity without basis_unit',
-      input: {
-        name: 'X',
-        nutrition_per_basis: { energy_kcal: 1 },
-        basis_quantity: 1,
-        source: 'user_input',
-        is_estimated: false,
-      },
-    },
-    {
-      label: 'basis_unit without basis_quantity',
-      input: {
-        name: 'X',
-        nutrition_per_basis: { energy_kcal: 1 },
-        basis_unit: '食',
-        source: 'user_input',
-        is_estimated: false,
-      },
-    },
   ])('rejects $label with invalid_input', async ({ input }) => {
     const { tool, calls } = setup()
 
@@ -486,8 +356,6 @@ describe('register_food_master tool', () => {
         source: 'user_input',
         source_url: null,
         nutrition_per_100g: { energy_kcal: 89 },
-        basis_quantity: 100,
-        basis_unit: 'g',
       },
     })
     expect(calls).toEqual([

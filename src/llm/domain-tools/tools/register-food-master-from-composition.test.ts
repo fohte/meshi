@@ -24,9 +24,6 @@ const sampleFoodMaster = (
   sourceUrl: null,
   sourceCompositionCode: input.compositionCode,
   nutrition: { energy_kcal: 130, protein_g: 4.8 },
-  units: input.units ?? [],
-  basisQuantity: 100,
-  basisUnit: 'g',
   createdAt: new Date('2026-06-18T00:00:00.000Z'),
 })
 
@@ -86,17 +83,6 @@ describe('register_food_master_from_composition tool', () => {
         composition_code: { type: 'string', minLength: 1 },
         name: nameField,
         aliases: { type: 'array', items: nameField },
-        units: {
-          type: 'array',
-          items: {
-            type: 'object',
-            properties: {
-              unit: nameField,
-              grams_per_unit: { type: 'number', exclusiveMinimum: 0 },
-            },
-            required: ['unit', 'grams_per_unit'],
-          },
-        },
       },
       required: ['composition_code'],
     })
@@ -120,14 +106,13 @@ describe('register_food_master_from_composition tool', () => {
     expect(calls).toEqual([{ compositionCode: '01088' }])
   })
 
-  it('bridges an overriding name/aliases/units to FoodMasterService.registerFromComposition', async () => {
+  it('bridges an overriding name/aliases to FoodMasterService.registerFromComposition', async () => {
     const { tool, calls } = setup()
 
     const result = await tool.execute({
       composition_code: '01088',
       name: 'カスタムそば',
       aliases: ['そば'],
-      units: [{ unit: '個', grams_per_unit: 120 }],
     })
 
     expect(normalizeResult(result)).toEqual({
@@ -145,7 +130,6 @@ describe('register_food_master_from_composition tool', () => {
         compositionCode: '01088',
         name: 'カスタムそば',
         aliases: ['そば'],
-        units: [{ unit: '個', gramsPerUnit: 120 }],
       },
     ])
   })

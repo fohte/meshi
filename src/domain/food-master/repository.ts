@@ -11,7 +11,6 @@ import { runInSavepoint } from '#domain/food-master/savepoint'
 import type {
   FoodMaster,
   FoodMasterId,
-  FoodMasterUnitDefinition,
   FoodSource,
   MergeFoodMasterResult,
   NutritionMap,
@@ -25,12 +24,6 @@ import {
   type SourceEvidenceViolation,
   validateSourceEvidence,
 } from '#domain/food-master/validation'
-import { isImplausibleGramsPerUnit } from '#domain/food-master-unit/validation'
-import {
-  classifyUnit,
-  isReservedUnit,
-  normalizeUnit,
-} from '#domain/unit/classification'
 
 export interface FoodComposition {
   readonly name: string
@@ -118,9 +111,6 @@ interface NormalizedInput {
   readonly isEstimated: boolean
   readonly sourceUrl: string | null
   readonly sourceCompositionCode: string | null
-  readonly units: ReadonlyArray<FoodMasterUnitDefinition>
-  readonly basisQuantity: number
-  readonly basisUnit: string
 }
 
 const normalizeAndValidate = (
@@ -176,39 +166,6 @@ const normalizeAndValidate = (
       )
     }
   }
-  const basisQuantity = input.basisQuantity ?? 100
-  if (!Number.isFinite(basisQuantity) || basisQuantity <= 0) {
-    return err(
-      new FoodMasterDomainError(
-        'invalid_basis_quantity',
-        `basisQuantity must be a finite positive number: ${String(basisQuantity)}`,
-        { basisQuantity },
-      ),
-    )
-  }
-  const normalizedBasisUnit = normalizeUnit(input.basisUnit ?? 'g')
-  if (normalizedBasisUnit === '') {
-    return err(
-      new FoodMasterDomainError(
-        'empty_basis_unit',
-        'basisUnit must not be empty string',
-      ),
-    )
-  }
-  // Mass and volume units collapse to their classifyUnit canonical form (g,
-  // ml) so resolveAmountGrams's food-independent bridge — comparing a
-  // recorded unit's canonical form directly against basisUnit — also covers
-  // a basis given in an alias unit (kg, l, cc). Serving units (食/個/杯/...)
-  // have no food-independent canonical form and are kept as given.
-  const basisClassification = classifyUnit(normalizedBasisUnit)
-  const resolvedBasisQuantity =
-    basisClassification.kind === 'serving'
-      ? basisQuantity
-      : basisQuantity * basisClassification.factorToCanonical
-  const resolvedBasisUnit =
-    basisClassification.kind === 'serving'
-      ? normalizedBasisUnit
-      : basisClassification.canonicalUnit
   const aliases = (input.aliases ?? []).map((a) => a.trim())
   if (aliases.some((a) => a === '')) {
     return err(
@@ -227,45 +184,6 @@ const normalizeAndValidate = (
       ),
     )
   }
-  const units = (input.units ?? []).map((u) => ({
-    unit: normalizeUnit(u.unit),
-    gramsPerUnit: u.gramsPerUnit,
-  }))
-  if (units.some((u) => u.unit === '')) {
-    return err(
-      new FoodMasterDomainError('empty_unit', 'unit must not be empty string'),
-    )
-  }
-  const reservedUnit = units.find((u) => isReservedUnit(u.unit))
-  if (reservedUnit !== undefined) {
-    return err(
-      new FoodMasterDomainError(
-        'reserved_unit',
-        `unit is resolved by a fixed rule and can't be overridden per food: ${reservedUnit.unit}`,
-        { unit: reservedUnit.unit },
-      ),
-    )
-  }
-  if (hasDuplicateAfterTrim(units.map((u) => u.unit))) {
-    return err(
-      new FoodMasterDomainError(
-        'duplicate_unit_in_input',
-        'units must not contain duplicates within the same input',
-        { units: units.map((u) => u.unit) },
-      ),
-    )
-  }
-  for (const u of units) {
-    if (isImplausibleGramsPerUnit(u.gramsPerUnit)) {
-      return err(
-        new FoodMasterDomainError(
-          'implausible_grams_per_unit',
-          `grams_per_unit must be a plausible positive mass (unit=${u.unit}, gramsPerUnit=${String(u.gramsPerUnit)})`,
-          { unit: u.unit, gramsPerUnit: u.gramsPerUnit },
-        ),
-      )
-    }
-  }
   return ok({
     name,
     aliases,
@@ -274,9 +192,6 @@ const normalizeAndValidate = (
     isEstimated: input.isEstimated,
     sourceUrl,
     sourceCompositionCode,
-    units,
-    basisQuantity: resolvedBasisQuantity,
-    basisUnit: resolvedBasisUnit,
   })
 }
 
@@ -287,8 +202,6 @@ interface FoodMasterRow {
   readonly source: FoodSource
   readonly source_url: string | null
   readonly source_composition_code: string | null
-  readonly basis_quantity: string
-  readonly basis_unit: string
   readonly created_at: Date
 }
 
@@ -355,9 +268,9 @@ export const createFoodMasterRepository = (
     }
 
     const [inserted] = await tx<FoodMasterRow[]>`
-      INSERT INTO food_masters (id, name, is_estimated, source, source_url, source_composition_code, basis_quantity, basis_unit)
-      VALUES (${id}, ${normalized.name}, ${normalized.isEstimated}, ${normalized.source}, ${normalized.sourceUrl}, ${normalized.sourceCompositionCode}, ${normalized.basisQuantity}, ${normalized.basisUnit})
-      RETURNING id, name, is_estimated, source, source_url, source_composition_code, basis_quantity, basis_unit, created_at
+      INSERT INTO food_masters (id, name, is_estimated, source, source_url, source_composition_code)
+      VALUES (${id}, ${normalized.name}, ${normalized.isEstimated}, ${normalized.source}, ${normalized.sourceUrl}, ${normalized.sourceCompositionCode})
+      RETURNING id, name, is_estimated, source, source_url, source_composition_code, created_at
     `
     if (inserted === undefined) {
       return err(
@@ -386,15 +299,6 @@ export const createFoodMasterRepository = (
       await tx`INSERT INTO food_master_nutrients ${tx(nutrientRows, 'food_master_id', 'nutrient_code', 'value')}`
     }
 
-    if (normalized.units.length > 0) {
-      const unitRows = normalized.units.map((u) => ({
-        food_master_id: id,
-        unit: u.unit,
-        grams_per_unit: String(u.gramsPerUnit),
-      }))
-      await tx`INSERT INTO food_master_units ${tx(unitRows, 'food_master_id', 'unit', 'grams_per_unit')}`
-    }
-
     return ok({
       id: inserted.id,
       name: inserted.name,
@@ -404,9 +308,6 @@ export const createFoodMasterRepository = (
       sourceUrl: inserted.source_url,
       sourceCompositionCode: inserted.source_composition_code,
       nutrition: normalized.nutrition,
-      units: normalized.units,
-      basisQuantity: Number(inserted.basis_quantity),
-      basisUnit: inserted.basis_unit,
       createdAt: inserted.created_at,
     })
   }
@@ -438,25 +339,20 @@ export const createFoodMasterRepository = (
     ResultAsync.fromPromise(
       (async () => {
         const rows = await sql<FoodMasterRow[]>`
-          SELECT id, name, is_estimated, source, source_url, source_composition_code, basis_quantity, basis_unit, created_at
+          SELECT id, name, is_estimated, source, source_url, source_composition_code, created_at
           FROM food_masters
           WHERE id = ${id}
         `
         const row = rows[0]
         if (row === undefined) return null
 
-        const [aliasRows, nutrientRows, unitRows] = await Promise.all([
+        const [aliasRows, nutrientRows] = await Promise.all([
           sql<{ alias: string }[]>`
             SELECT alias FROM food_master_aliases WHERE food_master_id = ${id}
           `,
           sql<{ nutrient_code: string; value: string }[]>`
             SELECT nutrient_code, value
             FROM food_master_nutrients
-            WHERE food_master_id = ${id}
-          `,
-          sql<{ unit: string; grams_per_unit: string }[]>`
-            SELECT unit, grams_per_unit
-            FROM food_master_units
             WHERE food_master_id = ${id}
           `,
         ])
@@ -470,12 +366,6 @@ export const createFoodMasterRepository = (
           sourceUrl: row.source_url,
           sourceCompositionCode: row.source_composition_code,
           nutrition: toNutritionMap(nutrientRows),
-          units: unitRows.map((r) => ({
-            unit: r.unit,
-            gramsPerUnit: Number(r.grams_per_unit),
-          })),
-          basisQuantity: Number(row.basis_quantity),
-          basisUnit: row.basis_unit,
           createdAt: row.created_at,
         }
       })(),

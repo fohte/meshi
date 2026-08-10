@@ -1,8 +1,6 @@
 // Base for domain errors shaped as a closed error-code union plus a details
 // bag (as opposed to meal-log's DomainError, whose subclasses carry their
-// own typed fields instead of a generic details record) — shared by
-// FoodMasterDomainError and FoodMasterUnitDomainError so the two don't
-// duplicate the same constructor.
+// own typed fields instead of a generic details record).
 export abstract class CodedDomainError<Code extends string> extends Error {
   readonly code: Code
   readonly details: Readonly<Record<string, unknown>>

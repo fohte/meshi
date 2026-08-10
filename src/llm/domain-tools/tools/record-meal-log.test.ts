@@ -30,8 +30,6 @@ const setup = (
         eatenDate: input.eatenDate,
         mealType: input.mealType,
         quantity: input.quantity,
-        unit: input.unit,
-        amountGrams: input.quantity,
         createdAt: new Date('2026-06-18T00:00:00.000Z'),
         nutrition: { energy_kcal: 252 },
         isEstimated: false,
@@ -68,7 +66,6 @@ describe('record_meal_log tool', () => {
       date: '2026-06-18',
       meal_type: 'breakfast',
       quantity: 1,
-      unit: '杯',
     })
 
     expect(normalizeResult(result)).toEqual({
@@ -87,7 +84,6 @@ describe('record_meal_log tool', () => {
           eatenDate: '2026-06-18',
           mealType: 'breakfast',
           quantity: 1,
-          unit: '杯',
         },
       ],
     })
@@ -102,7 +98,6 @@ describe('record_meal_log tool', () => {
       date: '2026-06-18',
       meal_type: 'brunch',
       quantity: 1,
-      unit: '杯',
     })
 
     expect(normalizeResult(result)).toEqual({
@@ -124,7 +119,6 @@ describe('record_meal_log tool', () => {
       food_name: '白米',
       date: '2026-06-18',
       quantity: 1,
-      unit: '杯',
     })
 
     expect(normalizeResult(result)).toEqual({
@@ -146,7 +140,6 @@ describe('record_meal_log tool', () => {
       date: '2026-06-18',
       meal_type: 'breakfast',
       quantity: 1,
-      unit: '杯',
     })
 
     expect(normalizeResult(result)).toEqual({
@@ -168,7 +161,6 @@ describe('record_meal_log tool', () => {
       date: '2026-06-18',
       meal_type: 'breakfast',
       quantity: 1,
-      unit: '杯',
     })
 
     expect(normalizeResult(result)).toEqual({
@@ -191,7 +183,6 @@ describe('record_meal_log tool', () => {
       date: '2026-06-18',
       meal_type: 'breakfast',
       quantity: 1,
-      unit: '杯',
     })
 
     expect(normalizeResult(result)).toEqual({
@@ -213,7 +204,6 @@ describe('record_meal_log tool', () => {
       date: '2026-06-18',
       meal_type: 'breakfast',
       quantity: 0,
-      unit: '杯',
     })
     expect(normalizeResult(result)).toEqual({
       ok: false,
@@ -237,7 +227,6 @@ describe('record_meal_log tool', () => {
       date: '2099-01-01',
       meal_type: 'breakfast',
       quantity: 1,
-      unit: '杯',
     })
 
     expect(normalizeResult(result)).toEqual({
@@ -261,7 +250,6 @@ describe('record_meal_log tool', () => {
       date: '2026-06-18',
       meal_type: 'breakfast',
       quantity: 1,
-      unit: 'g',
     })
 
     expect(normalizeResult(result)).toEqual({
@@ -285,7 +273,6 @@ describe('record_meal_log tool', () => {
       date: '2026-06-18',
       meal_type: 'breakfast',
       quantity: 1,
-      unit: 'g',
     })
 
     expect(normalizeResult(result)).toEqual({

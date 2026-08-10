@@ -19,8 +19,6 @@ const mergeResult: MergeFoodMasterResult = {
   applied: false,
   movedAliases: ['もち米'],
   nameMovedAsAlias: 'ロースハム',
-  movedUnits: [{ unit: '枚', gramsPerUnit: 20 }],
-  discardedUnits: [{ unit: '個', gramsPerUnit: 55 }],
   discardedNutrition: { energy_kcal: 118 },
   movedMealLogCount: 3,
 }
@@ -87,8 +85,6 @@ describe('merge_food_master tool', () => {
         applied: false,
         moved_aliases: ['もち米'],
         name_moved_as_alias: 'ロースハム',
-        moved_units: [{ unit: '枚', grams_per_unit: 20 }],
-        discarded_units: [{ unit: '個', grams_per_unit: 55 }],
         discarded_nutrition: { energy_kcal: 118 },
         moved_meal_log_count: 3,
       },

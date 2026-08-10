@@ -28,7 +28,6 @@ const queryMealHistoryEntrySchema = z.object({
   eaten_date: z.string(),
   meal_type: z.enum(MEAL_TYPES),
   quantity: z.number(),
-  unit: z.string(),
 })
 
 // Exported so callers reading this tool's result back out of a serialized
@@ -61,14 +60,12 @@ export const toMealHistoryEntryFields = (
   readonly eatenDate: string
   readonly mealType: MealType
   readonly quantity: number
-  readonly unit: string
 } => ({
   foodMasterId: entry.food_master_id,
   foodName: entry.food_name,
   eatenDate: entry.eaten_date,
   mealType: entry.meal_type,
   quantity: entry.quantity,
-  unit: entry.unit,
 })
 
 export const createQueryMealHistoryTool = (
@@ -110,7 +107,6 @@ export const createQueryMealHistoryTool = (
         eaten_date: entry.eatenDate,
         meal_type: entry.mealType,
         quantity: entry.quantity,
-        unit: entry.unit,
       })),
       has_estimated_values: aggregate.hasEstimatedValues,
     })

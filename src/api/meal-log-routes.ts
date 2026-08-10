@@ -15,15 +15,14 @@ const NOT_FOUND_CODES = new Set([
 const CLIENT_ERROR_CODES = new Set([
   'meal_log/future_eaten_date',
   'meal_log/invalid_quantity',
-  'meal_log/unknown_unit',
   'meal_log/implausible_quantity',
 ])
 
 // meal-log-service.ts surfaces user-input mistakes (future eaten_date, a
-// non-positive quantity, an unresolvable unit, an unknown food_master_id)
-// as DomainError alongside genuine persistence failures — unlike
-// profile-routes.ts, which only ever hits genuine DB errors, this needs to
-// route by error code instead of collapsing everything to 500.
+// non-positive quantity, an unknown food_master_id) as DomainError alongside
+// genuine persistence failures — unlike profile-routes.ts, which only ever
+// hits genuine DB errors, this needs to route by error code instead of
+// collapsing everything to 500.
 const mealLogErrorResponse = (c: Context, error: DomainError): Response => {
   if (NOT_FOUND_CODES.has(error.code)) {
     return c.json({ error: error.message }, 404)
@@ -39,7 +38,6 @@ const recordMealLogBodySchema = z.object({
   eatenDate: jstDateSchema,
   mealType: z.enum(MEAL_TYPES),
   quantity: z.number().positive(),
-  unit: z.string().min(1),
 })
 
 const updateMealLogBodySchema = z.object({
@@ -47,7 +45,6 @@ const updateMealLogBodySchema = z.object({
   eatenDate: jstDateSchema.optional(),
   mealType: z.enum(MEAL_TYPES).optional(),
   quantity: z.number().positive().optional(),
-  unit: z.string().min(1).optional(),
 })
 
 const toMealLogJson = (result: MealLogResult) => ({
@@ -56,8 +53,6 @@ const toMealLogJson = (result: MealLogResult) => ({
   eatenDate: result.eatenDate,
   mealType: result.mealType,
   quantity: result.quantity,
-  unit: result.unit,
-  amountGrams: result.amountGrams,
   nutrition: result.nutrition,
   isEstimated: result.isEstimated,
   createdAt: result.createdAt.toISOString(),
@@ -76,7 +71,6 @@ export const mountMealLogRoutes = (
       eatenDate: parsed.value.eatenDate,
       mealType: parsed.value.mealType,
       quantity: parsed.value.quantity,
-      unit: parsed.value.unit,
     })
     return result.match(
       (mealLog) => c.json(toMealLogJson(mealLog), 201),
@@ -102,7 +96,6 @@ export const mountMealLogRoutes = (
       ...(parsed.value.quantity === undefined
         ? {}
         : { quantity: parsed.value.quantity }),
-      ...(parsed.value.unit === undefined ? {} : { unit: parsed.value.unit }),
     })
     return result.match(
       (mealLog) => c.json(toMealLogJson(mealLog)),

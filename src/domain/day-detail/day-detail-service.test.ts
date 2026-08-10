@@ -77,7 +77,6 @@ describeIfDb('DayDetailService.query', () => {
               eatenDate: jstDate('2026-06-01'),
               mealType: 'breakfast',
               quantity: 200,
-              unit: 'g',
             },
             {
               id: 'log-2',
@@ -86,7 +85,6 @@ describeIfDb('DayDetailService.query', () => {
               eatenDate: jstDate('2026-06-01'),
               mealType: 'dinner',
               quantity: 50,
-              unit: 'g',
             },
           ],
         }),
@@ -110,8 +108,7 @@ describeIfDb('DayDetailService.query', () => {
           eatenDate: '2026-06-01',
           mealType: 'breakfast',
           quantity: 200,
-          unit: 'g',
-          kcal: 312,
+          kcal: 31200,
           isEstimated: false,
         },
         {
@@ -121,76 +118,8 @@ describeIfDb('DayDetailService.query', () => {
           eatenDate: '2026-06-01',
           mealType: 'dinner',
           quantity: 50,
-          unit: 'g',
-          kcal: 100,
+          kcal: 10000,
           isEstimated: true,
-        },
-      ],
-      skippedMealTypes: [],
-    })
-  })
-
-  it('computes per-item kcal from amount_grams, not the display quantity', async () => {
-    const tx = getTx()
-    await seedFoodMaster(tx, {
-      id: 'egg',
-      name: 'たまご',
-      source: 'user_input',
-      nutrients: { energy_kcal: 151 },
-    })
-    // 2 個 at 55g/個 resolves to 110g — quantity alone (2) would give the
-    // wrong kcal if this read quantity directly instead of amount_grams.
-    await seedMealLog(tx, {
-      id: 'log-1',
-      foodMasterId: 'egg',
-      eatenDate: jstDate('2026-06-01'),
-      mealType: 'breakfast',
-      quantity: 2,
-      unit: '個',
-      amountGrams: 110,
-    })
-
-    const mealHistoryService: MealHistoryService = {
-      query: () =>
-        okAsync({
-          totals: {},
-          perDay: [],
-          hasEstimatedValues: false,
-          entries: [
-            {
-              id: 'log-1',
-              foodMasterId: 'egg',
-              foodName: 'たまご',
-              eatenDate: jstDate('2026-06-01'),
-              mealType: 'breakfast',
-              quantity: 2,
-              unit: '個',
-            },
-          ],
-        }),
-    }
-    const service = createDayDetailService(tx, mealHistoryService, stubNoSkips)
-
-    const result = (
-      await service.query({
-        date: jstDate('2026-06-01'),
-      })
-    )._unsafeUnwrap()
-
-    expect(result).toEqual({
-      totals: {},
-      hasEstimatedValues: false,
-      entries: [
-        {
-          id: 'log-1',
-          foodMasterId: 'egg',
-          foodName: 'たまご',
-          eatenDate: '2026-06-01',
-          mealType: 'breakfast',
-          quantity: 2,
-          unit: '個',
-          kcal: (151 * 110) / 100,
-          isEstimated: false,
         },
       ],
       skippedMealTypes: [],
@@ -254,7 +183,6 @@ describeIfDb('DayDetailService.query', () => {
               eatenDate: jstDate('2026-06-01'),
               mealType: 'breakfast',
               quantity: 200,
-              unit: 'g',
             },
           ],
         }),
@@ -300,79 +228,11 @@ describeIfDb('DayDetailService.query', () => {
           eatenDate: '2026-06-01',
           mealType: 'breakfast',
           quantity: 200,
-          unit: 'g',
-          kcal: 312,
+          kcal: 31200,
           isEstimated: false,
         },
       ],
       skippedMealTypes: ['lunch'],
-    })
-  })
-
-  it('computes per-item kcal against a non-gram basis_quantity, not a hardcoded 100', async () => {
-    const tx = getTx()
-    await seedFoodMaster(tx, {
-      id: 'katsudon',
-      name: '味噌ロースかつ丼',
-      source: 'user_input',
-      basisQuantity: 1,
-      basisUnit: '食',
-      nutrients: { energy_kcal: 913 },
-    })
-    await seedMealLog(tx, {
-      id: 'log-1',
-      foodMasterId: 'katsudon',
-      eatenDate: jstDate('2026-06-01'),
-      mealType: 'breakfast',
-      quantity: 1,
-      unit: '食',
-      amountGrams: 1,
-    })
-
-    const mealHistoryService: MealHistoryService = {
-      query: () =>
-        okAsync({
-          totals: { energy_kcal: 913 },
-          perDay: [],
-          hasEstimatedValues: false,
-          entries: [
-            {
-              id: 'log-1',
-              foodMasterId: 'katsudon',
-              foodName: '味噌ロースかつ丼',
-              eatenDate: jstDate('2026-06-01'),
-              mealType: 'breakfast',
-              quantity: 1,
-              unit: '食',
-            },
-          ],
-        }),
-    }
-    const service = createDayDetailService(tx, mealHistoryService, stubNoSkips)
-
-    const result = (
-      await service.query({
-        date: jstDate('2026-06-01'),
-      })
-    )._unsafeUnwrap()
-
-    expect(result).toEqual({
-      totals: { energy_kcal: 913 },
-      hasEstimatedValues: false,
-      entries: [
-        {
-          id: 'log-1',
-          foodMasterId: 'katsudon',
-          foodName: '味噌ロースかつ丼',
-          eatenDate: '2026-06-01',
-          mealType: 'breakfast',
-          quantity: 1,
-          unit: '食',
-          kcal: 913,
-          isEstimated: false,
-        },
-      ],
-      skippedMealTypes: [],
     })
   })
 })

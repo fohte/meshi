@@ -17,7 +17,7 @@ const RICE: SelectedFood = {
   foodMasterId: 'fm_1',
   name: '白米',
   isEstimated: false,
-  energyKcalPer100g: 168,
+  energyKcalPerUnit: 168,
 }
 
 const ENTRY: DayDetailEntry = {
@@ -27,7 +27,6 @@ const ENTRY: DayDetailEntry = {
   eatenDate: '2026-07-29',
   mealType: 'breakfast',
   quantity: 150,
-  unit: 'g',
   kcal: 234,
   isEstimated: false,
 }
@@ -58,7 +57,6 @@ describe('buildCreateState', () => {
       selectedFood: null,
       isNewFood: false,
       quantity: '1',
-      unit: 'g',
       mealType: null,
       date: '2026-07-29',
       justSaved: false,
@@ -83,7 +81,6 @@ describe('buildContinueState', () => {
       selectedFood: null,
       isNewFood: false,
       quantity: '1',
-      unit: 'g',
       mealType: null,
       date: '2026-07-20',
       justSaved: true,
@@ -102,11 +99,10 @@ describe('buildEditState', () => {
         foodMasterId: 'fm_rice',
         name: '白米',
         isEstimated: false,
-        energyKcalPer100g: null,
+        energyKcalPerUnit: null,
       },
       isNewFood: false,
       quantity: '150',
-      unit: 'g',
       mealType: 'breakfast',
       date: '2026-07-29',
       justSaved: false,
@@ -117,16 +113,8 @@ describe('buildEditState', () => {
 describe('previewKcal', () => {
   const withRice = { ...buildCreateState(), selectedFood: RICE }
 
-  it('computes kcal for unit=g', () => {
-    expect(previewKcal({ ...withRice, unit: 'g', quantity: '150' })).toBe(252)
-  })
-
-  it('computes kcal for unit=kg', () => {
-    expect(previewKcal({ ...withRice, unit: 'kg', quantity: '0.15' })).toBe(252)
-  })
-
-  it('returns null for a non-mass unit', () => {
-    expect(previewKcal({ ...withRice, unit: '個', quantity: '2' })).toBeNull()
+  it('multiplies energyKcalPerUnit by quantity', () => {
+    expect(previewKcal({ ...withRice, quantity: '2' })).toBe(336)
   })
 
   it('returns null when no food is selected', () => {
@@ -137,39 +125,37 @@ describe('previewKcal', () => {
     expect(previewKcal({ ...withRice, quantity: 'abc' })).toBeNull()
   })
 
-  it('returns null when energyKcalPer100g is unknown (edit mode)', () => {
+  it('returns null when energyKcalPerUnit is unknown (edit mode)', () => {
     expect(
       previewKcal({
         ...withRice,
-        selectedFood: { ...RICE, energyKcalPer100g: null },
+        selectedFood: { ...RICE, energyKcalPerUnit: null },
       }),
     ).toBeNull()
   })
 })
 
 describe('applyFoodSelection', () => {
-  it('moves to the detail phase and keeps quantity/unit for an existing food', () => {
-    const state = { ...buildCreateState(), quantity: '2', unit: '個' }
+  it('moves to the detail phase and keeps quantity for an existing food', () => {
+    const state = { ...buildCreateState(), quantity: '2' }
 
     expect(applyFoodSelection(state, RICE, false)).toEqual({
       ...state,
       selectedFood: RICE,
       isNewFood: false,
       phase: 'detail',
-      unit: '個',
       quantity: '2',
     })
   })
 
-  it('resets quantity/unit to 100g for a newly-registered composition food', () => {
-    const state = { ...buildCreateState(), quantity: '2', unit: '個' }
+  it('resets quantity to 100 for a newly-registered composition food', () => {
+    const state = { ...buildCreateState(), quantity: '2' }
 
     expect(applyFoodSelection(state, RICE, true)).toEqual({
       ...state,
       selectedFood: RICE,
       isNewFood: true,
       phase: 'detail',
-      unit: 'g',
       quantity: '100',
     })
   })
@@ -233,7 +219,6 @@ describe('buildSavePayload', () => {
       ...buildCreateState(),
       selectedFood: RICE,
       quantity: '150',
-      unit: 'g',
       mealType: 'dinner',
       date: '2026-07-29',
     }
@@ -243,7 +228,6 @@ describe('buildSavePayload', () => {
       eatenDate: '2026-07-29',
       mealType: 'dinner',
       quantity: 150,
-      unit: 'g',
     })
   })
 })

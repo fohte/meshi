@@ -11,8 +11,6 @@ const mealLogResultSchema = z.object({
   eatenDate: z.string(),
   mealType: z.enum(MEAL_TYPES),
   quantity: z.number(),
-  unit: z.string(),
-  amountGrams: z.number(),
   nutrition: z.record(z.string(), z.number()),
   isEstimated: z.boolean(),
   createdAt: z.iso.datetime(),
@@ -25,7 +23,6 @@ export interface RecordMealLogInput {
   readonly eatenDate: string
   readonly mealType: MealType
   readonly quantity: number
-  readonly unit: string
 }
 
 export interface UpdateMealLogInput {
@@ -33,7 +30,6 @@ export interface UpdateMealLogInput {
   readonly eatenDate?: string
   readonly mealType?: MealType
   readonly quantity?: number
-  readonly unit?: string
 }
 
 export const postMealLog = (

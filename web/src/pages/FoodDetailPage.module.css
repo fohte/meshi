@@ -42,12 +42,6 @@
   padding: 2px 7px;
 }
 
-.metaText {
-  font-family: var(--font-mono);
-  font-size: 12px;
-  color: var(--color-muted);
-}
-
 .sourceLink {
   font-size: 12px;
 }

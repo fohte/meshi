@@ -8,7 +8,6 @@ import { toNutritionMap, type TxSql } from '#domain/food-master/rows'
 import { runInSavepoint } from '#domain/food-master/savepoint'
 import type {
   FoodMasterId,
-  FoodMasterUnitDefinition,
   MergeFoodMasterResult,
 } from '#domain/food-master/types'
 
@@ -34,25 +33,11 @@ const foodMasterRowSchema = z.object({ id: z.string(), name: z.string() })
 const aliasRowSchema = z.object({ alias: z.string() })
 const idRowSchema = z.object({ id: z.string() })
 const existsRowSchema = z.object({ conflicts: z.boolean() })
-const unitRowSchema = z.object({
-  unit: z.string(),
-  grams_per_unit: z.string(),
-})
-const unitConflictRowSchema = unitRowSchema.extend({
-  conflicts: z.boolean(),
-})
 const nutrientRowSchema = z.object({
   nutrient_code: z.string(),
   value: z.string(),
 })
 const countRowSchema = z.object({ count: z.number() })
-
-type UnitRow = z.infer<typeof unitRowSchema>
-
-const toUnitDefinition = (row: UnitRow): FoodMasterUnitDefinition => ({
-  unit: row.unit,
-  gramsPerUnit: Number(row.grams_per_unit),
-})
 
 // Every raw-SQL query result below goes through this before use — Postgres
 // is a process other than this one, and `sql<T[]>`'s type parameter alone
@@ -99,7 +84,6 @@ const planMerge = async (
   const [
     movedAliasRowsRaw,
     nameConflictRowsRaw,
-    unitRowsRaw,
     discardedNutritionRowsRaw,
     mealLogCountRowsRaw,
   ] = await Promise.all([
@@ -110,16 +94,6 @@ const planMerge = async (
       SELECT EXISTS(
         SELECT 1 FROM food_master_aliases WHERE alias = ${loser.name}
       ) AS conflicts
-    `,
-    sql<Record<string, unknown>[]>`
-      SELECT loser_unit.unit, loser_unit.grams_per_unit,
-             EXISTS(
-               SELECT 1 FROM food_master_units survivor_unit
-               WHERE survivor_unit.food_master_id = ${survivorId}
-                 AND survivor_unit.unit = loser_unit.unit
-             ) AS conflicts
-      FROM food_master_units loser_unit
-      WHERE loser_unit.food_master_id = ${loserId}
     `,
     sql<Record<string, unknown>[]>`
       SELECT nutrient_code, value
@@ -135,8 +109,6 @@ const planMerge = async (
   if (movedAliasRows.isErr()) return err(movedAliasRows.error)
   const nameConflictRows = parseRows(existsRowSchema, nameConflictRowsRaw)
   if (nameConflictRows.isErr()) return err(nameConflictRows.error)
-  const unitRows = parseRows(unitConflictRowSchema, unitRowsRaw)
-  if (unitRows.isErr()) return err(unitRows.error)
   const discardedNutritionRows = parseRows(
     nutrientRowSchema,
     discardedNutritionRowsRaw,
@@ -152,12 +124,6 @@ const planMerge = async (
     movedAliases: movedAliasRows.value.map((r) => r.alias),
     nameMovedAsAlias:
       nameConflictRows.value[0]?.conflicts === true ? null : loser.name,
-    movedUnits: unitRows.value
-      .filter((r) => !r.conflicts)
-      .map(toUnitDefinition),
-    discardedUnits: unitRows.value
-      .filter((r) => r.conflicts)
-      .map(toUnitDefinition),
     discardedNutrition: toNutritionMap(discardedNutritionRows.value),
     movedMealLogCount: mealLogCountRows.value[0]?.count ?? 0,
   })
@@ -225,33 +191,6 @@ const applyMerge = async (
   )
   if (nameAliasRows.isErr()) return err(nameAliasRows.error)
 
-  const movedUnitRows = parseRows(
-    unitRowSchema,
-    await tx<Record<string, unknown>[]>`
-      UPDATE food_master_units AS loser_unit
-      SET food_master_id = ${survivorId}
-      WHERE loser_unit.food_master_id = ${loserId}
-        AND NOT EXISTS (
-          SELECT 1 FROM food_master_units survivor_unit
-          WHERE survivor_unit.food_master_id = ${survivorId}
-            AND survivor_unit.unit = loser_unit.unit
-        )
-      RETURNING unit, grams_per_unit
-    `,
-  )
-  if (movedUnitRows.isErr()) return err(movedUnitRows.error)
-  // Whatever is still under loserId after the move above conflicted with an
-  // already-defined survivor unit and is about to be cascade-deleted.
-  const discardedUnitRows = parseRows(
-    unitRowSchema,
-    await tx<Record<string, unknown>[]>`
-      SELECT unit, grams_per_unit
-      FROM food_master_units
-      WHERE food_master_id = ${loserId}
-    `,
-  )
-  if (discardedUnitRows.isErr()) return err(discardedUnitRows.error)
-
   const movedMealLogRows = parseRows(
     idRowSchema,
     await tx<Record<string, unknown>[]>`
@@ -263,8 +202,8 @@ const applyMerge = async (
   if (movedMealLogRows.isErr()) return err(movedMealLogRows.error)
 
   // meal_logs is fully repointed above, so this DELETE never trips the
-  // meal_logs FK's ON DELETE RESTRICT; food_master_aliases/_units/_nutrients
-  // cascade away whatever was deliberately left under loserId.
+  // meal_logs FK's ON DELETE RESTRICT; food_master_aliases/_nutrients cascade
+  // away whatever was deliberately left under loserId.
   await tx`DELETE FROM food_masters WHERE id = ${loserId}`
 
   return ok({
@@ -273,8 +212,6 @@ const applyMerge = async (
     applied: true,
     movedAliases: movedAliasRows.value.map((r) => r.alias),
     nameMovedAsAlias: nameAliasRows.value.length > 0 ? loser.name : null,
-    movedUnits: movedUnitRows.value.map(toUnitDefinition),
-    discardedUnits: discardedUnitRows.value.map(toUnitDefinition),
     discardedNutrition: toNutritionMap(discardedNutritionRows.value),
     movedMealLogCount: movedMealLogRows.value.length,
   })

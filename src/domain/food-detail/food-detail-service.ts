@@ -28,9 +28,7 @@ const loadHistory = async (
     id: row.id,
     eatenDate: row.eatenDate,
     mealType: row.mealType,
-    amountGrams: Number(row.amountGrams),
     quantity: Number(row.quantity),
-    unit: row.unit,
   }))
 }
 
@@ -59,9 +57,7 @@ export const createFoodDetailService = (
           source: master.source,
           sourceUrl: master.sourceUrl,
           aliases: master.aliases,
-          basisQuantity: master.basisQuantity,
-          basisUnit: master.basisUnit,
-          nutritionPerBasis: master.nutrition,
+          nutrition: master.nutrition,
           history,
           totalEatenCount: history.length,
         }))

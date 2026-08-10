@@ -12,7 +12,6 @@ const mealHistoryEntrySchema = z.object({
   eatenDate: z.string(),
   mealType: z.enum(MEAL_TYPES),
   quantity: z.number(),
-  unit: z.string(),
 })
 
 export type MealHistoryEntry = z.infer<typeof mealHistoryEntrySchema>

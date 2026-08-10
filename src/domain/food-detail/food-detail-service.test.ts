@@ -54,41 +54,7 @@ describeIfDb('createFoodDetailService', () => {
       source: 'user_input',
       sourceUrl: null,
       aliases: ['ご飯'],
-      basisQuantity: 100,
-      basisUnit: 'g',
-      nutritionPerBasis: { energy_kcal: 168, protein_g: 2.5 },
-      history: [],
-      totalEatenCount: 0,
-    })
-  })
-
-  it('returns the basis quantity/unit for a food registered with a non-gram basis', async () => {
-    const tx = getTx()
-    await seedFoodMaster(tx, {
-      id: 'fm_katsudon',
-      name: 'かつ丼',
-      source: 'user_input',
-      basisQuantity: 1,
-      basisUnit: '食',
-      nutrients: { energy_kcal: 913 },
-    })
-    const foodMasterService = createFoodMasterService(
-      createFoodMasterRepository(tx),
-    )
-    const service = createFoodDetailService(tx, foodMasterService)
-
-    const result = (await service.getById('fm_katsudon'))._unsafeUnwrap()
-
-    expect(result).toEqual({
-      id: 'fm_katsudon',
-      name: 'かつ丼',
-      isEstimated: false,
-      source: 'user_input',
-      sourceUrl: null,
-      aliases: [],
-      basisQuantity: 1,
-      basisUnit: '食',
-      nutritionPerBasis: { energy_kcal: 913 },
+      nutrition: { energy_kcal: 168, protein_g: 2.5 },
       history: [],
       totalEatenCount: 0,
     })
@@ -110,19 +76,13 @@ describeIfDb('createFoodDetailService', () => {
       eatenDate: toJstDateString(olderEatenAt),
       mealType: 'breakfast',
       quantity: 60,
-      unit: 'g',
     })
     await seedMealLog(tx, {
       id: 'ml_newer',
       foodMasterId: 'fm_bread',
       eatenDate: toJstDateString(newerEatenAt),
       mealType: 'snack',
-      // Non-gram unit: amountGrams (the resolved basis for nutrition) is
-      // distinct from quantity (display-only), so this also pins that the
-      // service surfaces amountGrams rather than aliasing it to quantity.
       quantity: 1,
-      unit: '個',
-      amountGrams: 45,
     })
     const foodMasterService = createFoodMasterService(
       createFoodMasterRepository(tx),
@@ -138,25 +98,19 @@ describeIfDb('createFoodDetailService', () => {
       source: 'web_search',
       sourceUrl: 'https://example.com/bread',
       aliases: [],
-      basisQuantity: 100,
-      basisUnit: 'g',
-      nutritionPerBasis: {},
+      nutrition: {},
       history: [
         {
           id: 'ml_newer',
           eatenDate: toJstDateString(newerEatenAt),
           mealType: 'snack',
-          amountGrams: 45,
           quantity: 1,
-          unit: '個',
         },
         {
           id: 'ml_older',
           eatenDate: toJstDateString(olderEatenAt),
           mealType: 'breakfast',
-          amountGrams: 60,
           quantity: 60,
-          unit: 'g',
         },
       ],
       totalEatenCount: 2,

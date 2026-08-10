@@ -37,8 +37,6 @@ const setup = (
         eatenDate: input.eatenDate ?? jstDate('2026-06-18'),
         mealType: input.mealType ?? 'lunch',
         quantity: input.quantity ?? 100,
-        unit: input.unit ?? 'g',
-        amountGrams: input.quantity ?? 100,
         createdAt: new Date('2026-06-18T00:00:00.000Z'),
         nutrition: { energy_kcal: 312 },
         isEstimated: false,
@@ -68,7 +66,6 @@ describe('update_meal_log tool', () => {
       date: '2026-06-18',
       meal_type: 'breakfast',
       quantity: 200,
-      unit: 'g',
     })
 
     expect(normalizeResult(result)).toEqual({
@@ -87,7 +84,6 @@ describe('update_meal_log tool', () => {
           eatenDate: '2026-06-18',
           mealType: 'breakfast',
           quantity: 200,
-          unit: 'g',
         },
       ],
     })

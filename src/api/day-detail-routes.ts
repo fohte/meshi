@@ -34,7 +34,6 @@ export const mountDayDetailRoutes = (
             eatenDate: entry.eatenDate,
             mealType: entry.mealType,
             quantity: entry.quantity,
-            unit: entry.unit,
             kcal: entry.kcal,
             isEstimated: entry.isEstimated,
           })),

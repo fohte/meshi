@@ -274,7 +274,6 @@ describe('createTemplateReplyFormatter', () => {
               eatenDate: '2026-06-17',
               mealType: 'dinner',
               quantity: 1,
-              unit: '杯',
             },
             {
               mealLogId: 'log_2',
@@ -283,7 +282,6 @@ describe('createTemplateReplyFormatter', () => {
               eatenDate: '2026-06-18',
               mealType: 'lunch',
               quantity: 180,
-              unit: 'g',
             },
           ],
           hasEstimatedValues: true,
@@ -300,8 +298,8 @@ describe('createTemplateReplyFormatter', () => {
           '- 記録件数: 2 件',
           [
             '明細 (2 件):',
-            '- 2026-06-17 夕食 カレー: 1杯',
-            '- 2026-06-18 昼食 白米: 180g',
+            '- 2026-06-17 夕食 カレー × 1',
+            '- 2026-06-18 昼食 白米 × 180',
           ].join('\n'),
           '※ 集計には推測値が含まれています。値は目安としてご確認ください。',
         ].join('\n'),

@@ -15,7 +15,6 @@ export type DomainToolName =
   | 'cancel_meal_skip'
   | 'search_food_master'
   | 'register_food_master'
-  | 'register_food_master_unit'
   | 'register_food_master_from_composition'
   | 'merge_food_master'
   | 'query_meal_history'

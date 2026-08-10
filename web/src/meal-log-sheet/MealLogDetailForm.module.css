@@ -72,17 +72,6 @@
   color: var(--color-text);
 }
 
-.unitInput {
-  all: unset;
-  width: 88px;
-  box-sizing: border-box;
-  border: var(--border-width) solid var(--color-border);
-  padding: 9px 11px;
-  font-family: var(--font-mono);
-  font-size: 14px;
-  color: var(--color-text);
-}
-
 .calcText {
   font-size: 12px;
   color: var(--color-muted);

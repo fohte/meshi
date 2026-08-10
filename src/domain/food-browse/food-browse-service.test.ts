@@ -13,7 +13,7 @@ describeIfDb('createFoodBrowseService', () => {
   const getTx = setupDrizzleTx()
 
   describe('search', () => {
-    it('enriches a food_master match with its source and per-100g kcal', async () => {
+    it('enriches a food_master match with its source and per-unit kcal', async () => {
       const tx = getTx()
       await seedFoodMaster(tx, {
         id: 'fm_apple',
@@ -33,12 +33,12 @@ describeIfDb('createFoodBrowseService', () => {
           isEstimated: false,
           reason: 'fuzzy_name',
           source: 'user_input',
-          energyKcalPer100g: 52,
+          energyKcalPerUnit: 52,
         },
       ])
     })
 
-    it('leaves energyKcalPer100g null when the food has no energy_kcal row', async () => {
+    it('leaves energyKcalPerUnit null when the food has no energy_kcal row', async () => {
       const tx = getTx()
       await seedFoodMaster(tx, {
         id: 'fm_apricot',
@@ -58,7 +58,7 @@ describeIfDb('createFoodBrowseService', () => {
           isEstimated: false,
           reason: 'fuzzy_name',
           source: 'web_search',
-          energyKcalPer100g: null,
+          energyKcalPerUnit: null,
         },
       ])
     })
@@ -78,61 +78,7 @@ describeIfDb('createFoodBrowseService', () => {
           isEstimated: true,
           reason: 'composition_table',
           source: null,
-          energyKcalPer100g: null,
-        },
-      ])
-    })
-
-    it('leaves energyKcalPer100g null for a non-gram basis, even with an energy_kcal value', async () => {
-      const tx = getTx()
-      await seedFoodMaster(tx, {
-        id: 'fm_katsudon',
-        name: 'katsudon_z',
-        source: 'user_input',
-        basisQuantity: 1,
-        basisUnit: '食',
-        nutrients: { energy_kcal: 913 },
-      })
-      const service = createFoodBrowseService(tx, createDrizzleFoodMatcher(tx))
-
-      const result = (await service.search('katsudon', 5))._unsafeUnwrap()
-
-      expect(result).toEqual([
-        {
-          foodMasterId: 'fm_katsudon',
-          compositionCode: null,
-          name: 'katsudon_z',
-          isEstimated: false,
-          reason: 'fuzzy_name',
-          source: 'user_input',
-          energyKcalPer100g: null,
-        },
-      ])
-    })
-
-    it('scales energyKcalPer100g from a non-default gram basis', async () => {
-      const tx = getTx()
-      await seedFoodMaster(tx, {
-        id: 'fm_halfcup',
-        name: 'halfcup_w',
-        source: 'user_input',
-        basisQuantity: 50,
-        basisUnit: 'g',
-        nutrients: { energy_kcal: 84 },
-      })
-      const service = createFoodBrowseService(tx, createDrizzleFoodMatcher(tx))
-
-      const result = (await service.search('halfcup', 5))._unsafeUnwrap()
-
-      expect(result).toEqual([
-        {
-          foodMasterId: 'fm_halfcup',
-          compositionCode: null,
-          name: 'halfcup_w',
-          isEstimated: false,
-          reason: 'fuzzy_name',
-          source: 'user_input',
-          energyKcalPer100g: 168,
+          energyKcalPerUnit: null,
         },
       ])
     })
@@ -187,7 +133,7 @@ describeIfDb('createFoodBrowseService', () => {
           isEstimated: false,
           reason: 'history_recent',
           source: 'user_input',
-          energyKcalPer100g: null,
+          energyKcalPerUnit: null,
         },
         {
           foodMasterId: 'fm_older',
@@ -196,7 +142,7 @@ describeIfDb('createFoodBrowseService', () => {
           isEstimated: false,
           reason: 'history_recent',
           source: 'user_input',
-          energyKcalPer100g: 10,
+          energyKcalPerUnit: 10,
         },
       ])
     })
@@ -239,7 +185,7 @@ describeIfDb('createFoodBrowseService', () => {
           isEstimated: false,
           reason: 'history_recent',
           source: 'user_input',
-          energyKcalPer100g: null,
+          energyKcalPerUnit: null,
         },
       ])
     })
@@ -287,7 +233,7 @@ describeIfDb('createFoodBrowseService', () => {
           isEstimated: false,
           reason: 'history_frequent',
           source: 'user_input',
-          energyKcalPer100g: 20,
+          energyKcalPerUnit: 20,
         },
         {
           foodMasterId: 'fm_rare',
@@ -296,7 +242,7 @@ describeIfDb('createFoodBrowseService', () => {
           isEstimated: false,
           reason: 'history_frequent',
           source: 'user_input',
-          energyKcalPer100g: null,
+          energyKcalPerUnit: null,
         },
       ])
     })

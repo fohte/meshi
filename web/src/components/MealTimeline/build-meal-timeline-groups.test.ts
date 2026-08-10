@@ -10,7 +10,6 @@ const entry = (overrides: Partial<DayDetailEntry>): DayDetailEntry => ({
   eatenDate: '2026-07-29',
   mealType: 'breakfast',
   quantity: 150,
-  unit: 'g',
   kcal: 234,
   isEstimated: false,
   ...overrides,
@@ -40,7 +39,7 @@ describe('buildMealTimelineGroups', () => {
             id: 'l1',
             name: '白米',
             isEstimated: false,
-            quantityText: '150 g',
+            quantityText: '×150',
             kcalText: '234 kcal',
           },
         ],
@@ -125,7 +124,7 @@ describe('buildMealTimelineGroups', () => {
             id: 'l1',
             name: '白米',
             isEstimated: false,
-            quantityText: '150 g',
+            quantityText: '×150',
             kcalText: '234 kcal',
           },
         ],
@@ -188,9 +187,7 @@ describe('buildMealTimelineGroups', () => {
   })
 
   it('formats a fractional quantity with one decimal place', () => {
-    const entries = [
-      entry({ id: 'l1', mealType: 'breakfast', quantity: 1.5, unit: '杯' }),
-    ]
+    const entries = [entry({ id: 'l1', mealType: 'breakfast', quantity: 1.5 })]
 
     expect(buildMealTimelineGroups(entries, [])).toEqual([
       {
@@ -203,7 +200,7 @@ describe('buildMealTimelineGroups', () => {
             id: 'l1',
             name: 'ごはん',
             isEstimated: false,
-            quantityText: '1.5 杯',
+            quantityText: '×1.5',
             kcalText: '234 kcal',
           },
         ],

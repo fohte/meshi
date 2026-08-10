@@ -71,7 +71,6 @@ export const buildMealHistoryPayload = (
             food_master_id: e.foodMasterId,
             eaten_date: e.eatenDate,
             quantity: e.quantity,
-            unit: e.unit,
           })),
           has_estimated_values: result.aggregate.hasEstimatedValues,
         },

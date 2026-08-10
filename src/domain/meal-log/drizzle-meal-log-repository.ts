@@ -3,12 +3,7 @@ import { drizzle } from 'drizzle-orm/postgres-js'
 import { err, ok, type Result, ResultAsync } from 'neverthrow'
 
 import type { Sql } from '#db/index'
-import {
-  foodMasterNutrients,
-  foodMasters,
-  foodMasterUnits,
-  mealLogs,
-} from '#db/schema'
+import { foodMasterNutrients, foodMasters, mealLogs } from '#db/schema'
 import type { DomainError } from '#domain/meal-log/errors'
 import {
   FoodMasterNotFoundError,
@@ -48,25 +43,6 @@ const loadNutrition = async (
   return nutrition
 }
 
-const loadUnits = async (
-  db: Db,
-  foodMasterId: string,
-): Promise<Record<string, number>> => {
-  const rows = await db
-    .select({
-      unit: foodMasterUnits.unit,
-      gramsPerUnit: foodMasterUnits.gramsPerUnit,
-    })
-    .from(foodMasterUnits)
-    .where(eq(foodMasterUnits.foodMasterId, foodMasterId))
-
-  const units: Record<string, number> = {}
-  for (const row of rows) {
-    units[row.unit] = Number(row.gramsPerUnit)
-  }
-  return units
-}
-
 const loadFoodMaster = (
   db: Db,
   foodMasterId: string,
@@ -78,8 +54,6 @@ const loadFoodMaster = (
           id: foodMasters.id,
           name: foodMasters.name,
           isEstimated: foodMasters.isEstimated,
-          basisQuantity: foodMasters.basisQuantity,
-          basisUnit: foodMasters.basisUnit,
         })
         .from(foodMasters)
         .where(eq(foodMasters.id, foodMasterId))
@@ -90,18 +64,12 @@ const loadFoodMaster = (
         return err(new FoodMasterNotFoundError(foodMasterId))
       }
 
-      const [nutritionPerBasis, units] = await Promise.all([
-        loadNutrition(db, foodMasterId),
-        loadUnits(db, foodMasterId),
-      ])
+      const nutritionPerUnit = await loadNutrition(db, foodMasterId)
       return ok({
         id: master.id,
         name: master.name,
         isEstimated: master.isEstimated,
-        nutritionPerBasis,
-        basisQuantity: Number(master.basisQuantity),
-        basisUnit: master.basisUnit,
-        units,
+        nutritionPerUnit,
       })
     })(),
     (caughtErr) =>
@@ -114,8 +82,6 @@ const toRow = (row: {
   eatenDate: JstDate
   mealType: MealType
   quantity: string
-  unit: string
-  amountGrams: string
   createdAt: Date
 }): MealLogRow => ({
   id: row.id,
@@ -123,8 +89,6 @@ const toRow = (row: {
   eatenDate: row.eatenDate,
   mealType: row.mealType,
   quantity: Number(row.quantity),
-  unit: row.unit,
-  amountGrams: Number(row.amountGrams),
   createdAt: row.createdAt,
 })
 
@@ -147,8 +111,6 @@ export const createDrizzleMealLogRepository = (sql: Sql): MealLogRepository => {
               eatenDate: input.eatenDate,
               mealType: input.mealType,
               quantity: input.quantity.toString(),
-              unit: input.unit,
-              amountGrams: input.amountGrams.toString(),
             })
             .returning()
           if (inserted === undefined) {
@@ -182,10 +144,6 @@ export const createDrizzleMealLogRepository = (sql: Sql): MealLogRepository => {
               ...(input.quantity === undefined
                 ? {}
                 : { quantity: input.quantity.toString() }),
-              ...(input.unit === undefined ? {} : { unit: input.unit }),
-              ...(input.amountGrams === undefined
-                ? {}
-                : { amountGrams: input.amountGrams.toString() }),
             })
             .where(eq(mealLogs.id, input.id))
             .returning()
@@ -221,8 +179,6 @@ export const createDrizzleMealLogRepository = (sql: Sql): MealLogRepository => {
                 id: foodMasters.id,
                 name: foodMasters.name,
                 isEstimated: foodMasters.isEstimated,
-                basisQuantity: foodMasters.basisQuantity,
-                basisUnit: foodMasters.basisUnit,
               },
             })
             .from(mealLogs)
@@ -235,18 +191,12 @@ export const createDrizzleMealLogRepository = (sql: Sql): MealLogRepository => {
           const row = rows[0]
           if (row === undefined) return null
 
-          const [nutritionPerBasis, units] = await Promise.all([
-            loadNutrition(db, row.food.id),
-            loadUnits(db, row.food.id),
-          ])
+          const nutritionPerUnit = await loadNutrition(db, row.food.id)
           return {
             log: toRow(row.log),
             food: {
               ...row.food,
-              nutritionPerBasis,
-              basisQuantity: Number(row.food.basisQuantity),
-              basisUnit: row.food.basisUnit,
-              units,
+              nutritionPerUnit,
             },
           }
         })(),

@@ -13,13 +13,7 @@ export interface FoodEatHistoryEntry {
   readonly id: string
   readonly eatenDate: JstDate
   readonly mealType: MealType
-  // The recorded quantity+unit resolved to the food's own basis unit (see
-  // src/db/schema.ts's meal_logs.amount_grams and
-  // resolveAmountGrams) — the basis for this entry's kcal. quantity/unit are
-  // display-only.
-  readonly amountGrams: number
   readonly quantity: number
-  readonly unit: string
 }
 
 export interface FoodDetail {
@@ -29,9 +23,7 @@ export interface FoodDetail {
   readonly source: FoodSource
   readonly sourceUrl: string | null
   readonly aliases: ReadonlyArray<string>
-  readonly basisQuantity: number
-  readonly basisUnit: string
-  readonly nutritionPerBasis: NutritionMap
+  readonly nutrition: NutritionMap
   // Newest first.
   readonly history: ReadonlyArray<FoodEatHistoryEntry>
   readonly totalEatenCount: number

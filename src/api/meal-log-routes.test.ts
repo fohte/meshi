@@ -7,11 +7,9 @@ import { mountMealLogRoutes } from '#api/meal-log-routes'
 import {
   FoodMasterNotFoundError,
   FutureEatenDateError,
-  ImplausibleQuantityError,
   InvalidQuantityError,
   MealLogNotFoundError,
   MealLogPersistenceError,
-  UnknownUnitError,
 } from '#domain/meal-log/errors'
 import type { MealLogService } from '#domain/meal-log/meal-log-service'
 import type { MealLogResult } from '#domain/meal-log/types'
@@ -31,8 +29,6 @@ const SAMPLE_RESULT: MealLogResult = {
   eatenDate: jstDate('2026-06-18'),
   mealType: 'lunch',
   quantity: 150,
-  unit: 'g',
-  amountGrams: 150,
   createdAt: new Date('2026-06-18T00:00:01.000Z'),
   nutrition: { energy_kcal: 234 },
   isEstimated: false,
@@ -44,8 +40,6 @@ const SAMPLE_JSON = {
   eatenDate: '2026-06-18',
   mealType: 'lunch',
   quantity: 150,
-  unit: 'g',
-  amountGrams: 150,
   nutrition: { energy_kcal: 234 },
   isEstimated: false,
   createdAt: '2026-06-18T00:00:01.000Z',
@@ -86,7 +80,6 @@ describe('POST /api/meal-logs', () => {
         eatenDate: '2026-06-18',
         mealType: 'lunch',
         quantity: 150,
-        unit: 'g',
       }),
     )
 
@@ -97,7 +90,6 @@ describe('POST /api/meal-logs', () => {
       eatenDate: '2026-06-18',
       mealType: 'lunch',
       quantity: 150,
-      unit: 'g',
     })
   })
 
@@ -135,7 +127,6 @@ describe('POST /api/meal-logs', () => {
         foodMasterId: 'fm_rice',
         eatenDate: '2026-06-18',
         quantity: 150,
-        unit: 'g',
       }),
     )
 
@@ -146,8 +137,6 @@ describe('POST /api/meal-logs', () => {
   it.each([
     [new FutureEatenDateError(jstDate('2099-01-01')), 400],
     [new InvalidQuantityError(-1), 400],
-    [new UnknownUnitError('cup', []), 400],
-    [new ImplausibleQuantityError(50_000), 400],
     [new FoodMasterNotFoundError('fm_missing'), 404],
     [new MealLogPersistenceError('boom'), 500],
   ])('maps %s to status %i', async (error, status) => {
@@ -162,7 +151,6 @@ describe('POST /api/meal-logs', () => {
         eatenDate: '2026-06-18',
         mealType: 'lunch',
         quantity: 150,
-        unit: 'g',
       }),
     )
 

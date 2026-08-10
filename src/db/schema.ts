@@ -64,8 +64,6 @@ export const foodMasters = pgTable(
     source: foodSourceEnum('source').notNull(),
     sourceUrl: text('source_url'),
     sourceCompositionCode: text('source_composition_code'),
-    basisQuantity: numeric('basis_quantity').notNull().default('100'),
-    basisUnit: text('basis_unit').notNull().default('g'),
     createdAt: timestamp('created_at', { withTimezone: true, mode: 'date' })
       .notNull()
       .default(sql`now()`),
@@ -105,17 +103,6 @@ export const foodMasters = pgTable(
     check(
       'food_masters_user_input_evidence',
       sql`${table.source} <> 'user_input' OR (${table.sourceUrl} IS NULL AND ${table.sourceCompositionCode} IS NULL)`,
-    ),
-    // NOT VALID (hand-edited — drizzle's check() builder can't express NOT
-    // VALID itself): unlike the evidence checks above, no existing row can
-    // violate this one (every row gets basis_quantity=100 via the column's
-    // own DEFAULT), but validating a CHECK on an already-populated table
-    // still requires a full-table scan under a lock. NOT VALID lets ADD
-    // CONSTRAINT itself take only a brief lock; the migration runs VALIDATE
-    // CONSTRAINT as a separate, lighter-locked statement right after.
-    check(
-      'food_masters_basis_quantity_positive',
-      sql`${table.basisQuantity} > 0`,
     ),
   ],
 )
@@ -185,12 +172,10 @@ export const mealLogs = pgTable(
       .$type<JstDate>()
       .notNull(),
     mealType: mealTypeEnum('meal_type').notNull(),
+    // Multiplier against the food_master's own nutrition values (which are
+    // "per one of this food_master"), e.g. quantity=1.5 for one and a half
+    // servings.
     quantity: numeric('quantity').notNull(),
-    unit: text('unit').notNull(),
-    // The resolved mass this quantity+unit was converted to at record time
-    // (see resolveAmountGrams), the sole basis for every downstream nutrition
-    // calculation. quantity/unit stay for display only.
-    amountGrams: numeric('amount_grams').notNull(),
     createdAt: timestamp('created_at', { withTimezone: true, mode: 'date' })
       .notNull()
       .default(sql`now()`),
@@ -209,7 +194,6 @@ export const mealLogs = pgTable(
       table.eatenDate.desc(),
     ),
     check('meal_logs_quantity_positive', sql`${table.quantity} > 0`),
-    check('meal_logs_amount_grams_positive', sql`${table.amountGrams} > 0`),
   ],
 )
 
@@ -233,36 +217,6 @@ export const mealSkips = pgTable(
       columns: [table.date, table.mealType],
     }),
     uniqueIndex('meal_skips_id_key').on(table.id),
-  ],
-)
-
-// Per-food serving definitions: how many grams one <unit> of a given
-// food_master weighs (e.g. rice's 杯=150g, lemonade's ml=1.04g). g/kg/mg are
-// mass units already and are resolved by a fixed factor without a row here;
-// every other unit (including ml — density varies per food) requires one.
-export const foodMasterUnits = pgTable(
-  'food_master_units',
-  {
-    foodMasterId: text('food_master_id').notNull(),
-    unit: text('unit').notNull(),
-    gramsPerUnit: numeric('grams_per_unit').notNull(),
-  },
-  (table) => [
-    primaryKey({
-      name: 'food_master_units_pkey',
-      columns: [table.foodMasterId, table.unit],
-    }),
-    foreignKey({
-      name: 'food_master_units_food_master_id_fk',
-      columns: [table.foodMasterId],
-      foreignColumns: [foodMasters.id],
-    })
-      .onUpdate('cascade')
-      .onDelete('cascade'),
-    check(
-      'food_master_units_grams_per_unit_positive',
-      sql`${table.gramsPerUnit} > 0`,
-    ),
   ],
 )
 

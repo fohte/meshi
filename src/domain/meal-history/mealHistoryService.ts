@@ -38,7 +38,6 @@ const entryRowSchema = z.object({
   eaten_date: jstDateSchema,
   meal_type: z.enum(MEAL_TYPES),
   quantity: numericString,
-  unit: z.string(),
   is_estimated: z.boolean(),
 })
 
@@ -70,12 +69,10 @@ export const createMealHistoryService = (sql: Sql): MealHistoryService => {
                 SELECT
                   to_char(ml.eaten_date, 'YYYY-MM-DD') AS day,
                   fmn.nutrient_code AS nutrient_code,
-                  SUM(fmn.value * ml.amount_grams / fm.basis_quantity) AS value
+                  SUM(fmn.value * ml.quantity) AS value
                 FROM meal_logs ml
                 INNER JOIN food_master_nutrients fmn
                   ON fmn.food_master_id = ml.food_master_id
-                INNER JOIN food_masters fm
-                  ON fm.id = ml.food_master_id
                 WHERE ml.eaten_date >= ${periodFrom}::date
                   AND ml.eaten_date < ${periodTo}::date
                   AND (
@@ -102,7 +99,6 @@ export const createMealHistoryService = (sql: Sql): MealHistoryService => {
               to_char(ml.eaten_date, 'YYYY-MM-DD') AS eaten_date,
               ml.meal_type AS meal_type,
               ml.quantity AS quantity,
-              ml.unit AS unit,
               fm.is_estimated AS is_estimated
             FROM meal_logs ml
             INNER JOIN food_masters fm ON fm.id = ml.food_master_id
@@ -150,7 +146,6 @@ export const createMealHistoryService = (sql: Sql): MealHistoryService => {
           eatenDate: row.eaten_date,
           mealType: row.meal_type,
           quantity: row.quantity,
-          unit: row.unit,
         }))
         const hasEstimatedValues = entryParsed.data.some(
           (row) => row.is_estimated,

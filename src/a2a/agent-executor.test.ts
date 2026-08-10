@@ -901,7 +901,6 @@ const QUERY_MEAL_HISTORY_OUTPUT = {
       eaten_date: '2026-06-12',
       meal_type: 'lunch',
       quantity: 200,
-      unit: 'g',
     },
   ],
   has_estimated_values: false,
@@ -940,7 +939,7 @@ describe('runAgentTurn meal history itemization', () => {
         '直近の食事履歴をお伝えしました。',
         '',
         '明細 (1 件):',
-        '- 2026-06-12 昼食 白米: 200g',
+        '- 2026-06-12 昼食 白米 × 200',
       ].join('\n'),
     )
     expect(normalizeEvent(task)).toEqual({
@@ -1176,7 +1175,7 @@ describe('runAgentTurn food master disclosure', () => {
         '記録しました。',
         '',
         '新しく登録した食品:',
-        '- スターバックス抹茶ラテ 60kcal/100g',
+        '- スターバックス抹茶ラテ 60kcal',
         '  出典: https://example.com/matcha (web検索)',
         '値が違う場合は教えてください。',
       ].join('\n'),
