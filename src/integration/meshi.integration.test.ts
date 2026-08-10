@@ -469,16 +469,16 @@ describeIfDb('meshi integration', () => {
       toolCalls: [
         {
           name: 'search_food_master',
-          args: { queries: ['スターバックス抹茶ラテ'] },
+          args: { queries: ['カフェの抹茶ラテ'] },
         },
         {
           name: 'web_search',
-          args: { query: 'スターバックス 抹茶ラテ 栄養成分' },
+          args: { query: 'カフェ 抹茶ラテ 栄養成分' },
         },
         {
           name: 'register_food_master',
           args: {
-            name: 'スターバックス抹茶ラテ',
+            name: 'カフェの抹茶ラテ',
             nutrition_per_basis: { energy_kcal: 60, protein_g: 2 },
             source: 'web_search',
             is_estimated: false,
@@ -489,7 +489,7 @@ describeIfDb('meshi integration', () => {
           name: 'record_meal_log',
           args: {
             food_master_id: 'fm_test_0001',
-            food_name: 'スターバックス抹茶ラテ',
+            food_name: 'カフェの抹茶ラテ',
             date: '2026-06-12',
             meal_type: 'lunch',
             quantity: 3.5,
@@ -504,7 +504,7 @@ describeIfDb('meshi integration', () => {
         await harness.client.callTool({
           name: 'record_meal_from_text',
           arguments: {
-            text: 'スターバックスの抹茶ラテ Tall (350g) を飲みました',
+            text: 'カフェの抹茶ラテ (350g) を飲みました',
           },
         }),
       )
@@ -540,7 +540,7 @@ describeIfDb('meshi integration', () => {
       expect(masters).toEqual([
         {
           id: 'fm_test_0001',
-          name: 'スターバックス抹茶ラテ',
+          name: 'カフェの抹茶ラテ',
           source: 'web_search',
         },
       ])

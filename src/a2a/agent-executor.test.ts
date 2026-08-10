@@ -1152,7 +1152,7 @@ describe('runAgentTurn food master disclosure', () => {
             name: 'register_food_master',
             content: JSON.stringify({
               food_master_id: 'fm_test_0001',
-              name: 'スターバックス抹茶ラテ',
+              name: 'カフェの抹茶ラテ',
               source: 'web_search',
               source_url: 'https://example.com/matcha',
               nutrition_per_100g: { energy_kcal: 60, protein_g: 2 },
@@ -1175,7 +1175,7 @@ describe('runAgentTurn food master disclosure', () => {
         '記録しました。',
         '',
         '新しく登録した食品:',
-        '- スターバックス抹茶ラテ 60kcal',
+        '- カフェの抹茶ラテ 60kcal',
         '  出典: https://example.com/matcha (web検索)',
         '値が違う場合は教えてください。',
       ].join('\n'),
