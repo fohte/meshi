@@ -87,7 +87,27 @@ pnpm seed --food-composition path/to/dataset.json  # + MEXT composition tables
 
 Dataset shape (JSON array): `[{ "code": "01088", "name": "...", "nutrients": { "energy_kcal": 156, "protein_g": 2.5, ... } }]`. Nutrient codes follow `<英名>_<単位>` (e.g. `protein_g`, `iron_mg`, `vitamin_a_µg`). Codes not in `nutrient_definitions` are rejected; pass extras via the programmatic API.
 
-Citation: outputs derived from this dataset must credit "日本食品標準成分表(八訂)増補2023年".
+#### Food composition table (MEXT) → dataset JSON
+
+The 日本食品標準成分表 is distributed as Excel by MEXT, not as this dataset JSON. `pnpm convert-food-composition` converts a CSV export of it:
+
+1. Download the 一般成分表 (general components table) Excel from the [MEXT distribution page](https://www.mext.go.jp/a_menu/syokuhinseibun/mext_02093.html).
+2. In Excel, save/export that sheet as **CSV UTF-8** (not Shift_JIS, and not plain CSV — Excel's plain CSV export on Japanese locales is Shift_JIS). Keep it outside the repo, e.g. under `data/` (gitignored — see below).
+3. Check column detection before converting anything:
+   ```sh
+   pnpm convert-food-composition --csv data/mext-table1.csv --header-rows 3 --dump-header
+   ```
+   This prints each column's detected header text and, if matched, which nutrient code it resolved to, plus a summary of nutrient codes that found no column. Columns are matched by header text (e.g. "たんぱく質" vs "アミノ酸組成によるたんぱく質"), not fixed position, so a column matching the wrong thing shows up here rather than silently landing in the output. Adjust `--header-rows` (how many leading rows are the multi-row header) until the mapping looks right — the official table's header commonly spans 2-3 rows.
+4. Convert:
+   ```sh
+   pnpm convert-food-composition --csv data/mext-table1.csv --header-rows 3 --out data/food-composition.json
+   ```
+   Values are handled as: `Tr` (trace) → `0`, `(2.5)` (estimated) → `2.5`, `-` (not measured) → the nutrient key is omitted for that food. Food codes are re-padded to 5 digits (Excel/CSV round-trips can drop the leading zero, e.g. `01088` → `1088`).
+5. `pnpm seed --food-composition data/food-composition.json`.
+
+Only the columns from the general-components table are mapped; 飽和脂肪酸 (a separate per-fatty-acid table) and ビタミン E (four tocopherol columns, no single total) are left unmatched — extend `NUTRIENT_MATCHERS` in `scripts/convert-food-composition.ts` if they're needed.
+
+Citation: outputs derived from this dataset must credit "日本食品標準成分表(八訂)増補2023年" and note that the data has been edited/processed (加工) from the source, per the [政府標準利用規約(2.0版)](https://www.mext.go.jp/b_menu/1351168.htm). Per [the same terms' content list](https://www.mext.go.jp/b_menu/1366610.htm), 日本食品標準成分表 is one of the datasets that may require notification/royalty payment for some uses (e.g. republishing it as a book) — the source Excel and any JSON generated from it must stay local (`data/` is gitignored) and must not be committed to this repository.
 
 ### LLM model selection policy
 

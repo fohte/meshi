@@ -4,7 +4,8 @@
   "packageManager": "pnpm@11.16.0",
   "type": "module",
   "imports": {
-    "#*": "./src/*.ts"
+    "#*": "./src/*.ts",
+    "#scripts/*": "./scripts/*.ts"
   },
   "scripts": {
     "start": "node --import @fohte/service-kit/otel-register dist/index.js",
@@ -15,6 +16,7 @@
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
     "seed": "tsx scripts/seed.ts",
+    "convert-food-composition": "tsx scripts/convert-food-composition.ts",
     "lint": "eslint .",
     "format:eslint": "eslint --fix .",
     "format:prettier": "prettier --write .",
