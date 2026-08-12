@@ -25,8 +25,6 @@ export class ConvertError extends Error {
   }
 }
 
-// ---- CSV parsing ------------------------------------------------------
-
 export const parseCsv = (text: string): string[][] => {
   const rows: string[][] = []
   let row: string[] = []
@@ -82,8 +80,6 @@ export const parseCsv = (text: string): string[][] => {
   return rows
 }
 
-// ---- column resolution --------------------------------------------------
-
 export const columnLetter = (index: number): string => {
   let n = index + 1
   let letters = ''
@@ -103,6 +99,15 @@ export const combineHeader = (
     .map((row) => (row[columnIndex] ?? '').trim())
     .filter((cell) => cell.length > 0)
     .join('')
+
+// Column indices in `headers` whose text satisfies `test`. Shared by
+// `findColumn` (single required column) and the nutrient-matcher loop below
+// (many optional columns) so both branch on the same "how many columns
+// matched" question — 0 (not found), 1 (resolved), or 2+ (ambiguous).
+const matchColumnIndices = (
+  headers: ReadonlyArray<string>,
+  test: (header: string) => boolean,
+): number[] => headers.map((h, i) => (test(h) ? i : -1)).filter((i) => i >= 0)
 
 interface NutrientMatcher {
   readonly code: NutrientCode
@@ -163,7 +168,12 @@ export interface ResolvedColumns {
   readonly codeColumn: number
   readonly nameColumn: number
   readonly nutrientColumns: ReadonlyMap<number, NutrientCode>
+  // No column's header text matched this nutrient's pattern at all.
   readonly unmatchedNutrientCodes: ReadonlyArray<NutrientCode>
+  // 2+ columns matched — the pattern needs a tighter exclusion, distinct
+  // from unmatchedNutrientCodes so --dump-header can tell "not in this
+  // table" apart from "found it twice, matcher needs fixing".
+  readonly ambiguousNutrientCodes: ReadonlyArray<NutrientCode>
 }
 
 const findColumn = (
@@ -171,9 +181,7 @@ const findColumn = (
   test: (header: string) => boolean,
   label: string,
 ): Result<number, ConvertError> => {
-  const matches = headers
-    .map((h, i) => (test(h) ? i : -1))
-    .filter((i) => i >= 0)
+  const matches = matchColumnIndices(headers, test)
   const [only, ...rest] = matches
   if (only === undefined) {
     return err(new ConvertError(`no column matched ${label}`))
@@ -211,13 +219,14 @@ export const resolveColumns = (
 
   const nutrientColumns = new Map<number, NutrientCode>()
   const unmatchedNutrientCodes: NutrientCode[] = []
+  const ambiguousNutrientCodes: NutrientCode[] = []
   for (const matcher of NUTRIENT_MATCHERS) {
-    const matches = headers
-      .map((h, i) => (matcher.test(h) ? i : -1))
-      .filter((i) => i >= 0)
+    const matches = matchColumnIndices(headers, matcher.test)
     const [only, ...rest] = matches
     if (only !== undefined && rest.length === 0) {
       nutrientColumns.set(only, matcher.code)
+    } else if (matches.length > 0) {
+      ambiguousNutrientCodes.push(matcher.code)
     } else {
       unmatchedNutrientCodes.push(matcher.code)
     }
@@ -228,10 +237,9 @@ export const resolveColumns = (
     nameColumn: nameColumnResult.value,
     nutrientColumns,
     unmatchedNutrientCodes,
+    ambiguousNutrientCodes,
   })
 }
-
-// ---- value parsing --------------------------------------------------------
 
 // Handles the table's measurement-status symbols: "-" (not measured, dropped
 // from the row entirely), "Tr" (trace, recorded as 0), and "(2.5)" /
@@ -244,8 +252,6 @@ export const parseNutrientValue = (raw: string): number | undefined => {
   const n = Number(unwrapped)
   return Number.isFinite(n) ? n : undefined
 }
-
-// ---- row building -----------------------------------------------------
 
 export interface FoodCompositionRowInput {
   readonly code: string
@@ -300,13 +306,17 @@ export const buildRows = (
   return { rows, warnings }
 }
 
-// ---- CLI ------------------------------------------------------------------
-
 interface CliArgs {
   readonly csv: string
   readonly out: string | undefined
   readonly headerRows: number
   readonly dumpHeader: boolean
+}
+
+const printUsage = (): void => {
+  console.error(
+    'usage: convert-food-composition --csv <path> (--out <path> | --dump-header) [--header-rows N]',
+  )
 }
 
 const parseCliArgs = (): CliArgs => {
@@ -319,18 +329,28 @@ const parseCliArgs = (): CliArgs => {
     },
   })
   if (values.csv === undefined) {
+    printUsage()
+    process.exit(1)
+  }
+  const headerRowsRaw = values['header-rows'] ?? '3'
+  const headerRows = Number(headerRowsRaw)
+  if (!Number.isInteger(headerRows) || headerRows < 0) {
     console.error(
-      'usage: convert-food-composition --csv <path> --out <path> [--header-rows N] [--dump-header]',
+      `--header-rows must be a non-negative integer (got: ${headerRowsRaw})`,
     )
     process.exit(1)
   }
   return {
     csv: values.csv,
     out: values.out,
-    headerRows: Number(values['header-rows'] ?? '3'),
+    headerRows,
     dumpHeader: values['dump-header'],
   }
 }
+
+const summarizeUnresolvedNutrients = (columns: ResolvedColumns): string =>
+  `${String(columns.unmatchedNutrientCodes.length)} unmatched (${columns.unmatchedNutrientCodes.join(', ') || 'none'}), ` +
+  `${String(columns.ambiguousNutrientCodes.length)} ambiguous (${columns.ambiguousNutrientCodes.join(', ') || 'none'})`
 
 const main = async (): Promise<void> => {
   const args = parseCliArgs()
@@ -366,13 +386,13 @@ const main = async (): Promise<void> => {
       console.log(`${columnLetter(i)}: ${header}${role}`)
     }
     console.log(
-      `unmatched nutrient codes: ${columns.unmatchedNutrientCodes.join(', ') || 'none'}`,
+      `unresolved nutrient codes: ${summarizeUnresolvedNutrients(columns)}`,
     )
     return
   }
 
   if (args.out === undefined) {
-    console.error('--out is required unless --dump-header is set')
+    printUsage()
     process.exit(1)
   }
   const out = args.out
@@ -389,9 +409,8 @@ const main = async (): Promise<void> => {
 
   await writeFile(out, JSON.stringify(datasetResult.value, null, 2))
   console.log(
-    `wrote ${String(datasetResult.value.length)} food composition rows to ${out} ` +
-      `(${String(columns.unmatchedNutrientCodes.length)} nutrient codes unmatched: ` +
-      `${columns.unmatchedNutrientCodes.join(', ') || 'none'})`,
+    `wrote ${String(datasetResult.value.length)} of ${String(dataRows.length)} scanned rows ` +
+      `to ${out} (nutrient codes: ${summarizeUnresolvedNutrients(columns)})`,
   )
 }
 

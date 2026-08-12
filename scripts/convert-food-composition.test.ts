@@ -18,6 +18,10 @@ describe('parseCsv', () => {
       ['1', '2', '3'],
     ])
   })
+
+  it('flushes the last row when the input has no trailing newline', () => {
+    expect(parseCsv('a,b')).toEqual([['a', 'b']])
+  })
 })
 
 describe('columnLetter', () => {
@@ -149,11 +153,7 @@ describe('resolveColumns', () => {
   const columnCount = headerRows[0]?.length ?? 0
 
   it('maps code, name, and every known nutrient column by header text, resolving lookalikes', () => {
-    const result = resolveColumns(headerRows, columnCount)
-    expect(result.isOk()).toBe(true)
-    if (!result.isOk()) return
-
-    expect(result.value).toEqual({
+    expect(resolveColumns(headerRows, columnCount)._unsafeUnwrap()).toEqual({
       codeColumn: 0,
       nameColumn: 1,
       nutrientColumns: new Map([
@@ -186,22 +186,68 @@ describe('resolveColumns', () => {
         [34, 'salt_g'],
       ]),
       unmatchedNutrientCodes: [],
+      ambiguousNutrientCodes: [],
     })
   })
 
   it('errors when the code column cannot be found', () => {
-    const result = resolveColumns([['食品名']], 1)
-    expect(result.isErr()).toBe(true)
+    expect(resolveColumns([['食品名']], 1)._unsafeUnwrapErr().message).toBe(
+      'no column matched 食品番号',
+    )
   })
 
-  it('errors when a column matches ambiguously', () => {
-    const result = resolveColumns([['食品番号', '食品名', '食品名']], 3)
-    expect(result.isErr()).toBe(true)
+  it('errors when a required column matches ambiguously', () => {
+    expect(
+      resolveColumns([['食品番号', '食品名', '食品名']], 3)._unsafeUnwrapErr()
+        .message,
+    ).toBe('ambiguous columns for 食品名: B, C')
+  })
+
+  it('separates nutrient codes with no matching column from ones matched ambiguously', () => {
+    const resolved = resolveColumns(
+      [['食品番号', '食品名', '食物繊維総量', '食物繊維総量']],
+      4,
+    )._unsafeUnwrap()
+
+    expect(resolved).toEqual({
+      codeColumn: 0,
+      nameColumn: 1,
+      nutrientColumns: new Map(),
+      ambiguousNutrientCodes: ['dietary_fiber_g'],
+      unmatchedNutrientCodes: [
+        'energy_kcal',
+        'protein_g',
+        'fat_g',
+        'carb_g',
+        'salt_g',
+        'cholesterol_mg',
+        'sodium_mg',
+        'potassium_mg',
+        'calcium_mg',
+        'magnesium_mg',
+        'phosphorus_mg',
+        'iron_mg',
+        'zinc_mg',
+        'copper_mg',
+        'vitamin_a_µg',
+        'vitamin_d_µg',
+        'vitamin_k_µg',
+        'vitamin_b1_mg',
+        'vitamin_b2_mg',
+        'niacin_mg',
+        'vitamin_b6_mg',
+        'vitamin_b12_µg',
+        'folate_µg',
+        'pantothenic_acid_mg',
+        'biotin_µg',
+        'vitamin_c_mg',
+      ],
+    })
   })
 })
 
 describe('buildRows', () => {
-  it('zero-pads codes, skips non-food rows, and omits unmeasured nutrients', () => {
+  it('zero-pads codes, skips non-food rows, and reports empty-name/unparseable-value warnings', () => {
     const columns: ResolvedColumns = {
       codeColumn: 0,
       nameColumn: 1,
@@ -210,12 +256,15 @@ describe('buildRows', () => {
         [3, 'salt_g'],
       ]),
       unmatchedNutrientCodes: [],
+      ambiguousNutrientCodes: [],
     }
     const dataRows = [
       ['1 穀類', '', '', ''], // food-group header row, no numeric code
       ['1088', 'こめ 精白米', '156', '0'],
       ['1089', 'こめ 玄米', '165', 'Tr'],
       ['1090', '欠測サンプル', '-', '-'],
+      ['1091', '', '100', '1'], // empty name, dropped
+      ['1092', '不明食品', 'abc', '1'], // unparseable energy value
     ]
 
     expect(buildRows(dataRows, columns)).toEqual({
@@ -231,8 +280,12 @@ describe('buildRows', () => {
           nutrients: { energy_kcal: 165, salt_g: 0 },
         },
         { code: '01090', name: '欠測サンプル', nutrients: {} },
+        { code: '01092', name: '不明食品', nutrients: { salt_g: 1 } },
       ],
-      warnings: [],
+      warnings: [
+        'skipped food code 01091: empty name',
+        'food 01092: unparseable value "abc" for energy_kcal, skipped',
+      ],
     })
   })
 })
