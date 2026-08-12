@@ -13,9 +13,12 @@ export const isInvalidSourceCombination = (
   (source === 'web_search' && isEstimated) ||
   (source === 'composition_table_estimate' && !isEstimated)
 
-// Shared by repository.ts's normalizeAndValidate and the register_food_master
-// tool's zod refine so the wording can't drift between the two layers that
-// enforce this same rule.
+// Specific to isInvalidSourceCombination's web_search branch (its other
+// branch, composition_table_estimate + isEstimated=false, needs a different
+// message — see repository.ts's normalizeAndValidate). Shared by that
+// function and the register_food_master tool's zod refine, whose source enum
+// excludes composition_table_estimate and so only ever hits this branch, so
+// the wording can't drift between the two layers that enforce this rule.
 export const INVALID_SOURCE_COMBINATION_MESSAGE =
   "is_estimated=true must not be combined with source='web_search': registering with source='web_search' asserts that a real, accessible page confirms these exact values for this specific product and size. If you are not confident the evidence matches, do not resend this call with is_estimated=false to get past this error — that discards the uncertainty instead of resolving it. Call request_user_input instead."
 

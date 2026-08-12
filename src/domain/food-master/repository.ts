@@ -127,7 +127,12 @@ const normalizeAndValidate = (
     return err(
       new FoodMasterDomainError(
         'invalid_source_combination',
-        INVALID_SOURCE_COMBINATION_MESSAGE,
+        // isInvalidSourceCombination's other branch (composition_table_estimate
+        // + isEstimated=false) needs its own message — INVALID_SOURCE_COMBINATION_MESSAGE
+        // is specific to the web_search case and would misdescribe that one.
+        input.source === 'web_search'
+          ? INVALID_SOURCE_COMBINATION_MESSAGE
+          : "source='composition_table_estimate' requires is_estimated=true",
         { source: input.source, isEstimated: input.isEstimated },
       ),
     )
