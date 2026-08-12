@@ -19,6 +19,7 @@ import type {
 } from '#domain/food-master/types'
 import {
   hasDuplicateAfterTrim,
+  INVALID_SOURCE_COMBINATION_MESSAGE,
   isEmptyNutrition,
   isInvalidSourceCombination,
   type SourceEvidenceViolation,
@@ -126,7 +127,7 @@ const normalizeAndValidate = (
     return err(
       new FoodMasterDomainError(
         'invalid_source_combination',
-        "is_estimated=true must not be combined with source='web_search'",
+        INVALID_SOURCE_COMBINATION_MESSAGE,
         { source: input.source, isEstimated: input.isEstimated },
       ),
     )
