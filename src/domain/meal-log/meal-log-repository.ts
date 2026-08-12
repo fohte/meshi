@@ -14,23 +14,14 @@ export interface InsertMealLogInput {
   readonly eatenDate: JstDate
   readonly mealType: MealType
   readonly quantity: number
-  readonly unit: string
-  readonly amountGrams: number
 }
 
-// Distinct from the service-facing UpdateMealLogInput (types.ts): the
-// service resolves quantity/unit (+ a possibly-changed food_master_id) to
-// amountGrams before reaching the repository, so this patch carries that
-// resolved value alongside whichever display fields changed — mirroring the
-// InsertMealLogInput vs RecordMealLogInput split above.
 export interface UpdateMealLogPatch {
   readonly id: string
   readonly foodMasterId?: string
   readonly eatenDate?: JstDate
   readonly mealType?: MealType
   readonly quantity?: number
-  readonly unit?: string
-  readonly amountGrams?: number
 }
 
 export interface FoundMealLog {

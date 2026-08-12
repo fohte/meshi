@@ -18,7 +18,6 @@ import {
   MealLogPersistenceError,
 } from '#domain/meal-log/errors'
 import type { MealLogRepository } from '#domain/meal-log/meal-log-repository'
-import { resolveAmountGrams } from '#domain/meal-log/resolve-amount-grams'
 import type {
   FoodMasterRef,
   MealLogResult,
@@ -28,26 +27,6 @@ import type {
   UpdateMealLogInput,
 } from '#domain/meal-log/types'
 import { todayJstDateString } from '#lib/jst-date'
-
-// A resolved amount larger than this isn't a realistic single meal; reject
-// it rather than silently recording it (e.g. a unit mixup inflating the
-// gram amount by orders of magnitude).
-const MAX_PLAUSIBLE_AMOUNT_GRAMS = 10_000
-
-// Shared by record() and update(): resolves quantity+unit to grams and
-// rejects an implausible result, so both call sites apply the same
-// resolution + plausibility rule.
-const resolveAndCheckAmountGrams = (
-  quantity: number,
-  unit: string,
-  basisUnit: string,
-  units: Readonly<Record<string, number>>,
-): Result<number, DomainError> =>
-  resolveAmountGrams(quantity, unit, basisUnit, units).andThen((amountGrams) =>
-    amountGrams > MAX_PLAUSIBLE_AMOUNT_GRAMS
-      ? err(new ImplausibleQuantityError(amountGrams))
-      : ok(amountGrams),
-  )
 
 // A caller-supplied foodName is a self-consistency check, not a fuzzy search:
 // callers that pass it (the record_meal_log domain tool) already got the
@@ -64,6 +43,24 @@ const checkFoodNameMatches = (
   normalizeFoodName(foodName) === normalizeFoodName(actualName)
     ? ok(undefined)
     : err(new FoodNameMismatchError(foodName, actualName))
+
+// A single meal_log's resolved energy shouldn't exceed this — catches a
+// quantity mixup (e.g. passing a raw gram count as quantity against a food
+// registered per serving) before it's silently recorded. Skipped when the
+// food has no energy_kcal value to check against.
+const MAX_PLAUSIBLE_ENERGY_KCAL = 5_000
+
+const checkPlausibleQuantity = (
+  nutritionPerUnit: NutritionMap,
+  quantity: number,
+): Result<void, DomainError> => {
+  const energyKcalPerUnit = nutritionPerUnit['energy_kcal']
+  if (energyKcalPerUnit === undefined) return ok(undefined)
+  const resolvedEnergyKcal = energyKcalPerUnit * quantity
+  return resolvedEnergyKcal > MAX_PLAUSIBLE_ENERGY_KCAL
+    ? err(new ImplausibleQuantityError(resolvedEnergyKcal))
+    : ok(undefined)
+}
 
 export interface MealLogService {
   record(input: RecordMealLogInput): ResultAsync<MealLogResult, DomainError>
@@ -94,14 +91,11 @@ export const createMealLogService = (
       .andThen((food) => {
         const nameCheck = checkFoodNameMatches(input.foodName, food.name)
         if (nameCheck.isErr()) return errAsync(nameCheck.error)
-        const resolved = resolveAndCheckAmountGrams(
+        const plausibility = checkPlausibleQuantity(
+          food.nutritionPerUnit,
           input.quantity,
-          input.unit,
-          food.basisUnit,
-          food.units,
         )
-        if (resolved.isErr()) return errAsync(resolved.error)
-        const amountGrams = resolved.value
+        if (plausibility.isErr()) return errAsync(plausibility.error)
         return deps.repository
           .insertMealLog({
             id: deps.idGenerator(),
@@ -109,8 +103,6 @@ export const createMealLogService = (
             eatenDate: input.eatenDate,
             mealType: input.mealType,
             quantity: input.quantity,
-            unit: input.unit,
-            amountGrams,
           })
           .map((log) => buildResult(log, food))
       })
@@ -136,8 +128,7 @@ export const createMealLogService = (
         input.foodMasterId === undefined &&
         input.eatenDate === undefined &&
         input.mealType === undefined &&
-        input.quantity === undefined &&
-        input.unit === undefined
+        input.quantity === undefined
       ) {
         return okAsync(buildResult(found.log, found.food))
       }
@@ -151,24 +142,12 @@ export const createMealLogService = (
           ? okAsync(found.food)
           : deps.repository.findFoodMaster(newFoodMasterId)
       return foodRef.andThen((food) => {
-        // A changed quantity/unit obviously changes the resolved gram amount;
-        // re-pointing food_master_id can too, since the same unit string may
-        // resolve to a different food_master_unit (or none) on the new food.
-        const needsResolve =
-          input.quantity !== undefined ||
-          input.unit !== undefined ||
-          newFoodMasterId !== undefined
-        let amountGrams: number | undefined
-        if (needsResolve) {
-          const resolved = resolveAndCheckAmountGrams(
-            input.quantity ?? found.log.quantity,
-            input.unit ?? found.log.unit,
-            food.basisUnit,
-            food.units,
-          )
-          if (resolved.isErr()) return errAsync(resolved.error)
-          amountGrams = resolved.value
-        }
+        const effectiveQuantity = input.quantity ?? found.log.quantity
+        const plausibility = checkPlausibleQuantity(
+          food.nutritionPerUnit,
+          effectiveQuantity,
+        )
+        if (plausibility.isErr()) return errAsync(plausibility.error)
         return deps.repository
           .updateMealLog({
             id: input.id,
@@ -184,8 +163,6 @@ export const createMealLogService = (
             ...(input.quantity === undefined
               ? {}
               : { quantity: input.quantity }),
-            ...(input.unit === undefined ? {} : { unit: input.unit }),
-            ...(amountGrams === undefined ? {} : { amountGrams }),
           })
           .andThen((log) =>
             newFoodMasterId === undefined
@@ -229,26 +206,17 @@ export const createMealLogService = (
 
 const buildResult = (log: MealLogRow, food: FoodMasterRef): MealLogResult => ({
   ...log,
-  nutrition: scaleNutrition(
-    food.nutritionPerBasis,
-    log.amountGrams,
-    food.basisQuantity,
-  ),
+  nutrition: scaleNutrition(food.nutritionPerUnit, log.quantity),
   isEstimated: food.isEstimated,
 })
 
-// Nutrient values are scaled against the food's own basis_quantity;
-// amountGrams is already resolved to the food's basis unit (see
-// resolveAmountGrams).
 const scaleNutrition = (
-  perBasis: NutritionMap,
-  amountGrams: number,
-  basisQuantity: number,
+  perUnit: NutritionMap,
+  quantity: number,
 ): NutritionMap => {
-  const multiplier = amountGrams / basisQuantity
   const out: Record<string, number> = {}
-  for (const [key, value] of Object.entries(perBasis)) {
-    out[key] = value * multiplier
+  for (const [key, value] of Object.entries(perUnit)) {
+    out[key] = value * quantity
   }
   return out
 }

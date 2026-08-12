@@ -20,9 +20,6 @@ const MEAL_TYPE_LABELS: Record<MealType, string> = {
 const formatNumber = (value: number): string =>
   Number.isInteger(value) ? String(value) : value.toFixed(1)
 
-const formatBasisLabel = (quantity: number, unit: string): string =>
-  `${formatNumber(quantity)} ${unit} あたり`
-
 // food_masters.source_url is populated from web-search results with no
 // scheme restriction on write; rendering it as an <a href> without this
 // guard would let a javascript: URI execute in the app's origin.
@@ -53,14 +50,14 @@ const useNutrientDefinitions = () =>
 
 interface NutrientRowProps {
   definition: NutrientDefinition
-  nutritionPerBasis: FoodDetail['nutritionPerBasis']
+  nutrition: FoodDetail['nutrition']
 }
 
 const NutrientRow = ({
   definition,
-  nutritionPerBasis,
+  nutrition,
 }: NutrientRowProps): React.JSX.Element => {
-  const value = nutritionPerBasis[definition.code]
+  const value = nutrition[definition.code]
   return (
     <tr>
       <td className={styles.nutrientLabel}>{definition.displayName}</td>
@@ -85,7 +82,7 @@ const FoodDetailContent = ({
   const [showAllNutrients, setShowAllNutrients] = useState(false)
   const majorDefinitions = nutrientDefinitions.filter((d) => d.isMajor)
   const minorDefinitions = nutrientDefinitions.filter((d) => !d.isMajor)
-  const energyKcalPerBasis = food.nutritionPerBasis['energy_kcal']
+  const energyKcalPerUnit = food.nutrition['energy_kcal']
 
   return (
     <div>
@@ -95,9 +92,6 @@ const FoodDetailContent = ({
       </h1>
       <div className={styles.meta}>
         <span className={styles.sourceBadge}>{SOURCE_LABELS[food.source]}</span>
-        <span className={styles.metaText}>
-          {formatBasisLabel(food.basisQuantity, food.basisUnit)}
-        </span>
         {food.sourceUrl !== null && isHttpUrl(food.sourceUrl) && (
           <a href={food.sourceUrl} className={styles.sourceLink}>
             出典 →
@@ -108,9 +102,7 @@ const FoodDetailContent = ({
       <section className={styles.section}>
         <div className={styles.sectionHeader}>
           <span className={styles.sectionMarker}>##</span>
-          <span className={styles.sectionTitle}>
-            栄養成分 ({formatBasisLabel(food.basisQuantity, food.basisUnit)})
-          </span>
+          <span className={styles.sectionTitle}>栄養成分</span>
         </div>
         <table className={styles.nutrientTable}>
           <tbody>
@@ -118,7 +110,7 @@ const FoodDetailContent = ({
               <NutrientRow
                 key={definition.code}
                 definition={definition}
-                nutritionPerBasis={food.nutritionPerBasis}
+                nutrition={food.nutrition}
               />
             ))}
           </tbody>
@@ -139,7 +131,7 @@ const FoodDetailContent = ({
                 <NutrientRow
                   key={definition.code}
                   definition={definition}
-                  nutritionPerBasis={food.nutritionPerBasis}
+                  nutrition={food.nutrition}
                 />
               ))}
             </tbody>
@@ -179,10 +171,9 @@ const FoodDetailContent = ({
           <div className={styles.historyList}>
             {food.history.map((entry) => {
               const kcal =
-                energyKcalPerBasis === undefined
+                energyKcalPerUnit === undefined
                   ? null
-                  : (energyKcalPerBasis * entry.amountGrams) /
-                    food.basisQuantity
+                  : energyKcalPerUnit * entry.quantity
               return (
                 <div key={entry.id} className={styles.historyRow}>
                   <span className={styles.historyDate}>
@@ -192,7 +183,7 @@ const FoodDetailContent = ({
                     {MEAL_TYPE_LABELS[entry.mealType]}
                   </span>
                   <span className={styles.historyQty}>
-                    {formatNumber(entry.quantity)} {entry.unit}
+                    ×{formatNumber(entry.quantity)}
                   </span>
                   <span className={styles.historyKcal}>
                     {kcal === null ? '—' : `${String(Math.round(kcal))} kcal`}

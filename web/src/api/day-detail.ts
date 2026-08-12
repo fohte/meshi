@@ -14,7 +14,6 @@ const dayDetailEntrySchema = z.object({
   eatenDate: z.string(),
   mealType: z.enum(MEAL_TYPES),
   quantity: z.number(),
-  unit: z.string(),
   kcal: z.number(),
   isEstimated: z.boolean(),
 })

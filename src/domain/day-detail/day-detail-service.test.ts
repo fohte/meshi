@@ -52,14 +52,14 @@ describeIfDb('DayDetailService.query', () => {
       foodMasterId: 'rice',
       eatenDate: jstDate('2026-06-01'),
       mealType: 'breakfast',
-      quantity: 200,
+      quantity: 2,
     })
     await seedMealLog(tx, {
       id: 'log-2',
       foodMasterId: 'mystery_stew',
       eatenDate: jstDate('2026-06-01'),
       mealType: 'dinner',
-      quantity: 50,
+      quantity: 0.5,
     })
 
     const stubTotals = { energy_kcal: 412 }
@@ -76,8 +76,7 @@ describeIfDb('DayDetailService.query', () => {
               foodName: 'ごはん',
               eatenDate: jstDate('2026-06-01'),
               mealType: 'breakfast',
-              quantity: 200,
-              unit: 'g',
+              quantity: 2,
             },
             {
               id: 'log-2',
@@ -85,8 +84,7 @@ describeIfDb('DayDetailService.query', () => {
               foodName: 'なぞのシチュー',
               eatenDate: jstDate('2026-06-01'),
               mealType: 'dinner',
-              quantity: 50,
-              unit: 'g',
+              quantity: 0.5,
             },
           ],
         }),
@@ -109,8 +107,7 @@ describeIfDb('DayDetailService.query', () => {
           foodName: 'ごはん',
           eatenDate: '2026-06-01',
           mealType: 'breakfast',
-          quantity: 200,
-          unit: 'g',
+          quantity: 2,
           kcal: 312,
           isEstimated: false,
         },
@@ -120,77 +117,9 @@ describeIfDb('DayDetailService.query', () => {
           foodName: 'なぞのシチュー',
           eatenDate: '2026-06-01',
           mealType: 'dinner',
-          quantity: 50,
-          unit: 'g',
+          quantity: 0.5,
           kcal: 100,
           isEstimated: true,
-        },
-      ],
-      skippedMealTypes: [],
-    })
-  })
-
-  it('computes per-item kcal from amount_grams, not the display quantity', async () => {
-    const tx = getTx()
-    await seedFoodMaster(tx, {
-      id: 'egg',
-      name: 'たまご',
-      source: 'user_input',
-      nutrients: { energy_kcal: 151 },
-    })
-    // 2 個 at 55g/個 resolves to 110g — quantity alone (2) would give the
-    // wrong kcal if this read quantity directly instead of amount_grams.
-    await seedMealLog(tx, {
-      id: 'log-1',
-      foodMasterId: 'egg',
-      eatenDate: jstDate('2026-06-01'),
-      mealType: 'breakfast',
-      quantity: 2,
-      unit: '個',
-      amountGrams: 110,
-    })
-
-    const mealHistoryService: MealHistoryService = {
-      query: () =>
-        okAsync({
-          totals: {},
-          perDay: [],
-          hasEstimatedValues: false,
-          entries: [
-            {
-              id: 'log-1',
-              foodMasterId: 'egg',
-              foodName: 'たまご',
-              eatenDate: jstDate('2026-06-01'),
-              mealType: 'breakfast',
-              quantity: 2,
-              unit: '個',
-            },
-          ],
-        }),
-    }
-    const service = createDayDetailService(tx, mealHistoryService, stubNoSkips)
-
-    const result = (
-      await service.query({
-        date: jstDate('2026-06-01'),
-      })
-    )._unsafeUnwrap()
-
-    expect(result).toEqual({
-      totals: {},
-      hasEstimatedValues: false,
-      entries: [
-        {
-          id: 'log-1',
-          foodMasterId: 'egg',
-          foodName: 'たまご',
-          eatenDate: '2026-06-01',
-          mealType: 'breakfast',
-          quantity: 2,
-          unit: '個',
-          kcal: (151 * 110) / 100,
-          isEstimated: false,
         },
       ],
       skippedMealTypes: [],
@@ -237,7 +166,7 @@ describeIfDb('DayDetailService.query', () => {
       foodMasterId: 'rice',
       eatenDate: jstDate('2026-06-01'),
       mealType: 'breakfast',
-      quantity: 200,
+      quantity: 2,
     })
 
     const mealHistoryService: MealHistoryService = {
@@ -253,8 +182,7 @@ describeIfDb('DayDetailService.query', () => {
               foodName: 'ごはん',
               eatenDate: jstDate('2026-06-01'),
               mealType: 'breakfast',
-              quantity: 200,
-              unit: 'g',
+              quantity: 2,
             },
           ],
         }),
@@ -299,80 +227,12 @@ describeIfDb('DayDetailService.query', () => {
           foodName: 'ごはん',
           eatenDate: '2026-06-01',
           mealType: 'breakfast',
-          quantity: 200,
-          unit: 'g',
+          quantity: 2,
           kcal: 312,
           isEstimated: false,
         },
       ],
       skippedMealTypes: ['lunch'],
-    })
-  })
-
-  it('computes per-item kcal against a non-gram basis_quantity, not a hardcoded 100', async () => {
-    const tx = getTx()
-    await seedFoodMaster(tx, {
-      id: 'katsudon',
-      name: '味噌ロースかつ丼',
-      source: 'user_input',
-      basisQuantity: 1,
-      basisUnit: '食',
-      nutrients: { energy_kcal: 913 },
-    })
-    await seedMealLog(tx, {
-      id: 'log-1',
-      foodMasterId: 'katsudon',
-      eatenDate: jstDate('2026-06-01'),
-      mealType: 'breakfast',
-      quantity: 1,
-      unit: '食',
-      amountGrams: 1,
-    })
-
-    const mealHistoryService: MealHistoryService = {
-      query: () =>
-        okAsync({
-          totals: { energy_kcal: 913 },
-          perDay: [],
-          hasEstimatedValues: false,
-          entries: [
-            {
-              id: 'log-1',
-              foodMasterId: 'katsudon',
-              foodName: '味噌ロースかつ丼',
-              eatenDate: jstDate('2026-06-01'),
-              mealType: 'breakfast',
-              quantity: 1,
-              unit: '食',
-            },
-          ],
-        }),
-    }
-    const service = createDayDetailService(tx, mealHistoryService, stubNoSkips)
-
-    const result = (
-      await service.query({
-        date: jstDate('2026-06-01'),
-      })
-    )._unsafeUnwrap()
-
-    expect(result).toEqual({
-      totals: { energy_kcal: 913 },
-      hasEstimatedValues: false,
-      entries: [
-        {
-          id: 'log-1',
-          foodMasterId: 'katsudon',
-          foodName: '味噌ロースかつ丼',
-          eatenDate: '2026-06-01',
-          mealType: 'breakfast',
-          quantity: 1,
-          unit: '食',
-          kcal: 913,
-          isEstimated: false,
-        },
-      ],
-      skippedMealTypes: [],
     })
   })
 })

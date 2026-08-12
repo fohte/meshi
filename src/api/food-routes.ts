@@ -38,7 +38,7 @@ const toListItemJson = (item: FoodListItem) => ({
   isEstimated: item.isEstimated,
   reason: item.reason,
   source: item.source,
-  energyKcalPer100g: item.energyKcalPer100g,
+  energyKcalPerUnit: item.energyKcalPerUnit,
 })
 
 export const mountFoodRoutes = (
@@ -109,17 +109,13 @@ export const mountFoodRoutes = (
           source: detail.source,
           sourceUrl: detail.sourceUrl,
           aliases: detail.aliases,
-          basisQuantity: detail.basisQuantity,
-          basisUnit: detail.basisUnit,
-          nutritionPerBasis: detail.nutritionPerBasis,
+          nutrition: detail.nutrition,
           totalEatenCount: detail.totalEatenCount,
           history: detail.history.map((entry) => ({
             id: entry.id,
             eatenDate: entry.eatenDate,
             mealType: entry.mealType,
-            amountGrams: entry.amountGrams,
             quantity: entry.quantity,
-            unit: entry.unit,
           })),
         })
       },

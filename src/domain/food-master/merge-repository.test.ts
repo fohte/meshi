@@ -8,12 +8,7 @@ import { captureDomainError } from '#test/capture-domain-error'
 import { describeIfDb, setupTx } from '#test/db'
 import { createCountingIdGenerator, type IdCounter } from '#test/id-counter'
 import { jstDate } from '#test/jst-date'
-import {
-  seedFoodMaster,
-  seedFoodMasterAlias,
-  seedFoodMasterUnit,
-  seedMealLog,
-} from '#test/seed'
+import { seedFoodMaster, seedFoodMasterAlias, seedMealLog } from '#test/seed'
 
 describeIfDb('mergeFoodMasters (merge-repository)', () => {
   const getTx = setupTx()
@@ -36,9 +31,8 @@ describeIfDb('mergeFoodMasters (merge-repository)', () => {
     })
   })
 
-  // Full seed for the no-conflict case: survivor and loser each with their
-  // own alias, unit, nutrient and meal_log, and no unit/alias conflicts
-  // between them.
+  // Full seed for the basic case: survivor and loser each with their own
+  // alias, nutrient and meal_log, and no alias conflicts between them.
   const seedBasicPair = async (): Promise<void> => {
     const tx = getTx()
     await seedFoodMaster(tx, {
@@ -63,16 +57,6 @@ describeIfDb('mergeFoodMasters (merge-repository)', () => {
       foodMasterId: 'fm_loser',
       alias: 'loser alias',
     })
-    await seedFoodMasterUnit(tx, {
-      foodMasterId: 'fm_survivor',
-      unit: '個',
-      gramsPerUnit: 50,
-    })
-    await seedFoodMasterUnit(tx, {
-      foodMasterId: 'fm_loser',
-      unit: '杯',
-      gramsPerUnit: 150,
-    })
     await seedMealLog(tx, {
       id: 'ml_survivor',
       foodMasterId: 'fm_survivor',
@@ -92,11 +76,6 @@ describeIfDb('mergeFoodMasters (merge-repository)', () => {
   interface DbSnapshot {
     readonly foodMasters: ReadonlyArray<{ id: string; name: string }>
     readonly aliases: ReadonlyArray<{ foodMasterId: string; alias: string }>
-    readonly units: ReadonlyArray<{
-      foodMasterId: string
-      unit: string
-      gramsPerUnit: number
-    }>
     readonly nutrients: ReadonlyArray<{
       foodMasterId: string
       nutrientCode: string
@@ -106,36 +85,26 @@ describeIfDb('mergeFoodMasters (merge-repository)', () => {
 
   const snapshot = async (): Promise<DbSnapshot> => {
     const tx = getTx()
-    const [foodMasters, aliases, units, nutrients, mealLogs] =
-      await Promise.all([
-        tx<{ id: string; name: string }[]>`
+    const [foodMasters, aliases, nutrients, mealLogs] = await Promise.all([
+      tx<{ id: string; name: string }[]>`
         SELECT id, name FROM food_masters ORDER BY id
       `,
-        tx<{ food_master_id: string; alias: string }[]>`
+      tx<{ food_master_id: string; alias: string }[]>`
         SELECT food_master_id, alias FROM food_master_aliases ORDER BY alias
       `,
-        tx<{ food_master_id: string; unit: string; grams_per_unit: string }[]>`
-        SELECT food_master_id, unit, grams_per_unit FROM food_master_units
-        ORDER BY food_master_id, unit
-      `,
-        tx<{ food_master_id: string; nutrient_code: string }[]>`
+      tx<{ food_master_id: string; nutrient_code: string }[]>`
         SELECT food_master_id, nutrient_code FROM food_master_nutrients
         ORDER BY food_master_id, nutrient_code
       `,
-        tx<{ id: string; food_master_id: string }[]>`
+      tx<{ id: string; food_master_id: string }[]>`
         SELECT id, food_master_id FROM meal_logs ORDER BY id
       `,
-      ])
+    ])
     return {
       foodMasters,
       aliases: aliases.map((r) => ({
         foodMasterId: r.food_master_id,
         alias: r.alias,
-      })),
-      units: units.map((r) => ({
-        foodMasterId: r.food_master_id,
-        unit: r.unit,
-        gramsPerUnit: Number(r.grams_per_unit),
       })),
       nutrients: nutrients.map((r) => ({
         foodMasterId: r.food_master_id,
@@ -162,8 +131,6 @@ describeIfDb('mergeFoodMasters (merge-repository)', () => {
       applied: false,
       movedAliases: ['loser alias'],
       nameMovedAsAlias: 'loser food',
-      movedUnits: [{ unit: '杯', gramsPerUnit: 150 }],
-      discardedUnits: [],
       discardedNutrition: { energy_kcal: 50, protein_g: 5 },
       movedMealLogCount: 1,
     })
@@ -171,7 +138,7 @@ describeIfDb('mergeFoodMasters (merge-repository)', () => {
     expect(await snapshot()).toEqual(before)
   })
 
-  it('applies a merge (dry_run=false): moves aliases/units/meal_logs to the survivor and deletes the loser', async () => {
+  it('applies a merge (dry_run=false): moves aliases/meal_logs to the survivor and deletes the loser', async () => {
     await seedBasicPair()
 
     const result = (
@@ -184,8 +151,6 @@ describeIfDb('mergeFoodMasters (merge-repository)', () => {
       applied: true,
       movedAliases: ['loser alias'],
       nameMovedAsAlias: 'loser food',
-      movedUnits: [{ unit: '杯', gramsPerUnit: 150 }],
-      discardedUnits: [],
       discardedNutrition: { energy_kcal: 50, protein_g: 5 },
       movedMealLogCount: 1,
     })
@@ -197,10 +162,6 @@ describeIfDb('mergeFoodMasters (merge-repository)', () => {
         { foodMasterId: 'fm_survivor', alias: 'loser food' },
         { foodMasterId: 'fm_survivor', alias: 'survivor alias' },
       ],
-      units: [
-        { foodMasterId: 'fm_survivor', unit: '個', gramsPerUnit: 50 },
-        { foodMasterId: 'fm_survivor', unit: '杯', gramsPerUnit: 150 },
-      ],
       // The loser's own nutrients (energy_kcal, protein_g) are gone —
       // cascade-deleted with the loser row, never moved to the survivor.
       nutrients: [{ foodMasterId: 'fm_survivor', nutrientCode: 'energy_kcal' }],
@@ -209,94 +170,6 @@ describeIfDb('mergeFoodMasters (merge-repository)', () => {
         { id: 'ml_survivor', foodMasterId: 'fm_survivor' },
       ],
     })
-  })
-
-  // survivor and loser both define the same unit name with a different
-  // grams_per_unit — the survivor's value must win in both dry_run and
-  // apply, and the non-conflicting unit on each side still moves/stays.
-  const seedUnitConflictPair = async (): Promise<void> => {
-    const tx = getTx()
-    await seedFoodMaster(tx, {
-      id: 'fm_survivor',
-      name: 'survivor food',
-      source: 'user_input',
-    })
-    await seedFoodMaster(tx, {
-      id: 'fm_loser',
-      name: 'loser food',
-      source: 'user_input',
-    })
-    await seedFoodMasterUnit(tx, {
-      foodMasterId: 'fm_survivor',
-      unit: '個',
-      gramsPerUnit: 50,
-    })
-    await seedFoodMasterUnit(tx, {
-      foodMasterId: 'fm_loser',
-      unit: '個',
-      gramsPerUnit: 60,
-    })
-    await seedFoodMasterUnit(tx, {
-      foodMasterId: 'fm_loser',
-      unit: '杯',
-      gramsPerUnit: 150,
-    })
-  }
-
-  it('discards a conflicting unit (survivor value wins) and still moves the non-conflicting one, on dry_run', async () => {
-    await seedUnitConflictPair()
-
-    const result = (
-      await repo.merge('fm_survivor', 'fm_loser', true)
-    )._unsafeUnwrap()
-
-    expect(result).toEqual({
-      survivorId: 'fm_survivor',
-      loserId: 'fm_loser',
-      applied: false,
-      movedAliases: [],
-      nameMovedAsAlias: 'loser food',
-      movedUnits: [{ unit: '杯', gramsPerUnit: 150 }],
-      discardedUnits: [{ unit: '個', gramsPerUnit: 60 }],
-      discardedNutrition: {},
-      movedMealLogCount: 0,
-    })
-  })
-
-  it('discards a conflicting unit (survivor value wins) and still moves the non-conflicting one, on apply', async () => {
-    await seedUnitConflictPair()
-
-    const result = (
-      await repo.merge('fm_survivor', 'fm_loser', false)
-    )._unsafeUnwrap()
-
-    expect(result).toEqual({
-      survivorId: 'fm_survivor',
-      loserId: 'fm_loser',
-      applied: true,
-      movedAliases: [],
-      nameMovedAsAlias: 'loser food',
-      movedUnits: [{ unit: '杯', gramsPerUnit: 150 }],
-      discardedUnits: [{ unit: '個', gramsPerUnit: 60 }],
-      discardedNutrition: {},
-      movedMealLogCount: 0,
-    })
-
-    const tx = getTx()
-    const units = await tx<{ unit: string; grams_per_unit: string }[]>`
-      SELECT unit, grams_per_unit FROM food_master_units
-      WHERE food_master_id = 'fm_survivor'
-      ORDER BY unit
-    `
-    expect(
-      units.map((r) => ({
-        unit: r.unit,
-        gramsPerUnit: Number(r.grams_per_unit),
-      })),
-    ).toEqual([
-      { unit: '個', gramsPerUnit: 50 },
-      { unit: '杯', gramsPerUnit: 150 },
-    ])
   })
 
   // A third food_master already owns the loser's name as an alias, so the
@@ -338,8 +211,6 @@ describeIfDb('mergeFoodMasters (merge-repository)', () => {
       applied: false,
       movedAliases: [],
       nameMovedAsAlias: null,
-      movedUnits: [],
-      discardedUnits: [],
       discardedNutrition: {},
       movedMealLogCount: 0,
     })
@@ -358,8 +229,6 @@ describeIfDb('mergeFoodMasters (merge-repository)', () => {
       applied: true,
       movedAliases: [],
       nameMovedAsAlias: null,
-      movedUnits: [],
-      discardedUnits: [],
       discardedNutrition: {},
       movedMealLogCount: 0,
     })

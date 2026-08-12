@@ -15,7 +15,7 @@ export interface FoodListItem {
   // Set only when foodMasterId references an existing food_masters row;
   // composition_table candidates aren't registered yet, so neither is known.
   readonly source: FoodSource | null
-  readonly energyKcalPer100g: number | null
+  readonly energyKcalPerUnit: number | null
 }
 
 export class FoodBrowseQueryError extends Error {

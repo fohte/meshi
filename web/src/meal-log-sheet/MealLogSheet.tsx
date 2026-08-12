@@ -19,7 +19,6 @@ export interface MealLogSheetProps {
   readonly compositionError: boolean
   readonly backToSearch: () => void
   readonly setQuantity: (quantity: string) => void
-  readonly setUnit: (unit: string) => void
   readonly setMealType: (mealType: MealType) => void
   readonly setDate: (date: string) => void
   readonly save: () => void
@@ -85,7 +84,6 @@ export const MealLogSheet = (props: MealLogSheetProps): React.JSX.Element => {
               state={state}
               backToSearch={props.backToSearch}
               setQuantity={props.setQuantity}
-              setUnit={props.setUnit}
               setMealType={props.setMealType}
               setDate={props.setDate}
             />

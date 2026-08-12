@@ -63,10 +63,7 @@ const FoodRow = ({ item }: FoodRowProps): React.JSX.Element | null => {
         {item.isEstimated && <span className={styles.rowEstMark}>推定</span>}
         <span className={styles.rowMeta}>{SOURCE_LABELS[item.source]}</span>
       </span>
-      <span className={styles.rowKcal}>
-        {kcalText(item.energyKcalPer100g)}
-        <span className={styles.rowKcalCaption}>/ 100 g</span>
-      </span>
+      <span className={styles.rowKcal}>{kcalText(item.energyKcalPerUnit)}</span>
     </Link>
   )
 }

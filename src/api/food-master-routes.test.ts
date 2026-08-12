@@ -25,9 +25,6 @@ const SAMPLE_FOOD_MASTER: FoodMaster = {
   sourceUrl: null,
   sourceCompositionCode: '01088',
   nutrition: { energy_kcal: 130, protein_g: 4.8 },
-  units: [],
-  basisQuantity: 100,
-  basisUnit: 'g',
   createdAt: new Date('2026-06-18T00:00:00.000Z'),
 }
 
@@ -110,9 +107,7 @@ describe('POST /api/food-masters/from-composition', () => {
       isEstimated: true,
       source: 'composition_table_estimate',
       sourceUrl: null,
-      basisQuantity: 100,
-      basisUnit: 'g',
-      nutritionPerBasis: { energy_kcal: 130, protein_g: 4.8 },
+      nutrition: { energy_kcal: 130, protein_g: 4.8 },
     })
     expect(captured).toEqual({ compositionCode: '01088' })
   })

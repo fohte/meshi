@@ -20,15 +20,13 @@ const inputSchema = z
     date: jstDateSchema.optional(),
     meal_type: z.enum(MEAL_TYPES).optional(),
     quantity: z.number().positive().optional(),
-    unit: z.string().min(1).optional(),
   })
   .refine(
     (v) =>
       v.food_master_id !== undefined ||
       v.date !== undefined ||
       v.meal_type !== undefined ||
-      v.quantity !== undefined ||
-      v.unit !== undefined,
+      v.quantity !== undefined,
     { message: 'at least one field to update must be provided' },
   )
 
@@ -43,7 +41,7 @@ export const createUpdateMealLogTool = (
 ): DomainTool => ({
   name: 'update_meal_log',
   description:
-    'Patch fields on an already-recorded meal_log identified by meal_log_id (from query_meal_history entries, or a prior record_meal_log/update_meal_log result). Omitted fields are left unchanged. Use this to fix a mistake (wrong quantity, unit, food_master_id, date, or meal_type) instead of calling record_meal_log again, which would create a duplicate entry. Re-validates the same invariants as record_meal_log: date must not be in the future, quantity must be positive, and a changed food_master_id must exist. Returns the meal_log_id and the recomputed nutrition for the corrected entry.',
+    'Patch fields on an already-recorded meal_log identified by meal_log_id (from query_meal_history entries, or a prior record_meal_log/update_meal_log result). Omitted fields are left unchanged. Use this to fix a mistake (wrong quantity, food_master_id, date, or meal_type) instead of calling record_meal_log again, which would create a duplicate entry. Re-validates the same invariants as record_meal_log: date must not be in the future, quantity must be positive, and a changed food_master_id must exist. Returns the meal_log_id and the recomputed nutrition for the corrected entry.',
   inputSchema: z.toJSONSchema(inputSchema, { io: 'input' }),
   async execute(
     input: unknown,
@@ -64,7 +62,6 @@ export const createUpdateMealLogTool = (
       ...(parsed.value.quantity === undefined
         ? {}
         : { quantity: parsed.value.quantity }),
-      ...(parsed.value.unit === undefined ? {} : { unit: parsed.value.unit }),
     })
     if (result.isErr()) {
       return err(toToolError(result.error))

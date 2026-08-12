@@ -13,7 +13,7 @@ export interface SelectedFood {
   // a freshly-registered composition candidate — an edited entry's food
   // isn't re-fetched, so this stays null and the detail form skips the
   // kcal preview rather than showing a stale/wrong number.
-  readonly energyKcalPer100g: number | null
+  readonly energyKcalPerUnit: number | null
 }
 
 export interface SheetState {
@@ -24,7 +24,6 @@ export interface SheetState {
   readonly selectedFood: SelectedFood | null
   readonly isNewFood: boolean
   readonly quantity: string
-  readonly unit: string
   // null means the user hasn't picked one yet — save stays disabled until
   // they do (mealType is never inferred).
   readonly mealType: MealType | null
@@ -40,7 +39,6 @@ export const buildCreateState = (): SheetState => ({
   selectedFood: null,
   isNewFood: false,
   quantity: '1',
-  unit: 'g',
   mealType: null,
   date: todayJstDate(),
   justSaved: false,
@@ -63,41 +61,26 @@ export const buildEditState = (entry: DayDetailEntry): SheetState => ({
     foodMasterId: entry.foodMasterId,
     name: entry.foodName,
     isEstimated: entry.isEstimated,
-    energyKcalPer100g: null,
+    energyKcalPerUnit: null,
   },
   isNewFood: false,
   quantity: String(entry.quantity),
-  unit: entry.unit,
   mealType: entry.mealType,
   date: entry.eatenDate,
   justSaved: false,
 })
 
-// unit=g/kg/mg always resolves without a per-food unit definition (see
-// resolveAmountGrams on the backend); anything else needs a food_master_unit
-// this client doesn't have, so the sheet skips the preview rather than
-// showing a wrong number.
-const GRAM_MULTIPLIERS: Readonly<Record<string, number>> = {
-  g: 1,
-  kg: 1000,
-  mg: 0.001,
-}
-
 export const previewKcal = (state: SheetState): number | null => {
-  const energyKcalPer100g = state.selectedFood?.energyKcalPer100g ?? null
-  if (energyKcalPer100g === null) return null
-  const multiplier = GRAM_MULTIPLIERS[state.unit.trim().toLowerCase()]
-  if (multiplier === undefined) return null
+  const energyKcalPerUnit = state.selectedFood?.energyKcalPerUnit ?? null
+  if (energyKcalPerUnit === null) return null
   const quantity = Number(state.quantity)
   if (!Number.isFinite(quantity) || quantity <= 0) return null
-  const grams = quantity * multiplier
-  return (energyKcalPer100g * grams) / 100
+  return energyKcalPerUnit * quantity
 }
 
-// A newly-registered composition candidate defaults to g/100 (it has no
-// food_master_unit yet — see registerFromComposition on the backend), so
-// switching to it resets quantity/unit; picking an existing food_master
-// keeps whatever the user already typed.
+// A newly-registered composition candidate defaults quantity to 100 (see
+// registerFromComposition on the backend); picking an existing food_master
+// keeps whatever quantity the user already typed.
 export const applyFoodSelection = (
   state: SheetState,
   food: SelectedFood,
@@ -107,7 +90,6 @@ export const applyFoodSelection = (
   selectedFood: food,
   isNewFood: isNew,
   phase: 'detail',
-  unit: isNew ? 'g' : state.unit,
   quantity: isNew ? '100' : state.quantity,
 })
 
@@ -136,6 +118,5 @@ export const buildSavePayload = (
     eatenDate: state.date,
     mealType: state.mealType,
     quantity,
-    unit: state.unit.trim(),
   }
 }

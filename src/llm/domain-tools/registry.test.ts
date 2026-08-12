@@ -4,7 +4,6 @@ import { describe, expect, it } from 'vitest'
 import type { WebSearchClient } from '#adapters/web-search/web-search-client'
 import { FoodMasterDomainError } from '#domain/food-master/errors'
 import type { FoodMasterService } from '#domain/food-master/service'
-import type { FoodMasterUnitService } from '#domain/food-master-unit/service'
 import type { FoodMatcher } from '#domain/food-matcher/food-matcher'
 import type { MealHistoryService } from '#domain/meal-history/types'
 import { DomainError } from '#domain/meal-log/errors'
@@ -100,14 +99,6 @@ const stubDeps = (override: Partial<DomainToolsDeps> = {}): DomainToolsDeps => {
         ),
       ),
   }
-  const foodMasterUnitService: FoodMasterUnitService = {
-    register: (input) =>
-      okAsync({
-        foodMasterId: input.foodMasterId,
-        unit: input.unit,
-        gramsPerUnit: input.gramsPerUnit,
-      }),
-  }
   const foodMatcher: FoodMatcher = {
     search: () => okAsync([]),
   }
@@ -159,7 +150,6 @@ const stubDeps = (override: Partial<DomainToolsDeps> = {}): DomainToolsDeps => {
   return {
     mealLogService,
     foodMasterService,
-    foodMasterUnitService,
     foodMatcher,
     mealHistoryService,
     userProfileService,
@@ -170,7 +160,7 @@ const stubDeps = (override: Partial<DomainToolsDeps> = {}): DomainToolsDeps => {
 }
 
 describe('createDomainToolsRegistry', () => {
-  it('registers all thirteen internal tools and exposes them via toLlmSchemas in the same order', () => {
+  it('registers all twelve internal tools and exposes them via toLlmSchemas in the same order', () => {
     const registry = createDomainToolsRegistry(stubDeps())
 
     const expectedNames = [
@@ -181,7 +171,6 @@ describe('createDomainToolsRegistry', () => {
       'search_food_master',
       'register_food_master',
       'register_food_master_from_composition',
-      'register_food_master_unit',
       'merge_food_master',
       'query_meal_history',
       'get_user_profile',

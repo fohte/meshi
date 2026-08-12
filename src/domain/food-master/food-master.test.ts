@@ -99,9 +99,6 @@ describeIfDb('FoodMasterService + Repository', () => {
       sourceUrl: 'https://example.com/rice',
       sourceCompositionCode: null,
       nutrition: { energy_kcal: 168, protein_g: 2.5, iron_mg: 0.1 },
-      units: [],
-      basisQuantity: 100,
-      basisUnit: 'g',
       createdAt: '<date>',
     })
 
@@ -180,9 +177,6 @@ describeIfDb('FoodMasterService + Repository', () => {
       sourceUrl: 'https://example.com/milk',
       sourceCompositionCode: null,
       nutrition: { energy_kcal: 67 },
-      units: [],
-      basisQuantity: 100,
-      basisUnit: 'g',
       createdAt: '<date>',
     })
   })
@@ -317,9 +311,6 @@ describeIfDb('FoodMasterService + Repository', () => {
       sourceUrl: null,
       sourceCompositionCode: '18008',
       nutrition: { energy_kcal: 250 },
-      units: [],
-      basisQuantity: 100,
-      basisUnit: 'g',
       createdAt: '<date>',
     })
 
@@ -480,108 +471,6 @@ describeIfDb('FoodMasterService + Repository', () => {
     ).toEqual(null)
   })
 
-  it('registers unit definitions and round-trips them through getById, normalized to lowercase', async () => {
-    const registered = (
-      await service.register({
-        ...baseInput,
-        name: 'egg',
-        units: [
-          { unit: '個', gramsPerUnit: 55 },
-          { unit: 'ML', gramsPerUnit: 1.03 },
-        ],
-      })
-    )._unsafeUnwrap()
-
-    expect(normalize(registered)).toEqual({
-      id: 'fm_test_0001',
-      name: 'egg',
-      aliases: [],
-      isEstimated: false,
-      source: 'user_input',
-      sourceUrl: null,
-      sourceCompositionCode: null,
-      nutrition: baseInput.nutrition,
-      units: [
-        { unit: '個', gramsPerUnit: 55 },
-        { unit: 'ml', gramsPerUnit: 1.03 },
-      ],
-      basisQuantity: 100,
-      basisUnit: 'g',
-      createdAt: '<date>',
-    })
-
-    const fetched = (await service.getById('fm_test_0001'))._unsafeUnwrap()
-    expect(fetched === null ? null : normalize(fetched)).toEqual(
-      normalize(registered),
-    )
-  })
-
-  it('rejects an empty unit string', async () => {
-    const captured = await captureDomainError(
-      service.register({
-        ...baseInput,
-        name: 'egg',
-        units: [{ unit: '  ', gramsPerUnit: 55 }],
-      }),
-    )
-
-    expect(captured).toEqual({ code: 'empty_unit', details: {} })
-  })
-
-  it('rejects units that duplicate each other after normalization', async () => {
-    const captured = await captureDomainError(
-      service.register({
-        ...baseInput,
-        name: 'egg',
-        units: [
-          { unit: '個', gramsPerUnit: 55 },
-          { unit: ' 個 ', gramsPerUnit: 60 },
-        ],
-      }),
-    )
-
-    expect(captured).toEqual({
-      code: 'duplicate_unit_in_input',
-      details: { units: ['個', '個'] },
-    })
-  })
-
-  it.each(['g', 'KG', ' mg ', 'l', 'CC'])(
-    'rejects the reserved unit %p, which resolveAmountGrams would never look up per-food',
-    async (unit) => {
-      const captured = await captureDomainError(
-        service.register({
-          ...baseInput,
-          name: 'egg',
-          units: [{ unit, gramsPerUnit: 55 }],
-        }),
-      )
-
-      expect(captured).toEqual({
-        code: 'reserved_unit',
-        details: { unit: unit.trim().toLowerCase() },
-      })
-    },
-  )
-
-  it.each([0, -1, Number.NaN, Number.POSITIVE_INFINITY, 20_000])(
-    'rejects an implausible grams_per_unit %p',
-    async (gramsPerUnit) => {
-      const captured = await captureDomainError(
-        service.register({
-          ...baseInput,
-          name: 'egg',
-          units: [{ unit: '個', gramsPerUnit }],
-        }),
-      )
-
-      expect(captured).toEqual({
-        code: 'implausible_grams_per_unit',
-        details: { unit: '個', gramsPerUnit },
-      })
-    },
-  )
-
   it('registers a food_master from a food_compositions row', async () => {
     const tx = getTx()
     await seedFoodComposition(tx, { code: '01088', name: 'そば ゆで' })
@@ -604,9 +493,6 @@ describeIfDb('FoodMasterService + Repository', () => {
         sourceUrl: null,
         sourceCompositionCode: '01088',
         nutrition: { energy_kcal: 130, protein_g: 4.8 },
-        units: [],
-        basisQuantity: 100,
-        basisUnit: 'g',
         createdAt: '<date>',
       },
       compositionName: 'そば ゆで',
@@ -644,9 +530,6 @@ describeIfDb('FoodMasterService + Repository', () => {
         sourceUrl: null,
         sourceCompositionCode: '01088',
         nutrition: { energy_kcal: 130, protein_g: 4.8 },
-        units: [],
-        basisQuantity: 100,
-        basisUnit: 'g',
         createdAt: '<date>',
       },
       compositionName: 'そば ゆで',
@@ -681,129 +564,6 @@ describeIfDb('FoodMasterService + Repository', () => {
       code: 'duplicate_name',
       details: { name: baseInput.name },
     })
-  })
-
-  it('registers a food with a non-default (1, 食) basis and round-trips it through getById', async () => {
-    const registered = (
-      await service.register({
-        ...baseInput,
-        name: 'かつ丼',
-        basisQuantity: 1,
-        basisUnit: '食',
-      })
-    )._unsafeUnwrap()
-
-    expect(normalize(registered)).toEqual({
-      id: 'fm_test_0001',
-      name: 'かつ丼',
-      aliases: [],
-      isEstimated: false,
-      source: 'user_input',
-      sourceUrl: null,
-      sourceCompositionCode: null,
-      nutrition: baseInput.nutrition,
-      units: [],
-      basisQuantity: 1,
-      basisUnit: '食',
-      createdAt: '<date>',
-    })
-
-    const fetched = (await service.getById('fm_test_0001'))._unsafeUnwrap()
-    expect(fetched === null ? null : normalize(fetched)).toEqual(
-      normalize(registered),
-    )
-  })
-
-  it('collapses a mass-unit basis (1 kg) to (1000, g) and round-trips it through getById', async () => {
-    const registered = (
-      await service.register({
-        ...baseInput,
-        name: 'たまねぎ大量',
-        basisQuantity: 1,
-        basisUnit: 'kg',
-      })
-    )._unsafeUnwrap()
-
-    expect(normalize(registered)).toEqual({
-      id: 'fm_test_0001',
-      name: 'たまねぎ大量',
-      aliases: [],
-      isEstimated: false,
-      source: 'user_input',
-      sourceUrl: null,
-      sourceCompositionCode: null,
-      nutrition: baseInput.nutrition,
-      units: [],
-      basisQuantity: 1000,
-      basisUnit: 'g',
-      createdAt: '<date>',
-    })
-
-    const fetched = (await service.getById('fm_test_0001'))._unsafeUnwrap()
-    expect(fetched === null ? null : normalize(fetched)).toEqual(
-      normalize(registered),
-    )
-  })
-
-  it('collapses a volume-unit basis (1 l) to (1000, ml) and round-trips it through getById', async () => {
-    const registered = (
-      await service.register({
-        ...baseInput,
-        name: 'スープ大量',
-        basisQuantity: 1,
-        basisUnit: 'l',
-      })
-    )._unsafeUnwrap()
-
-    expect(normalize(registered)).toEqual({
-      id: 'fm_test_0001',
-      name: 'スープ大量',
-      aliases: [],
-      isEstimated: false,
-      source: 'user_input',
-      sourceUrl: null,
-      sourceCompositionCode: null,
-      nutrition: baseInput.nutrition,
-      units: [],
-      basisQuantity: 1000,
-      basisUnit: 'ml',
-      createdAt: '<date>',
-    })
-
-    const fetched = (await service.getById('fm_test_0001'))._unsafeUnwrap()
-    expect(fetched === null ? null : normalize(fetched)).toEqual(
-      normalize(registered),
-    )
-  })
-
-  it.each([0, -1, Number.NaN, Number.POSITIVE_INFINITY])(
-    'rejects an invalid basisQuantity %p',
-    async (basisQuantity) => {
-      const captured = await captureDomainError(
-        service.register({
-          ...baseInput,
-          name: 'broken-basis',
-          basisQuantity,
-        }),
-      )
-
-      expect(captured).toEqual({
-        code: 'invalid_basis_quantity',
-        details: { basisQuantity },
-      })
-    },
-  )
-
-  it('rejects a whitespace-only basisUnit', async () => {
-    const captured = await captureDomainError(
-      service.register({
-        ...baseInput,
-        name: 'broken-basis-unit',
-        basisUnit: '   ',
-      }),
-    )
-
-    expect(captured).toEqual({ code: 'empty_basis_unit', details: {} })
   })
 
   it('finds an existing food_master whose name is a plausible near-duplicate, scored above the threshold', async () => {
@@ -898,9 +658,6 @@ describeIfDb('FoodMasterService + Repository', () => {
       sourceUrl: null,
       sourceCompositionCode: null,
       nutrition: baseInput.nutrition,
-      units: [],
-      basisQuantity: 100,
-      basisUnit: 'g',
       createdAt: '<date>',
     })
   })
@@ -927,9 +684,6 @@ describeIfDb('FoodMasterService + Repository', () => {
       sourceUrl: null,
       sourceCompositionCode: null,
       nutrition: baseInput.nutrition,
-      units: [],
-      basisQuantity: 100,
-      basisUnit: 'g',
       createdAt: '<date>',
     })
     expect(other === null ? null : normalize(other)).toEqual({
@@ -941,9 +695,6 @@ describeIfDb('FoodMasterService + Repository', () => {
       sourceUrl: null,
       sourceCompositionCode: null,
       nutrition: baseInput.nutrition,
-      units: [],
-      basisQuantity: 100,
-      basisUnit: 'g',
       createdAt: '<date>',
     })
   })

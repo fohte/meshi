@@ -110,7 +110,7 @@ const FoodRow = ({ item, onSelect }: FoodRowProps): React.JSX.Element => (
         <span className={styles.rowMeta}>{SOURCE_LABELS[item.source]}</span>
       )}
     </span>
-    <span className={styles.rowKcal}>{kcalText(item.energyKcalPer100g)}</span>
+    <span className={styles.rowKcal}>{kcalText(item.energyKcalPerUnit)}</span>
   </button>
 )
 
@@ -145,7 +145,7 @@ const FoodSection = ({
                   foodMasterId,
                   name: item.name,
                   isEstimated: item.isEstimated,
-                  energyKcalPer100g: item.energyKcalPer100g,
+                  energyKcalPerUnit: item.energyKcalPerUnit,
                 })
               }}
             />

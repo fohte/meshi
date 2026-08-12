@@ -5,7 +5,6 @@ import type { FoodMasterRepository } from '#domain/food-master/repository'
 import type {
   FoodMaster,
   FoodMasterId,
-  FoodMasterUnitDefinition,
   MergeFoodMasterResult,
   RegisterFoodMasterInput,
   SimilarFoodMasterCandidate,
@@ -15,7 +14,6 @@ export interface RegisterFromCompositionInput {
   readonly compositionCode: string
   readonly name?: string
   readonly aliases?: ReadonlyArray<string>
-  readonly units?: ReadonlyArray<FoodMasterUnitDefinition>
 }
 
 export interface RegisteredFromComposition {
@@ -83,7 +81,6 @@ export const createFoodMasterService = (
           isEstimated: true,
           sourceCompositionCode: input.compositionCode,
           ...(input.aliases !== undefined ? { aliases: input.aliases } : {}),
-          ...(input.units !== undefined ? { units: input.units } : {}),
         })
         .map((foodMaster) => ({
           foodMaster,

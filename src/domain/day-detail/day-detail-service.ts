@@ -3,7 +3,7 @@ import { drizzle } from 'drizzle-orm/postgres-js'
 import { okAsync, ResultAsync } from 'neverthrow'
 
 import type { Sql } from '#db/index'
-import { foodMasterNutrients, foodMasters, mealLogs } from '#db/schema'
+import { foodMasterNutrients, foodMasters } from '#db/schema'
 import { NUTRIENT_CODES } from '#db/seed/nutrient-definitions'
 import type {
   DayDetail,
@@ -24,18 +24,17 @@ const ENERGY_KCAL_CODE = 'energy_kcal'
 
 type Db = ReturnType<typeof drizzle>
 
-// Composes on MealHistoryService for the day-boundary aggregation and adds
-// two batched lookups for the fields the day view needs per item — food
-// name/estimated flag, and each entry's resolved amount_grams (the same
-// basis MealHistoryService's own totals use, not quantity/unit — see
-// resolveAmountGrams) — so rendering the timeline never issues a query per
-// entry.
+// Composes on MealHistoryService for the day-boundary aggregation and adds a
+// batched lookup for the fields the day view needs per item — food
+// name/estimated flag and per-unit kcal — so rendering the timeline never
+// issues a query per entry. Each entry's kcal is kcalPerUnit * quantity, the
+// same multiplier MealHistoryService's own totals use.
 //
-// These two lookups run outside MealHistoryService's own query, so a
-// concurrent correction landing between them could in principle make a
-// day's totals and its entries' kcal disagree by one page load. Accepted:
-// meshi is single-user, the window is one HTTP request wide, and the next
-// load is self-correcting.
+// This lookup runs outside MealHistoryService's own query, so a concurrent
+// correction landing between them could in principle make a day's totals and
+// its entries' kcal disagree by one page load. Accepted: meshi is
+// single-user, the window is one HTTP request wide, and the next load is
+// self-correcting.
 export const createDayDetailService = (
   sql: Sql,
   mealHistoryService: MealHistoryService,
@@ -74,7 +73,6 @@ const enrichEntries = (
   aggregate: MealHistoryAggregate,
   skips: ReadonlyArray<MealSkipRow>,
 ): ResultAsync<DayDetail, DayDetailQueryError> => {
-  const entryIds = aggregate.entries.map((entry) => entry.id)
   const foodMasterIds = [
     ...new Set(aggregate.entries.map((entry) => entry.foodMasterId)),
   ]
@@ -101,51 +99,38 @@ const enrichEntries = (
   }
 
   return ResultAsync.fromPromise(
-    Promise.all([
-      db
-        .select({
-          id: foodMasters.id,
-          name: foodMasters.name,
-          isEstimated: foodMasters.isEstimated,
-          kcalPerBasis: foodMasterNutrients.value,
-          basisQuantity: foodMasters.basisQuantity,
-        })
-        .from(foodMasters)
-        .leftJoin(
-          foodMasterNutrients,
-          and(
-            eq(foodMasterNutrients.foodMasterId, foodMasters.id),
-            eq(foodMasterNutrients.nutrientCode, ENERGY_KCAL_CODE),
-          ),
-        )
-        .where(inArray(foodMasters.id, foodMasterIds)),
-      db
-        .select({ id: mealLogs.id, amountGrams: mealLogs.amountGrams })
-        .from(mealLogs)
-        .where(inArray(mealLogs.id, entryIds)),
-    ]),
+    db
+      .select({
+        id: foodMasters.id,
+        name: foodMasters.name,
+        isEstimated: foodMasters.isEstimated,
+        kcalPerUnit: foodMasterNutrients.value,
+      })
+      .from(foodMasters)
+      .leftJoin(
+        foodMasterNutrients,
+        and(
+          eq(foodMasterNutrients.foodMasterId, foodMasters.id),
+          eq(foodMasterNutrients.nutrientCode, ENERGY_KCAL_CODE),
+        ),
+      )
+      .where(inArray(foodMasters.id, foodMasterIds)),
     (caughtErr) =>
       new DayDetailQueryError('day detail enrichment lookup failed', caughtErr),
-  ).map(([foodRows, mealLogRows]) => {
+  ).map((foodRows) => {
     const foodById = new Map(
       foodRows.map((row) => [
         row.id,
         {
           name: row.name,
           isEstimated: row.isEstimated,
-          kcalPerBasis:
-            row.kcalPerBasis === null ? 0 : Number(row.kcalPerBasis),
-          basisQuantity: Number(row.basisQuantity),
+          kcalPerUnit: row.kcalPerUnit === null ? 0 : Number(row.kcalPerUnit),
         },
       ]),
-    )
-    const amountGramsById = new Map(
-      mealLogRows.map((row) => [row.id, Number(row.amountGrams)]),
     )
 
     const entries: DayDetailEntry[] = aggregate.entries.map((entry) => {
       const food = foodById.get(entry.foodMasterId)
-      const amountGrams = amountGramsById.get(entry.id) ?? 0
       return {
         id: entry.id,
         foodMasterId: entry.foodMasterId,
@@ -153,10 +138,7 @@ const enrichEntries = (
         eatenDate: entry.eatenDate,
         mealType: entry.mealType,
         quantity: entry.quantity,
-        unit: entry.unit,
-        kcal:
-          ((food?.kcalPerBasis ?? 0) * amountGrams) /
-          (food?.basisQuantity ?? 100),
+        kcal: (food?.kcalPerUnit ?? 0) * entry.quantity,
         isEstimated: food?.isEstimated ?? false,
       }
     })

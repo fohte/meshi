@@ -23,8 +23,6 @@ const SAMPLE_JSON = {
   eatenDate: '2026-07-29',
   mealType: 'breakfast',
   quantity: 150,
-  unit: 'g',
-  amountGrams: 150,
   nutrition: { energy_kcal: 234 },
   isEstimated: false,
   createdAt: '2026-07-29T03:00:01.000Z',
@@ -39,7 +37,6 @@ describe('postMealLog', () => {
       eatenDate: '2026-07-29',
       mealType: 'breakfast',
       quantity: 150,
-      unit: 'g',
     })
 
     expect(fetchMock).toHaveBeenCalledWith('/api/meal-logs', {
@@ -50,7 +47,6 @@ describe('postMealLog', () => {
         eatenDate: '2026-07-29',
         mealType: 'breakfast',
         quantity: 150,
-        unit: 'g',
       }),
     })
     expect(result._unsafeUnwrap()).toEqual(SAMPLE_JSON)

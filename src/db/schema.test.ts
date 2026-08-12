@@ -18,7 +18,6 @@ describeIfDb('schema migrations', () => {
       'food_compositions',
       'food_master_aliases',
       'food_master_nutrients',
-      'food_master_units',
       'food_masters',
       'meal_logs',
       'meal_skips',
@@ -201,13 +200,6 @@ describeIfDb('schema migrations', () => {
         on_delete: 'r',
       },
       {
-        conname: 'food_master_units_food_master_id_fk',
-        table_name: 'food_master_units',
-        ref_table: 'food_masters',
-        on_update: 'c',
-        on_delete: 'c',
-      },
-      {
         conname: 'food_masters_source_composition_code_fk',
         table_name: 'food_masters',
         ref_table: 'food_compositions',
@@ -252,14 +244,6 @@ describeIfDb('schema migrations', () => {
         table_name: 'food_master_nutrients',
       },
       {
-        conname: 'food_master_units_grams_per_unit_positive',
-        table_name: 'food_master_units',
-      },
-      {
-        conname: 'food_masters_basis_quantity_positive',
-        table_name: 'food_masters',
-      },
-      {
         conname: 'food_masters_composition_evidence',
         table_name: 'food_masters',
       },
@@ -271,7 +255,6 @@ describeIfDb('schema migrations', () => {
         conname: 'food_masters_web_search_evidence',
         table_name: 'food_masters',
       },
-      { conname: 'meal_logs_amount_grams_positive', table_name: 'meal_logs' },
       { conname: 'meal_logs_quantity_positive', table_name: 'meal_logs' },
       {
         conname: 'user_profiles_daily_targets_object',
@@ -309,36 +292,8 @@ describeIfDb('schema runtime constraints', () => {
     `
     expect(
       await runOutcome(tx`
-        INSERT INTO meal_logs (id, food_master_id, eaten_date, meal_type, quantity, unit, amount_grams)
-        VALUES ('ml_q', 'fm_q', CURRENT_DATE, 'breakfast', 0, 'g', 100)
-      `),
-    ).toEqual({ status: 'error', code: '23514' })
-  })
-
-  it('rejects inserts that violate the meal_logs_amount_grams_positive CHECK', async () => {
-    const tx = getTx()
-    await tx`
-      INSERT INTO food_masters (id, name, source)
-      VALUES ('fm_ag', 'tofu', 'user_input')
-    `
-    expect(
-      await runOutcome(tx`
-        INSERT INTO meal_logs (id, food_master_id, eaten_date, meal_type, quantity, unit, amount_grams)
-        VALUES ('ml_ag', 'fm_ag', CURRENT_DATE, 'breakfast', 1, '個', 0)
-      `),
-    ).toEqual({ status: 'error', code: '23514' })
-  })
-
-  it('rejects inserts that violate the food_master_units_grams_per_unit_positive CHECK', async () => {
-    const tx = getTx()
-    await tx`
-      INSERT INTO food_masters (id, name, source)
-      VALUES ('fm_u', 'egg', 'user_input')
-    `
-    expect(
-      await runOutcome(tx`
-        INSERT INTO food_master_units (food_master_id, unit, grams_per_unit)
-        VALUES ('fm_u', '個', 0)
+        INSERT INTO meal_logs (id, food_master_id, eaten_date, meal_type, quantity)
+        VALUES ('ml_q', 'fm_q', CURRENT_DATE, 'breakfast', 0)
       `),
     ).toEqual({ status: 'error', code: '23514' })
   })
@@ -436,8 +391,8 @@ describeIfDb('schema runtime constraints', () => {
       VALUES ('fm_d', 'natto', 'user_input')
     `
     await tx`
-      INSERT INTO meal_logs (id, food_master_id, eaten_date, meal_type, quantity, unit, amount_grams)
-      VALUES ('ml_d', 'fm_d', CURRENT_DATE, 'breakfast', 1, 'パック', 100)
+      INSERT INTO meal_logs (id, food_master_id, eaten_date, meal_type, quantity)
+      VALUES ('ml_d', 'fm_d', CURRENT_DATE, 'breakfast', 1)
     `
     expect(
       await runOutcome(tx`DELETE FROM food_masters WHERE id = 'fm_d'`),

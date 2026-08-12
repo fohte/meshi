@@ -13,7 +13,6 @@ export interface MealLogDetailFormProps {
   readonly state: SheetState
   readonly backToSearch: () => void
   readonly setQuantity: (quantity: string) => void
-  readonly setUnit: (unit: string) => void
   readonly setMealType: (mealType: MealType) => void
   readonly setDate: (date: string) => void
 }
@@ -22,7 +21,6 @@ export const MealLogDetailForm = ({
   state,
   backToSearch,
   setQuantity,
-  setUnit,
   setMealType,
   setDate,
 }: MealLogDetailFormProps): React.JSX.Element => {
@@ -57,7 +55,7 @@ export const MealLogDetailForm = ({
       </div>
 
       <div className={styles.field}>
-        <div className={styles.label}>量と単位</div>
+        <div className={styles.label}>量</div>
         <div className={styles.quantityRow}>
           <input
             value={state.quantity}
@@ -66,13 +64,6 @@ export const MealLogDetailForm = ({
             }}
             inputMode="decimal"
             className={styles.quantityInput}
-          />
-          <input
-            value={state.unit}
-            onChange={(e) => {
-              setUnit(e.target.value)
-            }}
-            className={styles.unitInput}
           />
         </div>
         <div className={styles.calcText}>

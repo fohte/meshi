@@ -24,7 +24,7 @@ describe('extractRegisteredFoodMasters', () => {
         name: 'register_food_master',
         content: JSON.stringify({
           food_master_id: 'fm_1',
-          name: 'スターバックス抹茶ラテ',
+          name: 'カフェの抹茶ラテ',
           source: 'web_search',
           source_url: 'https://example.com/matcha',
           nutrition_per_100g: { energy_kcal: 60, protein_g: 2 },
@@ -45,46 +45,14 @@ describe('extractRegisteredFoodMasters', () => {
 
     expect(extractRegisteredFoodMasters(messages)).toEqual([
       {
-        name: 'スターバックス抹茶ラテ',
-        energyKcalPerBasis: 60,
-        basisQuantity: 100,
-        basisUnit: 'g',
+        name: 'カフェの抹茶ラテ',
+        energyKcal: 60,
         sourceLabel: 'https://example.com/matcha (web検索)',
       },
       {
         name: 'そば ゆで',
-        energyKcalPerBasis: 130,
-        basisQuantity: 100,
-        basisUnit: 'g',
+        energyKcal: 130,
         sourceLabel: '成分表「そば ゆで」(コード 01088)',
-      },
-    ])
-  })
-
-  it('preserves a non-default basis_quantity/basis_unit when the tool result includes them', () => {
-    const messages: AgentInvokeMessage[] = [
-      buildInvokeMessage('human'),
-      buildInvokeMessage('tool', {
-        name: 'register_food_master',
-        content: JSON.stringify({
-          food_master_id: 'fm_1',
-          name: '松のや 味噌ロースかつ丼 並',
-          source: 'user_input',
-          source_url: null,
-          nutrition_per_100g: { energy_kcal: 913 },
-          basis_quantity: 1,
-          basis_unit: '食',
-        }),
-      }),
-    ]
-
-    expect(extractRegisteredFoodMasters(messages)).toEqual([
-      {
-        name: '松のや 味噌ロースかつ丼 並',
-        energyKcalPerBasis: 913,
-        basisQuantity: 1,
-        basisUnit: '食',
-        sourceLabel: 'あなたの申告値',
       },
     ])
   })
@@ -107,9 +75,7 @@ describe('extractRegisteredFoodMasters', () => {
     expect(extractRegisteredFoodMasters(messages)).toEqual([
       {
         name: '手作りカレー',
-        energyKcalPerBasis: 200,
-        basisQuantity: 100,
-        basisUnit: 'g',
+        energyKcal: 200,
         sourceLabel: 'あなたの申告値',
       },
     ])
@@ -226,9 +192,7 @@ describe('extractRegisteredFoodMasters', () => {
     expect(extractRegisteredFoodMasters(messages)).toEqual([
       {
         name: '謎の食品',
-        energyKcalPerBasis: null,
-        basisQuantity: 100,
-        basisUnit: 'g',
+        energyKcal: null,
         sourceLabel: 'あなたの申告値',
       },
     ])
@@ -245,17 +209,13 @@ describe('withRegisteredFoodMasterDisclosure', () => {
   it('appends a disclosure block listing every registered food in order', () => {
     const result = withRegisteredFoodMasterDisclosure('記録しました。', [
       {
-        name: 'スターバックス抹茶ラテ',
-        energyKcalPerBasis: 60,
-        basisQuantity: 100,
-        basisUnit: 'g',
+        name: 'カフェの抹茶ラテ',
+        energyKcal: 60,
         sourceLabel: 'https://example.com/matcha (web検索)',
       },
       {
         name: 'そば ゆで',
-        energyKcalPerBasis: 130,
-        basisQuantity: 100,
-        basisUnit: 'g',
+        energyKcal: 130,
         sourceLabel: '成分表「そば ゆで」(コード 01088)',
       },
     ])
@@ -265,45 +225,20 @@ describe('withRegisteredFoodMasterDisclosure', () => {
         '記録しました。',
         '',
         '新しく登録した食品:',
-        '- スターバックス抹茶ラテ 60kcal/100g',
+        '- カフェの抹茶ラテ 60kcal',
         '  出典: https://example.com/matcha (web検索)',
-        '- そば ゆで 130kcal/100g',
+        '- そば ゆで 130kcal',
         '  出典: 成分表「そば ゆで」(コード 01088)',
         '値が違う場合は教えてください。',
       ].join('\n'),
     )
   })
 
-  it('renders the kcal suffix against a non-default basis, not a hardcoded 100g', () => {
-    const result = withRegisteredFoodMasterDisclosure('記録しました。', [
-      {
-        name: '松のや 味噌ロースかつ丼 並',
-        energyKcalPerBasis: 913,
-        basisQuantity: 1,
-        basisUnit: '食',
-        sourceLabel: 'あなたの申告値',
-      },
-    ])
-
-    expect(result).toBe(
-      [
-        '記録しました。',
-        '',
-        '新しく登録した食品:',
-        '- 松のや 味噌ロースかつ丼 並 913kcal/1食',
-        '  出典: あなたの申告値',
-        '値が違う場合は教えてください。',
-      ].join('\n'),
-    )
-  })
-
-  it('omits the kcal suffix when energyKcalPerBasis is null', () => {
+  it('omits the kcal suffix when energyKcal is null', () => {
     const result = withRegisteredFoodMasterDisclosure('記録しました。', [
       {
         name: '謎の食品',
-        energyKcalPerBasis: null,
-        basisQuantity: 100,
-        basisUnit: 'g',
+        energyKcal: null,
         sourceLabel: 'あなたの申告値',
       },
     ])

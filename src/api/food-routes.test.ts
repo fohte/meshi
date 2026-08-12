@@ -16,7 +16,7 @@ const stubItem: FoodListItem = {
   isEstimated: false,
   reason: 'fuzzy_name',
   source: 'user_input',
-  energyKcalPer100g: 168,
+  energyKcalPerUnit: 168,
 }
 
 const buildApp = (
@@ -70,7 +70,7 @@ describe('GET /api/foods/search', () => {
           isEstimated: false,
           reason: 'fuzzy_name',
           source: 'user_input',
-          energyKcalPer100g: 168,
+          energyKcalPerUnit: 168,
         },
       ],
     })
@@ -162,7 +162,7 @@ describe('GET /api/foods/suggestions', () => {
           isEstimated: false,
           reason: 'fuzzy_name',
           source: 'user_input',
-          energyKcalPer100g: 168,
+          energyKcalPerUnit: 168,
         },
       ],
       frequent: [],
@@ -199,17 +199,13 @@ describe('GET /api/foods/:id', () => {
       source: 'user_input',
       sourceUrl: null,
       aliases: ['ご飯'],
-      basisQuantity: 100,
-      basisUnit: 'g',
-      nutritionPerBasis: { energy_kcal: 168 },
+      nutrition: { energy_kcal: 168 },
       history: [
         {
           id: 'ml_1',
           eatenDate: jstDate('2026-07-29'),
           mealType: 'breakfast',
-          amountGrams: 100,
           quantity: 100,
-          unit: 'g',
         },
       ],
       totalEatenCount: 1,
@@ -229,18 +225,14 @@ describe('GET /api/foods/:id', () => {
       source: 'user_input',
       sourceUrl: null,
       aliases: ['ご飯'],
-      basisQuantity: 100,
-      basisUnit: 'g',
-      nutritionPerBasis: { energy_kcal: 168 },
+      nutrition: { energy_kcal: 168 },
       totalEatenCount: 1,
       history: [
         {
           id: 'ml_1',
           eatenDate: '2026-07-29',
           mealType: 'breakfast',
-          amountGrams: 100,
           quantity: 100,
-          unit: 'g',
         },
       ],
     })

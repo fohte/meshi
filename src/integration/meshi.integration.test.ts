@@ -17,10 +17,6 @@ import {
   createFoodMasterRepository,
   createFoodMasterService,
 } from '#domain/food-master/index'
-import {
-  createFoodMasterUnitRepository,
-  createFoodMasterUnitService,
-} from '#domain/food-master-unit/index'
 import { createDrizzleFoodMatcher } from '#domain/food-matcher/index'
 import { createMealHistoryService } from '#domain/meal-history/index'
 import { createDrizzleMealLogRepository } from '#domain/meal-log/drizzle-meal-log-repository'
@@ -164,9 +160,6 @@ const startHarness = async (opts: HarnessOptions): Promise<Harness> => {
     // pin to a fixed point in time so date validation is deterministic
     now: () => new Date('2026-06-12T22:00:00+09:00'),
   })
-  const foodMasterUnitService = createFoodMasterUnitService(
-    createFoodMasterUnitRepository(tx),
-  )
   const foodMatcher = createDrizzleFoodMatcher(tx)
   const mealHistoryService = createMealHistoryService(tx)
   const userProfileService = createUserProfileService(
@@ -183,7 +176,6 @@ const startHarness = async (opts: HarnessOptions): Promise<Harness> => {
   const registry = createDomainToolsRegistry({
     mealLogService,
     foodMasterService,
-    foodMasterUnitService,
     foodMatcher,
     mealHistoryService,
     userProfileService,
@@ -252,18 +244,15 @@ const seedMealLog = async (
     readonly eatenDate: string
     readonly mealType: MealType
     readonly quantity: number
-    readonly unit: string
   },
 ): Promise<void> => {
   await tx`
-    INSERT INTO meal_logs (id, food_master_id, eaten_date, meal_type, quantity, unit, amount_grams)
+    INSERT INTO meal_logs (id, food_master_id, eaten_date, meal_type, quantity)
     VALUES (
       ${args.id},
       ${args.foodMasterId},
       ${args.eatenDate},
       ${args.mealType},
-      ${String(args.quantity)},
-      ${args.unit},
       ${String(args.quantity)}
     )
   `
@@ -401,12 +390,11 @@ describeIfDb('meshi integration', () => {
             food_name: '白米',
             date: '2026-06-12',
             meal_type: 'lunch',
-            quantity: 200,
-            unit: 'g',
+            quantity: 2,
           },
         },
       ],
-      final: { status: 'completed', message: '白米 200g を記録しました。' },
+      final: { status: 'completed', message: '白米を記録しました。' },
     })
 
     try {
@@ -432,7 +420,11 @@ describeIfDb('meshi integration', () => {
             {
               meal_log_id: 'ml_scenario1',
               food_master_id: 'fm_rice',
-              nutrition: { energy_kcal: 336, protein_g: 5, carbohydrate_g: 74 },
+              nutrition: {
+                energy_kcal: 336,
+                protein_g: 5,
+                carbohydrate_g: 74,
+              },
               is_estimated: false,
             },
           ],
@@ -443,16 +435,15 @@ describeIfDb('meshi integration', () => {
       })
 
       const rows = await tx<
-        { id: string; food_master_id: string; quantity: string; unit: string }[]
+        { id: string; food_master_id: string; quantity: string }[]
       >`
-        SELECT id, food_master_id, quantity, unit FROM meal_logs
+        SELECT id, food_master_id, quantity FROM meal_logs
       `
       expect(rows).toEqual([
         {
           id: 'ml_scenario1',
           food_master_id: 'fm_rice',
-          quantity: '200',
-          unit: 'g',
+          quantity: '2',
         },
       ])
     } finally {
@@ -478,16 +469,16 @@ describeIfDb('meshi integration', () => {
       toolCalls: [
         {
           name: 'search_food_master',
-          args: { queries: ['スターバックス抹茶ラテ'] },
+          args: { queries: ['カフェの抹茶ラテ'] },
         },
         {
           name: 'web_search',
-          args: { query: 'スターバックス 抹茶ラテ 栄養成分' },
+          args: { query: 'カフェ 抹茶ラテ 栄養成分' },
         },
         {
           name: 'register_food_master',
           args: {
-            name: 'スターバックス抹茶ラテ',
+            name: 'カフェの抹茶ラテ',
             nutrition_per_basis: { energy_kcal: 60, protein_g: 2 },
             source: 'web_search',
             is_estimated: false,
@@ -498,11 +489,10 @@ describeIfDb('meshi integration', () => {
           name: 'record_meal_log',
           args: {
             food_master_id: 'fm_test_0001',
-            food_name: 'スターバックス抹茶ラテ',
+            food_name: 'カフェの抹茶ラテ',
             date: '2026-06-12',
             meal_type: 'lunch',
-            quantity: 350,
-            unit: 'g',
+            quantity: 3.5,
           },
         },
       ],
@@ -514,7 +504,7 @@ describeIfDb('meshi integration', () => {
         await harness.client.callTool({
           name: 'record_meal_from_text',
           arguments: {
-            text: 'スターバックスの抹茶ラテ Tall (350g) を飲みました',
+            text: 'カフェの抹茶ラテ (350g) を飲みました',
           },
         }),
       )
@@ -550,7 +540,7 @@ describeIfDb('meshi integration', () => {
       expect(masters).toEqual([
         {
           id: 'fm_test_0001',
-          name: 'スターバックス抹茶ラテ',
+          name: 'カフェの抹茶ラテ',
           source: 'web_search',
         },
       ])
@@ -558,130 +548,6 @@ describeIfDb('meshi integration', () => {
         { count: string }[]
       >`SELECT COUNT(*)::text AS count FROM meal_logs`
       expect(mealLogCount).toEqual([{ count: '1' }])
-    } finally {
-      await harness.close()
-    }
-  })
-
-  it('on-demand registration with a per-meal basis — restaurant menu with no stated serving weight', async () => {
-    const tx = getTx()
-    // The shared beforeEach only seeds the file's carbohydrate_g convention;
-    // register_food_master's nutrition_per_basis is constrained to the real
-    // NUTRIENT_CODES enum, which spells it carb_g.
-    await upsertNutrientDefinitions(tx, [
-      {
-        code: 'carb_g',
-        displayName: 'carb',
-        unit: 'g',
-        isMajor: true,
-        sortOrder: 5,
-      },
-    ])
-
-    const harness = await startHarness({
-      tx,
-      mealLogIds: ['ml_scenario_katsudon'],
-      webSearch: {
-        snippets: [
-          {
-            title: 'とんかつ亭 かつ丼 並盛',
-            url: 'https://example.com/tonkatsutei-katsudon',
-            text: 'かつ丼 並盛 913kcal タンパク質28.5g 脂質34.2g 炭水化物124.8g',
-          },
-        ],
-      },
-      toolCalls: [
-        {
-          name: 'search_food_master',
-          args: { queries: ['かつ丼 並'] },
-        },
-        {
-          name: 'web_search',
-          args: { query: 'とんかつ亭 かつ丼 並盛 栄養成分' },
-        },
-        {
-          name: 'register_food_master',
-          args: {
-            name: 'かつ丼 並',
-            nutrition_per_basis: {
-              energy_kcal: 913,
-              protein_g: 28.5,
-              fat_g: 34.2,
-              carb_g: 124.8,
-            },
-            basis_quantity: 1,
-            basis_unit: '食',
-            source: 'web_search',
-            is_estimated: false,
-            source_url: 'https://example.com/tonkatsutei-katsudon',
-          },
-        },
-        {
-          name: 'record_meal_log',
-          args: {
-            food_master_id: 'fm_test_0001',
-            food_name: 'かつ丼 並',
-            date: '2026-06-12',
-            meal_type: 'lunch',
-            quantity: 1,
-            unit: '食',
-          },
-        },
-      ],
-      final: {
-        status: 'completed',
-        message: 'かつ丼を記録しました。',
-      },
-    })
-
-    try {
-      const result = normalizeResult(
-        await harness.client.callTool({
-          name: 'record_meal_from_text',
-          arguments: {
-            text: 'とんかつ亭 かつ丼 並を1食食べました',
-          },
-        }),
-      )
-
-      expect(result).toEqual({
-        structuredContent: {
-          recorded: [
-            {
-              meal_log_id: 'ml_scenario_katsudon',
-              food_master_id: 'fm_test_0001',
-              nutrition: {
-                energy_kcal: 913,
-                protein_g: 28.5,
-                fat_g: 34.2,
-                carb_g: 124.8,
-              },
-              is_estimated: false,
-            },
-          ],
-          candidates: [],
-          has_estimated_values: false,
-          error: null,
-        },
-        content: [
-          {
-            type: 'text',
-            text: [
-              '記録しました (1 件)。',
-              '- fm_test_0001: 913 kcal / P 28.5g / F 34.2g',
-            ].join('\n'),
-          },
-        ],
-      })
-
-      const masters = await tx<
-        { id: string; basis_quantity: string; basis_unit: string }[]
-      >`
-        SELECT id, basis_quantity, basis_unit FROM food_masters ORDER BY id
-      `
-      expect(masters).toEqual([
-        { id: 'fm_test_0001', basis_quantity: '1', basis_unit: '食' },
-      ])
     } finally {
       await harness.close()
     }
@@ -777,8 +643,7 @@ describeIfDb('meshi integration', () => {
       foodMasterId: 'fm_rice',
       eatenDate: '2026-06-12',
       mealType: 'lunch',
-      quantity: 200,
-      unit: 'g',
+      quantity: 2,
     })
 
     const harness = await startHarness({
@@ -813,7 +678,11 @@ describeIfDb('meshi integration', () => {
       expect(result).toEqual({
         structuredContent: {
           aggregate: {
-            totals: { energy_kcal: 336, protein_g: 5, carbohydrate_g: 74 },
+            totals: {
+              energy_kcal: 336,
+              protein_g: 5,
+              carbohydrate_g: 74,
+            },
             per_day: [
               {
                 date: '2026-06-12',
@@ -829,8 +698,7 @@ describeIfDb('meshi integration', () => {
                 meal_log_id: 'ml_history_1',
                 food_master_id: 'fm_rice',
                 eaten_date: '2026-06-12',
-                quantity: 200,
-                unit: 'g',
+                quantity: 2,
               },
             ],
             has_estimated_values: false,
@@ -847,7 +715,7 @@ describeIfDb('meshi integration', () => {
               '- 期間内の日数: 1 日',
               '- 記録件数: 1 件',
               '明細 (1 件):',
-              '- 2026-06-12 昼食 白米: 200g',
+              '- 2026-06-12 昼食 白米 × 2',
             ].join('\n'),
           },
         ],
@@ -924,14 +792,13 @@ describeIfDb('meshi integration', () => {
             food_name: '白米',
             date: '2026-06-12',
             meal_type: 'dinner',
-            quantity: 150,
-            unit: 'g',
+            quantity: 1.5,
           },
         },
       ],
       final: {
         status: 'completed',
-        message: '写真から白米 150g を記録しました。',
+        message: '写真から白米を記録しました。',
       },
     })
 
@@ -982,7 +849,7 @@ describeIfDb('meshi integration', () => {
       const logs = await tx<
         { id: string; quantity: string }[]
       >`SELECT id, quantity FROM meal_logs`
-      expect(logs).toEqual([{ id: 'ml_image_1', quantity: '150' }])
+      expect(logs).toEqual([{ id: 'ml_image_1', quantity: '1.5' }])
     } finally {
       await harness.close()
     }

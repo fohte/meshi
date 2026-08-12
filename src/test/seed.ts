@@ -5,7 +5,6 @@ import type {
   foodMasterAliases,
   foodMasterNutrients,
   foodMasters,
-  foodMasterUnits,
   mealLogs,
   mealSkips,
   nutrientDefinitions,
@@ -42,26 +41,20 @@ const seedFoodMasterNutrient = async (
 
 export const seedFoodMaster = async (
   sql: Sql,
-  values: Omit<
-    typeof foodMasters.$inferInsert,
-    'createdAt' | 'basisQuantity'
-  > & {
+  values: Omit<typeof foodMasters.$inferInsert, 'createdAt'> & {
     nutrients?: Readonly<Record<string, number>>
-    basisQuantity?: number
   },
 ): Promise<void> => {
   const { nutrients, ...row } = values
   await sql`
-    INSERT INTO food_masters (id, name, is_estimated, source, source_url, source_composition_code, basis_quantity, basis_unit)
+    INSERT INTO food_masters (id, name, is_estimated, source, source_url, source_composition_code)
     VALUES (
       ${row.id},
       ${row.name},
       ${row.isEstimated ?? false},
       ${row.source},
       ${row.sourceUrl ?? null},
-      ${row.sourceCompositionCode ?? null},
-      ${row.basisQuantity ?? 100},
-      ${row.basisUnit ?? 'g'}
+      ${row.sourceCompositionCode ?? null}
     )
   `
   // Nutrient codes referenced by a seeded food need a definition row to
@@ -94,40 +87,19 @@ export const seedFoodMasterAlias = async (
 
 export const seedMealLog = async (
   sql: Sql,
-  values: Omit<
-    typeof mealLogs.$inferInsert,
-    'quantity' | 'unit' | 'amountGrams' | 'createdAt'
-  > & {
+  values: Omit<typeof mealLogs.$inferInsert, 'quantity' | 'createdAt'> & {
     quantity: number
-    unit?: string
-    // Defaults to quantity, which is only correct for the default 'g' unit
-    // — pass it explicitly alongside a non-gram unit.
-    amountGrams?: number
   },
 ): Promise<void> => {
   await sql`
-    INSERT INTO meal_logs (id, food_master_id, eaten_date, meal_type, quantity, unit, amount_grams)
+    INSERT INTO meal_logs (id, food_master_id, eaten_date, meal_type, quantity)
     VALUES (
       ${values.id},
       ${values.foodMasterId},
       ${values.eatenDate},
       ${values.mealType},
-      ${values.quantity},
-      ${values.unit ?? 'g'},
-      ${values.amountGrams ?? values.quantity}
+      ${values.quantity}
     )
-  `
-}
-
-export const seedFoodMasterUnit = async (
-  sql: Sql,
-  values: Omit<typeof foodMasterUnits.$inferInsert, 'gramsPerUnit'> & {
-    gramsPerUnit: number
-  },
-): Promise<void> => {
-  await sql`
-    INSERT INTO food_master_units (food_master_id, unit, grams_per_unit)
-    VALUES (${values.foodMasterId}, ${values.unit}, ${values.gramsPerUnit})
   `
 }
 

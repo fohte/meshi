@@ -17,7 +17,6 @@ export {
 export type {
   FoodMaster,
   FoodMasterId,
-  FoodMasterUnitDefinition,
   FoodSource,
   MergeFoodMasterResult,
   NutrientCode,

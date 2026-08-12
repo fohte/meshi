@@ -41,7 +41,7 @@ describe('fetchFoodSearch', () => {
       isEstimated: false,
       reason: 'fuzzy_name',
       source: 'user_input',
-      energyKcalPer100g: 168,
+      energyKcalPerUnit: 168,
     }
     mockFetchOk({ items: [item] })
 
@@ -73,18 +73,14 @@ describe('fetchFoodDetail', () => {
       source: 'user_input',
       sourceUrl: null,
       aliases: [],
-      basisQuantity: 100,
-      basisUnit: 'g',
-      nutritionPerBasis: { energy_kcal: 168 },
+      nutrition: { energy_kcal: 168 },
       totalEatenCount: 1,
       history: [
         {
           id: 'ml_1',
           eatenDate: '2026-07-29',
           mealType: 'breakfast',
-          amountGrams: 100,
           quantity: 100,
-          unit: 'g',
         },
       ],
     })
@@ -98,18 +94,14 @@ describe('fetchFoodDetail', () => {
       source: 'user_input',
       sourceUrl: null,
       aliases: [],
-      basisQuantity: 100,
-      basisUnit: 'g',
-      nutritionPerBasis: { energy_kcal: 168 },
+      nutrition: { energy_kcal: 168 },
       totalEatenCount: 1,
       history: [
         {
           id: 'ml_1',
           eatenDate: '2026-07-29',
           mealType: 'breakfast',
-          amountGrams: 100,
           quantity: 100,
-          unit: 'g',
         },
       ],
     })

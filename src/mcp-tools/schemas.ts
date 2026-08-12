@@ -58,7 +58,6 @@ export const mealHistoryStructuredOutput = {
           food_master_id: z.string(),
           eaten_date: z.string(),
           quantity: z.number(),
-          unit: z.string(),
         }),
       ),
       has_estimated_values: z.boolean(),

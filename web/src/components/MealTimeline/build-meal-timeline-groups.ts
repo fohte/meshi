@@ -59,7 +59,7 @@ export const buildMealTimelineGroups = (
           id: entry.id,
           name: entry.foodName,
           isEstimated: entry.isEstimated,
-          quantityText: `${formatQuantity(entry.quantity)} ${entry.unit}`,
+          quantityText: `×${formatQuantity(entry.quantity)}`,
           kcalText: `${String(Math.round(entry.kcal))} kcal`,
         })),
       }
