@@ -91,17 +91,17 @@ Dataset shape (JSON array): `[{ "code": "01088", "name": "...", "nutrients": { "
 
 The 日本食品標準成分表 is distributed as an .xlsx workbook by MEXT, not as this dataset JSON. `pnpm convert-food-composition` reads that .xlsx directly — no spreadsheet app needed:
 
-1. Download the 一般成分表 (general components table) Excel from the [MEXT distribution page](https://www.mext.go.jp/a_menu/syokuhinseibun/mext_02093.html) and keep it out of version control, e.g. under `data/` (gitignored — see below).
+1. Download the data workbook ("・第2章（データ）", covering all tables including 一般成分表) from the [MEXT publication page](https://www.mext.go.jp/a_menu/syokuhinseibun/mext_00001.html) and keep it out of version control, e.g. under `data/` (gitignored — see below).
 2. Check column detection before converting anything:
    ```sh
-   pnpm convert-food-composition --xlsx data/mext-table1.xlsx --header-rows 3 --dump-header
+   pnpm convert-food-composition --xlsx data/mext-table.xlsx --dump-header
    ```
-   This prints each column's detected header text and, if matched, which nutrient code it resolved to, plus a summary of nutrient codes with no matching column ("unmatched") and codes that matched more than one column ("ambiguous"). Columns are matched by header text (e.g. "たんぱく質" vs "アミノ酸組成によるたんぱく質"), not fixed position, so a column matching the wrong thing shows up here rather than silently landing in the output. Adjust `--header-rows` (how many leading rows are the multi-row header) until the mapping looks right — the official table's header commonly spans 2-3 rows. If the workbook has more than one sheet, pick it with `--sheet <name-or-1-based-index>` (defaults to the first sheet).
+   This prints each column's detected header text and, if matched, which nutrient code it resolved to, plus a summary of nutrient codes with no matching column ("unmatched") and codes that matched more than one column ("ambiguous"). Columns are matched by header text (e.g. "たんぱく質" vs "アミノ酸組成によるたんぱく質"), not fixed position, so a column matching the wrong thing shows up here rather than silently landing in the output. The default `--header-rows 12` matches the 増補2023年 workbook's actual header depth (group / item / sub-item label rows, then a "単位" unit row and a "成分識別子" component-tag row) — adjust it if a different release's header is shallower or deeper. If the workbook has more than one sheet, pick it with `--sheet <name-or-1-based-index>` (defaults to the first sheet; the 増補2023年 file has a single "表全体" sheet).
 3. Convert:
    ```sh
-   pnpm convert-food-composition --xlsx data/mext-table1.xlsx --header-rows 3 --out data/food-composition.json
+   pnpm convert-food-composition --xlsx data/mext-table.xlsx --out data/food-composition.json
    ```
-   Values are handled as: `Tr` (trace) → `0`, `(2.5)` (estimated) → `2.5`, `-` (not measured) → the nutrient key is omitted for that food. Food codes are re-padded to 5 digits (numeric-typed code cells can drop the leading zero, e.g. `01088` → `1088`).
+   Values are handled as: `Tr` (trace) → `0`, `(2.5)` (estimated) → `2.5`, `-` (not measured) → the nutrient key is omitted for that food. Food codes are re-padded to 5 digits (numeric-typed code cells can drop the leading zero, e.g. `01088` → `1088`). Verified end-to-end against the actual 増補2023年 workbook: all 2,538 foods convert with 0 unmatched/ambiguous nutrient columns.
 4. `pnpm seed --food-composition data/food-composition.json`.
 
 Only the columns from the general-components table are mapped; 飽和脂肪酸 (a separate per-fatty-acid table) and ビタミン E (four tocopherol columns, no single total) are left unmatched — extend `NUTRIENT_MATCHERS` in `scripts/convert-food-composition.ts` if they're needed.

@@ -66,12 +66,16 @@ export const columnLetter = (index: number): string => {
   return letters
 }
 
+// MEXT pads short header labels with inter-character full-width spaces for
+// visual justification (e.g. "食　品　名"), and wraps long ones with a
+// literal \r\n inside a single cell — neither carries meaning, so all
+// whitespace is stripped rather than just trimmed off the ends.
 export const combineHeader = (
   headerRows: ReadonlyArray<ReadonlyArray<string>>,
   columnIndex: number,
 ): string =>
   headerRows
-    .map((row) => (row[columnIndex] ?? '').trim())
+    .map((row) => (row[columnIndex] ?? '').replace(/\s+/g, ''))
     .filter((cell) => cell.length > 0)
     .join('')
 
@@ -94,9 +98,12 @@ interface NutrientMatcher {
 // (four separate tocopherol columns, no single total) live in other MEXT
 // tables and are intentionally left unmatched.
 const NUTRIENT_MATCHERS: ReadonlyArray<NutrientMatcher> = [
+  // "エネルギー" merges across the kJ/kcal column pair, so only the leftmost
+  // (kJ) column's combined header actually contains that text — the kcal
+  // column is distinguishable only by its own "単位" (unit) row, "kcal".
   {
     code: 'energy_kcal',
-    test: (h) => h.includes('エネルギー') && h.includes('kcal'),
+    test: (h) => h.includes('kcal'),
   },
   {
     code: 'protein_g',
@@ -303,6 +310,12 @@ const parseSheetArg = (raw: string): string | number => {
   return raw.trim() !== '' && Number.isInteger(n) ? n : raw
 }
 
+// Verified against the actual 日本食品標準成分表(八訂)増補2023年 workbook's
+// "表全体" sheet: group label / item label / sub-item label rows, then a
+// "単位" (unit) row and a "成分識別子" (component tag) row before the data
+// starts — 12 rows total. --dump-header confirms it for any other release.
+const DEFAULT_HEADER_ROWS = '12'
+
 const parseCliArgs = (): CliArgs => {
   const { values } = parseArgs({
     options: {
@@ -317,7 +330,7 @@ const parseCliArgs = (): CliArgs => {
     printUsage()
     process.exit(1)
   }
-  const headerRowsRaw = values['header-rows'] ?? '3'
+  const headerRowsRaw = values['header-rows'] ?? DEFAULT_HEADER_ROWS
   const headerRows = Number(headerRowsRaw)
   if (!Number.isInteger(headerRows) || headerRows < 0) {
     console.error(

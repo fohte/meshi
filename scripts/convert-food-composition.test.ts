@@ -54,6 +54,18 @@ describe('combineHeader', () => {
       'g',
     ])
   })
+
+  // MEXT's actual workbook pads short labels with inter-character full-width
+  // spaces ("食　品　名") and line-wraps long ones with a literal \r\n inside
+  // one cell ("アミノ酸組成による\r\nたんぱく質") — neither should survive
+  // into the matched header text.
+  it('strips inter-character full-width spaces and embedded newlines', () => {
+    const headerRows = [['食　品　名', 'アミノ酸組成による\r\nたんぱく質']]
+    expect([0, 1].map((i) => combineHeader(headerRows, i))).toEqual([
+      '食品名',
+      'アミノ酸組成によるたんぱく質',
+    ])
+  })
 })
 
 describe('parseNutrientValue', () => {
