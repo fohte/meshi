@@ -26,6 +26,24 @@ const reasonSchema = z.enum([
   'composition_table',
 ])
 
+// postgres-js returns numeric / float as string for safety; accept both.
+// Reject NaN / Infinity instead of silently propagating them through the
+// pipeline (Number("abc") is NaN, which the score-based ORDER BY hides).
+const finiteNumeric = z.union([
+  z.number().refine(Number.isFinite),
+  z.string().transform((s, ctx) => {
+    const n = Number(s)
+    if (!Number.isFinite(n)) {
+      ctx.addIssue({
+        code: 'custom',
+        message: `expected a finite numeric, got ${s}`,
+      })
+      return z.NEVER
+    }
+    return n
+  }),
+])
+
 const rowSchema = z.object({
   food_master_id: z.string().nullable(),
   composition_code: z.string().nullable(),
@@ -33,23 +51,8 @@ const rowSchema = z.object({
   is_estimated: z.boolean(),
   reason: reasonSchema,
   matched_queries: z.array(z.string()),
-  // postgres-js returns numeric / float as string for safety; accept both.
-  // Reject NaN / Infinity instead of silently propagating them through the
-  // pipeline (Number("abc") is NaN, which the score-based ORDER BY hides).
-  score: z.union([
-    z.number().refine(Number.isFinite),
-    z.string().transform((s, ctx) => {
-      const n = Number(s)
-      if (!Number.isFinite(n)) {
-        ctx.addIssue({
-          code: 'custom',
-          message: `expected a finite numeric, got ${s}`,
-        })
-        return z.NEVER
-      }
-      return n
-    }),
-  ]),
+  score: finiteNumeric,
+  name_sim: finiteNumeric,
 })
 
 const rowsSchema = z.array(rowSchema)
@@ -158,6 +161,7 @@ export const createDrizzleFoodMatcher = (
             nm.name,
             nm.is_estimated,
             nm.matched_queries,
+            nm.name_sim,
             CASE
               WHEN hs.cnt IS NULL THEN 'fuzzy_name'
               WHEN hs.days_since <= ${recentDays} THEN 'history_recent'
@@ -183,7 +187,8 @@ export const createDrizzleFoodMatcher = (
             true AS is_estimated,
             matched_queries,
             'composition_table'::text AS reason,
-            name_sim::float AS score
+            name_sim::float AS score,
+            name_sim::float AS name_sim
           FROM (
             SELECT fc.code, fc.name,
                    MAX(GREATEST(similarity(fc.name, q), word_similarity(q, fc.name))) AS name_sim,
@@ -196,11 +201,11 @@ export const createDrizzleFoodMatcher = (
           WHERE NOT EXISTS (SELECT 1 FROM master_candidates)
         )
         SELECT food_master_id, composition_code, name, is_estimated,
-               reason, score, matched_queries
+               reason, score, name_sim, matched_queries
         FROM master_candidates
         UNION ALL
         SELECT food_master_id, composition_code, name, is_estimated,
-               reason, score, matched_queries
+               reason, score, name_sim, matched_queries
         FROM composition_candidates
         ORDER BY score DESC, name ASC
         LIMIT ${limit}
@@ -216,6 +221,7 @@ export const createDrizzleFoodMatcher = (
           parsed.data.map<FoodMatchCandidate>((r) => ({
             reason: r.reason satisfies FoodMatchReason,
             score: r.score,
+            nameSim: r.name_sim,
             foodMasterId: r.food_master_id,
             compositionCode: r.composition_code,
             name: r.name,
