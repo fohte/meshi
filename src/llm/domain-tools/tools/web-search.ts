@@ -13,6 +13,11 @@ import {
 } from '#llm/domain-tools/types'
 
 const inputSchema = z.object({
+  // Validated but not read in execute() below: forces one call per food
+  // item without folding several into one query. Unlike
+  // search-food-master.ts's user_input_item, it isn't echoed in the
+  // output — one web_search call already produces one snippet set tied to
+  // its own tool_use_id, so there's no merged result to disambiguate.
   user_input_item: z.string().min(1),
   query: z.string().min(1),
   limit: z.number().int().positive().max(20).optional().default(5),
