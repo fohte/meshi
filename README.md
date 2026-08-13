@@ -92,7 +92,7 @@ Dataset shape (JSON array): `[{ "code": "01088", "name": "...", "nutrients": { "
 The 日本食品標準成分表 is distributed as Excel by MEXT, not as this dataset JSON. `pnpm convert-food-composition` converts a CSV export of it:
 
 1. Download the 一般成分表 (general components table) Excel from the [MEXT distribution page](https://www.mext.go.jp/a_menu/syokuhinseibun/mext_02093.html).
-2. In Excel, save/export that sheet as **CSV UTF-8** (not Shift_JIS, and not plain CSV — Excel's plain CSV export on Japanese locales is Shift_JIS). Keep it out of version control, e.g. under `data/` (gitignored — see below).
+2. Open that sheet in any spreadsheet app — Excel, [Google Sheets](https://sheets.google.com) (File → Import), or macOS's bundled Numbers all work — and export/download it as **CSV UTF-8**. Watch out on Excel specifically: its plain "CSV" export on Japanese locales silently uses Shift_JIS, so pick the "CSV UTF-8" variant explicitly; Google Sheets and Numbers default to UTF-8. Keep it out of version control, e.g. under `data/` (gitignored — see below).
 3. Check column detection before converting anything:
    ```sh
    pnpm convert-food-composition --csv data/mext-table1.csv --header-rows 3 --dump-header
