@@ -131,6 +131,29 @@ describeIfDb('FoodMasterService + Repository', () => {
     expect(rows).toEqual([{ count: '0' }])
   })
 
+  it("rejects is_estimated=false combined with source='composition_table_estimate'", async () => {
+    const tx = getTx()
+    const captured = await captureDomainError(
+      service.register({
+        ...baseInput,
+        name: 'homemade curry',
+        source: 'composition_table_estimate',
+        isEstimated: false,
+        sourceCompositionCode: '18008',
+      }),
+    )
+
+    expect(captured).toEqual({
+      code: 'invalid_source_combination',
+      details: { source: 'composition_table_estimate', isEstimated: false },
+    })
+
+    const rows = await tx<{ count: string }[]>`
+      SELECT count(*)::text AS count FROM food_masters
+    `
+    expect(rows).toEqual([{ count: '0' }])
+  })
+
   it("rejects source='web_search' without source_url", async () => {
     const tx = getTx()
     const captured = await captureDomainError(
