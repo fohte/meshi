@@ -53,6 +53,17 @@ const toOutput = (
   })),
 })
 
+// A candidate's `nameSim` is the raw trigram similarity between the query
+// and the matched name/alias, unlike `score`, which a history bonus can
+// push above 1.0 even when the name barely overlaps with the query. Below
+// this threshold, a candidate is treated as unusable and triggers the
+// short-query retry below.
+const MIN_USABLE_NAME_SIM = 0.5
+
+const hasUsableCandidate = (
+  candidates: ReadonlyArray<FoodMatchCandidate>,
+): boolean => candidates.some((c) => c.nameSim >= MIN_USABLE_NAME_SIM)
+
 // A query the LLM padded with words the registered name doesn't have (e.g.
 // "ゲンキ プロテイン飲料" for a master named "ゲンキ ウェイトダウン
 // チョコレート") can miss every match condition at once, even though a
@@ -97,15 +108,23 @@ export const createSearchFoodMasterTool = (
 
     const first = await matcher.search({ queries, limit })
     if (first.isErr()) return err(toInternalToolError(first.error))
-    if (first.value.length > 0)
+    if (hasUsableCandidate(first.value))
       return ok(toOutput(user_input_item, first.value))
 
     const shortQueries = deriveShortQueries(queries)
     if (shortQueries.length === 0)
       return ok(toOutput(user_input_item, first.value))
 
-    return (await matcher.search({ queries: shortQueries, limit }))
-      .map((candidates) => toOutput(user_input_item, candidates))
-      .mapErr(toInternalToolError)
+    const second = await matcher.search({ queries: shortQueries, limit })
+    if (second.isErr()) return err(toInternalToolError(second.error))
+    // An empty retry means the split queries found nothing at all — fall
+    // back to the first call's candidates rather than discarding a weak
+    // but real match for an empty result.
+    return ok(
+      toOutput(
+        user_input_item,
+        second.value.length > 0 ? second.value : first.value,
+      ),
+    )
   },
 })

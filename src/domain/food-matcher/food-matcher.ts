@@ -11,6 +11,12 @@ export type FoodMatchReason =
 export interface FoodMatchCandidate {
   readonly reason: FoodMatchReason
   readonly score: number
+  // Raw trigram name-similarity strength (query vs. the matched name/alias),
+  // independent of any history-based bonus baked into `score` — a food
+  // eaten before can score >1.0 even when the name barely overlaps with the
+  // query. Lets a caller tell a confidently name-matched candidate apart
+  // from one that only cleared `score` via history.
+  readonly nameSim: number
   // Set when the candidate references an existing food_masters row
   // (history_recent / history_frequent / fuzzy_name).
   readonly foodMasterId: string | null
