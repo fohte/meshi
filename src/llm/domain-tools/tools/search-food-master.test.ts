@@ -52,16 +52,21 @@ const setup = (override?: {
 }
 
 describe('search_food_master tool', () => {
-  it('forwards queries+limit and normalizes candidates to snake_case', async () => {
+  it('forwards queries+limit and normalizes candidates to snake_case, echoing user_input_item', async () => {
     const { tool, calls } = setup()
 
-    const result = await tool.execute({ queries: ['白米'], limit: 3 })
+    const result = await tool.execute({
+      user_input_item: '白米',
+      queries: ['白米'],
+      limit: 3,
+    })
 
     expect(normalizeResult(result)).toEqual({
       ok: true,
       value: {
         candidates: [
           {
+            user_input_item: '白米',
             food_master_id: 'fm_rice',
             composition_code: null,
             name: '白米',
@@ -71,6 +76,7 @@ describe('search_food_master tool', () => {
             matched_queries: ['白米'],
           },
           {
+            user_input_item: '白米',
             food_master_id: null,
             composition_code: '01088',
             name: 'こめ (玄米)',
@@ -87,13 +93,30 @@ describe('search_food_master tool', () => {
 
   it('defaults limit to 5 when not supplied', async () => {
     const { tool, calls } = setup()
-    await tool.execute({ queries: ['白米'] })
+    await tool.execute({ user_input_item: '白米', queries: ['白米'] })
     expect(calls).toEqual([{ queries: ['白米'], limit: 5 }])
   })
 
   it('rejects an empty queries array with invalid_input and skips the matcher', async () => {
     const { tool, calls } = setup()
-    const result = await tool.execute({ queries: [] })
+    const result = await tool.execute({
+      user_input_item: '白米',
+      queries: [],
+    })
+    expect(normalizeResult(result)).toEqual({
+      ok: false,
+      error: {
+        code: 'invalid_input',
+        message: '<dynamic>',
+        details: { issues: { count: 1 } },
+      },
+    })
+    expect(calls).toEqual([])
+  })
+
+  it('rejects a missing user_input_item with invalid_input and skips the matcher', async () => {
+    const { tool, calls } = setup()
+    const result = await tool.execute({ queries: ['白米'] })
     expect(normalizeResult(result)).toEqual({
       ok: false,
       error: {
@@ -111,7 +134,10 @@ describe('search_food_master tool', () => {
         errAsync(new FoodMatcherQueryError('food matcher query failed')),
     })
 
-    const result = await tool.execute({ queries: ['白米'] })
+    const result = await tool.execute({
+      user_input_item: '白米',
+      queries: ['白米'],
+    })
 
     expect(normalizeResult(result)).toEqual({
       ok: false,
@@ -139,6 +165,7 @@ describe('search_food_master tool', () => {
       })
 
       const result = await tool.execute({
+        user_input_item: 'ゲンキ プロテイン飲料',
         queries: ['ゲンキ プロテイン'],
         limit: 5,
       })
@@ -148,6 +175,7 @@ describe('search_food_master tool', () => {
         value: {
           candidates: [
             {
+              user_input_item: 'ゲンキ プロテイン飲料',
               food_master_id: 'fm_genki',
               composition_code: null,
               name: 'ゲンキ ウェイトダウン チョコレート',
@@ -168,7 +196,11 @@ describe('search_food_master tool', () => {
     it('does not retry when the first call returns no candidates and no query has a new splittable token', async () => {
       const { tool, calls } = setup({ search: () => okAsync([]) })
 
-      const result = await tool.execute({ queries: ['白米'], limit: 5 })
+      const result = await tool.execute({
+        user_input_item: '白米',
+        queries: ['白米'],
+        limit: 5,
+      })
 
       expect(normalizeResult(result)).toEqual({
         ok: true,
@@ -180,7 +212,11 @@ describe('search_food_master tool', () => {
     it('does not retry when the first call already returns candidates', async () => {
       const { tool, calls } = setup()
 
-      await tool.execute({ queries: ['白米'], limit: 5 })
+      await tool.execute({
+        user_input_item: '白米',
+        queries: ['白米'],
+        limit: 5,
+      })
 
       expect(calls).toEqual([{ queries: ['白米'], limit: 5 }])
     })

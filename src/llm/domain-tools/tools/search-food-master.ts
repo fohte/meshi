@@ -17,11 +17,13 @@ import {
 const MAX_QUERIES = 10
 
 const inputSchema = z.object({
+  user_input_item: z.string().min(1),
   queries: z.array(z.string().min(1)).min(1).max(MAX_QUERIES),
   limit: z.number().int().positive().max(50).optional().default(5),
 })
 
 export interface SearchFoodMasterCandidate {
+  readonly user_input_item: string
   readonly food_master_id: string | null
   readonly composition_code: string | null
   readonly name: string
@@ -36,9 +38,11 @@ export interface SearchFoodMasterOutput {
 }
 
 const toOutput = (
+  userInputItem: string,
   candidates: ReadonlyArray<FoodMatchCandidate>,
 ): SearchFoodMasterOutput => ({
   candidates: candidates.map((c) => ({
+    user_input_item: userInputItem,
     food_master_id: c.foodMasterId,
     composition_code: c.compositionCode,
     name: c.name,
@@ -78,7 +82,7 @@ export const createSearchFoodMasterTool = (
 ): DomainTool => ({
   name: 'search_food_master',
   description:
-    'Search the food_master table by one or more free-text queries. Pass several phrasings of the same food in one call (different levels of detail, a brand name alone, a romanized spelling, ...) — results are merged into a single ranked list, and each candidate reports which of the queries matched it. If every query comes back empty, the tool automatically retries with each query broken into its individual words before giving up. Returns ranked candidates including history-derived hits, fuzzy name matches, and composition-table fallbacks.',
+    'Search the food_master table for a single food item the user mentioned — never search more than one distinct item in one call. user_input_item must be exactly what the user said for that one item (e.g. "ねぎとろ&とろたく巻"); queries are your own rephrasings of that same item to search the database with (different levels of detail, a brand name alone, a romanized spelling, ...) — results are merged into a single ranked list, and each candidate reports which of the queries matched it plus the user_input_item it was searched for, so candidates for different items are never mistaken for each other. If every query comes back empty, the tool automatically retries with each query broken into its individual words before giving up. Returns ranked candidates including history-derived hits, fuzzy name matches, and composition-table fallbacks.',
   // io: 'input' — this describes the pre-parse wire shape a caller (LLM tool
   // call) must supply, not zod's parsed output shape; without it, `limit`'s
   // `.default(5)` makes toJSONSchema mark it `required` (it's always present
@@ -89,17 +93,19 @@ export const createSearchFoodMasterTool = (
   ): Promise<Result<SearchFoodMasterOutput, ToolError>> {
     const parsed = parseToolInput(inputSchema, input)
     if (parsed.isErr()) return err(parsed.error)
-    const { queries, limit } = parsed.value
+    const { user_input_item, queries, limit } = parsed.value
 
     const first = await matcher.search({ queries, limit })
     if (first.isErr()) return err(toInternalToolError(first.error))
-    if (first.value.length > 0) return ok(toOutput(first.value))
+    if (first.value.length > 0)
+      return ok(toOutput(user_input_item, first.value))
 
     const shortQueries = deriveShortQueries(queries)
-    if (shortQueries.length === 0) return ok(toOutput(first.value))
+    if (shortQueries.length === 0)
+      return ok(toOutput(user_input_item, first.value))
 
     return (await matcher.search({ queries: shortQueries, limit }))
-      .map(toOutput)
+      .map((candidates) => toOutput(user_input_item, candidates))
       .mapErr(toInternalToolError)
   },
 })

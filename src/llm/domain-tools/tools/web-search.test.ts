@@ -62,6 +62,7 @@ describe('web_search tool', () => {
     )
 
     const result = await tool.execute({
+      user_input_item: 'banana',
       query: 'banana nutrition',
       limit: 3,
     })
@@ -90,7 +91,24 @@ describe('web_search tool', () => {
     const { tool, captured } = setupWithTavily(
       jsonResponse(200, { results: [] }),
     )
-    const result = await tool.execute({ query: '' })
+    const result = await tool.execute({ user_input_item: 'banana', query: '' })
+
+    expect(normalizeResult(result)).toEqual({
+      ok: false,
+      error: {
+        code: 'invalid_input',
+        message: '<dynamic>',
+        details: { issues: { count: 1 } },
+      },
+    })
+    expect(captured).toEqual([])
+  })
+
+  it('rejects a missing user_input_item with invalid_input and never calls the upstream', async () => {
+    const { tool, captured } = setupWithTavily(
+      jsonResponse(200, { results: [] }),
+    )
+    const result = await tool.execute({ query: 'banana nutrition' })
 
     expect(normalizeResult(result)).toEqual({
       ok: false,
@@ -108,7 +126,10 @@ describe('web_search tool', () => {
       search: () => errAsync(new WebSearchRateLimitError()),
     }
     const tool = createWebSearchTool(client)
-    const result = await tool.execute({ query: 'rice' })
+    const result = await tool.execute({
+      user_input_item: 'rice',
+      query: 'rice',
+    })
     expect(normalizeResult(result)).toEqual({
       ok: false,
       error: { code: 'web_search/rate_limited', message: '<dynamic>' },
@@ -120,7 +141,10 @@ describe('web_search tool', () => {
       search: () => errAsync(new WebSearchError('upstream 500', 500)),
     }
     const tool = createWebSearchTool(client)
-    const result = await tool.execute({ query: 'rice' })
+    const result = await tool.execute({
+      user_input_item: 'rice',
+      query: 'rice',
+    })
     expect(normalizeResult(result)).toEqual({
       ok: false,
       error: {
