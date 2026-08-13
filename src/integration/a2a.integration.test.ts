@@ -220,7 +220,7 @@ describeIfDb('A2A integration', () => {
       .respondWithTools([
         {
           name: 'search_food_master',
-          args: { queries: ['白米'] },
+          args: { user_input_item: '白米', queries: ['白米'] },
           id: 'call_1',
         },
       ])
@@ -334,7 +334,7 @@ describeIfDb('A2A integration', () => {
       .respondWithTools([
         {
           name: 'search_food_master',
-          args: { queries: ['salmon'] },
+          args: { user_input_item: 'salmon', queries: ['salmon'] },
           id: 'call_2',
         },
       ])
@@ -433,7 +433,7 @@ describeIfDb('A2A integration', () => {
       .respondWithTools([
         {
           name: 'search_food_master',
-          args: { queries: ['salmon'] },
+          args: { user_input_item: 'salmon', queries: ['salmon'] },
           id: 'call_1',
         },
       ])
