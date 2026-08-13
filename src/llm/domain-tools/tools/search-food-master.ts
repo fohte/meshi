@@ -51,15 +51,9 @@ const toOutput = (
 
 // A candidate's `nameSim` is the raw trigram similarity between the query
 // and the matched name/alias, unlike `score`, which a history bonus can
-// push above 1.0 even when the name barely overlaps with the query — a
-// food_master matched only by a shared store-name token (e.g. a convenience
-// store's name inside a longer alias) scored name_sim=0.4211 in production
-// while still ranking first once the frequent-history bonus applied,
-// silently skipping the retry below. 0.5 is the lowest name_sim among the
-// intentionally-designed "still a genuine match" cases in
-// drizzle-food-matcher.test.ts (a query matching only a fragment of the
-// registered name with no word boundary) — high enough to catch the
-// observed noise, low enough not to flag those as unusable.
+// push above 1.0 even when the name barely overlaps with the query. Below
+// this threshold, a candidate is treated as unusable and triggers the
+// short-query retry below.
 const MIN_USABLE_NAME_SIM = 0.5
 
 const hasUsableCandidate = (
@@ -115,8 +109,11 @@ export const createSearchFoodMasterTool = (
     const shortQueries = deriveShortQueries(queries)
     if (shortQueries.length === 0) return ok(toOutput(first.value))
 
-    return (await matcher.search({ queries: shortQueries, limit }))
-      .map(toOutput)
-      .mapErr(toInternalToolError)
+    const second = await matcher.search({ queries: shortQueries, limit })
+    if (second.isErr()) return err(toInternalToolError(second.error))
+    // An empty retry means the split queries found nothing at all — fall
+    // back to the first call's candidates rather than discarding a weak
+    // but real match for an empty result.
+    return ok(toOutput(second.value.length > 0 ? second.value : first.value))
   },
 })
