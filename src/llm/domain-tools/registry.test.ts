@@ -191,6 +191,7 @@ describe('createDomainToolsRegistry', () => {
               {
                 reason: 'history_recent',
                 score: 0.9,
+                nameSim: 1,
                 foodMasterId: 'fm_rice',
                 compositionCode: null,
                 name: '白米',

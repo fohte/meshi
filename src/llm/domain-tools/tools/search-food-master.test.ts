@@ -29,6 +29,7 @@ const setup = (override?: {
           {
             reason: 'history_recent',
             score: 0.9,
+            nameSim: 1,
             foodMasterId: 'fm_rice',
             compositionCode: null,
             name: '白米',
@@ -38,6 +39,7 @@ const setup = (override?: {
           {
             reason: 'composition_table',
             score: 0.4,
+            nameSim: 0.4,
             foodMasterId: null,
             compositionCode: '01088',
             name: 'こめ (玄米)',
@@ -129,6 +131,68 @@ describe('search_food_master tool', () => {
                 {
                   reason: 'fuzzy_name',
                   score: 1,
+                  nameSim: 1,
+                  foodMasterId: 'fm_genki',
+                  compositionCode: null,
+                  name: 'ゲンキ ウェイトダウン チョコレート',
+                  isEstimated: false,
+                  matchedQueries: ['ゲンキ'],
+                },
+              ]),
+      })
+
+      const result = await tool.execute({
+        queries: ['ゲンキ プロテイン'],
+        limit: 5,
+      })
+
+      expect(normalizeResult(result)).toEqual({
+        ok: true,
+        value: {
+          candidates: [
+            {
+              food_master_id: 'fm_genki',
+              composition_code: null,
+              name: 'ゲンキ ウェイトダウン チョコレート',
+              is_estimated: false,
+              score: 1,
+              reason: 'fuzzy_name',
+              matched_queries: ['ゲンキ'],
+            },
+          ],
+        },
+      })
+      expect(calls).toEqual([
+        { queries: ['ゲンキ プロテイン'], limit: 5 },
+        { queries: ['ゲンキ', 'プロテイン'], limit: 5 },
+      ])
+    })
+
+    it('retries with derived short queries when the only candidate is below the usable name-sim threshold', async () => {
+      const { tool, calls } = setup({
+        search: (input) =>
+          input.queries.includes('ゲンキ プロテイン')
+            ? okAsync([
+                {
+                  // A history-boosted score above 1.0 despite a weak name
+                  // match — the production scenario this retry threshold
+                  // exists for (see MIN_USABLE_NAME_SIM in
+                  // search-food-master.ts).
+                  reason: 'history_frequent',
+                  score: 1.2,
+                  nameSim: 0.42,
+                  foodMasterId: 'fm_unrelated',
+                  compositionCode: null,
+                  name: '無関係な商品',
+                  isEstimated: false,
+                  matchedQueries: ['ゲンキ プロテイン'],
+                },
+              ])
+            : okAsync([
+                {
+                  reason: 'fuzzy_name',
+                  score: 1,
+                  nameSim: 1,
                   foodMasterId: 'fm_genki',
                   compositionCode: null,
                   name: 'ゲンキ ウェイトダウン チョコレート',
