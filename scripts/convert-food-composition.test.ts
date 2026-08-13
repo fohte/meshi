@@ -2,25 +2,30 @@ import { describe, expect, it } from 'vitest'
 
 import {
   buildRows,
+  cellToString,
   columnLetter,
   combineHeader,
-  parseCsv,
   parseNutrientValue,
   resolveColumns,
   type ResolvedColumns,
 } from '#scripts/convert-food-composition'
 
-describe('parseCsv', () => {
-  it('splits fields and unwraps quoted fields with embedded commas and escaped quotes', () => {
-    const text = 'a,"b, ""quoted""",c\n1,2,3\n'
-    expect(parseCsv(text)).toEqual([
-      ['a', 'b, "quoted"', 'c'],
-      ['1', '2', '3'],
-    ])
+describe('cellToString', () => {
+  it.each([
+    [null, ''],
+    [undefined, ''],
+    ['たんぱく質', 'たんぱく質'],
+    [156, '156'],
+    [2.5, '2.5'],
+    ['ＡＢ１２３', 'AB123'], // full-width chars NFKC-normalize to half-width
+  ])('converts %s to %s', (cell, expected) => {
+    expect(cellToString(cell)).toBe(expected)
   })
 
-  it('flushes the last row when the input has no trailing newline', () => {
-    expect(parseCsv('a,b')).toEqual([['a', 'b']])
+  it('converts a Date cell to its ISO string', () => {
+    expect(cellToString(new Date('2026-01-01T00:00:00.000Z'))).toBe(
+      '2026-01-01T00:00:00.000Z',
+    )
   })
 })
 

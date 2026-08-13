@@ -1,7 +1,7 @@
-// Converts a CSV export of the MEXT food composition table (日本食品標準成分表)
-// into the JSON shape `pnpm seed --food-composition` expects. The source
-// Excel is not bundled (see README's "Food composition table" section for
-// why) so this reads a CSV the user exports from it by hand.
+// Converts the MEXT food composition table (日本食品標準成分表), distributed
+// as an .xlsx workbook, into the JSON shape `pnpm seed --food-composition`
+// expects. The source Excel is not bundled (see README's "Food composition
+// table" section for why) so this reads the .xlsx file directly.
 //
 // The header spans multiple rows with merged cells, so columns are located
 // by matching the *combined* header text (all header rows for a column,
@@ -10,10 +10,11 @@
 // of silently reading the wrong data. Run with --dump-header first to see
 // what each column resolved to.
 
-import { readFile, writeFile } from 'node:fs/promises'
+import { writeFile } from 'node:fs/promises'
 import { parseArgs } from 'node:util'
 
-import { err, ok, type Result } from 'neverthrow'
+import { err, ok, type Result, ResultAsync } from 'neverthrow'
+import { readSheet } from 'read-excel-file/node'
 
 import { parseFoodCompositionDataset } from '#db/seed/food-composition'
 import { type NutrientCode } from '#db/seed/nutrient-definitions'
@@ -25,60 +26,34 @@ export class ConvertError extends Error {
   }
 }
 
-export const parseCsv = (text: string): string[][] => {
-  const rows: string[][] = []
-  let row: string[] = []
-  let field = ''
-  let inQuotes = false
-  let i = 0
+const errorMessage = (e: unknown): string =>
+  e instanceof Error ? e.message : String(e)
 
-  const endField = (): void => {
-    row.push(field)
-    field = ''
-  }
-  const endRow = (): void => {
-    endField()
-    rows.push(row)
-    row = []
-  }
-
-  while (i < text.length) {
-    const c = text.charAt(i)
-    if (inQuotes) {
-      if (c === '"') {
-        if (text.charAt(i + 1) === '"') {
-          field += '"'
-          i += 2
-        } else {
-          inQuotes = false
-          i += 1
-        }
-      } else {
-        field += c
-        i += 1
-      }
-      continue
-    }
-    if (c === '"') {
-      inQuotes = true
-      i += 1
-    } else if (c === ',') {
-      endField()
-      i += 1
-    } else if (c === '\r') {
-      i += 1
-    } else if (c === '\n') {
-      endRow()
-      i += 1
-    } else {
-      field += c
-      i += 1
-    }
-  }
-  if (field.length > 0 || row.length > 0) endRow()
-
-  return rows
+// read-excel-file returns each cell as string | number | Date | null. Widen
+// everything to a string so the rest of the pipeline (which came from
+// parsing CSV text) doesn't need to know the difference — a numeric food
+// code cell and a text one both end up as the same digit string, and NFKC
+// normalization still matters for full-width headers/values some MEXT
+// workbooks use.
+export const cellToString = (cell: unknown): string => {
+  if (cell === null || cell === undefined) return ''
+  if (cell instanceof Date) return cell.toISOString()
+  if (typeof cell === 'number' || typeof cell === 'boolean') return String(cell)
+  if (typeof cell === 'string') return cell.normalize('NFKC')
+  return ''
 }
+
+export const readXlsxRows = (
+  xlsxPath: string,
+  sheet: string | number,
+): ResultAsync<string[][], ConvertError> =>
+  ResultAsync.fromPromise(
+    readSheet(xlsxPath, sheet),
+    (caughtErr): ConvertError =>
+      new ConvertError(
+        `failed to read ${xlsxPath} (sheet ${String(sheet)}): ${errorMessage(caughtErr)}`,
+      ),
+  ).map((rows) => rows.map((row) => row.map(cellToString)))
 
 export const columnLetter = (index: number): string => {
   let n = index + 1
@@ -307,7 +282,8 @@ export const buildRows = (
 }
 
 interface CliArgs {
-  readonly csv: string
+  readonly xlsx: string
+  readonly sheet: string | number
   readonly out: string | undefined
   readonly headerRows: number
   readonly dumpHeader: boolean
@@ -315,20 +291,29 @@ interface CliArgs {
 
 const printUsage = (): void => {
   console.error(
-    'usage: convert-food-composition --csv <path> (--out <path> | --dump-header) [--header-rows N]',
+    'usage: convert-food-composition --xlsx <path> (--out <path> | --dump-header) [--header-rows N] [--sheet <name-or-1-based-index>]',
   )
+}
+
+// A numeric --sheet value selects by 1-based index; anything else is looked
+// up by sheet name — read-excel-file distinguishes the two by JS type, not
+// by content, so a numeric-looking string has to be converted to a number.
+const parseSheetArg = (raw: string): string | number => {
+  const n = Number(raw)
+  return raw.trim() !== '' && Number.isInteger(n) ? n : raw
 }
 
 const parseCliArgs = (): CliArgs => {
   const { values } = parseArgs({
     options: {
-      csv: { type: 'string' },
+      xlsx: { type: 'string' },
+      sheet: { type: 'string', default: '1' },
       out: { type: 'string' },
       'header-rows': { type: 'string' },
       'dump-header': { type: 'boolean', default: false },
     },
   })
-  if (values.csv === undefined) {
+  if (values.xlsx === undefined) {
     printUsage()
     process.exit(1)
   }
@@ -341,7 +326,8 @@ const parseCliArgs = (): CliArgs => {
     process.exit(1)
   }
   return {
-    csv: values.csv,
+    xlsx: values.xlsx,
+    sheet: parseSheetArg(values.sheet),
     out: values.out,
     headerRows,
     dumpHeader: values['dump-header'],
@@ -354,10 +340,14 @@ const summarizeUnresolvedNutrients = (columns: ResolvedColumns): string =>
 
 const main = async (): Promise<void> => {
   const args = parseCliArgs()
-  const raw = await readFile(args.csv, 'utf8')
-  const rows = parseCsv(raw.replace(/^\uFEFF/, '').normalize('NFKC'))
+  const rowsResult = await readXlsxRows(args.xlsx, args.sheet)
+  if (rowsResult.isErr()) {
+    console.error(rowsResult.error.message)
+    process.exit(1)
+  }
+  const rows = rowsResult.value
   if (rows.length === 0) {
-    console.error(`${args.csv} is empty`)
+    console.error(`${args.xlsx} (sheet ${String(args.sheet)}) is empty`)
     process.exit(1)
   }
 

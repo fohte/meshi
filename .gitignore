@@ -1,6 +1,6 @@
 # Local-only MEXT food composition table source/output (see README's "Food
-# composition table" section) — licensing forbids committing the Excel/CSV
-# source or the JSON generated from it.
+# composition table" section) — licensing forbids committing the Excel source
+# or the JSON generated from it.
 /data/
 
 # Logs
