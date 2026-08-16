@@ -9,9 +9,8 @@ project_name: meshi
 repo_language: en
 subpackages:
   - name: web
-    storybook: true
+    spa: true
     type: node
 type: node
 use_release_please: false
-use_storybook: false
 web_app_port: 8080
