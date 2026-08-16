@@ -4,18 +4,14 @@
  * --color-accent/--color-muted/--color-border share a name with shadcn's
  * own semantic tokens (src/index.css's `@theme inline` block, mapped from
  * --accent/--muted/--border). Both are unlayered :root declarations, so
- * whichever import comes later wins outright regardless of specificity —
- * currently this file, since it's imported after #index.css in both
- * main.tsx and .storybook/preview.ts. That keeps existing CSS Modules
- * correct today, but it also means these three names silently shadow
- * shadcn's .dark-aware values: a shadcn component styled via Tailwind's
- * bg-muted/text-accent/border-border utilities would pick up this file's
- * fixed dark-only colors instead, with no dark/light toggling.
- * ponytail: rename this file's --color-accent/--color-muted/--color-border
- * before any component starts using shadcn's bg-muted, text-accent, or
- * border-border utilities for those tokens — the rename touches every CSS
- * Modules file that references them
- * (`rg -l 'var(--color-(accent|muted|border))' web/src`).
+ * whichever import comes later wins outright regardless of specificity,
+ * silently shadowing shadcn's .dark-aware values: a shadcn component
+ * styled via Tailwind's bg-muted/text-accent/border-border utilities
+ * would pick up this file's fixed dark-only colors instead, with no
+ * dark/light toggling.
+ *
+ * Renaming this file's --color-accent/--color-muted/--color-border removes
+ * the collision but touches every CSS Modules file that references them.
  */
 :root {
   --color-bg: #0a0a0a;
