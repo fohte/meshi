@@ -1,4 +1,6 @@
 import '#index.css'
+import '#styles/tokens.css'
+import '#styles/global.css'
 
 import { withThemeByClassName } from '@storybook/addon-themes'
 import type { Preview } from '@storybook/react-vite'
