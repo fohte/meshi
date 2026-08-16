@@ -79,10 +79,15 @@ jobs:
       - name: Deploy to Cloudflare Pages
         id: deploy
         uses: cloudflare/wrangler-action@ebbaa1584979971c8614a24965b4405ff95890e0 # v4.0.0
+        env:
+          # wrangler-action passes `command` through a shell, so an
+          # attacker-controlled branch name must not be interpolated into it
+          # directly.
+          DEPLOY_BRANCH: ${{ github.head_ref || 'main' }}
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          command: pages deploy web/storybook-static --project-name=meshi-web-storybook --branch=${{ github.head_ref || 'main' }} --commit-dirty=true
+          command: pages deploy web/storybook-static --project-name=meshi-web-storybook --branch=$DEPLOY_BRANCH --commit-dirty=true
 
       - name: Comment preview URL on PR
         if: github.event_name == 'pull_request'
