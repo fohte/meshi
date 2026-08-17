@@ -14,6 +14,7 @@ export default defineConfig({
   // @opentelemetry/auto-instrumentations-node's module-patching hook still
   // applies to the real package in node_modules instead of a bundled copy.
   skipNodeModulesBundle: true,
+<<<<<<< before updating
   // skipNodeModulesBundle's externalization check only recognizes relative
   // and absolute specifiers as first-party (see tsup's NON_NODE_MODULE_RE);
   // it can't tell a `#foo` subpath import (package.json #imports, resolved
@@ -21,5 +22,11 @@ export default defineConfig({
   // externalizes `#foo` imports too and they're left unresolved in the
   // output — there's no node_modules/#foo to resolve them against at
   // runtime.
+||||||| last update
+=======
+  // skipNodeModulesBundle treats subpath imports (`#foo`) as external too,
+  // leaving `./src/*.ts` specifiers unresolved in a runtime image that only
+  // ships dist/. Force-bundle them so dist stays self-contained.
+>>>>>>> after updating
   noExternal: [/^#/],
 })
