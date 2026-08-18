@@ -16,7 +16,7 @@ vi.mock('@fohte/service-kit/observability', () => ({
   captureWithFingerprint: vi.fn(),
 }))
 
-const HONO_FINGERPRINT = 'a2a.hono.request-failed'
+const HONO_FINGERPRINT = ['a2a.hono.request-failed', '{{ default }}']
 
 // Full shapes, not `.loose()`: parsed once to confirm every field is
 // present with the right type, then the whole (normalized) value is

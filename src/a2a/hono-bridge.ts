@@ -18,7 +18,10 @@ export interface A2aHonoBridgeOptions {
 
 const JSON_RPC_PATH = '/a2a'
 const BEARER_PREFIX = 'Bearer '
-const HONO_FINGERPRINT = 'a2a.hono.request-failed'
+// '{{ default }}' keeps Sentry's own grouping (exception type/value/stacktrace)
+// alongside the custom key, so distinct errors reaching this catch-all still
+// split into separate issues instead of collapsing into one.
+const HONO_FINGERPRINT = ['a2a.hono.request-failed', '{{ default }}']
 
 const digest = (value: string): Buffer =>
   createHash('sha256').update(value).digest()

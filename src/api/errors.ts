@@ -3,7 +3,10 @@ import type { Context } from 'hono'
 import { errAsync, okAsync, ResultAsync } from 'neverthrow'
 import type { z } from 'zod'
 
-const API_FINGERPRINT = 'api.request-failed'
+// '{{ default }}' keeps Sentry's own grouping (exception type/value/stacktrace)
+// alongside the custom key, so distinct errors reaching this catch-all still
+// split into separate issues instead of collapsing into one.
+const API_FINGERPRINT = ['api.request-failed', '{{ default }}']
 
 export const jsonBadRequest = (c: Context, message: string): Response =>
   c.json({ error: message }, 400)
