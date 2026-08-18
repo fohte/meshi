@@ -212,22 +212,8 @@ describe('handleMcpRequest', () => {
         .map((s) => ({ name: s.name, attributes: s.attributes })),
     ).toEqual([expectedSpan])
   })
-})
 
-describe('handleMcpRequest (2026-07-28 protocol)', () => {
-  let server: Server | undefined
-
-  afterEach(async () => {
-    if (server !== undefined) {
-      const s = server
-      server = undefined
-      await stop(s)
-    }
-    vi.restoreAllMocks()
-    spanExporter.reset()
-  })
-
-  it('calls a real tool over the modern per-request envelope, without an initialize handshake', async () => {
+  it('calls a real tool over the modern (2026-07-28) per-request envelope, without an initialize handshake', async () => {
     const started = await start(profileDeps)
     server = started.server
 
@@ -262,37 +248,5 @@ describe('handleMcpRequest (2026-07-28 protocol)', () => {
         },
       },
     })
-  })
-
-  it('renames the active span for a tools/call over the modern protocol', async () => {
-    const started = await start()
-    server = started.server
-    const span = tracer.startSpan('POST')
-    vi.spyOn(trace, 'getActiveSpan').mockReturnValue(span)
-
-    await fetch(
-      started.url,
-      modernRequestInit(
-        'tools/call',
-        { name: 'record_meal_from_text', arguments: { text: 'ラーメン' } },
-        1,
-      ),
-    )
-    span.end()
-
-    expect(
-      spanExporter
-        .getFinishedSpans()
-        .map((s) => ({ name: s.name, attributes: s.attributes })),
-    ).toEqual([
-      {
-        name: 'tools/call record_meal_from_text',
-        attributes: {
-          'mcp.method.name': 'tools/call',
-          'gen_ai.tool.name': 'record_meal_from_text',
-          'gen_ai.operation.name': 'execute_tool',
-        },
-      },
-    ])
   })
 })

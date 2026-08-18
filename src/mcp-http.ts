@@ -40,9 +40,23 @@ export const handleMcpRequest = async (
   // sending a bad Content-Type still gets rejected without its body being
   // read.
   if (req.method === 'POST' && isJsonContentType(req.headers['content-type'])) {
-    const parsedBody = await readJsonRpcBody(req)
-    annotateSpanForJsonRpcRequest(parsedBody)
-    await nodeHandler(nodeReq, res, parsedBody)
+    // eslint-disable-next-line no-restricted-syntax -- readJsonRpcBody reads the raw request stream outside toNodeHandler's own try/catch; a client disconnecting mid-request rejects the read, and this handler runs fire-and-forget (no `.catch()`) from main.ts, so an uncaught rejection here would crash the whole process under Node's unhandledRejection default
+    try {
+      const parsedBody = await readJsonRpcBody(req)
+      annotateSpanForJsonRpcRequest(parsedBody)
+      await nodeHandler(nodeReq, res, parsedBody)
+    } catch (err) {
+      if (!res.headersSent) {
+        res.writeHead(500, { 'Content-Type': 'application/json' })
+        res.end(
+          JSON.stringify({
+            error: err instanceof Error ? err.message : String(err),
+          }),
+        )
+        return
+      }
+      res.destroy(err instanceof Error ? err : new Error(String(err)))
+    }
     return
   }
 
