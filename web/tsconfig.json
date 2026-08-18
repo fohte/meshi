@@ -3,7 +3,6 @@
     "@tsconfig/node-lts/tsconfig.json",
     "@tsconfig/strictest/tsconfig.json"
   ],
-  "include": ["**/*", ".storybook/**/*"],
   "exclude": ["**/*.cjs"],
   "compilerOptions": {
     "module": "preserve",

@@ -26,7 +26,7 @@
   "devDependencies": {
     "@commitlint/cli": "21.2.1",
     "@eslint/eslintrc": "3.3.6",
-    "@fohte/eslint-config": "0.4.0",
+    "@fohte/eslint-config": "0.4.1",
     "@ninoseki/eslint-plugin-neverthrow": "0.2.0",
     "@opentelemetry/context-async-hooks": "2.8.0",
     "@opentelemetry/sdk-trace-base": "2.8.0",
@@ -38,7 +38,7 @@
     "eslint": "10.6.0",
     "prettier": "3.9.6",
     "tsup": "8.5.1",
-    "tsx": "4.23.8",
+    "tsx": "4.23.11",
     "typescript": "6.0.3",
     "vitest": "4.1.10"
   },
