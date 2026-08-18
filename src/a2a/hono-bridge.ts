@@ -8,6 +8,8 @@ import { captureWithFingerprint } from '@fohte/service-kit/observability'
 import type { Hono, MiddlewareHandler } from 'hono'
 import { streamSSE } from 'hono/streaming'
 
+import { SENTRY_DEFAULT_GROUPING } from '#errors'
+
 export interface A2aHonoBridgeOptions {
   agentCard: AgentCard
   requestHandler: DefaultRequestHandler
@@ -18,10 +20,7 @@ export interface A2aHonoBridgeOptions {
 
 const JSON_RPC_PATH = '/a2a'
 const BEARER_PREFIX = 'Bearer '
-// '{{ default }}' keeps Sentry's own grouping (exception type/value/stacktrace)
-// alongside the custom key, so distinct errors reaching this catch-all still
-// split into separate issues instead of collapsing into one.
-const HONO_FINGERPRINT = ['a2a.hono.request-failed', '{{ default }}']
+const HONO_FINGERPRINT = ['a2a.hono.request-failed', SENTRY_DEFAULT_GROUPING]
 
 const digest = (value: string): Buffer =>
   createHash('sha256').update(value).digest()
