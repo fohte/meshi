@@ -7,12 +7,31 @@ import {
   InMemorySpanExporter,
   SimpleSpanProcessor,
 } from '@opentelemetry/sdk-trace-base'
+import { okAsync } from 'neverthrow'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
+import type { UserProfile } from '#domain/user-profile/user-profile'
 import { handleMcpRequest } from '#mcp-http'
+import type { MeshiToolDeps } from '#mcp-tools'
 import { createStubMcpDeps } from '#test/mcp-stubs'
 
 const stubDeps = createStubMcpDeps()
+
+// get_profile is used to exercise a real tool result below: it needs no
+// orchestrator/LLM call, only a profileService.get() that resolves.
+const stubProfile: UserProfile = {
+  likes: ['白米'],
+  dislikes: [],
+  allergies: [],
+  constraints: [],
+}
+const profileDeps: MeshiToolDeps = {
+  ...stubDeps,
+  profileService: {
+    ...stubDeps.profileService,
+    get: () => okAsync(stubProfile),
+  },
+}
 
 // A real tracer, so the finished span's name/attributes can be asserted
 // directly instead of inspecting mock call args.
@@ -35,9 +54,11 @@ const postJsonRpc = (
     body: JSON.stringify(body),
   })
 
-const start = async (): Promise<{ server: Server; url: string }> => {
+const start = async (
+  deps: MeshiToolDeps = stubDeps,
+): Promise<{ server: Server; url: string }> => {
   const server = createServer((req, res) => {
-    void handleMcpRequest(req, res, stubDeps)
+    void handleMcpRequest(req, res, deps)
   })
   await new Promise<void>((resolve) => {
     server.listen(0, '127.0.0.1', resolve)
@@ -63,6 +84,40 @@ const parseSseDataLine = (text: string): unknown => {
   if (dataLine === undefined) throw new Error(`no SSE data line in: ${text}`)
   return JSON.parse(dataLine.slice('data: '.length))
 }
+
+// A 2026-07-28 client (e.g. the Cloudflare MCP server portal) carries no
+// initialize/Mcp-Session-Id handshake: every request is self-contained,
+// naming the protocol version in both a header and the JSON-RPC
+// params._meta envelope. Built by hand here (no client SDK speaks this era
+// yet) to exercise that path directly over real HTTP.
+const modernRequestInit = (
+  method: string,
+  params: Readonly<Record<string, unknown>>,
+  id: number,
+): RequestInit => ({
+  method: 'POST',
+  headers: {
+    'content-type': 'application/json',
+    accept: 'application/json, text/event-stream',
+    'mcp-protocol-version': '2026-07-28',
+    'mcp-method': method,
+    ...(typeof params['name'] === 'string'
+      ? { 'mcp-name': params['name'] }
+      : {}),
+  },
+  body: JSON.stringify({
+    jsonrpc: '2.0',
+    id,
+    method,
+    params: {
+      ...params,
+      _meta: {
+        'io.modelcontextprotocol/protocolVersion': '2026-07-28',
+        'io.modelcontextprotocol/clientCapabilities': {},
+      },
+    },
+  }),
+})
 
 describe('handleMcpRequest', () => {
   let server: Server | undefined
@@ -156,5 +211,88 @@ describe('handleMcpRequest', () => {
         .getFinishedSpans()
         .map((s) => ({ name: s.name, attributes: s.attributes })),
     ).toEqual([expectedSpan])
+  })
+})
+
+describe('handleMcpRequest (2026-07-28 protocol)', () => {
+  let server: Server | undefined
+
+  afterEach(async () => {
+    if (server !== undefined) {
+      const s = server
+      server = undefined
+      await stop(s)
+    }
+    vi.restoreAllMocks()
+    spanExporter.reset()
+  })
+
+  it('calls a real tool over the modern per-request envelope, without an initialize handshake', async () => {
+    const started = await start(profileDeps)
+    server = started.server
+
+    const res = await fetch(
+      started.url,
+      modernRequestInit(
+        'tools/call',
+        { name: 'get_profile', arguments: {} },
+        1,
+      ),
+    )
+
+    expect(res.status).toBe(200)
+    expect(await res.json()).toEqual({
+      jsonrpc: '2.0',
+      id: 1,
+      result: {
+        content: [{ type: 'text', text: 'プロファイルを取得しました。' }],
+        structuredContent: {
+          likes: ['白米'],
+          dislikes: [],
+          allergies: [],
+          constraints: [],
+          daily_targets: null,
+        },
+        resultType: 'complete',
+        _meta: {
+          'io.modelcontextprotocol/serverInfo': {
+            name: 'meshi',
+            version: '0.0.0',
+          },
+        },
+      },
+    })
+  })
+
+  it('renames the active span for a tools/call over the modern protocol', async () => {
+    const started = await start()
+    server = started.server
+    const span = tracer.startSpan('POST')
+    vi.spyOn(trace, 'getActiveSpan').mockReturnValue(span)
+
+    await fetch(
+      started.url,
+      modernRequestInit(
+        'tools/call',
+        { name: 'record_meal_from_text', arguments: { text: 'ラーメン' } },
+        1,
+      ),
+    )
+    span.end()
+
+    expect(
+      spanExporter
+        .getFinishedSpans()
+        .map((s) => ({ name: s.name, attributes: s.attributes })),
+    ).toEqual([
+      {
+        name: 'tools/call record_meal_from_text',
+        attributes: {
+          'mcp.method.name': 'tools/call',
+          'gen_ai.tool.name': 'record_meal_from_text',
+          'gen_ai.operation.name': 'execute_tool',
+        },
+      },
+    ])
   })
 })
