@@ -11,12 +11,13 @@ import { describe, expect, it, vi } from 'vitest'
 import { z } from 'zod'
 
 import { mountA2aRoutes } from '#a2a/hono-bridge'
+import { SENTRY_DEFAULT_GROUPING } from '#errors'
 
 vi.mock('@fohte/service-kit/observability', () => ({
   captureWithFingerprint: vi.fn(),
 }))
 
-const HONO_FINGERPRINT = 'a2a.hono.request-failed'
+const HONO_FINGERPRINT = ['a2a.hono.request-failed', SENTRY_DEFAULT_GROUPING]
 
 // Full shapes, not `.loose()`: parsed once to confirm every field is
 // present with the right type, then the whole (normalized) value is
