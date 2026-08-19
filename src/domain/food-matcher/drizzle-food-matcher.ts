@@ -181,10 +181,10 @@ export const createDrizzleFoodMatcher = (
         ),
         -- A composition entry names a raw ingredient, not a product, so it's
         -- only a safe fallback for something the user assembled themselves —
-        -- never for a specific packaged/prepared product, even when no
-        -- food_master matched it either. Gated on origin (declared by the
-        -- caller, not inferrable from the query text) rather than on whether
-        -- master_candidates is empty.
+        -- never for a specific packaged/prepared product. Gated on origin
+        -- (declared by the caller, not inferrable from the query text) only:
+        -- composition candidates appear for every homemade query regardless
+        -- of whether a food_master already matched.
         composition_candidates AS (
           SELECT
             NULL::text AS food_master_id,
