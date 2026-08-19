@@ -3,7 +3,9 @@ import type { Context } from 'hono'
 import { errAsync, okAsync, ResultAsync } from 'neverthrow'
 import type { z } from 'zod'
 
-const API_FINGERPRINT = 'api.request-failed'
+import { SENTRY_DEFAULT_GROUPING } from '#errors'
+
+const API_FINGERPRINT = ['api.request-failed', SENTRY_DEFAULT_GROUPING]
 
 export const jsonBadRequest = (c: Context, message: string): Response =>
   c.json({ error: message }, 400)

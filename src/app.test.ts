@@ -1,8 +1,7 @@
 import type { AgentCard } from '@a2a-js/sdk'
 import type { AgentExecutor } from '@a2a-js/sdk/server'
 import { DefaultRequestHandler, InMemoryTaskStore } from '@a2a-js/sdk/server'
-import { Client } from '@modelcontextprotocol/sdk/client/index.js'
-import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js'
+import { Client, InMemoryTransport } from '@modelcontextprotocol/client'
 import { describe, expect, it } from 'vitest'
 
 import { createApp } from '#app'

@@ -1,7 +1,6 @@
 import { randomUUID } from 'node:crypto'
 
-import { Client } from '@modelcontextprotocol/sdk/client/index.js'
-import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js'
+import { Client, InMemoryTransport } from '@modelcontextprotocol/client'
 import { okAsync } from 'neverthrow'
 import { beforeEach, expect, it } from 'vitest'
 import { z } from 'zod'
@@ -382,7 +381,10 @@ describeIfDb('meshi integration', () => {
       tx,
       mealLogIds: ['ml_scenario1'],
       toolCalls: [
-        { name: 'search_food_master', args: { queries: ['白米'] } },
+        {
+          name: 'search_food_master',
+          args: { user_input_item: '白米', queries: ['白米'] },
+        },
         {
           name: 'record_meal_log',
           args: {
@@ -469,11 +471,17 @@ describeIfDb('meshi integration', () => {
       toolCalls: [
         {
           name: 'search_food_master',
-          args: { queries: ['カフェの抹茶ラテ'] },
+          args: {
+            user_input_item: 'カフェの抹茶ラテ',
+            queries: ['カフェの抹茶ラテ'],
+          },
         },
         {
           name: 'web_search',
-          args: { query: 'カフェ 抹茶ラテ 栄養成分' },
+          args: {
+            user_input_item: 'カフェの抹茶ラテ',
+            query: 'カフェ 抹茶ラテ 栄養成分',
+          },
         },
         {
           name: 'register_food_master',
@@ -570,7 +578,10 @@ describeIfDb('meshi integration', () => {
     const harness = await startHarness({
       tx,
       toolCalls: [
-        { name: 'search_food_master', args: { queries: ['salmon'] } },
+        {
+          name: 'search_food_master',
+          args: { user_input_item: 'salmon', queries: ['salmon'] },
+        },
       ],
       final: {
         status: 'input_required',
@@ -784,7 +795,10 @@ describeIfDb('meshi integration', () => {
       tx,
       mealLogIds: ['ml_image_1'],
       toolCalls: [
-        { name: 'search_food_master', args: { queries: ['白米'] } },
+        {
+          name: 'search_food_master',
+          args: { user_input_item: '白米', queries: ['白米'] },
+        },
         {
           name: 'record_meal_log',
           args: {

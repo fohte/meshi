@@ -35,14 +35,14 @@ const orchestratorErrorOutput = z
   })
   .nullable()
 
-export const mealRecordStructuredOutput = {
+export const mealRecordStructuredOutput = z.object({
   recorded: z.array(recordedMealOutput),
   candidates: z.array(foodCandidateOutput),
   has_estimated_values: z.boolean(),
   error: orchestratorErrorOutput,
-}
+})
 
-export const mealHistoryStructuredOutput = {
+export const mealHistoryStructuredOutput = z.object({
   aggregate: z
     .object({
       totals: nutritionMap,
@@ -65,21 +65,21 @@ export const mealHistoryStructuredOutput = {
     .nullable(),
   has_estimated_values: z.boolean(),
   error: orchestratorErrorOutput,
-}
+})
 
-export const recommendStructuredOutput = {
+export const recommendStructuredOutput = z.object({
   error: orchestratorErrorOutput,
-}
+})
 
-export const profileStructuredOutput = {
+export const profileStructuredOutput = z.object({
   likes: z.array(z.string()),
   dislikes: z.array(z.string()),
   allergies: z.array(z.string()),
   constraints: z.array(z.string()),
   daily_targets: nutritionMap.nullable(),
-}
+})
 
-export const recordFromTextInput = {
+export const recordFromTextInput = z.object({
   text: z.string().min(1).describe('利用者の自然言語発話'),
   occurred_at: isoDatetime
     .optional()
@@ -89,7 +89,7 @@ export const recordFromTextInput = {
     .min(1)
     .optional()
     .describe('IANA timezone (例: Asia/Tokyo)'),
-}
+})
 
 const base64Data = z
   .string()
@@ -108,7 +108,7 @@ const imageContentInput = z
   })
   .describe('MCP image content. 外部 URL は受け取らない。')
 
-export const recordFromImageInput = {
+export const recordFromImageInput = z.object({
   image: imageContentInput,
   hint_text: z
     .string()
@@ -117,9 +117,9 @@ export const recordFromImageInput = {
     .describe('画像と一緒に渡される補助発話 (任意)'),
   occurred_at: isoDatetime.optional(),
   timezone: z.string().min(1).optional(),
-}
+})
 
-export const queryMealsInput = {
+export const queryMealsInput = z.object({
   query_text: z
     .string()
     .min(1)
@@ -127,22 +127,22 @@ export const queryMealsInput = {
   period_from_iso: isoDatetime.optional(),
   period_to_iso: isoDatetime.optional(),
   timezone: z.string().min(1).optional(),
-}
+})
 
-export const recommendMealInput = {
+export const recommendMealInput = z.object({
   additional_constraints: z
     .string()
     .min(1)
     .optional()
     .describe('追加条件 (例: 軽め、外食可)'),
   timezone: z.string().min(1).optional(),
-}
+})
 
-export const updateProfileInput = {
+export const updateProfileInput = z.object({
   likes: z.array(z.string().min(1)).optional(),
   dislikes: z.array(z.string().min(1)).optional(),
   allergies: z.array(z.string().min(1)).optional(),
   constraints: z.array(z.string().min(1)).optional(),
   // null clears any previously stored daily_targets; omit to keep them.
   daily_targets: nutritionMap.nullable().optional(),
-}
+})
