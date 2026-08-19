@@ -8,6 +8,14 @@ import type {
 export type FoodMatchReason =
   'history_recent' | 'history_frequent' | 'fuzzy_name' | 'composition_table'
 
+// Whether the food being searched for was bought/prepared by someone else
+// ('retail' — includes restaurant meals and gifts) or cooked by the user
+// ('homemade'). Controls whether food_compositions fallback candidates are
+// considered at all: a composition entry names a raw ingredient, not a
+// product, so it's only a safe fallback for something assembled from
+// ingredients, never for a specific packaged/prepared product.
+export type FoodOrigin = 'retail' | 'homemade'
+
 export interface FoodMatchCandidate {
   readonly reason: FoodMatchReason
   readonly score: number
@@ -34,6 +42,7 @@ export interface FoodMatchCandidate {
 export interface SearchFoodInput {
   readonly queries: ReadonlyArray<string>
   readonly limit: number
+  readonly origin: FoodOrigin
 }
 
 export type FoodMatcherError =

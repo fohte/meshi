@@ -60,6 +60,7 @@ describe('search_food_master tool', () => {
     const result = await tool.execute({
       user_input_item: '白米',
       queries: ['白米'],
+      origin: 'retail',
       limit: 3,
     })
 
@@ -90,13 +91,17 @@ describe('search_food_master tool', () => {
         ],
       },
     })
-    expect(calls).toEqual([{ queries: ['白米'], limit: 3 }])
+    expect(calls).toEqual([{ queries: ['白米'], origin: 'retail', limit: 3 }])
   })
 
   it('defaults limit to 5 when not supplied', async () => {
     const { tool, calls } = setup()
-    await tool.execute({ user_input_item: '白米', queries: ['白米'] })
-    expect(calls).toEqual([{ queries: ['白米'], limit: 5 }])
+    await tool.execute({
+      user_input_item: '白米',
+      queries: ['白米'],
+      origin: 'retail',
+    })
+    expect(calls).toEqual([{ queries: ['白米'], origin: 'retail', limit: 5 }])
   })
 
   it('rejects an empty queries array with invalid_input and skips the matcher', async () => {
@@ -104,6 +109,7 @@ describe('search_food_master tool', () => {
     const result = await tool.execute({
       user_input_item: '白米',
       queries: [],
+      origin: 'retail',
     })
     expect(normalizeResult(result)).toEqual({
       ok: false,
@@ -118,7 +124,27 @@ describe('search_food_master tool', () => {
 
   it('rejects a missing user_input_item with invalid_input and skips the matcher', async () => {
     const { tool, calls } = setup()
-    const result = await tool.execute({ queries: ['白米'] })
+    const result = await tool.execute({
+      queries: ['白米'],
+      origin: 'retail',
+    })
+    expect(normalizeResult(result)).toEqual({
+      ok: false,
+      error: {
+        code: 'invalid_input',
+        message: '<dynamic>',
+        details: { issues: { count: 1 } },
+      },
+    })
+    expect(calls).toEqual([])
+  })
+
+  it('rejects a missing origin with invalid_input and skips the matcher', async () => {
+    const { tool, calls } = setup()
+    const result = await tool.execute({
+      user_input_item: '白米',
+      queries: ['白米'],
+    })
     expect(normalizeResult(result)).toEqual({
       ok: false,
       error: {
@@ -139,6 +165,7 @@ describe('search_food_master tool', () => {
     const result = await tool.execute({
       user_input_item: '白米',
       queries: ['白米'],
+      origin: 'retail',
     })
 
     expect(normalizeResult(result)).toEqual({
@@ -192,6 +219,7 @@ describe('search_food_master tool', () => {
         const result = await tool.execute({
           user_input_item: 'ゲンキ プロテイン飲料',
           queries: ['ゲンキ プロテイン'],
+          origin: 'retail',
           limit: 5,
         })
 
@@ -213,8 +241,8 @@ describe('search_food_master tool', () => {
           },
         })
         expect(calls).toEqual([
-          { queries: ['ゲンキ プロテイン'], limit: 5 },
-          { queries: ['ゲンキ', 'プロテイン'], limit: 5 },
+          { queries: ['ゲンキ プロテイン'], origin: 'retail', limit: 5 },
+          { queries: ['ゲンキ', 'プロテイン'], origin: 'retail', limit: 5 },
         ])
       },
     )
@@ -241,6 +269,7 @@ describe('search_food_master tool', () => {
       const result = await tool.execute({
         user_input_item: 'ゲンキ プロテイン飲料',
         queries: ['ゲンキ プロテイン'],
+        origin: 'retail',
         limit: 5,
       })
 
@@ -262,8 +291,8 @@ describe('search_food_master tool', () => {
         },
       })
       expect(calls).toEqual([
-        { queries: ['ゲンキ プロテイン'], limit: 5 },
-        { queries: ['ゲンキ', 'プロテイン'], limit: 5 },
+        { queries: ['ゲンキ プロテイン'], origin: 'retail', limit: 5 },
+        { queries: ['ゲンキ', 'プロテイン'], origin: 'retail', limit: 5 },
       ])
     })
 
@@ -300,6 +329,7 @@ describe('search_food_master tool', () => {
       const result = await tool.execute({
         user_input_item: 'ゲンキ プロテイン飲料',
         queries: ['ゲンキ プロテイン'],
+        origin: 'retail',
         limit: 5,
       })
 
@@ -321,8 +351,8 @@ describe('search_food_master tool', () => {
         },
       })
       expect(calls).toEqual([
-        { queries: ['ゲンキ プロテイン'], limit: 5 },
-        { queries: ['ゲンキ', 'プロテイン'], limit: 5 },
+        { queries: ['ゲンキ プロテイン'], origin: 'retail', limit: 5 },
+        { queries: ['ゲンキ', 'プロテイン'], origin: 'retail', limit: 5 },
       ])
     })
 
@@ -332,6 +362,7 @@ describe('search_food_master tool', () => {
       const result = await tool.execute({
         user_input_item: '白米',
         queries: ['白米'],
+        origin: 'retail',
         limit: 5,
       })
 
@@ -339,7 +370,7 @@ describe('search_food_master tool', () => {
         ok: true,
         value: { candidates: [] },
       })
-      expect(calls).toEqual([{ queries: ['白米'], limit: 5 }])
+      expect(calls).toEqual([{ queries: ['白米'], origin: 'retail', limit: 5 }])
     })
 
     it('does not retry when the first call already returns candidates', async () => {
@@ -348,10 +379,11 @@ describe('search_food_master tool', () => {
       await tool.execute({
         user_input_item: '白米',
         queries: ['白米'],
+        origin: 'retail',
         limit: 5,
       })
 
-      expect(calls).toEqual([{ queries: ['白米'], limit: 5 }])
+      expect(calls).toEqual([{ queries: ['白米'], origin: 'retail', limit: 5 }])
     })
   })
 })

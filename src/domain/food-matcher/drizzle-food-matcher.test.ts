@@ -61,7 +61,7 @@ describeIfDb('createDrizzleFoodMatcher', () => {
 
       const matcher = createDrizzleFoodMatcher(tx)
       const result = (
-        await matcher.search({ queries: ['rice'], limit: 5 })
+        await matcher.search({ queries: ['rice'], origin: 'retail', limit: 5 })
       )._unsafeUnwrap()
 
       const expectedA = Number((2 + 1 * 0.5).toFixed(3))
@@ -121,7 +121,7 @@ describeIfDb('createDrizzleFoodMatcher', () => {
 
       const matcher = createDrizzleFoodMatcher(tx)
       const result = (
-        await matcher.search({ queries: ['soup'], limit: 5 })
+        await matcher.search({ queries: ['soup'], origin: 'retail', limit: 5 })
       )._unsafeUnwrap()
 
       const expectedC = Number((1 + 1 * (1 - Math.exp(-5 / 3))).toFixed(3))
@@ -161,7 +161,7 @@ describeIfDb('createDrizzleFoodMatcher', () => {
 
       const matcher = createDrizzleFoodMatcher(tx)
       const result = (
-        await matcher.search({ queries: ['bread'], limit: 5 })
+        await matcher.search({ queries: ['bread'], origin: 'retail', limit: 5 })
       )._unsafeUnwrap()
 
       expect(normalize(result)).toEqual([
@@ -178,13 +178,35 @@ describeIfDb('createDrizzleFoodMatcher', () => {
       ])
     })
 
-    it('falls back to the composition table when no food_master matches', async () => {
+    it('returns an empty array when nothing matches any query', async () => {
+      const tx = getTx()
+      await seedFoodMaster(tx, {
+        id: 'fm_other',
+        name: 'pasta_g',
+        source: 'user_input',
+      })
+
+      const matcher = createDrizzleFoodMatcher(tx)
+      const result = (
+        await matcher.search({ queries: ['tofu'], origin: 'retail', limit: 5 })
+      )._unsafeUnwrap()
+
+      expect(result).toEqual([])
+    })
+  })
+
+  describe('composition-table fallback gated by origin', () => {
+    it('returns composition candidates when origin is homemade, even with no food_master match', async () => {
       const tx = getTx()
       await seedFoodComposition(tx, { code: 'comp_noodle', name: 'noodle' })
 
       const matcher = createDrizzleFoodMatcher(tx)
       const result = (
-        await matcher.search({ queries: ['noodle'], limit: 5 })
+        await matcher.search({
+          queries: ['noodle'],
+          origin: 'homemade',
+          limit: 5,
+        })
       )._unsafeUnwrap()
 
       expect(normalize(result)).toEqual([
@@ -201,7 +223,23 @@ describeIfDb('createDrizzleFoodMatcher', () => {
       ])
     })
 
-    it('suppresses composition fallback when a food_master already matches', async () => {
+    it('suppresses composition candidates when origin is retail, even with no food_master match', async () => {
+      const tx = getTx()
+      await seedFoodComposition(tx, { code: 'comp_noodle', name: 'noodle' })
+
+      const matcher = createDrizzleFoodMatcher(tx)
+      const result = (
+        await matcher.search({
+          queries: ['noodle'],
+          origin: 'retail',
+          limit: 5,
+        })
+      )._unsafeUnwrap()
+
+      expect(result).toEqual([])
+    })
+
+    it('returns composition candidates alongside a food_master match when origin is homemade', async () => {
       const tx = getTx()
       await seedFoodMaster(tx, {
         id: 'fm_curry',
@@ -212,7 +250,53 @@ describeIfDb('createDrizzleFoodMatcher', () => {
 
       const matcher = createDrizzleFoodMatcher(tx)
       const result = (
-        await matcher.search({ queries: ['curry'], limit: 5 })
+        await matcher.search({
+          queries: ['curry'],
+          origin: 'homemade',
+          limit: 5,
+        })
+      )._unsafeUnwrap()
+
+      expect(normalize(result)).toEqual([
+        {
+          reason: 'composition_table',
+          score: 1,
+          nameSim: 1,
+          foodMasterId: null,
+          compositionCode: 'comp_curry',
+          name: 'curry',
+          isEstimated: true,
+          matchedQueries: ['curry'],
+        },
+        {
+          reason: 'fuzzy_name',
+          score: 1,
+          nameSim: 1,
+          foodMasterId: 'fm_curry',
+          compositionCode: null,
+          name: 'curry_f',
+          isEstimated: false,
+          matchedQueries: ['curry'],
+        },
+      ])
+    })
+
+    it('suppresses composition candidates when origin is retail, even when a food_master already matches', async () => {
+      const tx = getTx()
+      await seedFoodMaster(tx, {
+        id: 'fm_curry',
+        name: 'curry_f',
+        source: 'user_input',
+      })
+      await seedFoodComposition(tx, { code: 'comp_curry', name: 'curry' })
+
+      const matcher = createDrizzleFoodMatcher(tx)
+      const result = (
+        await matcher.search({
+          queries: ['curry'],
+          origin: 'retail',
+          limit: 5,
+        })
       )._unsafeUnwrap()
 
       expect(normalize(result)).toEqual([
@@ -227,22 +311,6 @@ describeIfDb('createDrizzleFoodMatcher', () => {
           matchedQueries: ['curry'],
         },
       ])
-    })
-
-    it('returns an empty array when nothing matches any query', async () => {
-      const tx = getTx()
-      await seedFoodMaster(tx, {
-        id: 'fm_other',
-        name: 'pasta_g',
-        source: 'user_input',
-      })
-
-      const matcher = createDrizzleFoodMatcher(tx)
-      const result = (
-        await matcher.search({ queries: ['tofu'], limit: 5 })
-      )._unsafeUnwrap()
-
-      expect(result).toEqual([])
     })
   })
 
@@ -262,7 +330,11 @@ describeIfDb('createDrizzleFoodMatcher', () => {
 
       const matcher = createDrizzleFoodMatcher(tx)
       const result = (
-        await matcher.search({ queries: ['cereal', 'grain_alias'], limit: 5 })
+        await matcher.search({
+          queries: ['cereal', 'grain_alias'],
+          origin: 'retail',
+          limit: 5,
+        })
       )._unsafeUnwrap()
 
       expect(normalize(result)).toEqual([
@@ -291,7 +363,11 @@ describeIfDb('createDrizzleFoodMatcher', () => {
 
       const matcher = createDrizzleFoodMatcher(tx)
       const result = (
-        await matcher.search({ queries: ['ゲンキ'], limit: 5 })
+        await matcher.search({
+          queries: ['ゲンキ'],
+          origin: 'retail',
+          limit: 5,
+        })
       )._unsafeUnwrap()
 
       expect(normalize(result)).toEqual([
@@ -320,6 +396,7 @@ describeIfDb('createDrizzleFoodMatcher', () => {
       const result = (
         await matcher.search({
           queries: ['protein_bar extra'],
+          origin: 'retail',
           limit: 5,
         })
       )._unsafeUnwrap()
@@ -348,7 +425,7 @@ describeIfDb('createDrizzleFoodMatcher', () => {
 
       const matcher = createDrizzleFoodMatcher(tx)
       const result = (
-        await matcher.search({ queries: ['grain'], limit: 5 })
+        await matcher.search({ queries: ['grain'], origin: 'retail', limit: 5 })
       )._unsafeUnwrap()
 
       expect(normalize(result)).toEqual([
@@ -383,7 +460,11 @@ describeIfDb('createDrizzleFoodMatcher', () => {
 
       const matcher = createDrizzleFoodMatcher(tx)
       const result = (
-        await matcher.search({ queries: ['味噌汁'], limit: 5 })
+        await matcher.search({
+          queries: ['味噌汁'],
+          origin: 'retail',
+          limit: 5,
+        })
       )._unsafeUnwrap()
 
       expect(normalize(result)).toEqual([
@@ -415,7 +496,11 @@ describeIfDb('createDrizzleFoodMatcher', () => {
 
       const matcher = createDrizzleFoodMatcher(tx)
       const result = (
-        await matcher.search({ queries: ['絹ごし豆腐'], limit: 5 })
+        await matcher.search({
+          queries: ['絹ごし豆腐'],
+          origin: 'retail',
+          limit: 5,
+        })
       )._unsafeUnwrap()
 
       expect(normalize(result)).toEqual([

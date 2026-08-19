@@ -19,6 +19,7 @@ const MAX_QUERIES = 10
 const inputSchema = z.object({
   user_input_item: z.string().min(1),
   queries: z.array(z.string().min(1)).min(1).max(MAX_QUERIES),
+  origin: z.enum(['retail', 'homemade']),
   limit: z.number().int().positive().max(50).optional().default(5),
 })
 
@@ -93,7 +94,7 @@ export const createSearchFoodMasterTool = (
 ): DomainTool => ({
   name: 'search_food_master',
   description:
-    'Search the food_master table for a single food item the user mentioned — never search more than one distinct item in one call. user_input_item must be exactly what the user said for that one item (e.g. "豚バラ大根の煮物"); queries are your own rephrasings of that same item to search the database with (different levels of detail, a brand name alone, a romanized spelling, ...) — results are merged into a single ranked list, and each candidate reports which of the queries matched it plus the user_input_item it was searched for, so candidates for different items are never mistaken for each other. If every query comes back empty, the tool automatically retries with each query broken into its individual words before giving up. Returns ranked candidates including history-derived hits, fuzzy name matches, and composition-table fallbacks.',
+    'Search the food_master table for a single food item the user mentioned — never search more than one distinct item in one call. user_input_item must be exactly what the user said for that one item (e.g. "豚バラ大根の煮物"); queries are your own rephrasings of that same item to search the database with (different levels of detail, a brand name alone, a romanized spelling, ...) — results are merged into a single ranked list, and each candidate reports which of the queries matched it plus the user_input_item it was searched for, so candidates for different items are never mistaken for each other. origin is required and has no default: pass "retail" for anything someone else made — a store-bought or convenience-store product, a restaurant dish, a gift — and "homemade" only when the user themselves cooked or assembled it from ingredients. This decides whether composition-table fallback candidates (raw ingredients, e.g. "じゃがいも") are considered at all: they are a safe stand-in for a homemade dish built from that ingredient, but never for a specific packaged/prepared product, which composition data cannot represent. If every query comes back empty, the tool automatically retries with each query broken into its individual words before giving up. Returns ranked candidates including history-derived hits, fuzzy name matches, and (for origin="homemade" only) composition-table fallbacks.',
   // io: 'input' — this describes the pre-parse wire shape a caller (LLM tool
   // call) must supply, not zod's parsed output shape; without it, `limit`'s
   // `.default(5)` makes toJSONSchema mark it `required` (it's always present
@@ -104,9 +105,9 @@ export const createSearchFoodMasterTool = (
   ): Promise<Result<SearchFoodMasterOutput, ToolError>> {
     const parsed = parseToolInput(inputSchema, input)
     if (parsed.isErr()) return err(parsed.error)
-    const { user_input_item, queries, limit } = parsed.value
+    const { user_input_item, queries, origin, limit } = parsed.value
 
-    const first = await matcher.search({ queries, limit })
+    const first = await matcher.search({ queries, origin, limit })
     if (first.isErr()) return err(toInternalToolError(first.error))
     if (hasUsableCandidate(first.value))
       return ok(toOutput(user_input_item, first.value))
@@ -115,7 +116,11 @@ export const createSearchFoodMasterTool = (
     if (shortQueries.length === 0)
       return ok(toOutput(user_input_item, first.value))
 
-    const second = await matcher.search({ queries: shortQueries, limit })
+    const second = await matcher.search({
+      queries: shortQueries,
+      origin,
+      limit,
+    })
     if (second.isErr()) return err(toInternalToolError(second.error))
     // An empty retry means the split queries found nothing at all — fall
     // back to the first call's candidates rather than discarding a weak

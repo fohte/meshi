@@ -99,7 +99,7 @@ export const createDrizzleFoodMatcher = (
       ReadonlyArray<FoodMatchCandidate>,
       FoodMatcherInvalidRowError | FoodMatcherQueryError
     > {
-      const { limit } = input
+      const { limit, origin } = input
       const queries = input.queries.map((q) => q.trim()).filter((q) => q !== '')
       if (queries.length === 0 || limit <= 0) return okAsync([])
 
@@ -179,6 +179,12 @@ export const createDrizzleFoodMatcher = (
           FROM name_matches nm
           LEFT JOIN history_stats hs ON hs.food_master_id = nm.id
         ),
+        -- A composition entry names a raw ingredient, not a product, so it's
+        -- only a safe fallback for something the user assembled themselves —
+        -- never for a specific packaged/prepared product, even when no
+        -- food_master matched it either. Gated on origin (declared by the
+        -- caller, not inferrable from the query text) rather than on whether
+        -- master_candidates is empty.
         composition_candidates AS (
           SELECT
             NULL::text AS food_master_id,
@@ -198,7 +204,7 @@ export const createDrizzleFoodMatcher = (
             WHERE fc.name % q OR fc.name %> q OR strpos(lower(fc.name), lower(q)) > 0
             GROUP BY fc.code, fc.name
           ) _
-          WHERE NOT EXISTS (SELECT 1 FROM master_candidates)
+          WHERE ${origin} = 'homemade'
         )
         SELECT food_master_id, composition_code, name, is_estimated,
                reason, score, name_sim, matched_queries
