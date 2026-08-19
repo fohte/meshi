@@ -7,5 +7,6 @@ export type {
   FoodMatchCandidate,
   FoodMatcher,
   FoodMatchReason,
+  FoodOrigin,
   SearchFoodInput,
 } from '#domain/food-matcher/food-matcher'

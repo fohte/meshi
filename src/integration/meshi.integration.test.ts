@@ -383,7 +383,11 @@ describeIfDb('meshi integration', () => {
       toolCalls: [
         {
           name: 'search_food_master',
-          args: { user_input_item: '白米', queries: ['白米'] },
+          args: {
+            user_input_item: '白米',
+            queries: ['白米'],
+            origin: 'retail',
+          },
         },
         {
           name: 'record_meal_log',
@@ -474,6 +478,7 @@ describeIfDb('meshi integration', () => {
           args: {
             user_input_item: 'カフェの抹茶ラテ',
             queries: ['カフェの抹茶ラテ'],
+            origin: 'retail',
           },
         },
         {
@@ -580,7 +585,11 @@ describeIfDb('meshi integration', () => {
       toolCalls: [
         {
           name: 'search_food_master',
-          args: { user_input_item: 'salmon', queries: ['salmon'] },
+          args: {
+            user_input_item: 'salmon',
+            queries: ['salmon'],
+            origin: 'retail',
+          },
         },
       ],
       final: {
@@ -797,7 +806,11 @@ describeIfDb('meshi integration', () => {
       toolCalls: [
         {
           name: 'search_food_master',
-          args: { user_input_item: '白米', queries: ['白米'] },
+          args: {
+            user_input_item: '白米',
+            queries: ['白米'],
+            origin: 'retail',
+          },
         },
         {
           name: 'record_meal_log',

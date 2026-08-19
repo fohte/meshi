@@ -108,35 +108,41 @@ export const createFoodBrowseService = (
 
   return {
     search: (query, limit) =>
-      foodMatcher.search({ queries: [query], limit }).andThen((candidates) =>
-        ResultAsync.fromPromise(
-          loadEnrichment(
-            db,
-            candidates.map((c) => c.foodMasterId).filter((id) => id !== null),
-          ),
-          (caughtErr) =>
-            new FoodBrowseQueryError(
-              'failed to enrich food search results',
-              caughtErr,
+      // A human manually browsing food_master doesn't declare retail/homemade
+      // intent the way the meal-logging agent does, so 'homemade' is passed
+      // to keep composition_table fallback candidates visible in browse
+      // results regardless.
+      foodMatcher
+        .search({ queries: [query], origin: 'homemade', limit })
+        .andThen((candidates) =>
+          ResultAsync.fromPromise(
+            loadEnrichment(
+              db,
+              candidates.map((c) => c.foodMasterId).filter((id) => id !== null),
             ),
-        ).map((enrichment) =>
-          candidates.map((candidate): FoodListItem => {
-            const enriched =
-              candidate.foodMasterId === null
-                ? undefined
-                : enrichment.get(candidate.foodMasterId)
-            return {
-              foodMasterId: candidate.foodMasterId,
-              compositionCode: candidate.compositionCode,
-              name: candidate.name,
-              isEstimated: candidate.isEstimated,
-              reason: candidate.reason,
-              source: enriched?.source ?? null,
-              energyKcalPerUnit: enriched?.energyKcalPerUnit ?? null,
-            }
-          }),
+            (caughtErr) =>
+              new FoodBrowseQueryError(
+                'failed to enrich food search results',
+                caughtErr,
+              ),
+          ).map((enrichment) =>
+            candidates.map((candidate): FoodListItem => {
+              const enriched =
+                candidate.foodMasterId === null
+                  ? undefined
+                  : enrichment.get(candidate.foodMasterId)
+              return {
+                foodMasterId: candidate.foodMasterId,
+                compositionCode: candidate.compositionCode,
+                name: candidate.name,
+                isEstimated: candidate.isEstimated,
+                reason: candidate.reason,
+                source: enriched?.source ?? null,
+                energyKcalPerUnit: enriched?.energyKcalPerUnit ?? null,
+              }
+            }),
+          ),
         ),
-      ),
 
     listRecent: (limit) =>
       ResultAsync.fromPromise(

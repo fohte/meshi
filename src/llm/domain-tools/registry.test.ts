@@ -206,7 +206,12 @@ describe('createDomainToolsRegistry', () => {
     const result = await registry.executeToolUse({
       id: 'call_1',
       name: 'search_food_master',
-      input: { user_input_item: '白米', queries: ['白米'], limit: 1 },
+      input: {
+        user_input_item: '白米',
+        queries: ['白米'],
+        origin: 'retail',
+        limit: 1,
+      },
     })
 
     expect(result).toEqual({
@@ -233,7 +238,7 @@ describe('createDomainToolsRegistry', () => {
     const result = await registry.executeToolUse({
       id: 'call_2',
       name: 'search_food_master',
-      input: { user_input_item: '白米', query: '' },
+      input: { user_input_item: '白米', origin: 'retail', query: '' },
     })
     const parsed: unknown = JSON.parse(result.content)
 
