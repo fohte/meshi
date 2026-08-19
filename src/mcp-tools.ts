@@ -1,4 +1,5 @@
-import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
+import type { McpServer } from '@modelcontextprotocol/server'
+import { z } from 'zod'
 
 import type { UserProfileService } from '#domain/user-profile/user-profile-service'
 import type { ConversationOrchestrator } from '#llm/orchestrator/index'
@@ -176,7 +177,7 @@ export const registerMeshiTools = (
     'get_profile',
     {
       description: '現在のプロファイルを返す。',
-      inputSchema: {},
+      inputSchema: z.object({}),
       outputSchema: profileStructuredOutput,
     },
     async () => {
