@@ -1,10 +1,11 @@
 import path from 'node:path'
 
+import tailwindcss from '@tailwindcss/vite'
 import react from '@vitejs/plugin-react'
 import { defineConfig } from 'vite'
 
 export default defineConfig({
-  plugins: [react()],
+  plugins: [tailwindcss(), react()],
   resolve: {
     // TypeScript/ESLint resolve the "#*" subpath imports (package.json
     // "imports" field) on their own; Vite's bundler doesn't consult that

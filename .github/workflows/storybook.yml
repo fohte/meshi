@@ -1,0 +1,100 @@
+name: Storybook
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+
+concurrency:
+  group: storybook-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  deployments: write
+  pull-requests: write
+
+jobs:
+  detect-changes-web:
+    runs-on: ubuntu-slim
+    outputs:
+      changed: ${{ steps.changes.outputs.any_changed }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 2
+
+      - name: Check for changes
+        uses: tj-actions/changed-files@9426d40962ed5378910ee2e21d5f8c6fcbf2dd96 # v47.0.6
+        id: changes
+        with:
+          files: |
+            web/**
+            .github/workflows/storybook.yml
+
+  deploy-web:
+    needs: detect-changes-web
+    if: needs.detect-changes-web.outputs.changed == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - uses: jdx/mise-action@7e36c90d9ab29c415a2384db3006f3ec8a8cc654 # v4.2.4
+        with:
+          version: 2026.7.12
+
+      # corepack creates the pnpm executable inside mise's node install bin
+      # directory; reshim so the mise shims dir (which is on PATH) picks it up.
+      - run: |
+          corepack enable
+          mise reshim
+
+      - name: Get pnpm store directory
+        id: pnpm-store
+        run: echo "path=$(pnpm store path)" >> "$GITHUB_OUTPUT"
+
+      - name: Cache pnpm store
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            ${{ steps.pnpm-store.outputs.path }}
+          key: ${{ runner.os }}-pnpm-store-${{ hashFiles('web/pnpm-lock.yaml') }}
+          restore-keys: ${{ runner.os }}-pnpm-store-
+
+      - name: Install pnpm dependencies
+        run: cd "web" && pnpm install --frozen-lockfile
+
+      - name: Build Storybook
+        run: cd "web" && pnpm run storybook:build
+
+      - name: Create Cloudflare Pages project if not exists
+        uses: cloudflare/wrangler-action@ebbaa1584979971c8614a24965b4405ff95890e0 # v4.0.0
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          command: pages project create meshi-web-storybook --production-branch=main
+        continue-on-error: true
+
+      - name: Deploy to Cloudflare Pages
+        id: deploy
+        uses: cloudflare/wrangler-action@ebbaa1584979971c8614a24965b4405ff95890e0 # v4.0.0
+        env:
+          # wrangler-action passes `command` through a shell, so an
+          # attacker-controlled branch name must not be interpolated into it
+          # directly.
+          DEPLOY_BRANCH: ${{ github.head_ref || 'main' }}
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          command: pages deploy web/storybook-static --project-name=meshi-web-storybook --branch=$DEPLOY_BRANCH --commit-dirty=true
+
+      - name: Comment preview URL on PR
+        if: github.event_name == 'pull_request'
+        uses: marocchino/sticky-pull-request-comment@5770ad5eb8f42dd2c4f34da00c94c5381e49af88 # v3.0.5
+        with:
+          header: storybook-preview-web
+          message: |
+            ## Storybook Preview (web)
+
+            ${{ steps.deploy.outputs.pages-deployment-alias-url }}

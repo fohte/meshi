@@ -1,3 +1,4 @@
+import '#index.css'
 import '#styles/tokens.css'
 import '#styles/global.css'
 
