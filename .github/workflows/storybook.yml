@@ -73,6 +73,8 @@ jobs:
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          workingDirectory: web
+          packageManager: pnpm
           command: pages project create meshi-web-storybook --production-branch=main
         continue-on-error: true
 
@@ -82,7 +84,9 @@ jobs:
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          command: pages deploy web/storybook-static --project-name=meshi-web-storybook --branch=${{ github.head_ref || 'main' }} --commit-dirty=true
+          workingDirectory: web
+          packageManager: pnpm
+          command: pages deploy storybook-static --project-name=meshi-web-storybook --branch=${{ github.head_ref || 'main' }} --commit-dirty=true
 
       - name: Comment preview URL on PR
         if: github.event_name == 'pull_request'
