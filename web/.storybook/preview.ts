@@ -16,10 +16,11 @@ import { mswLoader } from 'msw-storybook-addon/csf3'
 
 configureUnhandledApiRequestCheck({ pathPrefixes: ['/api/'] })
 
-// @fohte/storybook-addon publishes only a `./preview` subpath export (no
-// preset/manager entry), so listing it in main.ts's `addons` never wires its
-// beforeEach/afterEach checks — they must be spread into this project's own
-// preview annotations to actually run.
+// .storybook/vitest.setup.ts imports this file directly via
+// setProjectAnnotations(), bypassing main.ts's `addons` resolution
+// entirely — @fohte/storybook-addon isn't listed there (see main.ts), so
+// its beforeEach/afterEach checks must be spread here explicitly to run
+// under both `storybook dev`/`build` and the Vitest test-runner path.
 const preview: Preview = {
   parameters,
   beforeEach,
