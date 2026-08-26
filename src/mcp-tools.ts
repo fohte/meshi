@@ -114,6 +114,7 @@ export const registerMeshiTools = (
       description: '自然言語クエリ (+ 任意の期間) から食事履歴を集計する。',
       inputSchema: queryMealsInput,
       outputSchema: mealHistoryStructuredOutput,
+      annotations: { readOnlyHint: true },
     },
     async (args) => {
       logger.log(TOOL_CALLED, { tool: 'query_meals' })
@@ -150,6 +151,7 @@ export const registerMeshiTools = (
         '任意の追加条件からプロファイル + 履歴ベースの食事レコメンドを返す。',
       inputSchema: recommendMealInput,
       outputSchema: recommendStructuredOutput,
+      annotations: { readOnlyHint: true },
     },
     async (args) => {
       logger.log(TOOL_CALLED, { tool: 'recommend_meal' })
@@ -179,6 +181,7 @@ export const registerMeshiTools = (
       description: '現在のプロファイルを返す。',
       inputSchema: z.object({}),
       outputSchema: profileStructuredOutput,
+      annotations: { readOnlyHint: true },
     },
     async () => {
       logger.log(TOOL_CALLED, { tool: 'get_profile' })
