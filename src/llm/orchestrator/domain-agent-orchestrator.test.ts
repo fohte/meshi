@@ -8,7 +8,10 @@ import { REQUEST_USER_INPUT_TOOL_NAME } from '#llm/agent/request-user-input-tool
 import type { DomainToolsRegistry } from '#llm/domain-tools/registry'
 import type { DomainTool, DomainToolName } from '#llm/domain-tools/types'
 import { err, ok } from '#llm/domain-tools/types'
-import { createDomainAgentOrchestrator } from '#llm/orchestrator/domain-agent-orchestrator'
+import {
+  createDomainAgentOrchestrator,
+  restrictToReadOnly,
+} from '#llm/orchestrator/domain-agent-orchestrator'
 import type { MealRecordResult } from '#llm/orchestrator/types'
 import type { Logger } from '#logger'
 import { scriptedDomainAgentModel } from '#test/scripted-domain-agent-model'
@@ -617,6 +620,42 @@ describe('createDomainAgentOrchestrator', () => {
         error: null,
       })
     })
+
+    it('never calls record_meal_log even when the model is scripted to invoke it and the registry has it', async () => {
+      const recordMealLog = vi.fn(() =>
+        Promise.resolve(
+          ok({
+            meal_log_id: 'ml_1',
+            nutrition: { energy_kcal: 336 },
+            is_estimated: false,
+          }),
+        ),
+      )
+      const registry = stubRegistry([
+        stubTool('query_meal_history', () =>
+          Promise.resolve(
+            ok({
+              totals: {},
+              per_day: [],
+              entries: [],
+              has_estimated_values: false,
+            }),
+          ),
+        ),
+        stubTool('record_meal_log', recordMealLog),
+      ])
+      const orchestrator = createDomainAgentOrchestrator({
+        model: scriptedDomainAgentModel(
+          [{ name: 'record_meal_log', args: { food_master_id: 'fm_rice' } }],
+          { status: 'completed', message: 'done' },
+        ),
+        registry,
+      })
+
+      await orchestrator.queryMeals({ query: 'hello' })
+
+      expect(recordMealLog).not.toHaveBeenCalled()
+    })
   })
 
   describe('recommendMeal', () => {
@@ -644,5 +683,88 @@ describe('createDomainAgentOrchestrator', () => {
         error: null,
       })
     })
+
+    it('never calls update_user_profile even when the model is scripted to invoke it and the registry has it', async () => {
+      const updateUserProfile = vi.fn(() => Promise.resolve(ok({})))
+      const registry = stubRegistry([
+        stubTool('get_user_profile', () => Promise.resolve(ok({}))),
+        stubTool('update_user_profile', updateUserProfile),
+      ])
+      const orchestrator = createDomainAgentOrchestrator({
+        model: scriptedDomainAgentModel(
+          [{ name: 'update_user_profile', args: { likes: ['sushi'] } }],
+          { status: 'completed', message: 'done' },
+        ),
+        registry,
+      })
+
+      await orchestrator.recommendMeal({ conditions: '軽め' })
+
+      expect(updateUserProfile).not.toHaveBeenCalled()
+    })
+  })
+})
+
+const fullDomainToolsRegistry = (): DomainToolsRegistry =>
+  stubRegistry([
+    stubTool('record_meal_log', () => Promise.resolve(ok({}))),
+    stubTool('update_meal_log', () => Promise.resolve(ok({}))),
+    stubTool('record_meal_skip', () => Promise.resolve(ok({}))),
+    stubTool('cancel_meal_skip', () => Promise.resolve(ok({}))),
+    stubTool('search_food_master', () => Promise.resolve(ok({}))),
+    stubTool('register_food_master', () => Promise.resolve(ok({}))),
+    stubTool('register_food_master_from_composition', () =>
+      Promise.resolve(ok({})),
+    ),
+    stubTool('merge_food_master', () => Promise.resolve(ok({}))),
+    stubTool('query_meal_history', () => Promise.resolve(ok({}))),
+    stubTool('get_user_profile', () => Promise.resolve(ok({}))),
+    stubTool('update_user_profile', () => Promise.resolve(ok({}))),
+    stubTool('web_search', () => Promise.resolve(ok({}))),
+  ])
+
+describe('restrictToReadOnly', () => {
+  it('keeps list() to search_food_master, query_meal_history, get_user_profile, and web_search', () => {
+    const restricted = restrictToReadOnly(fullDomainToolsRegistry())
+
+    expect(restricted.list().map((t) => t.name)).toEqual([
+      'search_food_master',
+      'query_meal_history',
+      'get_user_profile',
+      'web_search',
+    ])
+  })
+
+  it('keeps toLlmSchemas() to the same read-only tools, each with its own description and inputSchema', () => {
+    const restricted = restrictToReadOnly(fullDomainToolsRegistry())
+
+    expect(restricted.toLlmSchemas()).toEqual([
+      {
+        name: 'search_food_master',
+        description: 'stub search_food_master',
+        inputSchema: { type: 'object' },
+      },
+      {
+        name: 'query_meal_history',
+        description: 'stub query_meal_history',
+        inputSchema: { type: 'object' },
+      },
+      {
+        name: 'get_user_profile',
+        description: 'stub get_user_profile',
+        inputSchema: { type: 'object' },
+      },
+      {
+        name: 'web_search',
+        description: 'stub web_search',
+        inputSchema: { type: 'object' },
+      },
+    ])
+  })
+
+  it('returns undefined from get() for a write tool name', () => {
+    const restricted = restrictToReadOnly(fullDomainToolsRegistry())
+
+    expect(restricted.get('record_meal_log')).toBeUndefined()
   })
 })
