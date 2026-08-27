@@ -8,7 +8,10 @@ import { REQUEST_USER_INPUT_TOOL_NAME } from '#llm/agent/request-user-input-tool
 import type { DomainToolsRegistry } from '#llm/domain-tools/registry'
 import type { DomainTool, DomainToolName } from '#llm/domain-tools/types'
 import { err, ok } from '#llm/domain-tools/types'
-import { createDomainAgentOrchestrator } from '#llm/orchestrator/domain-agent-orchestrator'
+import {
+  createDomainAgentOrchestrator,
+  restrictToReadOnly,
+} from '#llm/orchestrator/domain-agent-orchestrator'
 import type { MealRecordResult } from '#llm/orchestrator/types'
 import type { Logger } from '#logger'
 import { scriptedDomainAgentModel } from '#test/scripted-domain-agent-model'
@@ -644,5 +647,42 @@ describe('createDomainAgentOrchestrator', () => {
         error: null,
       })
     })
+  })
+})
+
+describe('restrictToReadOnly', () => {
+  it('drops every tool except search_food_master, query_meal_history, get_user_profile, and web_search', () => {
+    const registry = stubRegistry([
+      stubTool('record_meal_log', () => Promise.resolve(ok({}))),
+      stubTool('update_meal_log', () => Promise.resolve(ok({}))),
+      stubTool('record_meal_skip', () => Promise.resolve(ok({}))),
+      stubTool('cancel_meal_skip', () => Promise.resolve(ok({}))),
+      stubTool('search_food_master', () => Promise.resolve(ok({}))),
+      stubTool('register_food_master', () => Promise.resolve(ok({}))),
+      stubTool('register_food_master_from_composition', () =>
+        Promise.resolve(ok({})),
+      ),
+      stubTool('merge_food_master', () => Promise.resolve(ok({}))),
+      stubTool('query_meal_history', () => Promise.resolve(ok({}))),
+      stubTool('get_user_profile', () => Promise.resolve(ok({}))),
+      stubTool('update_user_profile', () => Promise.resolve(ok({}))),
+      stubTool('web_search', () => Promise.resolve(ok({}))),
+    ])
+
+    const restricted = restrictToReadOnly(registry)
+
+    expect(restricted.list().map((t) => t.name)).toEqual([
+      'search_food_master',
+      'query_meal_history',
+      'get_user_profile',
+      'web_search',
+    ])
+    expect(restricted.toLlmSchemas().map((s) => s.name)).toEqual([
+      'search_food_master',
+      'query_meal_history',
+      'get_user_profile',
+      'web_search',
+    ])
+    expect(restricted.get('record_meal_log')).toBeUndefined()
   })
 })

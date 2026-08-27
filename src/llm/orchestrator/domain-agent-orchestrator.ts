@@ -31,7 +31,7 @@ import {
 } from '#llm/domain-tools/tools/query-meal-history'
 import type { RecordMealLogOutput } from '#llm/domain-tools/tools/record-meal-log'
 import type { SearchFoodMasterOutput } from '#llm/domain-tools/tools/search-food-master'
-import type { DomainTool } from '#llm/domain-tools/types'
+import type { DomainTool, DomainToolName } from '#llm/domain-tools/types'
 import {
   createPassthroughReplyFormatter,
   type ReplyFormatter,
@@ -105,6 +105,43 @@ const wrapRegistryForRecording = (
       Promise.reject(
         new Error(
           'executeToolUse is not observed by wrapRegistryForRecording; createMeshiDomainAgent must not call it',
+        ),
+      ),
+  }
+}
+
+// query_meals / recommend_meal declare readOnlyHint: true on their MCP tool
+// (see src/mcp-tools.ts), so the agent turn behind them must never be able
+// to reach a write tool — not even via a prompt-injected instruction in the
+// free-text query. createMeshiDomainAgent only calls registry.list(), so
+// filtering it here is enough (mirrors wrapRegistryForRecording above).
+const READ_ONLY_TOOL_NAMES: ReadonlySet<DomainToolName> = new Set([
+  'search_food_master',
+  'query_meal_history',
+  'get_user_profile',
+  'web_search',
+])
+
+export const restrictToReadOnly = (
+  registry: DomainToolsRegistry,
+): DomainToolsRegistry => {
+  const tools = registry
+    .list()
+    .filter((tool) => READ_ONLY_TOOL_NAMES.has(tool.name))
+  const byName = new Map<string, DomainTool>(tools.map((t) => [t.name, t]))
+  return {
+    list: () => tools,
+    get: (name) => byName.get(name),
+    toLlmSchemas: () =>
+      tools.map((t) => ({
+        name: t.name,
+        description: t.description,
+        inputSchema: t.inputSchema,
+      })),
+    executeToolUse: () =>
+      Promise.reject(
+        new Error(
+          'executeToolUse is not observed by restrictToReadOnly; createMeshiDomainAgent must not call it',
         ),
       ),
   }
@@ -226,6 +263,7 @@ export const createDomainAgentOrchestrator = (
 
   const runTurn = async (
     content: ReadonlyArray<AgentContentBlock>,
+    registry: DomainToolsRegistry = options.registry,
   ): Promise<{
     readonly invocations: ReadonlyArray<RecordedInvocation>
     readonly reply: AgentReply | null
@@ -234,7 +272,7 @@ export const createDomainAgentOrchestrator = (
     const invocations: RecordedInvocation[] = []
     const agent = createMeshiDomainAgent({
       model: options.model,
-      registry: wrapRegistryForRecording(options.registry, invocations),
+      registry: wrapRegistryForRecording(registry, invocations),
       // Each call is a one-shot conversation identified by a fresh thread_id
       // below, never revisited — a real (Postgres-backed) checkpointer would
       // just accumulate unreclaimed rows forever.
@@ -350,6 +388,7 @@ export const createDomainAgentOrchestrator = (
         .join('\n')
       const { invocations, reply, error } = await runTurn(
         textContent(body, undefined, input.timezone),
+        restrictToReadOnly(options.registry),
       )
       const aggregate = collectLastAggregate(invocations)
       const summaryText = formatter.formatMealHistory({
@@ -368,6 +407,7 @@ export const createDomainAgentOrchestrator = (
       const body = input.conditions ?? 'No additional conditions.'
       const { reply, error } = await runTurn(
         textContent(body, undefined, input.timezone),
+        restrictToReadOnly(options.registry),
       )
       const summaryText = formatter.formatRecommend({
         finalText: reply?.text ?? '',
