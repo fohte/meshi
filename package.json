@@ -26,27 +26,27 @@
     "test:unit": "vitest run"
   },
   "devDependencies": {
-    "@commitlint/cli": "21.2.1",
+    "@commitlint/cli": "21.2.2",
     "@eslint/eslintrc": "3.3.6",
     "@fohte/eslint-config": "0.4.1",
     "@modelcontextprotocol/client": "2.0.0",
     "@ninoseki/eslint-plugin-neverthrow": "0.2.0",
     "@opentelemetry/context-async-hooks": "2.8.0",
     "@opentelemetry/sdk-trace-base": "2.8.0",
-    "@tsconfig/node-lts": "24.0.0",
+    "@tsconfig/node-lts": "24.0.1",
     "@tsconfig/strictest": "2.0.8",
     "@types/node": "26.1.2",
-    "concurrently": "10.0.4",
+    "concurrently": "10.0.5",
     "drizzle-kit": "0.31.10",
     "eslint": "10.6.0",
     "eslint-plugin-storybook": "10.4.6",
     "eslint-plugin-tailwindcss": "4.2.0",
     "prettier": "3.9.6",
-    "read-excel-file": "9.3.5",
+    "read-excel-file": "9.3.10",
     "tsup": "8.5.1",
-    "tsx": "4.23.8",
+    "tsx": "4.23.12",
     "typescript": "6.0.3",
-    "vitest": "4.1.10"
+    "vitest": "4.1.11"
   },
   "dependencies": {
     "@a2a-js/sdk": "0.3.14",
