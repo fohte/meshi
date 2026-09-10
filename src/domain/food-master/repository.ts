@@ -420,9 +420,6 @@ export const createFoodMasterRepository = (
     FoodMasterDomainError
   > =>
     ResultAsync.fromPromise(
-      // ponytail: scans every food_masters row (no trigram pre-filter to
-      // narrow it first) — negligible at production's current few-dozen-row
-      // scale; add an index-friendly pre-filter if this table grows large.
       sql`
         WITH scored AS (
           SELECT id, name,
