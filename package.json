@@ -53,7 +53,7 @@
     "@fohte/service-kit": "0.1.13",
     "@hono/node-server": "2.0.12",
     "@langchain/core": "1.2.9",
-    "@langchain/langgraph": "1.4.13",
+    "@langchain/langgraph": "1.4.14",
     "@langchain/langgraph-checkpoint-postgres": "1.0.5",
     "@langchain/openai": "1.5.11",
     "@modelcontextprotocol/node": "2.0.0",
