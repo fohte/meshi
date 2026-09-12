@@ -1,7 +1,7 @@
 {
   "name": "meshi",
   "private": true,
-  "packageManager": "pnpm@11.16.0",
+  "packageManager": "pnpm@11.25.0",
   "type": "module",
   "imports": {
     "#*": "./src/*.ts",
