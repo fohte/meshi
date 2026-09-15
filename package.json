@@ -38,7 +38,7 @@
     "concurrently": "10.0.5",
     "drizzle-kit": "0.31.10",
     "eslint": "10.10.0",
-    "eslint-plugin-storybook": "10.4.6",
+    "eslint-plugin-storybook": "10.6.0",
     "eslint-plugin-tailwindcss": "4.4.0",
     "knip": "6.34.0",
     "prettier": "3.9.6",
