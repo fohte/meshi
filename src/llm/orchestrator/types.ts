@@ -62,7 +62,7 @@ export interface MealHistoryAggregateSnapshot {
   readonly hasEstimatedValues: boolean
 }
 
-export type OrchestratorErrorKind =
+type OrchestratorErrorKind =
   | 'max_turns_exceeded'
   | 'divergence_detected'
   | 'interpretation_failed'

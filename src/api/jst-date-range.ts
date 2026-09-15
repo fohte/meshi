@@ -8,5 +8,3 @@ export const jstDateRangeQuerySchema = z.object({
   from: jstCalendarDateSchema,
   to: jstCalendarDateSchema,
 })
-
-export type JstDateRangeQuery = z.infer<typeof jstDateRangeQuerySchema>

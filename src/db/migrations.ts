@@ -10,7 +10,7 @@ import type { Sql } from '#db/index'
 // than the source file (e.g. hoisted into a shared chunk), which shifts
 // what "../.." points to. The migrations folder is deployed alongside the
 // process's working directory instead, so anchor to that.
-export const MIGRATIONS_FOLDER = path.join(process.cwd(), 'drizzle')
+const MIGRATIONS_FOLDER = path.join(process.cwd(), 'drizzle')
 
 export const runMigrations = async (sql: Sql): Promise<void> => {
   const db = drizzle(sql)

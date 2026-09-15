@@ -22,7 +22,7 @@ export interface DayDetail {
   readonly skippedMealTypes: ReadonlyArray<MealType>
 }
 
-export interface QueryDayDetailInput {
+interface QueryDayDetailInput {
   readonly date: JstDate
 }
 

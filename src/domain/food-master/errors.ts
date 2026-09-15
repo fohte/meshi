@@ -1,6 +1,6 @@
 import { CodedDomainError } from '#domain/errors'
 
-export type FoodMasterErrorCode =
+type FoodMasterErrorCode =
   | 'empty_name'
   | 'empty_alias'
   | 'duplicate_alias_in_input'

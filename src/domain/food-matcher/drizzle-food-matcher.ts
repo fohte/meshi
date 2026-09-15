@@ -9,7 +9,7 @@ import type {
   SearchFoodInput,
 } from '#domain/food-matcher/food-matcher'
 
-export interface DrizzleFoodMatcherConfig {
+interface DrizzleFoodMatcherConfig {
   // A log eaten within this many days is treated as recent.
   readonly recentDays?: number
   // A food eaten at least this many times is treated as frequent.

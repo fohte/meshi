@@ -1,4 +1,4 @@
-export type NutritionTargets = Readonly<Record<string, number>>
+type NutritionTargets = Readonly<Record<string, number>>
 
 export interface UserProfile {
   readonly likes: ReadonlyArray<string>

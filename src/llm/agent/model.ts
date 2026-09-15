@@ -2,7 +2,7 @@ import { ChatOpenAI } from '@langchain/openai'
 
 import { OPENCODE_GO_BASE_URL } from '#adapters/llm/index'
 
-export interface CreateMeshiChatModelOptions {
+interface CreateMeshiChatModelOptions {
   readonly apiKey: string
   readonly model: string
   readonly baseUrl?: string

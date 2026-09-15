@@ -13,7 +13,7 @@ const MEAL_LABELS: Record<MealType, string> = {
   snack: '間食',
 }
 
-export interface MealTimelineItem {
+interface MealTimelineItem {
   readonly id: string
   readonly name: string
   readonly isEstimated: boolean
@@ -21,7 +21,7 @@ export interface MealTimelineItem {
   readonly kcalText: string
 }
 
-export type MealGroupStatus = 'eaten' | 'skipped' | 'unrecorded'
+type MealGroupStatus = 'eaten' | 'skipped' | 'unrecorded'
 
 export interface MealTimelineGroup {
   readonly mealType: MealType

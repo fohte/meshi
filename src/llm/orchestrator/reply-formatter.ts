@@ -6,7 +6,7 @@ import type {
   RecordedMeal,
 } from '#llm/orchestrator/types'
 
-export interface MealRecordSummaryInput {
+interface MealRecordSummaryInput {
   readonly recorded: ReadonlyArray<RecordedMeal>
   readonly candidates: ReadonlyArray<FoodCandidate>
   readonly hasEstimatedValues: boolean
@@ -19,13 +19,13 @@ export interface MealRecordSummaryInput {
   readonly error: OrchestratorError | null
 }
 
-export interface MealHistorySummaryInput {
+interface MealHistorySummaryInput {
   readonly aggregate: MealHistoryAggregateSnapshot | null
   readonly finalText: string
   readonly error: OrchestratorError | null
 }
 
-export interface RecommendSummaryInput {
+interface RecommendSummaryInput {
   readonly finalText: string
   readonly error: OrchestratorError | null
 }

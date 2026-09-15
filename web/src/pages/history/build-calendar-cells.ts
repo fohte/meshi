@@ -1,6 +1,6 @@
 import { daysInJstMonth, jstDateRange, jstWeekdayIndex } from '#lib/jst-date'
 
-export type CalendarAchievement = 'none' | 'under' | 'onTarget' | 'over'
+type CalendarAchievement = 'none' | 'under' | 'onTarget' | 'over'
 
 export interface CalendarCell {
   readonly date: string | null

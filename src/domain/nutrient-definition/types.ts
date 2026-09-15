@@ -2,8 +2,6 @@ import type { ResultAsync } from 'neverthrow'
 
 import type { NutrientUnit } from '#db/seed/nutrient-definitions'
 
-export type { NutrientUnit }
-
 export interface NutrientDefinition {
   readonly code: string
   readonly displayName: string

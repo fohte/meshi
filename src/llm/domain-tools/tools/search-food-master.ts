@@ -23,7 +23,7 @@ const inputSchema = z.object({
   limit: z.number().int().positive().max(50).optional().default(5),
 })
 
-export interface SearchFoodMasterCandidate {
+interface SearchFoodMasterCandidate {
   readonly user_input_item: string
   readonly food_master_id: string | null
   readonly composition_code: string | null
