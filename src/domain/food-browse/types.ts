@@ -25,7 +25,7 @@ export class FoodBrowseQueryError extends Error {
   }
 }
 
-export type FoodBrowseSearchError = FoodBrowseQueryError | FoodMatcherError
+type FoodBrowseSearchError = FoodBrowseQueryError | FoodMatcherError
 
 export interface FoodBrowseService {
   // Delegates ranking to the injected FoodMatcher (trigram fuzzy match +

@@ -27,7 +27,7 @@ export interface NutrientRow {
   readonly over: boolean
 }
 
-export interface PfcSegment {
+interface PfcSegment {
   readonly label: string
   readonly color: string
   readonly pct: number

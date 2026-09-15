@@ -36,7 +36,7 @@ export class FoodDetailQueryError extends Error {
   }
 }
 
-export type FoodDetailError = FoodDetailQueryError | FoodMasterDomainError
+type FoodDetailError = FoodDetailQueryError | FoodMasterDomainError
 
 export interface FoodDetailService {
   getById(id: FoodMasterId): ResultAsync<FoodDetail | null, FoodDetailError>

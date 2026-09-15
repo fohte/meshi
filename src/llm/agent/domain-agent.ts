@@ -7,7 +7,7 @@ import { MESHI_AGENT_SYSTEM_PROMPT } from '#llm/agent/system-prompt'
 import { toLangChainTools } from '#llm/agent/tools'
 import type { DomainToolsRegistry } from '#llm/domain-tools/registry'
 
-export interface CreateMeshiDomainAgentOptions {
+interface CreateMeshiDomainAgentOptions {
   readonly model: BaseChatModel
   readonly registry: DomainToolsRegistry
   readonly checkpointer: BaseCheckpointSaver

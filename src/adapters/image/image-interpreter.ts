@@ -12,12 +12,12 @@ export interface McpImageContent {
   readonly base64: string
 }
 
-export interface VisionTextBlock {
+interface VisionTextBlock {
   readonly type: 'text'
   readonly text: string
 }
 
-export interface VisionImageBlock {
+interface VisionImageBlock {
   readonly type: 'image'
   readonly source: {
     readonly type: 'base64'

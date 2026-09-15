@@ -1,12 +1,2 @@
-export type { DrizzleFoodMatcherConfig } from '#domain/food-matcher/drizzle-food-matcher'
-export {
-  createDrizzleFoodMatcher,
-  FoodMatcherInvalidRowError,
-} from '#domain/food-matcher/drizzle-food-matcher'
-export type {
-  FoodMatchCandidate,
-  FoodMatcher,
-  FoodMatchReason,
-  FoodOrigin,
-  SearchFoodInput,
-} from '#domain/food-matcher/food-matcher'
+export { createDrizzleFoodMatcher } from '#domain/food-matcher/drizzle-food-matcher'
+export type { FoodMatchCandidate } from '#domain/food-matcher/food-matcher'

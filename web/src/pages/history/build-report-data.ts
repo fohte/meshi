@@ -10,7 +10,7 @@ const OVER_TARGET_RATIO = 1.1
 const MAX_HEIGHT_TARGET_RATIO = 1.2
 const MONTH_LABEL_INTERVAL = 5
 
-export interface ReportDayBar {
+interface ReportDayBar {
   readonly date: string
   readonly kcal: number
   readonly heightPct: number

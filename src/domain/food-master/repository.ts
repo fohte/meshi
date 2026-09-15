@@ -26,7 +26,7 @@ import {
   validateSourceEvidence,
 } from '#domain/food-master/validation'
 
-export interface FoodComposition {
+interface FoodComposition {
   readonly name: string
   readonly nutrition: NutritionMap
 }
@@ -64,7 +64,7 @@ export interface FoodMasterRepository {
   ): ResultAsync<MergeFoodMasterResult, FoodMasterDomainError>
 }
 
-export interface CreateRepositoryOptions {
+interface CreateRepositoryOptions {
   readonly generateId?: IdGenerator
   // Wrap `register`'s writes in `sql.begin` (default) so a single registration
   // is atomic at the boundary. Set false when the caller already runs inside a

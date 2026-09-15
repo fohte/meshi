@@ -1,6 +1,6 @@
 import type { ResultAsync } from 'neverthrow'
 
-export interface WebSearchSnippet {
+interface WebSearchSnippet {
   readonly title: string
   readonly url: string
   readonly text: string
@@ -10,7 +10,7 @@ export interface WebSearchResult {
   readonly snippets: ReadonlyArray<WebSearchSnippet>
 }
 
-export interface WebSearchOptions {
+interface WebSearchOptions {
   readonly limit?: number
 }
 

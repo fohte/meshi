@@ -53,7 +53,7 @@ import type {
 } from '#llm/orchestrator/types'
 import { createNullLogger, type Logger } from '#logger'
 
-export interface DomainAgentOrchestratorOptions {
+interface DomainAgentOrchestratorOptions {
   readonly model: BaseChatModel
   readonly registry: DomainToolsRegistry
   readonly formatter?: ReplyFormatter

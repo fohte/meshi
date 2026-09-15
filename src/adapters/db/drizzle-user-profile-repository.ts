@@ -15,7 +15,7 @@ type Db = ReturnType<typeof drizzle>
 
 const nutritionTargetsSchema = z.record(z.string(), z.number())
 
-export class UserProfileRowInvalidError extends UserProfileRepositoryError {
+class UserProfileRowInvalidError extends UserProfileRepositoryError {
   constructor(
     message: string,
     public readonly issues: z.core.$ZodIssue[],

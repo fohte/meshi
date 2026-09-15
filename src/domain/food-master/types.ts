@@ -1,7 +1,7 @@
 export type FoodSource =
   'web_search' | 'composition_table_estimate' | 'user_input'
 
-export type NutrientCode = string
+type NutrientCode = string
 
 export type NutritionMap = Readonly<Record<NutrientCode, number>>
 

@@ -2,8 +2,8 @@ import type { DayDetailEntry, MealType } from '#api/day-detail'
 import type { RecordMealLogInput } from '#api/meal-logs'
 import { todayJstDate } from '#lib/jst-date'
 
-export type SheetPhase = 'search' | 'detail'
-export type SheetMode = 'create' | 'edit'
+type SheetPhase = 'search' | 'detail'
+type SheetMode = 'create' | 'edit'
 
 export interface SelectedFood {
   readonly foodMasterId: string

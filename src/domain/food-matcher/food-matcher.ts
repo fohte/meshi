@@ -14,7 +14,7 @@ export type FoodMatchReason =
 // considered at all: a composition entry names a raw ingredient, not a
 // product, so it's only a safe fallback for something assembled from
 // ingredients, never for a specific packaged/prepared product.
-export type FoodOrigin = 'retail' | 'homemade'
+type FoodOrigin = 'retail' | 'homemade'
 
 export interface FoodMatchCandidate {
   readonly reason: FoodMatchReason

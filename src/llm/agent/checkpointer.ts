@@ -3,7 +3,7 @@ import { PostgresSaver } from '@langchain/langgraph-checkpoint-postgres'
 // Dedicated schema so LangGraph's own checkpoint migrations (tracked via
 // its own checkpoint_migrations table) never collide with this app's
 // drizzle-managed public schema.
-export const MESHI_CHECKPOINT_SCHEMA = 'langgraph'
+const MESHI_CHECKPOINT_SCHEMA = 'langgraph'
 
 export const createMeshiCheckpointer = (databaseUrl: string): PostgresSaver =>
   PostgresSaver.fromConnString(databaseUrl, { schema: MESHI_CHECKPOINT_SCHEMA })
