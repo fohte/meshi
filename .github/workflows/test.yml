@@ -199,6 +199,12 @@ jobs:
   knip:
     runs-on: ubuntu-latest
 
+    env:
+      # drizzle.config.ts requires DATABASE_URL to build its config object
+      # (see the comment there); knip only loads the config statically and
+      # never connects, so a placeholder value is enough.
+      DATABASE_URL: postgres://meshi:meshi@127.0.0.1:5432/meshi
+
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
