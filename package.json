@@ -34,7 +34,7 @@
     "@opentelemetry/sdk-trace-base": "2.11.0",
     "@tsconfig/node-lts": "24.0.1",
     "@tsconfig/strictest": "2.0.8",
-    "@types/node": "26.4.1",
+    "@types/node": "26.5.0",
     "concurrently": "10.0.5",
     "drizzle-kit": "0.31.10",
     "eslint": "10.10.0",
