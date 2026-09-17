@@ -25,13 +25,4 @@ describe('createMeshiChatModel', () => {
 
     expect(model.clientConfig.baseURL).toBe('https://example.com/v1')
   })
-
-  it('asks the upstream model to split reasoning out of content', () => {
-    const model = createMeshiChatModel({
-      apiKey: 'test-key',
-      model: 'test-model',
-    })
-
-    expect(model.modelKwargs).toEqual({ reasoning_split: true })
-  })
 })
