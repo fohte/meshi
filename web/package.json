@@ -34,12 +34,6 @@
     "zod": "4.4.3"
   },
   "devDependencies": {
-<<<<<<< before updating
-||||||| last update
-    "@fohte/eslint-config": "0.4.4",
-=======
-    "@fohte/eslint-config": "0.5.0",
->>>>>>> after updating
     "@fohte/storybook-addon": "0.1.9",
     "@storybook/addon-docs": "10.6.0",
     "@storybook/addon-themes": "10.6.0",
