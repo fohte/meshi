@@ -40,7 +40,7 @@
     "eslint": "10.10.0",
     "eslint-plugin-storybook": "10.6.0",
     "eslint-plugin-tailwindcss": "4.4.0",
-    "knip": "6.35.0",
+    "knip": "6.35.1",
     "prettier": "3.9.6",
     "read-excel-file": "9.3.10",
     "tsup": "8.5.1",
