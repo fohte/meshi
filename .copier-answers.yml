@@ -1,5 +1,5 @@
 # Changes here will be overwritten by Copier
-_commit: v0.11.3
+_commit: v0.11.7
 _src_path: https://github.com/fohte/generic-boilerplate
 description: '@fohte''s personal meal management chat service'
 error_tracking: false
@@ -8,10 +8,12 @@ is_web_app: true
 project_name: meshi
 repo_id: '1267477234'
 repo_language: en
+storybook: false
 subpackages:
 -   name: web
     spa: true
     type: node
 type: node
 use_release_please: false
+vrt: false
 web_app_port: 8080
