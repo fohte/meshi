@@ -396,6 +396,6 @@ describeIfDb('schema runtime constraints', () => {
     `
     expect(
       await runOutcome(tx`DELETE FROM food_masters WHERE id = 'fm_d'`),
-    ).toEqual({ status: 'error', code: '23503' })
+    ).toEqual({ status: 'error', code: '23001' })
   })
 })

@@ -1,0 +1,27 @@
+services:
+  db:
+    environment:
+      POSTGRES_INITDB_ARGS: --lc-collate=C --lc-ctype=C.UTF-8
+
+  app:
+    build:
+      context: .
+      target: dev
+    environment:
+      DATABASE_URL: postgres://meshi:meshi@db:5432/meshi_dev
+      MCP_LISTEN_ADDR: 0.0.0.0:8080
+      MESHI_LLM_API_KEY: ${MESHI_LLM_API_KEY}
+      MESHI_LLM_MODEL: ${MESHI_LLM_MODEL}
+      WEB_SEARCH_API_KEY: ${WEB_SEARCH_API_KEY}
+      A2A_AGENT_URL: ${A2A_AGENT_URL:-http://localhost:8080/a2a}
+    ports:
+      - '127.0.0.1::8080'
+    volumes:
+      - .:/app
+      - meshi-app-node-modules:/app/node_modules
+    depends_on:
+      db:
+        condition: service_healthy
+
+volumes:
+  meshi-app-node-modules:

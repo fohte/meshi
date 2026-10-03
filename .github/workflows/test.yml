@@ -42,7 +42,7 @@ jobs:
 
       - uses: jdx/mise-action@c2a87611a18de5b3828c5652fe268e992400cb5c # v4.3.0
         with:
-          version: 2026.9.5
+          version: 2026.9.14
 
       # corepack creates the pnpm executable inside mise's node install bin
       # directory; reshim so the mise shims dir (which is on PATH) picks it up.
@@ -66,6 +66,26 @@ jobs:
 
       - name: Check peer dependencies
         run: pnpm peers check
+
+      - name: Check for database documentation changes
+        id: db-doc-changes
+        uses: tj-actions/changed-files@9426d40962ed5378910ee2e21d5f8c6fcbf2dd96 # v47.0.6
+        with:
+          files: |
+            drizzle/**
+            **/.tbls.yml
+            scripts/db-*
+            compose*.yaml
+            .mise.toml
+            .github/workflows/test.yml
+
+      - name: Generate database documentation
+        if: steps.db-doc-changes.outputs.any_changed == 'true'
+        run: mise run db:doc
+
+      - name: Stage generated database documentation
+        if: steps.db-doc-changes.outputs.any_changed == 'true'
+        run: git add -- docs/db
 
       - name: Run lefthook
         id: lefthook
@@ -101,31 +121,31 @@ jobs:
 
     services:
       postgres:
-        image: postgres:17-alpine
+        image: postgres:18.6@sha256:5a5a84b19854a9ffaa54082c166ff4ec27473a361e496e5ea167f298f2da9722
         env:
           POSTGRES_USER: meshi
           POSTGRES_PASSWORD: meshi
-          POSTGRES_DB: meshi
-          # Match production's locale (see docker-compose.yml) so pg_trgm
+          POSTGRES_DB: meshi_test
+          # Match production's locale (see compose.override.yaml) so pg_trgm
           # tests catch the same multi-byte trigram behavior as production.
           POSTGRES_INITDB_ARGS: --lc-collate=C --lc-ctype=C.UTF-8
         ports:
           - 5432:5432
         options: >-
-          --health-cmd "pg_isready -U meshi -d meshi"
+          --health-cmd "pg_isready -U meshi -d meshi_test"
           --health-interval 5s
           --health-timeout 5s
           --health-retries 10
 
     env:
-      TEST_DATABASE_URL: postgres://meshi:meshi@127.0.0.1:5432/meshi
+      TEST_DATABASE_URL: postgres://meshi:meshi@127.0.0.1:5432/meshi_test
 
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - uses: jdx/mise-action@c2a87611a18de5b3828c5652fe268e992400cb5c # v4.3.0
         with:
-          version: 2026.9.5
+          version: 2026.9.14
 
       # corepack creates the pnpm executable inside mise's node install bin
       # directory; reshim so the mise shims dir (which is on PATH) picks it up.
@@ -210,7 +230,7 @@ jobs:
 
       - uses: jdx/mise-action@c2a87611a18de5b3828c5652fe268e992400cb5c # v4.3.0
         with:
-          version: 2026.9.5
+          version: 2026.9.14
 
       # corepack creates the pnpm executable inside mise's node install bin
       # directory; reshim so the mise shims dir (which is on PATH) picks it up.

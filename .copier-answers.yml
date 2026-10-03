@@ -1,17 +1,24 @@
 # Changes here will be overwritten by Copier
-_commit: v0.11.3
+_commit: v0.11.8
 _src_path: https://github.com/fohte/generic-boilerplate
+db: true
+db_migrate: pnpm run db:migrate
+db_schema_paths:
+- drizzle/**
 description: '@fohte''s personal meal management chat service'
 error_tracking: false
 is_public: true
 is_web_app: true
+pr_title_check: false
 project_name: meshi
 repo_id: '1267477234'
 repo_language: en
+storybook: false
 subpackages:
 -   name: web
     spa: true
     type: node
 type: node
 use_release_please: false
+vrt: false
 web_app_port: 8080

@@ -12,8 +12,7 @@ if (TEST_DATABASE_URL !== undefined) {
   if (!LOCAL_HOSTS.has(host)) {
     // eslint-disable-next-line no-restricted-syntax -- runs at module load, before any test framework hook exists to consume a Result; this module doesn't match the built-in test-file glob (*.test.ts/__tests__/**) despite being test infrastructure
     throw new Error(
-      `TEST_DATABASE_URL must point at a local Postgres (got host: ${host}); ` +
-        `the test setup runs DROP SCHEMA CASCADE`,
+      `TEST_DATABASE_URL must point at a local Postgres (got host: ${host})`,
     )
   }
 }
