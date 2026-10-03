@@ -14,39 +14,52 @@
 
 ### Local Postgres
 
-Start a local Postgres instance with the bundled compose file:
+Start a local Postgres instance and create the development and test databases:
 
 ```sh
-pnpm db:up
+mise run db:up
 ```
 
-This boots Postgres with database `meshi` and user `meshi` / password `meshi`, published to a random host port to avoid clashing with other projects' Postgres instances. Find it with:
+This starts Postgres with user `meshi` / password `meshi`, published to a random host port to avoid clashing with other projects' Postgres instances. It creates `meshi_dev` and `meshi_test`. Find the port with:
 
 ```sh
-docker compose port postgres 5432
+docker compose port db 5432
 ```
 
-Stop it with `pnpm db:down`.
+Stop the services with `docker compose down`; the named volumes remain.
 
-The compose file pins the locale Postgres is `initdb`'d with (`LC_COLLATE=C` / `LC_CTYPE=C.UTF-8`) to match production. `initdb` only runs against an empty data directory, so an existing `meshi-postgres` volume keeps whatever locale it was first created with — run `docker compose down -v` before `pnpm db:up` to pick up the current locale.
+`compose.override.yaml` sets the locale used by `initdb` (`LC_COLLATE=C` / `LC_CTYPE=C.UTF-8`) to match production. The new PostgreSQL 18 service uses its own volume; the previous PostgreSQL 17 volume remains untouched and is not mounted by this configuration. To carry its data forward into `meshi_dev`, use the pre-migration Compose file from commit `e04b4838a7d179d6bd3dd406f0417c426b44c1e0`:
+
+```sh
+legacy_compose=$(mktemp /tmp/meshi-postgres17-compose.XXXXXX)
+dump=$(mktemp /tmp/meshi-postgres17-dump.XXXXXX)
+git show e04b4838a7d179d6bd3dd406f0417c426b44c1e0:docker-compose.yml > "$legacy_compose"
+docker compose --project-directory "$PWD" --project-name meshi \
+  -f "$legacy_compose" up -d postgres
+docker compose --project-directory "$PWD" --project-name meshi \
+  -f "$legacy_compose" exec -T postgres \
+  pg_dump -U meshi -d meshi -Fc > "$dump"
+mise run db:up
+docker compose exec -T db pg_restore -U meshi --no-owner -d meshi_dev - < "$dump"
+```
 
 ### Environment variables
 
 The server fails fast on missing required env at startup. This table covers every env var this repo's own code reads directly, not just via `src/env.ts`. Observability (Sentry/OTel exporter) config is delegated wholesale to `@fohte/service-kit/observability` and follows that package's own env var contract, not `src/env.ts`'s — see its docs for those variable names.
 
-| Name                                                 | Required                   | Description                                                                                                                                                       | Example                                                             |
-| ---------------------------------------------------- | -------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------- |
-| `MESHI_LLM_API_KEY`                                  | Required                   | API key for the endpoint `MESHI_LLM_BASE_URL` points at                                                                                                           | `dev`                                                               |
-| `MESHI_LLM_MODEL`                                    | Required                   | LLM model id for the domain agent (must support tool use + vision)                                                                                                | `...`                                                               |
-| `MESHI_LLM_BASE_URL`                                 | Optional                   | OpenAI-compatible endpoint the domain agent talks to; unset falls back to OpenCode Go (`https://opencode.ai/zen/go/v1`)                                           | `https://litellm.example.com/v1`                                    |
-| `DATABASE_URL`                                       | Required                   | Postgres connection string (verified with `SELECT 1` at startup); also required to run `src/db/migrate.ts` directly                                               | `postgres://meshi:meshi@127.0.0.1:<port from docker compose>/meshi` |
-| `WEB_SEARCH_API_KEY`                                 | Required                   | Web search API key                                                                                                                                                | `dev`                                                               |
-| `MCP_LISTEN_ADDR`                                    | Required                   | MCP server listen address                                                                                                                                         | `0.0.0.0:8080`                                                      |
-| `A2A_AGENT_URL`                                      | Required                   | Externally-reachable URL of the A2A JSON-RPC endpoint (`POST /a2a`), embedded in the Agent Card's `url` field                                                     | `http://localhost:8080/a2a`                                         |
-| `A2A_BEARER_TOKEN`                                   | Optional                   | Bearer token that protects the A2A endpoint (agent card + JSON-RPC); unset disables auth                                                                          | `dev`                                                               |
-| `OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT` | Optional (default `false`) | Capture LLM prompt/completion content on GenAI spans (may contain PII); case-insensitive (`true`/`TRUE`/`True` all enable it, anything else is `false`)           | `true`                                                              |
-| `NODE_ENV`                                           | Optional                   | Skips observability initialization when set to `test` (set automatically by Vitest); otherwise passed through to `@fohte/service-kit/observability`               | `production`                                                        |
-| `TEST_DATABASE_URL`                                  | Optional (test-only)       | Local Postgres URL for DB-backed tests (`pnpm test`); those suites are skipped when unset. Must point at a local host — the test setup runs `DROP SCHEMA CASCADE` | `postgres://meshi:meshi@127.0.0.1:5432/meshi`                       |
+| Name                                                 | Required                   | Description                                                                                                                                                                                         | Example                                                                  |
+| ---------------------------------------------------- | -------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------ |
+| `MESHI_LLM_API_KEY`                                  | Required                   | API key for the endpoint `MESHI_LLM_BASE_URL` points at                                                                                                                                             | `dev`                                                                    |
+| `MESHI_LLM_MODEL`                                    | Required                   | LLM model id for the domain agent (must support tool use + vision)                                                                                                                                  | `...`                                                                    |
+| `MESHI_LLM_BASE_URL`                                 | Optional                   | OpenAI-compatible endpoint the domain agent talks to; unset falls back to OpenCode Go (`https://opencode.ai/zen/go/v1`)                                                                             | `https://litellm.example.com/v1`                                         |
+| `DATABASE_URL`                                       | Required                   | Postgres connection string (verified with `SELECT 1` at startup); also required to run `src/db/migrate.ts` directly                                                                                 | `postgres://meshi:meshi@127.0.0.1:<port from docker compose>/meshi_dev`  |
+| `WEB_SEARCH_API_KEY`                                 | Required                   | Web search API key                                                                                                                                                                                  | `dev`                                                                    |
+| `MCP_LISTEN_ADDR`                                    | Required                   | MCP server listen address                                                                                                                                                                           | `0.0.0.0:8080`                                                           |
+| `A2A_AGENT_URL`                                      | Required                   | Externally-reachable URL of the A2A JSON-RPC endpoint (`POST /a2a`), embedded in the Agent Card's `url` field                                                                                       | `http://localhost:8080/a2a`                                              |
+| `A2A_BEARER_TOKEN`                                   | Optional                   | Bearer token that protects the A2A endpoint (agent card + JSON-RPC); unset disables auth                                                                                                            | `dev`                                                                    |
+| `OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT` | Optional (default `false`) | Capture LLM prompt/completion content on GenAI spans (may contain PII); case-insensitive (`true`/`TRUE`/`True` all enable it, anything else is `false`)                                             | `true`                                                                   |
+| `NODE_ENV`                                           | Optional                   | Skips observability initialization when set to `test` (set automatically by Vitest); otherwise passed through to `@fohte/service-kit/observability`                                                 | `production`                                                             |
+| `TEST_DATABASE_URL`                                  | Optional (test-only)       | Dedicated local test DB for `pnpm test`; run `mise run db:up` first. Global setup drops the `public` and `drizzle` schemas before migrations. Outside mise, DB-backed suites are skipped when unset | `postgres://meshi:meshi@127.0.0.1:<port from docker compose>/meshi_test` |
 
 ### Run
 
@@ -55,7 +68,7 @@ pnpm build && pnpm start   # one-shot, from the built dist/
 pnpm dev                   # tsx watch, no build step
 ```
 
-Or run it in a container instead (source is bind-mounted, so it hot-reloads the same way):
+To create `meshi_dev`, run `mise run db:up` once before starting the app in a container. The source is bind-mounted, so it hot-reloads the same way:
 
 ```sh
 MESHI_LLM_API_KEY=dev MESHI_LLM_MODEL=... WEB_SEARCH_API_KEY=dev A2A_AGENT_URL=http://localhost:8080/a2a \
