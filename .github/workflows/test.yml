@@ -135,6 +135,12 @@ jobs:
       - name: Start test databases
         run: mise run db:up
 
+      # mise-action resolves these URLs before the database has a published port.
+      - name: Refresh database URLs
+        run: |
+          echo "DATABASE_URL=$(scripts/db-url . dev)" >> "$GITHUB_ENV"
+          echo "TEST_DATABASE_URL=$(scripts/db-url . test)" >> "$GITHUB_ENV"
+
       - name: Get pnpm store directory
         id: pnpm-store
         run: echo "path=$(pnpm store path)" >> "$GITHUB_OUTPUT"
