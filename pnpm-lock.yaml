@@ -290,6 +290,9 @@ importers:
       '@tanstack/react-query':
         specifier: 5.101.4
         version: 5.101.4(react@19.2.8)
+      neverthrow:
+        specifier: 8.2.0
+        version: 8.2.0
       react:
         specifier: 19.2.8
         version: 19.2.8
