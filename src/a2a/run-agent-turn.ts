@@ -171,9 +171,9 @@ const buildFinalTask = (
 
 // Runs one agent turn and maps its outcome onto a terminal Task: the
 // derived reply's status on success, or a failed task (tagged with
-// error_kind for a usage-limit failure) if the agent throws. Pure aside from
-// agent.invoke — no event publishing or locking — so status mapping can be
-// tested without a database.
+// error_kind for a usage-limit failure) if the agent throws. It does not
+// publish events or acquire locks, so task mapping can be tested without a
+// database.
 export const runAgentTurn = async (
   agent: MeshiDomainAgentLike,
   requestContext: RequestContext,

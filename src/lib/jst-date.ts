@@ -8,7 +8,7 @@ declare const jstDateBrand: unique symbol
 
 // A YYYY-MM-DD string proven to be a valid JST calendar date — either by
 // isValidJstCalendarDateString/jstDateSchema, or by construction
-// (toJstDateString/todayJstDateString/nextJstDateString always produce a
+// (toJstDateString/nextJstDateString always produce a
 // valid one). Every meal_logs.eaten_date/meal_skips.date field in the
 // domain layer uses this instead of a plain string.
 export type JstDate = string & { readonly [jstDateBrand]: true }
@@ -22,7 +22,7 @@ const tryParseJstDate = Result.fromThrowable((value: string) =>
 // eslint-disable-next-line @typescript-eslint/no-unsafe-type-assertion -- callers only reach this after proving value is a canonical YYYY-MM-DD JST calendar date; defining the JstDate brand requires asserting it here.
 const asJstDate = (value: string): JstDate => value as JstDate
 
-const toJstDateString = (instant: Date): JstDate =>
+export const toJstDateString = (instant: Date): JstDate =>
   asJstDate(
     instant
       .toTemporalInstant()
@@ -38,8 +38,6 @@ const toJstDateString = (instant: Date): JstDate =>
 // day (e.g. 2026-02-30) instead of silently rolling it into the next month.
 export const isValidJstCalendarDateString = (value: string): value is JstDate =>
   DATE_ONLY_RE.test(value) && tryParseJstDate(value).isOk()
-
-export const todayJstDateString = (now: Date): JstDate => toJstDateString(now)
 
 // date is already a validated JstDate, so this can't hit the parse/overflow
 // errors isValidJstCalendarDateString guards against.

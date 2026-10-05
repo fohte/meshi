@@ -32,10 +32,8 @@ import {
 import type { RecordMealLogOutput } from '#llm/domain-tools/tools/record-meal-log'
 import type { SearchFoodMasterOutput } from '#llm/domain-tools/tools/search-food-master'
 import type { DomainTool } from '#llm/domain-tools/types'
-import {
-  deriveDomainToolsRegistry,
-  restrictToReadOnly,
-} from '#llm/orchestrator/read-only-tool-registry'
+import { deriveDomainToolsRegistry } from '#llm/orchestrator/derived-tool-registry'
+import { restrictToReadOnly } from '#llm/orchestrator/read-only-tool-registry'
 import {
   createPassthroughReplyFormatter,
   type ReplyFormatter,

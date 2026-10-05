@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 
 import { createFoodBrowseService } from '#domain/food-browse/food-browse-service'
 import { createDrizzleFoodMatcher } from '#domain/food-matcher/index'
-import { todayJstDateString } from '#lib/jst-date'
+import { toJstDateString } from '#lib/jst-date'
 import { describeIfDb, setupDrizzleTx } from '#test/db'
 import { seedFoodComposition, seedFoodMaster, seedMealLog } from '#test/seed'
 
@@ -110,14 +110,14 @@ describeIfDb('createFoodBrowseService', () => {
       await seedMealLog(tx, {
         id: 'ml_older',
         foodMasterId: 'fm_older',
-        eatenDate: todayJstDateString(daysAgo(5)),
+        eatenDate: toJstDateString(daysAgo(5)),
         mealType: 'breakfast',
         quantity: 100,
       })
       await seedMealLog(tx, {
         id: 'ml_newer',
         foodMasterId: 'fm_newer',
-        eatenDate: todayJstDateString(daysAgo(1)),
+        eatenDate: toJstDateString(daysAgo(1)),
         mealType: 'breakfast',
         quantity: 100,
       })
@@ -162,14 +162,14 @@ describeIfDb('createFoodBrowseService', () => {
       await seedMealLog(tx, {
         id: 'ml_a',
         foodMasterId: 'fm_a',
-        eatenDate: todayJstDateString(daysAgo(1)),
+        eatenDate: toJstDateString(daysAgo(1)),
         mealType: 'breakfast',
         quantity: 100,
       })
       await seedMealLog(tx, {
         id: 'ml_b',
         foodMasterId: 'fm_b',
-        eatenDate: todayJstDateString(daysAgo(2)),
+        eatenDate: toJstDateString(daysAgo(2)),
         mealType: 'breakfast',
         quantity: 100,
       })
@@ -209,7 +209,7 @@ describeIfDb('createFoodBrowseService', () => {
         await seedMealLog(tx, {
           id: `ml_frequent_${String(i)}`,
           foodMasterId: 'fm_frequent',
-          eatenDate: todayJstDateString(daysAgo(i + 1)),
+          eatenDate: toJstDateString(daysAgo(i + 1)),
           mealType: 'breakfast',
           quantity: 100,
         })
@@ -217,7 +217,7 @@ describeIfDb('createFoodBrowseService', () => {
       await seedMealLog(tx, {
         id: 'ml_rare',
         foodMasterId: 'fm_rare',
-        eatenDate: todayJstDateString(daysAgo(1)),
+        eatenDate: toJstDateString(daysAgo(1)),
         mealType: 'breakfast',
         quantity: 100,
       })

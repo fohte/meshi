@@ -11,7 +11,7 @@ import type { MealSkipRow, MealType } from '#domain/meal-skip/types'
 import {
   isValidJstCalendarDateString,
   type JstDate,
-  todayJstDateString,
+  toJstDateString,
 } from '#lib/jst-date'
 
 interface RecordMealSkipInput {
@@ -47,7 +47,7 @@ export const createMealSkipService = (
     if (!isValidJstCalendarDateString(input.date)) {
       return errAsync(new InvalidMealSkipDateError(input.date))
     }
-    if (input.date > todayJstDateString(deps.now())) {
+    if (input.date > toJstDateString(deps.now())) {
       return errAsync(new FutureMealSkipDateError(input.date))
     }
     return deps.repository.recordSkip({

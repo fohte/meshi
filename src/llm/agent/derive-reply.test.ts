@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from 'vitest'
 
 import type { AgentInvokeMessage } from '#llm/agent/derive-reply'
 import { deriveAgentReply, findTurnMessages } from '#llm/agent/derive-reply'
+import { FALLBACK_QUESTION_TEXT } from '#llm/agent/fallback-question'
 import { REQUEST_USER_INPUT_TOOL_NAME } from '#llm/agent/request-user-input-tool'
 
 const buildMessage = (
@@ -205,7 +206,7 @@ describe('deriveAgentReply', () => {
     )
     expect(result).toEqual({
       status: 'input_required',
-      text: "I need more information before I can continue, but couldn't put the question into words this time. Could you share more detail about your last request?",
+      text: FALLBACK_QUESTION_TEXT,
     })
     expect(onQuestionMissing).toHaveBeenCalledOnce()
   })
@@ -226,7 +227,7 @@ describe('deriveAgentReply', () => {
     )
     expect(result).toEqual({
       status: 'input_required',
-      text: "I need more information before I can continue, but couldn't put the question into words this time. Could you share more detail about your last request?",
+      text: FALLBACK_QUESTION_TEXT,
     })
     expect(onQuestionMissing).toHaveBeenCalledOnce()
   })

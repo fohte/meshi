@@ -129,14 +129,25 @@ export const setupDrizzleTx = (): (() => postgres.Sql) => {
 // returns `value` unwrapped rather than a real `Parameter` — this fake
 // only needs to capture what value a store bound, not replicate
 // postgres.js's own wire-level OID handling.
-export const captureSqlParams = (): { sql: Sql; params: unknown[] } => {
+const createSqlCapture = (): {
+  sql: Sql
+  params: unknown[]
+  calls: Array<{ query: string; params: unknown[] }>
+} => {
   const params: unknown[] = []
+  const calls: Array<{ query: string; params: unknown[] }> = []
   const tag = (
     first: TemplateStringsArray | readonly string[],
     ...rest: unknown[]
   ): unknown => {
     if (!('raw' in first)) return first
     params.push(...rest)
+    const query = first.reduce(
+      (text, segment, index) =>
+        `${text}${index === 0 ? '' : `$${String(index)}`}${segment}`,
+      '',
+    )
+    calls.push({ query, params: rest })
     return Promise.resolve([])
   }
   const fakeSql = Object.assign(tag, {
@@ -146,5 +157,19 @@ export const captureSqlParams = (): { sql: Sql; params: unknown[] } => {
     // eslint-disable-next-line @typescript-eslint/no-unsafe-type-assertion -- minimal fake of postgres.Sql's tagged-template call plus .typed(); only the surface exercised by the stores under test.
     sql: fakeSql as unknown as Sql,
     params,
+    calls,
   }
+}
+
+export const captureSqlParams = (): { sql: Sql; params: unknown[] } => {
+  const { sql, params } = createSqlCapture()
+  return { sql, params }
+}
+
+export const captureSqlCalls = (): {
+  sql: Sql
+  calls: Array<{ query: string; params: unknown[] }>
+} => {
+  const { sql, calls } = createSqlCapture()
+  return { sql, calls }
 }

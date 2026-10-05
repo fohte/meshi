@@ -26,7 +26,7 @@ import type {
   RecordMealLogInput,
   UpdateMealLogInput,
 } from '#domain/meal-log/types'
-import { todayJstDateString } from '#lib/jst-date'
+import { toJstDateString } from '#lib/jst-date'
 
 // A caller-supplied foodName is a self-consistency check, not a fuzzy search:
 // callers that pass it (the record_meal_log domain tool) already got the
@@ -80,7 +80,7 @@ export const createMealLogService = (
   deps: MealLogServiceDeps,
 ): MealLogService => ({
   record(input) {
-    if (input.eatenDate > todayJstDateString(deps.now())) {
+    if (input.eatenDate > toJstDateString(deps.now())) {
       return errAsync(new FutureEatenDateError(input.eatenDate))
     }
     if (!Number.isFinite(input.quantity) || input.quantity <= 0) {
@@ -110,7 +110,7 @@ export const createMealLogService = (
   update(input) {
     if (
       input.eatenDate !== undefined &&
-      input.eatenDate > todayJstDateString(deps.now())
+      input.eatenDate > toJstDateString(deps.now())
     ) {
       return errAsync(new FutureEatenDateError(input.eatenDate))
     }

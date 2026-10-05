@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest'
 import {
   isValidJstCalendarDateString,
   nextJstDateString,
-  todayJstDateString,
+  toJstDateString,
 } from '#lib/jst-date'
 import { jstDate } from '#test/jst-date'
 
@@ -21,11 +21,9 @@ describe('isValidJstCalendarDateString', () => {
   })
 })
 
-describe('todayJstDateString', () => {
+describe('toJstDateString', () => {
   it('shifts a UTC instant across the JST day boundary', () => {
-    expect(todayJstDateString(new Date('2026-07-29T15:00:00Z'))).toBe(
-      '2026-07-30',
-    )
+    expect(toJstDateString(new Date('2026-07-29T15:00:00Z'))).toBe('2026-07-30')
   })
 })
 
