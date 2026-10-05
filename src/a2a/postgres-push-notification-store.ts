@@ -3,6 +3,10 @@ import type { PushNotificationStore } from '@a2a-js/sdk/server'
 import { captureWithFingerprint } from '@fohte/service-kit/observability'
 import { z } from 'zod'
 
+import {
+  PushConfigRowInvalidError,
+  PushNotificationStorePersistenceError,
+} from '#a2a/postgres-push-notification-store-errors'
 import { createAsText, type Sql } from '#db/index'
 
 // Raw SQL, not the drizzle query builder: this table shares a connection
@@ -23,26 +27,6 @@ const pushNotificationConfigSchema = z
     url: z.string(),
   })
   .loose()
-
-export class PushConfigRowInvalidError extends Error {
-  constructor(
-    public readonly taskId: string,
-    public readonly issues: z.ZodError,
-  ) {
-    super(
-      `a2a_push_configs row for ${taskId} is not a valid PushNotificationConfig: ${issues.message}`,
-    )
-    this.name = 'PushConfigRowInvalidError'
-    this.cause = issues
-  }
-}
-
-export class PushNotificationStorePersistenceError extends Error {
-  constructor(message: string, cause: unknown) {
-    super(message, { cause })
-    this.name = 'PushNotificationStorePersistenceError'
-  }
-}
 
 const PUSH_NOTIFICATION_STORE_FINGERPRINT =
   'a2a.push-notification-store.persistence-error'

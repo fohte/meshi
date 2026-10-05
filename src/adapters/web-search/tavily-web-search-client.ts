@@ -1,6 +1,7 @@
 import { err, ok, ResultAsync } from 'neverthrow'
 import { z } from 'zod'
 
+import { WebSearchInvalidResponseError } from '#adapters/web-search/errors'
 import {
   type WebSearchClient,
   WebSearchError,
@@ -25,17 +26,6 @@ const tavilyResultSchema = z.object({
 const tavilyResponseSchema = z.object({
   results: z.array(tavilyResultSchema).default([]),
 })
-
-export class WebSearchInvalidResponseError extends WebSearchError {
-  constructor(
-    public readonly issues: z.ZodError,
-    public readonly raw: unknown,
-  ) {
-    super(`web search returned an invalid response: ${issues.message}`)
-    this.name = 'WebSearchInvalidResponseError'
-    this.cause = issues
-  }
-}
 
 const errorMessage = (e: unknown): string =>
   e instanceof Error ? e.message : String(e)

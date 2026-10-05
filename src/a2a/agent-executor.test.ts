@@ -7,13 +7,10 @@ import { captureWithFingerprint } from '@fohte/service-kit/observability'
 import { HumanMessage } from '@langchain/core/messages'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
-import type {
-  AgentInvokeMessage,
-  MeshiDomainAgentLike,
-} from '#a2a/agent-executor'
-import { createMeshiAgentExecutor, runAgentTurn } from '#a2a/agent-executor'
+import { createMeshiAgentExecutor } from '#a2a/agent-executor'
+import { type MeshiDomainAgentLike, runAgentTurn } from '#a2a/run-agent-turn'
 import type { Sql } from '#db/index'
-import { FALLBACK_QUESTION_TEXT } from '#llm/agent/derive-reply'
+import type { AgentInvokeMessage } from '#llm/agent/derive-reply'
 import { MESHI_AGENT_RECURSION_LIMIT } from '#llm/agent/domain-agent'
 import { REQUEST_USER_INPUT_TOOL_NAME } from '#llm/agent/request-user-input-tool'
 import type { Logger } from '#logger'
@@ -330,7 +327,7 @@ describe('runAgentTurn', () => {
     const agentMessage = buildExpectedAgentMessage(
       taskId,
       contextId,
-      FALLBACK_QUESTION_TEXT,
+      "I need more information before I can continue, but couldn't put the question into words this time. Could you share more detail about your last request?",
     )
     expect(normalizeEvent(task)).toEqual({
       kind: 'task',

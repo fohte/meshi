@@ -22,7 +22,7 @@ const tryParseJstDate = Result.fromThrowable((value: string) =>
 // eslint-disable-next-line @typescript-eslint/no-unsafe-type-assertion -- callers only reach this after proving value is a canonical YYYY-MM-DD JST calendar date; defining the JstDate brand requires asserting it here.
 const asJstDate = (value: string): JstDate => value as JstDate
 
-export const toJstDateString = (instant: Date): JstDate =>
+const toJstDateString = (instant: Date): JstDate =>
   asJstDate(
     instant
       .toTemporalInstant()

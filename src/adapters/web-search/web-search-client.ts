@@ -6,7 +6,7 @@ interface WebSearchSnippet {
   readonly text: string
 }
 
-export interface WebSearchResult {
+interface WebSearchResult {
   readonly snippets: ReadonlyArray<WebSearchSnippet>
 }
 

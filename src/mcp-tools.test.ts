@@ -13,12 +13,14 @@ import type {
   MealHistoryResult,
   MealRecordResult,
   OrchestratorError,
+  RecommendResult,
+} from '#llm/orchestrator/index'
+import type {
   QueryMealsInput,
   RecommendInput,
-  RecommendResult,
   RecordFromImageInput,
   RecordFromTextInput,
-} from '#llm/orchestrator/index'
+} from '#llm/orchestrator/types'
 import type { Logger } from '#logger'
 import { createMcpServer } from '#mcp'
 

@@ -2,11 +2,11 @@ import type { Task } from '@a2a-js/sdk'
 import { captureWithFingerprint } from '@fohte/service-kit/observability'
 import { describe, expect, it, test, vi } from 'vitest'
 
+import { createPostgresTaskStore } from '#a2a/postgres-task-store'
 import {
-  createPostgresTaskStore,
   TaskRowInvalidError,
   TaskStorePersistenceError,
-} from '#a2a/postgres-task-store'
+} from '#a2a/postgres-task-store-errors'
 import type { Sql } from '#db/index'
 import { captureSqlParams, describeIfDb, setupTx } from '#test/db'
 import { seedA2aPushConfig } from '#test/seed'

@@ -3,14 +3,11 @@ import type { TaskStore } from '@a2a-js/sdk/server'
 import { captureWithFingerprint } from '@fohte/service-kit/observability'
 import { z } from 'zod'
 
+import {
+  TaskRowInvalidError,
+  TaskStorePersistenceError,
+} from '#a2a/postgres-task-store-errors'
 import { createAsText, type Sql } from '#db/index'
-
-export class TaskStorePersistenceError extends Error {
-  constructor(message: string, cause: unknown) {
-    super(message, { cause })
-    this.name = 'TaskStorePersistenceError'
-  }
-}
 
 const TASK_STORE_FINGERPRINT = 'a2a.task-store.persistence-error'
 
@@ -42,17 +39,6 @@ const taskEnvelopeSchema = z
   .loose()
 
 const taskIdRowSchema = z.object({ task_id: z.string() })
-
-export class TaskRowInvalidError extends Error {
-  constructor(
-    public readonly taskId: string,
-    public readonly issues: z.ZodError,
-  ) {
-    super(`a2a_tasks row for ${taskId} is not a valid Task: ${issues.message}`)
-    this.name = 'TaskRowInvalidError'
-    this.cause = issues
-  }
-}
 
 // Superset of the SDK's `TaskStore` interface: the watchdog and retention
 // jobs need sweep queries (fail-stuck, delete-expired) the interface

@@ -5,13 +5,12 @@ import {
   MealSkipNotFoundError,
   MealSkipPersistenceError,
 } from '#domain/meal-skip/errors'
-import type {
-  CancelMealSkipInput,
-  MealSkipService,
-} from '#domain/meal-skip/meal-skip-service'
+import type { MealSkipService } from '#domain/meal-skip/meal-skip-service'
 import { normalizeResult } from '#llm/domain-tools/test-helpers'
 import { createCancelMealSkipTool } from '#llm/domain-tools/tools/cancel-meal-skip'
 import { jstDate } from '#test/jst-date'
+
+type CancelMealSkipInput = Parameters<MealSkipService['cancel']>[0]
 
 interface Calls {
   cancel: CancelMealSkipInput[]

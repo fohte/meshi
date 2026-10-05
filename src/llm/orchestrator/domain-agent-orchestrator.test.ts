@@ -3,15 +3,12 @@ import { AIMessage } from '@langchain/core/messages'
 import { fakeModel } from 'langchain'
 import { describe, expect, it, vi } from 'vitest'
 
-import { FALLBACK_QUESTION_TEXT } from '#llm/agent/derive-reply'
 import { REQUEST_USER_INPUT_TOOL_NAME } from '#llm/agent/request-user-input-tool'
 import type { DomainToolsRegistry } from '#llm/domain-tools/registry'
 import type { DomainTool, DomainToolName } from '#llm/domain-tools/types'
 import { err, ok } from '#llm/domain-tools/types'
-import {
-  createDomainAgentOrchestrator,
-  restrictToReadOnly,
-} from '#llm/orchestrator/domain-agent-orchestrator'
+import { createDomainAgentOrchestrator } from '#llm/orchestrator/domain-agent-orchestrator'
+import { restrictToReadOnly } from '#llm/orchestrator/read-only-tool-registry'
 import type { MealRecordResult } from '#llm/orchestrator/types'
 import type { Logger } from '#logger'
 import { scriptedDomainAgentModel } from '#test/scripted-domain-agent-model'
@@ -376,7 +373,8 @@ describe('createDomainAgentOrchestrator', () => {
         recorded: [],
         candidates: [],
         hasEstimatedValues: false,
-        summaryText: FALLBACK_QUESTION_TEXT,
+        summaryText:
+          "I need more information before I can continue, but couldn't put the question into words this time. Could you share more detail about your last request?",
         error: null,
       })
     })

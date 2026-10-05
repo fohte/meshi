@@ -25,8 +25,10 @@ import { seedNutrientDefinitions } from '#db/seed/index'
 import { createDayDetailService } from '#domain/day-detail/index'
 import { createFoodBrowseService } from '#domain/food-browse/index'
 import { createFoodDetailService } from '#domain/food-detail/index'
-import { createFoodMasterRepository } from '#domain/food-master/repository'
-import { createFoodMasterService } from '#domain/food-master/service'
+import {
+  createFoodMasterRepository,
+  createFoodMasterService,
+} from '#domain/food-master/index'
 import { createDrizzleFoodMatcher } from '#domain/food-matcher/index'
 import { createMealHistoryService } from '#domain/meal-history/index'
 import { createDrizzleMealLogRepository } from '#domain/meal-log/drizzle-meal-log-repository'

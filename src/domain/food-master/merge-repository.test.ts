@@ -1,9 +1,7 @@
 import { beforeEach, expect, it } from 'vitest'
 
-import {
-  createFoodMasterRepository,
-  type FoodMasterRepository,
-} from '#domain/food-master/index'
+import { createFoodMasterRepository } from '#domain/food-master/index'
+import type { FoodMasterRepository } from '#domain/food-master/repository'
 import { captureDomainError } from '#test/capture-domain-error'
 import { describeIfDb, setupTx } from '#test/db'
 import { createCountingIdGenerator, type IdCounter } from '#test/id-counter'

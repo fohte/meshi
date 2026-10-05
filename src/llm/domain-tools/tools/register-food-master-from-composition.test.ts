@@ -2,12 +2,12 @@ import { errAsync, okAsync } from 'neverthrow'
 import { describe, expect, it } from 'vitest'
 
 import { FoodMasterDomainError } from '#domain/food-master/errors'
+import type { FoodMasterService } from '#domain/food-master/service'
 import type {
-  FoodMasterService,
+  FoodMaster,
   RegisteredFromComposition,
   RegisterFromCompositionInput,
-} from '#domain/food-master/service'
-import type { FoodMaster } from '#domain/food-master/types'
+} from '#domain/food-master/types'
 import { normalizeResult } from '#llm/domain-tools/test-helpers'
 import { createRegisterFoodMasterFromCompositionTool } from '#llm/domain-tools/tools/register-food-master-from-composition'
 

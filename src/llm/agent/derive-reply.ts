@@ -47,7 +47,7 @@ export const buildNoUsableReplyError = (): Error =>
 // empty. Should be rare — request-user-input-tool.ts's schema requires
 // `question` — but the user must still learn the agent is waiting on them
 // rather than see a bare failure.
-export const FALLBACK_QUESTION_TEXT =
+const FALLBACK_QUESTION_TEXT =
   "I need more information before I can continue, but couldn't put the question into words this time. Could you share more detail about your last request?"
 
 const requestUserInputArgsSchema = z.object({ question: z.string() })

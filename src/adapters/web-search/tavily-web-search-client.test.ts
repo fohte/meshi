@@ -1,9 +1,7 @@
 import { describe, expect, it, vi } from 'vitest'
 
-import {
-  createTavilyWebSearchClient,
-  WebSearchInvalidResponseError,
-} from '#adapters/web-search/tavily-web-search-client'
+import { WebSearchInvalidResponseError } from '#adapters/web-search/errors'
+import { createTavilyWebSearchClient } from '#adapters/web-search/tavily-web-search-client'
 import {
   WebSearchError,
   WebSearchRateLimitError,

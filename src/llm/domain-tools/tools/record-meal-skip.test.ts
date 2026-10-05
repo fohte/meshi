@@ -5,14 +5,13 @@ import {
   FutureMealSkipDateError,
   MealSkipPersistenceError,
 } from '#domain/meal-skip/errors'
-import type {
-  MealSkipService,
-  RecordMealSkipInput,
-} from '#domain/meal-skip/meal-skip-service'
+import type { MealSkipService } from '#domain/meal-skip/meal-skip-service'
 import type { MealSkipRow } from '#domain/meal-skip/types'
 import { normalizeResult } from '#llm/domain-tools/test-helpers'
 import { createRecordMealSkipTool } from '#llm/domain-tools/tools/record-meal-skip'
 import { jstDate } from '#test/jst-date'
+
+type RecordMealSkipInput = Parameters<MealSkipService['record']>[0]
 
 interface Calls {
   record: RecordMealSkipInput[]

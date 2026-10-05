@@ -64,14 +64,16 @@ const withOrder = (
 ): ReadonlyArray<NutrientDefinitionSeed> =>
   entries.map((entry, index) => ({ ...entry, isMajor, sortOrder: index + 1 }))
 
-export const MAJOR_NUTRIENT_DEFINITIONS: ReadonlyArray<NutrientDefinitionSeed> =
+const MAJOR_NUTRIENT_DEFINITIONS: ReadonlyArray<NutrientDefinitionSeed> =
   withOrder(major, true)
 
-export const MINOR_NUTRIENT_DEFINITIONS: ReadonlyArray<NutrientDefinitionSeed> =
+const MINOR_NUTRIENT_DEFINITIONS: ReadonlyArray<NutrientDefinitionSeed> =
   withOrder(minor, false)
 
-export const NUTRIENT_DEFINITION_SEEDS: ReadonlyArray<NutrientDefinitionSeed> =
-  [...MAJOR_NUTRIENT_DEFINITIONS, ...MINOR_NUTRIENT_DEFINITIONS]
+const NUTRIENT_DEFINITION_SEEDS: ReadonlyArray<NutrientDefinitionSeed> = [
+  ...MAJOR_NUTRIENT_DEFINITIONS,
+  ...MINOR_NUTRIENT_DEFINITIONS,
+]
 
 export const upsertNutrientDefinitions = async (
   sql: SqlOrTx,

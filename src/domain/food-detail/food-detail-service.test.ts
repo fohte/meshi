@@ -5,7 +5,7 @@ import {
   createFoodMasterRepository,
   createFoodMasterService,
 } from '#domain/food-master/index'
-import { toJstDateString } from '#lib/jst-date'
+import { todayJstDateString } from '#lib/jst-date'
 import { describeIfDb, setupDrizzleTx } from '#test/db'
 import { seedFoodMaster, seedFoodMasterAlias, seedMealLog } from '#test/seed'
 
@@ -73,14 +73,14 @@ describeIfDb('createFoodDetailService', () => {
     await seedMealLog(tx, {
       id: 'ml_older',
       foodMasterId: 'fm_bread',
-      eatenDate: toJstDateString(olderEatenAt),
+      eatenDate: todayJstDateString(olderEatenAt),
       mealType: 'breakfast',
       quantity: 60,
     })
     await seedMealLog(tx, {
       id: 'ml_newer',
       foodMasterId: 'fm_bread',
-      eatenDate: toJstDateString(newerEatenAt),
+      eatenDate: todayJstDateString(newerEatenAt),
       mealType: 'snack',
       quantity: 1,
     })
@@ -102,13 +102,13 @@ describeIfDb('createFoodDetailService', () => {
       history: [
         {
           id: 'ml_newer',
-          eatenDate: toJstDateString(newerEatenAt),
+          eatenDate: todayJstDateString(newerEatenAt),
           mealType: 'snack',
           quantity: 1,
         },
         {
           id: 'ml_older',
-          eatenDate: toJstDateString(olderEatenAt),
+          eatenDate: todayJstDateString(olderEatenAt),
           mealType: 'breakfast',
           quantity: 60,
         },

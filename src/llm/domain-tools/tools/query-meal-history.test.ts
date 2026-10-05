@@ -5,11 +5,12 @@ import { NUTRIENT_CODES } from '#db/seed/nutrient-definitions'
 import type {
   MealHistoryAggregate,
   MealHistoryService,
-  QueryMealHistoryInput,
 } from '#domain/meal-history/types'
 import { normalizeResult } from '#llm/domain-tools/test-helpers'
 import { createQueryMealHistoryTool } from '#llm/domain-tools/tools/query-meal-history'
 import { jstDate } from '#test/jst-date'
+
+type QueryMealHistoryInput = Parameters<MealHistoryService['query']>[0]
 
 const AGGREGATE: MealHistoryAggregate = {
   totals: { energy_kcal: 1850 },

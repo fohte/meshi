@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest'
 
-import type { FoodMatchCandidate } from '#domain/food-matcher/index'
+import type { FoodMatchCandidate } from '#domain/food-matcher/food-matcher'
 import { createDrizzleFoodMatcher } from '#domain/food-matcher/index'
-import { toJstDateString } from '#lib/jst-date'
+import { todayJstDateString } from '#lib/jst-date'
 import { describeIfDb, setupTx } from '#test/db'
 import {
   seedFoodComposition,
@@ -13,7 +13,7 @@ import {
 
 const MS_PER_DAY = 24 * 60 * 60 * 1000
 
-// A Date `daysAgo` days before now, converted via toJstDateString into a
+// A Date `daysAgo` days before now, converted via todayJstDateString into a
 // meal_log's eaten_date.
 const daysAgo = (n: number): Date => new Date(Date.now() - n * MS_PER_DAY)
 
@@ -47,14 +47,14 @@ describeIfDb('createDrizzleFoodMatcher', () => {
       await seedMealLog(tx, {
         id: 'ml_ra',
         foodMasterId: 'fm_recent_a',
-        eatenDate: toJstDateString(daysAgo(1)),
+        eatenDate: todayJstDateString(daysAgo(1)),
         mealType: 'breakfast',
         quantity: 1,
       })
       await seedMealLog(tx, {
         id: 'ml_rb',
         foodMasterId: 'fm_recent_b',
-        eatenDate: toJstDateString(daysAgo(5)),
+        eatenDate: todayJstDateString(daysAgo(5)),
         mealType: 'breakfast',
         quantity: 1,
       })
@@ -106,7 +106,7 @@ describeIfDb('createDrizzleFoodMatcher', () => {
         await seedMealLog(tx, {
           id: `ml_fc_${String(i)}`,
           foodMasterId: 'fm_freq_c',
-          eatenDate: toJstDateString(daysAgo(30)),
+          eatenDate: todayJstDateString(daysAgo(30)),
           mealType: 'breakfast',
           quantity: 1,
         })
@@ -114,7 +114,7 @@ describeIfDb('createDrizzleFoodMatcher', () => {
       await seedMealLog(tx, {
         id: 'ml_fd',
         foodMasterId: 'fm_freq_d',
-        eatenDate: toJstDateString(daysAgo(30)),
+        eatenDate: todayJstDateString(daysAgo(30)),
         mealType: 'breakfast',
         quantity: 1,
       })

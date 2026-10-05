@@ -14,12 +14,12 @@ import {
   todayJstDateString,
 } from '#lib/jst-date'
 
-export interface RecordMealSkipInput {
+interface RecordMealSkipInput {
   readonly date: JstDate
   readonly mealType: MealType
 }
 
-export interface CancelMealSkipInput {
+interface CancelMealSkipInput {
   readonly date: JstDate
   readonly mealType: MealType
 }
