@@ -67,6 +67,26 @@ jobs:
       - name: Check peer dependencies
         run: pnpm peers check
 
+      - name: Check for database documentation changes
+        id: db-doc-changes
+        uses: tj-actions/changed-files@9426d40962ed5378910ee2e21d5f8c6fcbf2dd96 # v47.0.6
+        with:
+          files: |
+            drizzle/**
+            **/.tbls.yml
+            scripts/db-*
+            compose*.yaml
+            .mise.toml
+            .github/workflows/test.yml
+
+      - name: Generate database documentation
+        if: steps.db-doc-changes.outputs.any_modified == 'true'
+        run: mise run db:doc
+
+      - name: Stage generated database documentation
+        if: steps.db-doc-changes.outputs.any_modified == 'true'
+        run: git add -- docs/db
+
       - name: Run lefthook
         id: lefthook
         continue-on-error: true
