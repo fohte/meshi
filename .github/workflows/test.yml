@@ -244,4 +244,4 @@ jobs:
         run: pnpm exec knip
 
       - name: Run knip in production mode
-        run: pnpm exec knip --production
+        run: pnpm exec knip --config knip.production.json --production

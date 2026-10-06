@@ -3,6 +3,12 @@
   "treatConfigHintsAsErrors": true,
   "workspaces": {
     ".": {
+      "entry": [
+        "scripts/convert-food-composition.ts!",
+        "scripts/seed.ts!",
+        "src/db/migrate.ts!",
+        "src/index.ts!"
+      ],
       "project": [
         "src/**/*.ts!",
         "scripts/**/*.ts!",
