@@ -143,18 +143,23 @@ interface OrchestratorCalls {
   signals: AbortSignal[]
 }
 
+type OrchestratorHandler<T> = (signal: AbortSignal | undefined) => Promise<T>
+
+type OrchestratorOverride<T> = T | Error | OrchestratorHandler<T>
+
 interface OrchestratorOverrides {
-  recordFromText?: MealRecordResult | Error
-  recordFromImage?: MealRecordResult | Error
-  queryMeals?: MealHistoryResult | Error
-  recommendMeal?: RecommendResult | Error
+  recordFromText?: OrchestratorOverride<MealRecordResult>
+  recordFromImage?: OrchestratorOverride<MealRecordResult>
+  queryMeals?: OrchestratorOverride<MealHistoryResult>
+  recommendMeal?: OrchestratorOverride<RecommendResult>
 }
+
+const isOrchestratorHandler = <T>(
+  value: OrchestratorOverride<T> | undefined,
+): value is OrchestratorHandler<T> => typeof value === 'function'
 
 const makeOrchestrator = (
   overrides: OrchestratorOverrides = {},
-  recordFromTextHandler?: (
-    signal: AbortSignal | undefined,
-  ) => Promise<MealRecordResult>,
 ): { orchestrator: ConversationOrchestrator; calls: OrchestratorCalls } => {
   const calls: OrchestratorCalls = {
     recordFromText: [],
@@ -165,29 +170,40 @@ const makeOrchestrator = (
   }
   const resolve = <T>(value: T | Error): Promise<T> =>
     value instanceof Error ? Promise.reject(value) : Promise.resolve(value)
+  const resolveOverride = <T>(
+    value: OrchestratorOverride<T> | undefined,
+    fallback: T,
+    signal: AbortSignal | undefined,
+  ): Promise<T> =>
+    isOrchestratorHandler(value) ? value(signal) : resolve(value ?? fallback)
   const orchestrator: ConversationOrchestrator = {
     recordFromText(input, signal) {
       calls.recordFromText.push(input)
       if (signal !== undefined) calls.signals.push(signal)
-      if (recordFromTextHandler !== undefined) {
-        return recordFromTextHandler(signal)
-      }
-      return resolve(overrides.recordFromText ?? successMealRecord)
+      return resolveOverride(
+        overrides.recordFromText,
+        successMealRecord,
+        signal,
+      )
     },
     recordFromImage(input, signal) {
       calls.recordFromImage.push(input)
       if (signal !== undefined) calls.signals.push(signal)
-      return resolve(overrides.recordFromImage ?? successMealRecord)
+      return resolveOverride(
+        overrides.recordFromImage,
+        successMealRecord,
+        signal,
+      )
     },
     queryMeals(input, signal) {
       calls.queryMeals.push(input)
       if (signal !== undefined) calls.signals.push(signal)
-      return resolve(overrides.queryMeals ?? successMealHistory)
+      return resolveOverride(overrides.queryMeals, successMealHistory, signal)
     },
     recommendMeal(input, signal) {
       calls.recommendMeal.push(input)
       if (signal !== undefined) calls.signals.push(signal)
-      return resolve(overrides.recommendMeal ?? successRecommend)
+      return resolveOverride(overrides.recommendMeal, successRecommend, signal)
     },
   }
   return { orchestrator, calls }
@@ -252,9 +268,6 @@ interface Harness {
 
 interface HarnessConfig {
   orchestratorOverrides?: OrchestratorOverrides
-  recordFromTextHandler?: (
-    signal: AbortSignal | undefined,
-  ) => Promise<MealRecordResult>
   profileOverrides?: {
     get?: UserProfileRepositoryError
     update?: UserProfileRepositoryError
@@ -267,7 +280,6 @@ const start = async (config: HarnessConfig = {}): Promise<Harness> => {
   const logger = makeLogger(logs)
   const { orchestrator, calls } = makeOrchestrator(
     config.orchestratorOverrides ?? {},
-    config.recordFromTextHandler,
   )
   const { service: profileService, calls: profileCalls } = makeProfileService(
     config.profile ?? defaultProfile,
@@ -477,17 +489,19 @@ describe('record_meal_from_text', () => {
       markStarted = resolve
     })
     const h = await start({
-      recordFromTextHandler: (signal) =>
-        new Promise((resolve) => {
-          signal?.addEventListener(
-            'abort',
-            () => {
-              resolve(deadlineMealRecord)
-            },
-            { once: true },
-          )
-          markStarted()
-        }),
+      orchestratorOverrides: {
+        recordFromText: (signal) =>
+          new Promise((resolve) => {
+            signal?.addEventListener(
+              'abort',
+              () => {
+                resolve(deadlineMealRecord)
+              },
+              { once: true },
+            )
+            markStarted()
+          }),
+      },
     })
 
     try {
@@ -539,19 +553,21 @@ describe('record_meal_from_text', () => {
       markAborted = resolve
     })
     const h = await start({
-      recordFromTextHandler: (signal) =>
-        new Promise((resolve) => {
-          receivedSignal = signal
-          signal?.addEventListener(
-            'abort',
-            () => {
-              markAborted()
-              resolve(erroredMealRecord)
-            },
-            { once: true },
-          )
-          markStarted()
-        }),
+      orchestratorOverrides: {
+        recordFromText: (signal) =>
+          new Promise((resolve) => {
+            receivedSignal = signal
+            signal?.addEventListener(
+              'abort',
+              () => {
+                markAborted()
+                resolve(erroredMealRecord)
+              },
+              { once: true },
+            )
+            markStarted()
+          }),
+      },
     })
     const requestController = new AbortController()
 

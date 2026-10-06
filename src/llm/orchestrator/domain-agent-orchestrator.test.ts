@@ -113,6 +113,25 @@ describe('createDomainAgentOrchestrator', () => {
     })
   })
 
+  it('returns a deadline error when the OpenAI client reports a connection timeout', async () => {
+    const timeoutError = new Error('request timed out')
+    timeoutError.name = 'APIConnectionTimeoutError'
+    const orchestrator = createDomainAgentOrchestrator({
+      model: fakeModel().alwaysThrow(timeoutError),
+      registry: stubRegistry([]),
+    })
+
+    const result = await orchestrator.recommendMeal({})
+
+    expect(result).toEqual({
+      summaryText: '処理が時間内に終わらなかったため中断しました。',
+      error: {
+        kind: 'deadline_exceeded',
+        message: '処理が時間内に終わらなかったため中断しました。',
+      },
+    })
+  })
+
   describe('recordFromText', () => {
     it('extracts a recorded meal from the record_meal_log call', async () => {
       const registry = stubRegistry([

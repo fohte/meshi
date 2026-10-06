@@ -218,7 +218,7 @@ export const createDomainAgentOrchestrator = (
 
   const runTurn = async (
     content: ReadonlyArray<AgentContentBlock>,
-    registry: DomainToolsRegistry = options.registry,
+    registry: DomainToolsRegistry,
     signal?: AbortSignal,
   ): Promise<{
     readonly invocations: ReadonlyArray<RecordedInvocation>
