@@ -7,6 +7,7 @@ import { foodMasterNutrients, foodMasters } from '#db/schema'
 import type { FoodSource } from '#domain/food-master/types'
 
 export type FoodSearchDb = ReturnType<typeof drizzle>
+export const ENERGY_KCAL_CODE = 'energy_kcal'
 
 export interface FoodMasterEnrichment {
   readonly source: FoodSource
@@ -61,7 +62,7 @@ export const loadFoodMasterEnrichment = (
             foodMasterNutrients,
             and(
               eq(foodMasterNutrients.foodMasterId, foodMasters.id),
-              eq(foodMasterNutrients.nutrientCode, 'energy_kcal'),
+              eq(foodMasterNutrients.nutrientCode, ENERGY_KCAL_CODE),
             ),
           )
           .where(inArray(foodMasters.id, [...foodMasterIds])),

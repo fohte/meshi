@@ -3,12 +3,13 @@ import { err, ok, ResultAsync } from 'neverthrow'
 import { z } from 'zod'
 
 import type { Sql } from '#db/index'
-import { loadFoodMasterEnrichment } from '#domain/food-browse/food-enrichment'
+import {
+  ENERGY_KCAL_CODE,
+  loadFoodMasterEnrichment,
+} from '#domain/food-browse/food-enrichment'
 import type { FoodBrowseService, FoodListItem } from '#domain/food-browse/types'
 import { FoodBrowseQueryError } from '#domain/food-browse/types'
 import type { FoodMatcher } from '#domain/food-matcher/food-matcher'
-
-const ENERGY_KCAL_CODE = 'energy_kcal'
 
 // Rows shared by the recent/frequent raw queries below: both join
 // food_masters + food_master_nutrients the same way and differ only in how
