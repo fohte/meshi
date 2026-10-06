@@ -913,6 +913,44 @@ describe('record_meal_log', () => {
     }
   })
 
+  it('rejects an empty item list before calling the meal log service', async () => {
+    const h = await start()
+    try {
+      const result = await h.client.callTool({
+        name: 'record_meal_log',
+        arguments: {
+          date: '2026-06-12',
+          meal_type: 'lunch',
+          items: [],
+        },
+      })
+
+      expect(
+        observation({
+          result: normalizeValidationError(result),
+          recordCalls: h.directMealToolCalls.recordMealLogs,
+          orchestratorCalls: h.calls,
+          logs: h.logs,
+        }),
+      ).toEqual({
+        result: {
+          content: [{ type: 'text', text: VALIDATION_ERROR_TEXT }],
+          isError: true,
+        },
+        recordCalls: [],
+        orchestratorCalls: {
+          recordFromText: [],
+          recordFromImage: [],
+          queryMeals: [],
+          recommendMeal: [],
+        },
+        logs: [],
+      })
+    } finally {
+      await h.close()
+    }
+  })
+
   it('returns the invalid item position and domain error code', async () => {
     const h = await start({
       recordMealLogError: new MealLogItemValidationError(
