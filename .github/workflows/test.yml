@@ -241,7 +241,7 @@ jobs:
       - run: pnpm install --frozen-lockfile
 
       - name: Run knip
-        run: pnpm exec knip
+        run: pnpm run knip
 
       - name: Run knip in production mode
-        run: pnpm exec knip --config knip.production.json --production
+        run: pnpm run knip:production
