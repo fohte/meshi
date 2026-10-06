@@ -168,13 +168,16 @@ interface MealHistoryCalls {
 }
 
 const makeMealHistoryService = (
-  overrides: { query?: MealHistoryAggregate | MealHistoryQueryError } = {},
+  overrides: {
+    query?: MealHistoryAggregate | MealHistoryQueryError | (() => never)
+  } = {},
 ): { service: MealHistoryService; calls: MealHistoryCalls } => {
   const calls: MealHistoryCalls = { query: [] }
   const service: MealHistoryService = {
     query(input) {
       calls.query.push(input)
       const result = overrides.query ?? successMealHistory
+      if (typeof result === 'function') return result()
       return result instanceof MealHistoryQueryError
         ? errAsync(result)
         : okAsync(result)
@@ -244,7 +247,7 @@ interface Harness {
 interface HarnessConfig {
   orchestratorOverrides?: OrchestratorOverrides
   mealHistoryOverrides?: {
-    query?: MealHistoryAggregate | MealHistoryQueryError
+    query?: MealHistoryAggregate | MealHistoryQueryError | (() => never)
   }
   profileOverrides?: {
     get?: UserProfileRepositoryError
@@ -618,17 +621,68 @@ describe('query_meals', () => {
           has_estimated_values: false,
         },
       })
+    } finally {
+      await h.close()
+    }
+  })
+
+  it('passes the selected half-open period to the meal history service', async () => {
+    const h = await start()
+    try {
+      await h.client.callTool({
+        name: 'query_meals',
+        arguments: {
+          period_from: '2026-06-08',
+          period_to: '2026-06-15',
+        },
+      })
       expect(h.mealHistoryCalls.query).toEqual([
         { periodFrom: '2026-06-08', periodTo: '2026-06-15' },
       ])
+    } finally {
+      await h.close()
+    }
+  })
+
+  it('does not invoke the LLM orchestrator', async () => {
+    const h = await start()
+    try {
+      await h.client.callTool({
+        name: 'query_meals',
+        arguments: {
+          period_from: '2026-06-08',
+          period_to: '2026-06-15',
+        },
+      })
       expect(h.calls).toEqual({
         recordFromText: [],
         recordFromImage: [],
         recommendMeal: [],
       })
-      expect(h.logs.map((entry) => entry.event)).toEqual([
-        'meshi.tool_called',
-        'meshi.tool_succeeded',
+    } finally {
+      await h.close()
+    }
+  })
+
+  it('logs the query lifecycle', async () => {
+    const h = await start()
+    try {
+      await h.client.callTool({
+        name: 'query_meals',
+        arguments: {
+          period_from: '2026-06-08',
+          period_to: '2026-06-15',
+        },
+      })
+      expect(h.logs).toEqual([
+        {
+          event: 'meshi.tool_called',
+          payload: { tool: 'query_meals' },
+        },
+        {
+          event: 'meshi.tool_succeeded',
+          payload: { tool: 'query_meals' },
+        },
       ])
     } finally {
       await h.close()
@@ -646,8 +700,19 @@ describe('query_meals', () => {
         content: [{ type: 'text', text: VALIDATION_ERROR_TEXT }],
         isError: true,
       })
+    } finally {
+      await h.close()
+    }
+  })
+
+  it('does not query history when a period boundary is missing', async () => {
+    const h = await start()
+    try {
+      await h.client.callTool({
+        name: 'query_meals',
+        arguments: { period_from: '2026-06-08' },
+      })
       expect(h.mealHistoryCalls.query).toEqual([])
-      expect(h.logs).toEqual([])
     } finally {
       await h.close()
     }
@@ -671,9 +736,65 @@ describe('query_meals', () => {
         content: [{ type: 'text', text: 'query failed' }],
         isError: true,
       })
-      expect(h.logs.map((entry) => entry.event)).toEqual([
-        'meshi.tool_called',
-        'meshi.tool_failed',
+    } finally {
+      await h.close()
+    }
+  })
+
+  it('converts an unexpected synchronous service throw into a tool error', async () => {
+    const h = await start({
+      mealHistoryOverrides: {
+        query: () => {
+          throw new Error('unexpected query failure')
+        },
+      },
+    })
+    try {
+      const result = await h.client.callTool({
+        name: 'query_meals',
+        arguments: {
+          period_from: '2026-06-08',
+          period_to: '2026-06-15',
+        },
+      })
+      expect(result).toEqual({
+        content: [{ type: 'text', text: 'unexpected query failure' }],
+        isError: true,
+      })
+    } finally {
+      await h.close()
+    }
+  })
+
+  it('logs an unexpected synchronous service throw as a failed tool call', async () => {
+    const h = await start({
+      mealHistoryOverrides: {
+        query: () => {
+          throw new Error('unexpected query failure')
+        },
+      },
+    })
+    try {
+      await h.client.callTool({
+        name: 'query_meals',
+        arguments: {
+          period_from: '2026-06-08',
+          period_to: '2026-06-15',
+        },
+      })
+      expect(h.logs).toEqual([
+        {
+          event: 'meshi.tool_called',
+          payload: { tool: 'query_meals' },
+        },
+        {
+          event: 'meshi.tool_failed',
+          payload: {
+            tool: 'query_meals',
+            code: 'internal_error',
+            message: 'unexpected query failure',
+          },
+        },
       ])
     } finally {
       await h.close()

@@ -1,5 +1,6 @@
 import type { CallToolResult } from '@modelcontextprotocol/server'
 
+import { toMealHistoryPayload } from '#domain/meal-history/mealHistoryPayload'
 import type { MealHistoryAggregate } from '#domain/meal-history/types'
 import type { UserProfile } from '#domain/user-profile/user-profile'
 import type {
@@ -57,21 +58,7 @@ export const buildMealRecordPayload = (
 export const buildMealHistoryPayload = (
   aggregate: MealHistoryAggregate,
 ): Record<string, unknown> => ({
-  totals: aggregate.totals,
-  per_day: aggregate.perDay.map((day) => ({
-    date: day.date,
-    totals: day.totals,
-  })),
-  entries: aggregate.entries.map((entry) => ({
-    meal_log_id: entry.id,
-    food_master_id: entry.foodMasterId,
-    food_name: entry.foodName,
-    eaten_date: entry.eatenDate,
-    meal_type: entry.mealType,
-    quantity: entry.quantity,
-    recorded_at: entry.recordedAt,
-  })),
-  has_estimated_values: aggregate.hasEstimatedValues,
+  ...toMealHistoryPayload(aggregate, { includeRecordedAt: true }),
 })
 
 export const buildRecommendPayload = (

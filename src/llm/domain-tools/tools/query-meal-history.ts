@@ -1,6 +1,7 @@
 import { z } from 'zod'
 
 import { NUTRIENT_CODES } from '#db/seed/nutrient-definitions'
+import { toMealHistoryPayload } from '#domain/meal-history/mealHistoryPayload'
 import type { MealHistoryService } from '#domain/meal-history/types'
 import { MEAL_TYPES, type MealType } from '#domain/meal-log/types'
 import { jstDateSchema } from '#lib/jst-date'
@@ -90,22 +91,6 @@ export const createQueryMealHistoryTool = (
     })
     if (queryResult.isErr()) return internalErr(queryResult.error)
 
-    const aggregate = queryResult.value
-    return ok({
-      totals: aggregate.totals,
-      per_day: aggregate.perDay.map((d) => ({
-        date: d.date,
-        totals: d.totals,
-      })),
-      entries: aggregate.entries.map((entry) => ({
-        meal_log_id: entry.id,
-        food_master_id: entry.foodMasterId,
-        food_name: entry.foodName,
-        eaten_date: entry.eatenDate,
-        meal_type: entry.mealType,
-        quantity: entry.quantity,
-      })),
-      has_estimated_values: aggregate.hasEstimatedValues,
-    })
+    return ok(toMealHistoryPayload(queryResult.value))
   },
 })

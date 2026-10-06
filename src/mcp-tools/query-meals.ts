@@ -1,4 +1,5 @@
 import type { McpServer } from '@modelcontextprotocol/server'
+import { ResultAsync } from 'neverthrow'
 
 import type { MealHistoryService } from '#domain/meal-history/types'
 import type { Logger } from '#logger'
@@ -32,31 +33,31 @@ export const registerQueryMealsTool = (
     async (args) => {
       const { logger, mealHistoryService } = deps
       logger.log(TOOL_CALLED, { tool: 'query_meals' })
-      // eslint-disable-next-line no-restricted-syntax -- this guards against an unexpected service throw so it gets structured TOOL_FAILED logging via errorResult() instead of the MCP SDK's generic isError fallback.
-      try {
-        return await mealHistoryService
-          .query({
+      return ResultAsync.fromPromise(
+        Promise.resolve().then(() =>
+          mealHistoryService.query({
             periodFrom: args.period_from,
             periodTo: args.period_to,
-          })
-          .match(
-            (aggregate) => {
-              logger.log(TOOL_SUCCEEDED, { tool: 'query_meals' })
-              return {
-                content: [
-                  {
-                    type: 'text' as const,
-                    text: '食事履歴を取得しました。',
-                  },
-                ],
-                structuredContent: buildMealHistoryPayload(aggregate),
-              }
-            },
-            (err) => errorResult(logger, 'query_meals', err),
-          )
-      } catch (err) {
-        return errorResult(logger, 'query_meals', err)
-      }
+          }),
+        ),
+        (err) => err,
+      )
+        .andThen((result) => result)
+        .match(
+          (aggregate) => {
+            logger.log(TOOL_SUCCEEDED, { tool: 'query_meals' })
+            return {
+              content: [
+                {
+                  type: 'text' as const,
+                  text: '食事履歴を取得しました。',
+                },
+              ],
+              structuredContent: buildMealHistoryPayload(aggregate),
+            }
+          },
+          (err) => errorResult(logger, 'query_meals', err),
+        )
     },
   )
 }
