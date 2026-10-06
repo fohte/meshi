@@ -4,9 +4,11 @@ import {
   createFoodMasterRepository,
   createFoodMasterService,
   type FoodMasterService,
-  type RegisterFoodMasterInput,
 } from '#domain/food-master/index'
-import type { RegisteredFromComposition } from '#domain/food-master/service'
+import type {
+  RegisteredFromComposition,
+  RegisterFoodMasterInput,
+} from '#domain/food-master/types'
 import { captureDomainError } from '#test/capture-domain-error'
 import { describeIfDb, setupTx } from '#test/db'
 import { createCountingIdGenerator, type IdCounter } from '#test/id-counter'

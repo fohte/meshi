@@ -3,15 +3,12 @@ import { AIMessage } from '@langchain/core/messages'
 import { fakeModel } from 'langchain'
 import { describe, expect, it, vi } from 'vitest'
 
-import { FALLBACK_QUESTION_TEXT } from '#llm/agent/derive-reply'
+import { FALLBACK_QUESTION_TEXT } from '#llm/agent/fallback-question'
 import { REQUEST_USER_INPUT_TOOL_NAME } from '#llm/agent/request-user-input-tool'
 import type { DomainToolsRegistry } from '#llm/domain-tools/registry'
 import type { DomainTool, DomainToolName } from '#llm/domain-tools/types'
 import { err, ok } from '#llm/domain-tools/types'
-import {
-  createDomainAgentOrchestrator,
-  restrictToReadOnly,
-} from '#llm/orchestrator/domain-agent-orchestrator'
+import { createDomainAgentOrchestrator } from '#llm/orchestrator/domain-agent-orchestrator'
 import type { MealRecordResult } from '#llm/orchestrator/types'
 import type { Logger } from '#logger'
 import { scriptedDomainAgentModel } from '#test/scripted-domain-agent-model'
@@ -702,69 +699,5 @@ describe('createDomainAgentOrchestrator', () => {
 
       expect(updateUserProfile).not.toHaveBeenCalled()
     })
-  })
-})
-
-const fullDomainToolsRegistry = (): DomainToolsRegistry =>
-  stubRegistry([
-    stubTool('record_meal_log', () => Promise.resolve(ok({}))),
-    stubTool('update_meal_log', () => Promise.resolve(ok({}))),
-    stubTool('record_meal_skip', () => Promise.resolve(ok({}))),
-    stubTool('cancel_meal_skip', () => Promise.resolve(ok({}))),
-    stubTool('search_food_master', () => Promise.resolve(ok({}))),
-    stubTool('register_food_master', () => Promise.resolve(ok({}))),
-    stubTool('register_food_master_from_composition', () =>
-      Promise.resolve(ok({})),
-    ),
-    stubTool('merge_food_master', () => Promise.resolve(ok({}))),
-    stubTool('query_meal_history', () => Promise.resolve(ok({}))),
-    stubTool('get_user_profile', () => Promise.resolve(ok({}))),
-    stubTool('update_user_profile', () => Promise.resolve(ok({}))),
-    stubTool('web_search', () => Promise.resolve(ok({}))),
-  ])
-
-describe('restrictToReadOnly', () => {
-  it('keeps list() to search_food_master, query_meal_history, get_user_profile, and web_search', () => {
-    const restricted = restrictToReadOnly(fullDomainToolsRegistry())
-
-    expect(restricted.list().map((t) => t.name)).toEqual([
-      'search_food_master',
-      'query_meal_history',
-      'get_user_profile',
-      'web_search',
-    ])
-  })
-
-  it('keeps toLlmSchemas() to the same read-only tools, each with its own description and inputSchema', () => {
-    const restricted = restrictToReadOnly(fullDomainToolsRegistry())
-
-    expect(restricted.toLlmSchemas()).toEqual([
-      {
-        name: 'search_food_master',
-        description: 'stub search_food_master',
-        inputSchema: { type: 'object' },
-      },
-      {
-        name: 'query_meal_history',
-        description: 'stub query_meal_history',
-        inputSchema: { type: 'object' },
-      },
-      {
-        name: 'get_user_profile',
-        description: 'stub get_user_profile',
-        inputSchema: { type: 'object' },
-      },
-      {
-        name: 'web_search',
-        description: 'stub web_search',
-        inputSchema: { type: 'object' },
-      },
-    ])
-  })
-
-  it('returns undefined from get() for a write tool name', () => {
-    const restricted = restrictToReadOnly(fullDomainToolsRegistry())
-
-    expect(restricted.get('record_meal_log')).toBeUndefined()
   })
 })

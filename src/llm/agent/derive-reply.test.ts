@@ -1,11 +1,8 @@
 import { describe, expect, it, vi } from 'vitest'
 
 import type { AgentInvokeMessage } from '#llm/agent/derive-reply'
-import {
-  deriveAgentReply,
-  FALLBACK_QUESTION_TEXT,
-  findTurnMessages,
-} from '#llm/agent/derive-reply'
+import { deriveAgentReply, findTurnMessages } from '#llm/agent/derive-reply'
+import { FALLBACK_QUESTION_TEXT } from '#llm/agent/fallback-question'
 import { REQUEST_USER_INPUT_TOOL_NAME } from '#llm/agent/request-user-input-tool'
 
 const buildMessage = (

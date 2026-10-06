@@ -6,10 +6,7 @@ import {
   FoodCompositionLoadError,
   loadFoodComposition,
   loadFoodCompositionDatasetFromFile,
-  MAJOR_NUTRIENT_DEFINITIONS,
-  MINOR_NUTRIENT_DEFINITIONS,
   NUTRIENT_CODES,
-  NUTRIENT_DEFINITION_SEEDS,
   parseFoodCompositionDataset,
   seedNutrientDefinitions,
 } from '#db/seed/index'
@@ -33,9 +30,9 @@ describeIfDb('seedNutrientDefinitions', () => {
       FROM nutrient_definitions
     `
     expect(rows[0]).toEqual({
-      total: NUTRIENT_DEFINITION_SEEDS.length,
-      major: MAJOR_NUTRIENT_DEFINITIONS.length,
-      minor: MINOR_NUTRIENT_DEFINITIONS.length,
+      total: 29,
+      major: 6,
+      minor: 23,
     })
   })
 
@@ -46,7 +43,7 @@ describeIfDb('seedNutrientDefinitions', () => {
     const rows = await tx<{ count: number }[]>`
       SELECT count(*)::int AS count FROM nutrient_definitions
     `
-    expect(rows[0]?.count).toBe(NUTRIENT_DEFINITION_SEEDS.length)
+    expect(rows).toEqual([{ count: 29 }])
   })
 })
 
@@ -208,15 +205,18 @@ describeIfDb('loadFoodComposition', () => {
   })
 })
 
-describe('NUTRIENT_CODES', () => {
-  // NUTRIENT_CODES (the zod enum every LLM tool schema exposes) and
-  // NUTRIENT_DEFINITION_SEEDS (what actually gets written to
-  // nutrient_definitions) must never diverge — a code the LLM is allowed to
-  // send has to be one the DB will accept, and vice versa. Both are derived
-  // from the same major/minor arrays today, but this pins that invariant
-  // independent of how either is implemented.
-  it('matches the codes in NUTRIENT_DEFINITION_SEEDS exactly, in the same order', () => {
-    expect(NUTRIENT_CODES).toEqual(NUTRIENT_DEFINITION_SEEDS.map((d) => d.code))
+describeIfDb('NUTRIENT_CODES', () => {
+  const getTx = setupTx()
+
+  it('matches the codes stored by the seed', async () => {
+    const tx = getTx()
+    await seedNutrientDefinitions(tx)
+    const rows = await tx<{ code: string }[]>`
+      SELECT code
+      FROM nutrient_definitions
+      ORDER BY is_major DESC, sort_order
+    `
+    expect(rows.map((row) => row.code)).toEqual(NUTRIENT_CODES)
   })
 })
 

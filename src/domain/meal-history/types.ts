@@ -7,7 +7,7 @@ export type NutrientCode = string
 
 export type NutritionMap = Readonly<Record<NutrientCode, number>>
 
-export interface QueryMealHistoryInput {
+interface QueryMealHistoryInput {
   // JST calendar date (see src/lib/jst-date.ts), inclusive.
   readonly periodFrom: JstDate
   // JST calendar date, exclusive — the period is the half-open range

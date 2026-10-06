@@ -1,11 +1,11 @@
 import { captureWithFingerprint } from '@fohte/service-kit/observability'
 import { describe, expect, it, test, vi } from 'vitest'
 
+import { createPostgresPushNotificationStore } from '#a2a/postgres-push-notification-store'
 import {
-  createPostgresPushNotificationStore,
   PushConfigRowInvalidError,
   PushNotificationStorePersistenceError,
-} from '#a2a/postgres-push-notification-store'
+} from '#a2a/postgres-push-notification-store-errors'
 import type { Sql } from '#db/index'
 import { captureSqlParams, describeIfDb, setupTx } from '#test/db'
 

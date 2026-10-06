@@ -1,3 +1,4 @@
+# prettier-ignore
 name: 'meshi'
 docPath: docs/db
 # Fixed names keep the disposable database name out of generated headings.

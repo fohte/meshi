@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import type { FoodMatchCandidate } from '#domain/food-matcher/index'
+import type { FoodMatchCandidate } from '#domain/food-matcher/food-matcher'
 import { createDrizzleFoodMatcher } from '#domain/food-matcher/index'
 import { toJstDateString } from '#lib/jst-date'
 import { describeIfDb, setupTx } from '#test/db'

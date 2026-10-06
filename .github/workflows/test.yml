@@ -80,11 +80,11 @@ jobs:
             .github/workflows/test.yml
 
       - name: Generate database documentation
-        if: steps.db-doc-changes.outputs.any_changed == 'true'
+        if: steps.db-doc-changes.outputs.any_modified == 'true'
         run: mise run db:doc
 
       - name: Stage generated database documentation
-        if: steps.db-doc-changes.outputs.any_changed == 'true'
+        if: steps.db-doc-changes.outputs.any_modified == 'true'
         run: git add -- docs/db
 
       - name: Run lefthook
@@ -241,4 +241,7 @@ jobs:
       - run: pnpm install --frozen-lockfile
 
       - name: Run knip
-        run: pnpm exec knip
+        run: pnpm run knip
+
+      - name: Run knip in production mode
+        run: pnpm run knip:production

@@ -6,10 +6,7 @@ import { beforeEach, expect, it } from 'vitest'
 import { z } from 'zod'
 
 import { createDrizzleUserProfileRepository } from '#adapters/db/drizzle-user-profile-repository'
-import type {
-  WebSearchClient,
-  WebSearchResult,
-} from '#adapters/web-search/web-search-client'
+import type { WebSearchClient } from '#adapters/web-search/web-search-client'
 import type { Sql } from '#db/index'
 import { upsertNutrientDefinitions } from '#db/seed/nutrient-definitions'
 import {
@@ -37,6 +34,14 @@ import type {
   ScriptedToolCall,
 } from '#test/scripted-domain-agent-model'
 import { scriptedDomainAgentModel } from '#test/scripted-domain-agent-model'
+
+interface WebSearchResult {
+  readonly snippets: ReadonlyArray<{
+    readonly title: string
+    readonly url: string
+    readonly text: string
+  }>
+}
 
 const stubWebSearchClient = (result: WebSearchResult): WebSearchClient => ({
   search: () => okAsync(result),

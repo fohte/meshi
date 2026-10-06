@@ -31,10 +31,8 @@ import { createUserProfileService } from '#domain/user-profile/user-profile-serv
 import { createMeshiCheckpointer } from '#llm/agent/checkpointer'
 import { createMeshiDomainAgent } from '#llm/agent/domain-agent'
 import { REQUEST_USER_INPUT_TOOL_NAME } from '#llm/agent/request-user-input-tool'
-import {
-  createDomainToolsRegistry,
-  type DomainToolsRegistry,
-} from '#llm/domain-tools/index'
+import { createDomainToolsRegistry } from '#llm/domain-tools/index'
+import type { DomainToolsRegistry } from '#llm/domain-tools/registry'
 import { createStubApiDeps } from '#test/api-stubs'
 import {
   describeIfDb,

@@ -1,5 +1,6 @@
 import { z } from 'zod'
 
+import { FALLBACK_QUESTION_TEXT } from '#llm/agent/fallback-question'
 import { REQUEST_USER_INPUT_TOOL_NAME } from '#llm/agent/request-user-input-tool'
 import { stripThinkBlocks } from '#llm/agent/strip-think-blocks'
 
@@ -41,14 +42,6 @@ export const NO_USABLE_REPLY_MESSAGE =
   'The agent did not return a valid response.'
 export const buildNoUsableReplyError = (): Error =>
   new Error('domain agent turn produced no usable reply')
-
-// Last-resort question text for when the model called request_user_input
-// but left both the reply text and the tool call's own `question` argument
-// empty. Should be rare — request-user-input-tool.ts's schema requires
-// `question` — but the user must still learn the agent is waiting on them
-// rather than see a bare failure.
-export const FALLBACK_QUESTION_TEXT =
-  "I need more information before I can continue, but couldn't put the question into words this time. Could you share more detail about your last request?"
 
 const requestUserInputArgsSchema = z.object({ question: z.string() })
 

@@ -6,7 +6,7 @@ import { describe, expect, it } from 'vitest'
 
 import { createApp } from '#app'
 import type { Sql } from '#db/index'
-import { createMcpServer, MCP_SERVER_NAME, MCP_SERVER_VERSION } from '#mcp'
+import { createMcpServer } from '#mcp'
 import { createStubApiDeps } from '#test/api-stubs'
 import { createStubMcpDeps } from '#test/mcp-stubs'
 
@@ -117,8 +117,8 @@ describe('MCP server initialize', () => {
     await client.connect(clientTransport)
 
     expect(client.getServerVersion()).toEqual({
-      name: MCP_SERVER_NAME,
-      version: MCP_SERVER_VERSION,
+      name: 'meshi',
+      version: '0.0.0',
     })
     expect(client.getServerCapabilities()).toEqual({
       tools: { listChanged: true },

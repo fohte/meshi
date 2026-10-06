@@ -20,7 +20,7 @@ esac
 if [ "$package" = "." ]; then
   database_name="meshi_$environment"
 else
-  database_name="meshi_${package}_$environment"
+  database_name="meshi_${package//-/_}_$environment"
 fi
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"

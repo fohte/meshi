@@ -5,9 +5,5 @@ export type {
   MealHistoryResult,
   MealRecordResult,
   OrchestratorError,
-  QueryMealsInput,
-  RecommendInput,
   RecommendResult,
-  RecordFromImageInput,
-  RecordFromTextInput,
 } from '#llm/orchestrator/types'

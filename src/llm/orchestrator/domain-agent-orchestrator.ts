@@ -6,7 +6,6 @@ import { MemorySaver } from '@langchain/langgraph'
 import type { AnyAgentMiddleware } from 'langchain'
 import { ResultAsync } from 'neverthrow'
 
-import type { LlmToolSchema } from '#adapters/llm/types'
 import {
   type AgentContentBlock,
   formatPromptMeta,
@@ -32,7 +31,9 @@ import {
 } from '#llm/domain-tools/tools/query-meal-history'
 import type { RecordMealLogOutput } from '#llm/domain-tools/tools/record-meal-log'
 import type { SearchFoodMasterOutput } from '#llm/domain-tools/tools/search-food-master'
-import type { DomainTool, DomainToolName } from '#llm/domain-tools/types'
+import type { DomainTool } from '#llm/domain-tools/types'
+import { deriveDomainToolsRegistry } from '#llm/orchestrator/derived-tool-registry'
+import { restrictToReadOnly } from '#llm/orchestrator/read-only-tool-registry'
 import {
   createPassthroughReplyFormatter,
   type ReplyFormatter,
@@ -84,66 +85,13 @@ const wrapTool = (
   },
 })
 
-// Shared by every DomainToolsRegistry derivation below: createMeshiDomainAgent
-// only ever calls registry.list(), so a derived registry only needs to
-// override that (and get(), for stub/test symmetry). executeToolUse is
-// intentionally left unable to fall through to the source registry: any
-// future caller of it would silently bypass whatever this derivation exists
-// to enforce (recording, or restricting to read-only tools), so it fails
-// loudly instead (mirrors the stub registries in this file's own tests).
-const deriveRegistry = (
-  tools: ReadonlyArray<DomainTool>,
-  originName: string,
-  toLlmSchemas: () => ReadonlyArray<LlmToolSchema>,
-): DomainToolsRegistry => {
-  const byName = new Map<string, DomainTool>(tools.map((t) => [t.name, t]))
-  return {
-    list: () => tools,
-    get: (name) => byName.get(name),
-    toLlmSchemas,
-    executeToolUse: () =>
-      Promise.reject(
-        new Error(
-          `executeToolUse is not observed by ${originName}; createMeshiDomainAgent must not call it`,
-        ),
-      ),
-  }
-}
-
 const wrapRegistryForRecording = (
   registry: DomainToolsRegistry,
   invocations: RecordedInvocation[],
 ): DomainToolsRegistry => {
   const wrapped = registry.list().map((tool) => wrapTool(tool, invocations))
-  return deriveRegistry(wrapped, 'wrapRegistryForRecording', () =>
+  return deriveDomainToolsRegistry(wrapped, 'wrapRegistryForRecording', () =>
     registry.toLlmSchemas(),
-  )
-}
-
-// query_meals / recommend_meal declare readOnlyHint: true on their MCP tool
-// (see src/mcp-tools.ts), so the agent turn behind them must never be able
-// to reach a write tool — not even via a prompt-injected instruction in the
-// free-text query. createMeshiDomainAgent only calls registry.list(), so
-// filtering it here is enough (see deriveRegistry above).
-const READ_ONLY_TOOL_NAMES: ReadonlySet<DomainToolName> = new Set([
-  'search_food_master',
-  'query_meal_history',
-  'get_user_profile',
-  'web_search',
-])
-
-export const restrictToReadOnly = (
-  registry: DomainToolsRegistry,
-): DomainToolsRegistry => {
-  const tools = registry
-    .list()
-    .filter((tool) => READ_ONLY_TOOL_NAMES.has(tool.name))
-  return deriveRegistry(tools, 'restrictToReadOnly', () =>
-    tools.map((t) => ({
-      name: t.name,
-      description: t.description,
-      inputSchema: t.inputSchema,
-    })),
   )
 }
 

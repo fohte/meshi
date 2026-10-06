@@ -1,4 +1,1 @@
-export {
-  createDomainToolsRegistry,
-  type DomainToolsRegistry,
-} from '#llm/domain-tools/registry'
+export { createDomainToolsRegistry } from '#llm/domain-tools/registry'

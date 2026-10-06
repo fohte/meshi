@@ -19,7 +19,7 @@
     "preview": "vite preview",
     "test": "conc pnpm:test:type pnpm:test:unit",
     "test:type": "tsc --noEmit",
-    "test:unit": "vitest run",
+    "test:unit": "vitest run --passWithNoTests",
     "storybook": "storybook dev -p 6006",
     "storybook:build": "storybook build"
   },

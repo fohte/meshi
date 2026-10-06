@@ -61,7 +61,7 @@ run_db_doc() {
   if [[ "$package" == "." ]]; then
     current_database_name="meshi_doc_$$"
   else
-    current_database_name="meshi_doc_${package}_$$"
+    current_database_name="meshi_doc_${package//-/_}_$$"
   fi
 
   docker compose exec -T db createdb \

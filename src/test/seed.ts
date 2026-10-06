@@ -1,4 +1,6 @@
-import type { JsonValue, Sql } from '#db/index'
+import type postgres from 'postgres'
+
+import type { Sql } from '#db/index'
 import type {
   a2aPushConfigs,
   foodCompositions,
@@ -45,6 +47,20 @@ export const seedFoodMaster = async (
   },
 ): Promise<void> => {
   const { nutrients, ...row } = values
+  // Seed definitions in a stable code order before food masters so concurrent
+  // test transactions acquire nutrient and food-master locks consistently.
+  // ON CONFLICT DO NOTHING preserves any custom definitions the test seeded.
+  const nutrientEntries = Object.entries(nutrients ?? {}).sort(
+    ([left], [right]) => left.localeCompare(right),
+  )
+  for (const [nutrientCode] of nutrientEntries) {
+    await seedNutrientDefinition(sql, {
+      code: nutrientCode,
+      displayName: nutrientCode,
+      unit: 'g',
+    })
+  }
+
   await sql`
     INSERT INTO food_masters (id, name, is_estimated, source, source_url, source_composition_code)
     VALUES (
@@ -56,16 +72,7 @@ export const seedFoodMaster = async (
       ${row.sourceCompositionCode ?? null}
     )
   `
-  // Nutrient codes referenced by a seeded food need a definition row to
-  // satisfy the FK; ON CONFLICT DO NOTHING lets a test seed its own
-  // definitions first (e.g. with real display names/units) without this
-  // loop clobbering them.
-  for (const [nutrientCode, value] of Object.entries(nutrients ?? {})) {
-    await seedNutrientDefinition(sql, {
-      code: nutrientCode,
-      displayName: nutrientCode,
-      unit: 'g',
-    })
+  for (const [nutrientCode, value] of nutrientEntries) {
     await seedFoodMasterNutrient(sql, {
       foodMasterId: row.id,
       nutrientCode,
@@ -115,7 +122,7 @@ export const seedFoodComposition = async (
 export const seedA2aPushConfig = async (
   sql: Sql,
   values: Omit<typeof a2aPushConfigs.$inferInsert, 'createdAt' | 'config'> & {
-    config: JsonValue
+    config: postgres.JSONValue
   },
 ): Promise<void> => {
   await sql`

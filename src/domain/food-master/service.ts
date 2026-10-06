@@ -6,20 +6,11 @@ import type {
   FoodMaster,
   FoodMasterId,
   MergeFoodMasterResult,
+  RegisteredFromComposition,
   RegisterFoodMasterInput,
+  RegisterFromCompositionInput,
   SimilarFoodMasterCandidate,
 } from '#domain/food-master/types'
-
-export interface RegisterFromCompositionInput {
-  readonly compositionCode: string
-  readonly name?: string
-  readonly aliases?: ReadonlyArray<string>
-}
-
-export interface RegisteredFromComposition {
-  readonly foodMaster: FoodMaster
-  readonly compositionName: string
-}
 
 export interface FoodMasterService {
   register(
