@@ -1,8 +1,8 @@
 import type { CallToolResult } from '@modelcontextprotocol/server'
 
+import type { MealHistoryAggregate } from '#domain/meal-history/types'
 import type { UserProfile } from '#domain/user-profile/user-profile'
 import type {
-  MealHistoryResult,
   MealRecordResult,
   OrchestratorError,
   RecommendResult,
@@ -55,27 +55,23 @@ export const buildMealRecordPayload = (
 })
 
 export const buildMealHistoryPayload = (
-  result: MealHistoryResult,
+  aggregate: MealHistoryAggregate,
 ): Record<string, unknown> => ({
-  aggregate:
-    result.aggregate === null
-      ? null
-      : {
-          totals: result.aggregate.totals,
-          per_day: result.aggregate.perDay.map((d) => ({
-            date: d.date,
-            totals: d.totals,
-          })),
-          entries: result.aggregate.entries.map((e) => ({
-            meal_log_id: e.mealLogId,
-            food_master_id: e.foodMasterId,
-            eaten_date: e.eatenDate,
-            quantity: e.quantity,
-          })),
-          has_estimated_values: result.aggregate.hasEstimatedValues,
-        },
-  has_estimated_values: result.hasEstimatedValues,
-  error: orchestratorErrorPayload(result.error),
+  totals: aggregate.totals,
+  per_day: aggregate.perDay.map((day) => ({
+    date: day.date,
+    totals: day.totals,
+  })),
+  entries: aggregate.entries.map((entry) => ({
+    meal_log_id: entry.id,
+    food_master_id: entry.foodMasterId,
+    food_name: entry.foodName,
+    eaten_date: entry.eatenDate,
+    meal_type: entry.mealType,
+    quantity: entry.quantity,
+    recorded_at: entry.recordedAt,
+  })),
+  has_estimated_values: aggregate.hasEstimatedValues,
 })
 
 export const buildRecommendPayload = (

@@ -1,5 +1,9 @@
 import { errAsync } from 'neverthrow'
 
+import {
+  MealHistoryQueryError,
+  type MealHistoryService,
+} from '#domain/meal-history/types'
 import { UserProfileRepositoryError } from '#domain/user-profile/errors'
 import type { UserProfileService } from '#domain/user-profile/user-profile-service'
 import type { ConversationOrchestrator } from '#llm/orchestrator/index'
@@ -9,8 +13,11 @@ import type { MeshiToolDeps } from '#mcp-tools'
 const rejectingOrchestrator: ConversationOrchestrator = {
   recordFromText: () => Promise.reject(new Error('stub')),
   recordFromImage: () => Promise.reject(new Error('stub')),
-  queryMeals: () => Promise.reject(new Error('stub')),
   recommendMeal: () => Promise.reject(new Error('stub')),
+}
+
+const rejectingMealHistoryService: MealHistoryService = {
+  query: () => errAsync(new MealHistoryQueryError('stub')),
 }
 
 const rejectingProfileService: UserProfileService = {
@@ -20,6 +27,7 @@ const rejectingProfileService: UserProfileService = {
 
 export const createStubMcpDeps = (): MeshiToolDeps => ({
   orchestrator: rejectingOrchestrator,
+  mealHistoryService: rejectingMealHistoryService,
   profileService: rejectingProfileService,
   logger: createNullLogger(),
 })

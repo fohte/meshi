@@ -9,8 +9,7 @@ const READ_ONLY_TOOL_NAMES: ReadonlySet<DomainToolName> = new Set([
   'web_search',
 ])
 
-// query_meals / recommend_meal declare readOnlyHint: true on their MCP tool,
-// so the agent turn behind them must never be able to reach a write tool.
+// recommend_meal is read-only on MCP, so its agent turn must not reach a write tool.
 export const restrictToReadOnly = (
   registry: DomainToolsRegistry,
 ): DomainToolsRegistry => {

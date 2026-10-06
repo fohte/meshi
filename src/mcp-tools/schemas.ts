@@ -1,6 +1,8 @@
 import { z } from 'zod'
 
 import { SUPPORTED_IMAGE_MIME_TYPES } from '#adapters/image/image-types'
+import { MEAL_TYPES } from '#domain/meal-log/types'
+import { jstDateSchema } from '#lib/jst-date'
 
 const isoDatetime = z.iso.datetime({ offset: true })
 // z.number() rejects NaN and Infinity by default in zod v4, so it is safe to
@@ -43,28 +45,31 @@ export const mealRecordStructuredOutput = z.object({
 })
 
 export const mealHistoryStructuredOutput = z.object({
-  aggregate: z
-    .object({
+  totals: nutritionMap,
+  per_day: z.array(
+    z.object({
+      date: jstDateSchema,
       totals: nutritionMap,
-      per_day: z.array(
-        z.object({
-          date: z.string(),
-          totals: nutritionMap,
-        }),
-      ),
-      entries: z.array(
-        z.object({
-          meal_log_id: z.string(),
-          food_master_id: z.string(),
-          eaten_date: z.string(),
-          quantity: z.number(),
-        }),
-      ),
-      has_estimated_values: z.boolean(),
-    })
-    .nullable(),
+    }),
+  ),
+  entries: z.array(
+    z.object({
+      meal_log_id: z
+        .string()
+        .describe('食事記録 ID。後で記録を削除・修正するときに指定する。'),
+      food_master_id: z.string(),
+      food_name: z.string(),
+      eaten_date: jstDateSchema,
+      meal_type: z.enum(MEAL_TYPES),
+      quantity: z.number(),
+      recorded_at: z.iso
+        .datetime({ offset: true })
+        .describe(
+          'meal_logs.created_at を UTC の ISO 8601 形式で秒精度にした値',
+        ),
+    }),
+  ),
   has_estimated_values: z.boolean(),
-  error: orchestratorErrorOutput,
 })
 
 export const recommendStructuredOutput = z.object({
@@ -120,13 +125,8 @@ export const recordFromImageInput = z.object({
 })
 
 export const queryMealsInput = z.object({
-  query_text: z
-    .string()
-    .min(1)
-    .describe('自然言語クエリ (例: 今週のタンパク質)'),
-  period_from_iso: isoDatetime.optional(),
-  period_to_iso: isoDatetime.optional(),
-  timezone: z.string().min(1).optional(),
+  period_from: jstDateSchema.describe('期間の開始日 (JST、含む。YYYY-MM-DD)'),
+  period_to: jstDateSchema.describe('期間の終了日 (JST、含まない。YYYY-MM-DD)'),
 })
 
 export const recommendMealInput = z.object({

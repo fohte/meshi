@@ -77,6 +77,7 @@ describeIfDb('DayDetailService.query', () => {
               eatenDate: jstDate('2026-06-01'),
               mealType: 'breakfast',
               quantity: 2,
+              recordedAt: '2026-06-01T03:00:00Z',
             },
             {
               id: 'log-2',
@@ -85,6 +86,7 @@ describeIfDb('DayDetailService.query', () => {
               eatenDate: jstDate('2026-06-01'),
               mealType: 'dinner',
               quantity: 0.5,
+              recordedAt: '2026-06-01T03:00:00Z',
             },
           ],
         }),
@@ -183,6 +185,7 @@ describeIfDb('DayDetailService.query', () => {
               eatenDate: jstDate('2026-06-01'),
               mealType: 'breakfast',
               quantity: 2,
+              recordedAt: '2026-06-01T03:00:00Z',
             },
           ],
         }),
