@@ -1,6 +1,6 @@
 import { Client, InMemoryTransport } from '@modelcontextprotocol/client'
 import { errAsync, okAsync } from 'neverthrow'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 
 import type { UserProfileRepositoryError } from '#domain/user-profile/errors'
 import type {
@@ -98,6 +98,17 @@ const erroredMealRecord: MealRecordResult = {
   } satisfies OrchestratorError,
 }
 
+const deadlineMealRecord: MealRecordResult = {
+  recorded: [],
+  candidates: [],
+  hasEstimatedValues: false,
+  summaryText: '処理が時間内に終わらなかったため中断しました。',
+  error: {
+    kind: 'deadline_exceeded',
+    message: '処理が時間内に終わらなかったため中断しました。',
+  },
+}
+
 const successMealHistory: MealHistoryResult = {
   aggregate: {
     totals: { energy_kcal: 1850 },
@@ -129,6 +140,7 @@ interface OrchestratorCalls {
   recordFromImage: RecordFromImageInput[]
   queryMeals: QueryMealsInput[]
   recommendMeal: RecommendInput[]
+  signals: AbortSignal[]
 }
 
 interface OrchestratorOverrides {
@@ -140,30 +152,41 @@ interface OrchestratorOverrides {
 
 const makeOrchestrator = (
   overrides: OrchestratorOverrides = {},
+  recordFromTextHandler?: (
+    signal: AbortSignal | undefined,
+  ) => Promise<MealRecordResult>,
 ): { orchestrator: ConversationOrchestrator; calls: OrchestratorCalls } => {
   const calls: OrchestratorCalls = {
     recordFromText: [],
     recordFromImage: [],
     queryMeals: [],
     recommendMeal: [],
+    signals: [],
   }
   const resolve = <T>(value: T | Error): Promise<T> =>
     value instanceof Error ? Promise.reject(value) : Promise.resolve(value)
   const orchestrator: ConversationOrchestrator = {
-    recordFromText(input) {
+    recordFromText(input, signal) {
       calls.recordFromText.push(input)
+      if (signal !== undefined) calls.signals.push(signal)
+      if (recordFromTextHandler !== undefined) {
+        return recordFromTextHandler(signal)
+      }
       return resolve(overrides.recordFromText ?? successMealRecord)
     },
-    recordFromImage(input) {
+    recordFromImage(input, signal) {
       calls.recordFromImage.push(input)
+      if (signal !== undefined) calls.signals.push(signal)
       return resolve(overrides.recordFromImage ?? successMealRecord)
     },
-    queryMeals(input) {
+    queryMeals(input, signal) {
       calls.queryMeals.push(input)
+      if (signal !== undefined) calls.signals.push(signal)
       return resolve(overrides.queryMeals ?? successMealHistory)
     },
-    recommendMeal(input) {
+    recommendMeal(input, signal) {
       calls.recommendMeal.push(input)
+      if (signal !== undefined) calls.signals.push(signal)
       return resolve(overrides.recommendMeal ?? successRecommend)
     },
   }
@@ -229,6 +252,9 @@ interface Harness {
 
 interface HarnessConfig {
   orchestratorOverrides?: OrchestratorOverrides
+  recordFromTextHandler?: (
+    signal: AbortSignal | undefined,
+  ) => Promise<MealRecordResult>
   profileOverrides?: {
     get?: UserProfileRepositoryError
     update?: UserProfileRepositoryError
@@ -241,6 +267,7 @@ const start = async (config: HarnessConfig = {}): Promise<Harness> => {
   const logger = makeLogger(logs)
   const { orchestrator, calls } = makeOrchestrator(
     config.orchestratorOverrides ?? {},
+    config.recordFromTextHandler,
   )
   const { service: profileService, calls: profileCalls } = makeProfileService(
     config.profile ?? defaultProfile,
@@ -417,6 +444,133 @@ describe('record_meal_from_text', () => {
         'meshi.tool_failed',
       ])
     } finally {
+      await h.close()
+    }
+  })
+
+  it('sets a 50-second deadline for MCP LLM tools', async () => {
+    const timeout = vi
+      .spyOn(AbortSignal, 'timeout')
+      .mockReturnValue(new AbortController().signal)
+    const h = await start()
+
+    try {
+      await h.client.callTool({
+        name: 'record_meal_from_text',
+        arguments: { text: 'foo' },
+      })
+
+      expect(timeout.mock.calls[0]?.[0]).toEqual(50_000)
+    } finally {
+      timeout.mockRestore()
+      await h.close()
+    }
+  })
+
+  it('returns an explicit error when the MCP tool deadline expires', async () => {
+    const timeoutController = new AbortController()
+    const timeout = vi
+      .spyOn(AbortSignal, 'timeout')
+      .mockReturnValue(timeoutController.signal)
+    let markStarted: () => void = () => {}
+    const started = new Promise<void>((resolve) => {
+      markStarted = resolve
+    })
+    const h = await start({
+      recordFromTextHandler: (signal) =>
+        new Promise((resolve) => {
+          signal?.addEventListener(
+            'abort',
+            () => {
+              resolve(deadlineMealRecord)
+            },
+            { once: true },
+          )
+          markStarted()
+        }),
+    })
+
+    try {
+      const call = h.client.callTool({
+        name: 'record_meal_from_text',
+        arguments: { text: 'foo' },
+      })
+      await started
+      timeoutController.abort(
+        new DOMException('Tool deadline exceeded', 'TimeoutError'),
+      )
+      const result = await call
+
+      expect(result).toEqual({
+        content: [
+          {
+            type: 'text',
+            text: '処理が時間内に終わらなかったため中断しました。',
+          },
+        ],
+        structuredContent: {
+          recorded: [],
+          candidates: [],
+          has_estimated_values: false,
+          error: {
+            kind: 'deadline_exceeded',
+            message: '処理が時間内に終わらなかったため中断しました。',
+          },
+        },
+        isError: true,
+      })
+    } finally {
+      timeout.mockRestore()
+      await h.close()
+    }
+  })
+
+  it('passes MCP request cancellation to the orchestrator signal', async () => {
+    const timeout = vi
+      .spyOn(AbortSignal, 'timeout')
+      .mockReturnValue(new AbortController().signal)
+    let receivedSignal: AbortSignal | undefined
+    let markStarted: () => void = () => {}
+    const started = new Promise<void>((resolve) => {
+      markStarted = resolve
+    })
+    let markAborted: () => void = () => {}
+    const aborted = new Promise<void>((resolve) => {
+      markAborted = resolve
+    })
+    const h = await start({
+      recordFromTextHandler: (signal) =>
+        new Promise((resolve) => {
+          receivedSignal = signal
+          signal?.addEventListener(
+            'abort',
+            () => {
+              markAborted()
+              resolve(erroredMealRecord)
+            },
+            { once: true },
+          )
+          markStarted()
+        }),
+    })
+    const requestController = new AbortController()
+
+    try {
+      const call = h.client.callTool(
+        {
+          name: 'record_meal_from_text',
+          arguments: { text: 'foo' },
+        },
+        { signal: requestController.signal },
+      )
+      await started
+      requestController.abort()
+      await call.catch(() => undefined)
+      await aborted
+
+      expect(receivedSignal?.aborted).toEqual(true)
+    } finally {
+      timeout.mockRestore()
       await h.close()
     }
   })

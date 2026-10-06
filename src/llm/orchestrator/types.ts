@@ -63,6 +63,7 @@ export interface MealHistoryAggregateSnapshot {
 }
 
 type OrchestratorErrorKind =
+  | 'deadline_exceeded'
   | 'max_turns_exceeded'
   | 'divergence_detected'
   | 'interpretation_failed'
@@ -94,8 +95,20 @@ export interface RecommendResult {
 }
 
 export interface ConversationOrchestrator {
-  recordFromText(input: RecordFromTextInput): Promise<MealRecordResult>
-  recordFromImage(input: RecordFromImageInput): Promise<MealRecordResult>
-  queryMeals(input: QueryMealsInput): Promise<MealHistoryResult>
-  recommendMeal(input: RecommendInput): Promise<RecommendResult>
+  recordFromText(
+    input: RecordFromTextInput,
+    signal?: AbortSignal,
+  ): Promise<MealRecordResult>
+  recordFromImage(
+    input: RecordFromImageInput,
+    signal?: AbortSignal,
+  ): Promise<MealRecordResult>
+  queryMeals(
+    input: QueryMealsInput,
+    signal?: AbortSignal,
+  ): Promise<MealHistoryResult>
+  recommendMeal(
+    input: RecommendInput,
+    signal?: AbortSignal,
+  ): Promise<RecommendResult>
 }

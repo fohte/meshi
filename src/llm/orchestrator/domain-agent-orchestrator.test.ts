@@ -67,6 +67,52 @@ const normalizeInvokeError = (result: MealRecordResult): MealRecordResult => ({
 })
 
 describe('createDomainAgentOrchestrator', () => {
+  it('stops a turn when its abort signal is already expired', async () => {
+    const controller = new AbortController()
+    controller.abort(
+      new DOMException(
+        'The operation was aborted due to timeout',
+        'TimeoutError',
+      ),
+    )
+    const orchestrator = createDomainAgentOrchestrator({
+      model: fakeModel().respond(new AIMessage('final answer')),
+      registry: stubRegistry([]),
+    })
+
+    const result = await orchestrator.recommendMeal({}, controller.signal)
+
+    expect(result).toEqual({
+      summaryText: '処理が時間内に終わらなかったため中断しました。',
+      error: {
+        kind: 'deadline_exceeded',
+        message: '処理が時間内に終わらなかったため中断しました。',
+      },
+    })
+  })
+
+  it('returns a deadline error when a model request times out', async () => {
+    const orchestrator = createDomainAgentOrchestrator({
+      model: fakeModel().alwaysThrow(
+        new DOMException(
+          'The operation was aborted due to timeout',
+          'TimeoutError',
+        ),
+      ),
+      registry: stubRegistry([]),
+    })
+
+    const result = await orchestrator.recommendMeal({})
+
+    expect(result).toEqual({
+      summaryText: '処理が時間内に終わらなかったため中断しました。',
+      error: {
+        kind: 'deadline_exceeded',
+        message: '処理が時間内に終わらなかったため中断しました。',
+      },
+    })
+  })
+
   describe('recordFromText', () => {
     it('extracts a recorded meal from the record_meal_log call', async () => {
       const registry = stubRegistry([

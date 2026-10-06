@@ -82,6 +82,8 @@ const formatNutrition = (n: Readonly<Record<string, number>>): string => {
 
 const formatErrorReply = (error: OrchestratorError): string => {
   switch (error.kind) {
+    case 'deadline_exceeded':
+      return error.message
     case 'interpretation_failed':
       return [
         '画像を解釈できませんでした。',

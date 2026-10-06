@@ -33,6 +33,14 @@ export interface MeshiToolDeps {
   readonly logger: Logger
 }
 
+const MCP_LLM_TOOL_DEADLINE_MS = 50_000
+
+const createMcpLlmToolSignal = (requestSignal: AbortSignal): AbortSignal =>
+  AbortSignal.any([
+    requestSignal,
+    AbortSignal.timeout(MCP_LLM_TOOL_DEADLINE_MS),
+  ])
+
 export const registerMeshiTools = (
   server: McpServer,
   deps: MeshiToolDeps,
@@ -47,17 +55,21 @@ export const registerMeshiTools = (
       inputSchema: recordFromTextInput,
       outputSchema: mealRecordStructuredOutput,
     },
-    async (args) => {
+    async (args, context) => {
       logger.log(TOOL_CALLED, { tool: 'record_meal_from_text' })
+      const signal = createMcpLlmToolSignal(context.mcpReq.signal)
       // eslint-disable-next-line no-restricted-syntax -- orchestrator.recordFromText() already converts its own failures into result.error rather than rejecting; this guards against a genuinely unexpected throw so it gets structured TOOL_FAILED logging via errorResult() instead of the MCP SDK's own generic isError fallback
       try {
-        const result = await orchestrator.recordFromText({
-          text: args.text,
-          ...(args.occurred_at === undefined
-            ? {}
-            : { occurredAt: new Date(args.occurred_at) }),
-          ...(args.timezone === undefined ? {} : { timezone: args.timezone }),
-        })
+        const result = await orchestrator.recordFromText(
+          {
+            text: args.text,
+            ...(args.occurred_at === undefined
+              ? {}
+              : { occurredAt: new Date(args.occurred_at) }),
+            ...(args.timezone === undefined ? {} : { timezone: args.timezone }),
+          },
+          signal,
+        )
         logOrchestratorOutcome(logger, 'record_meal_from_text', result.error, {
           recorded: result.recorded.length,
           candidates: result.candidates.length,
@@ -81,18 +93,24 @@ export const registerMeshiTools = (
       inputSchema: recordFromImageInput,
       outputSchema: mealRecordStructuredOutput,
     },
-    async (args) => {
+    async (args, context) => {
       logger.log(TOOL_CALLED, { tool: 'record_meal_from_image' })
+      const signal = createMcpLlmToolSignal(context.mcpReq.signal)
       // eslint-disable-next-line no-restricted-syntax -- orchestrator.recordFromImage() already converts its own failures into result.error rather than rejecting; this guards against a genuinely unexpected throw so it gets structured TOOL_FAILED logging via errorResult() instead of the MCP SDK's own generic isError fallback
       try {
-        const result = await orchestrator.recordFromImage({
-          image: { mimeType: args.image.mimeType, base64: args.image.data },
-          ...(args.hint_text === undefined ? {} : { hintText: args.hint_text }),
-          ...(args.occurred_at === undefined
-            ? {}
-            : { occurredAt: new Date(args.occurred_at) }),
-          ...(args.timezone === undefined ? {} : { timezone: args.timezone }),
-        })
+        const result = await orchestrator.recordFromImage(
+          {
+            image: { mimeType: args.image.mimeType, base64: args.image.data },
+            ...(args.hint_text === undefined
+              ? {}
+              : { hintText: args.hint_text }),
+            ...(args.occurred_at === undefined
+              ? {}
+              : { occurredAt: new Date(args.occurred_at) }),
+            ...(args.timezone === undefined ? {} : { timezone: args.timezone }),
+          },
+          signal,
+        )
         logOrchestratorOutcome(logger, 'record_meal_from_image', result.error, {
           recorded: result.recorded.length,
           candidates: result.candidates.length,
@@ -116,20 +134,24 @@ export const registerMeshiTools = (
       outputSchema: mealHistoryStructuredOutput,
       annotations: { readOnlyHint: true },
     },
-    async (args) => {
+    async (args, context) => {
       logger.log(TOOL_CALLED, { tool: 'query_meals' })
+      const signal = createMcpLlmToolSignal(context.mcpReq.signal)
       // eslint-disable-next-line no-restricted-syntax -- orchestrator.queryMeals() already converts its own failures into result.error rather than rejecting; this guards against a genuinely unexpected throw so it gets structured TOOL_FAILED logging via errorResult() instead of the MCP SDK's own generic isError fallback
       try {
-        const result = await orchestrator.queryMeals({
-          query: args.query_text,
-          ...(args.period_from_iso === undefined
-            ? {}
-            : { periodFrom: new Date(args.period_from_iso) }),
-          ...(args.period_to_iso === undefined
-            ? {}
-            : { periodTo: new Date(args.period_to_iso) }),
-          ...(args.timezone === undefined ? {} : { timezone: args.timezone }),
-        })
+        const result = await orchestrator.queryMeals(
+          {
+            query: args.query_text,
+            ...(args.period_from_iso === undefined
+              ? {}
+              : { periodFrom: new Date(args.period_from_iso) }),
+            ...(args.period_to_iso === undefined
+              ? {}
+              : { periodTo: new Date(args.period_to_iso) }),
+            ...(args.timezone === undefined ? {} : { timezone: args.timezone }),
+          },
+          signal,
+        )
         logOrchestratorOutcome(logger, 'query_meals', result.error, {
           has_aggregate: result.aggregate !== null,
         })
@@ -153,16 +175,20 @@ export const registerMeshiTools = (
       outputSchema: recommendStructuredOutput,
       annotations: { readOnlyHint: true },
     },
-    async (args) => {
+    async (args, context) => {
       logger.log(TOOL_CALLED, { tool: 'recommend_meal' })
+      const signal = createMcpLlmToolSignal(context.mcpReq.signal)
       // eslint-disable-next-line no-restricted-syntax -- orchestrator.recommendMeal() already converts its own failures into result.error rather than rejecting; this guards against a genuinely unexpected throw so it gets structured TOOL_FAILED logging via errorResult() instead of the MCP SDK's own generic isError fallback
       try {
-        const result = await orchestrator.recommendMeal({
-          ...(args.additional_constraints === undefined
-            ? {}
-            : { conditions: args.additional_constraints }),
-          ...(args.timezone === undefined ? {} : { timezone: args.timezone }),
-        })
+        const result = await orchestrator.recommendMeal(
+          {
+            ...(args.additional_constraints === undefined
+              ? {}
+              : { conditions: args.additional_constraints }),
+            ...(args.timezone === undefined ? {} : { timezone: args.timezone }),
+          },
+          signal,
+        )
         logOrchestratorOutcome(logger, 'recommend_meal', result.error, {})
         return orchestratorCallToolResult(
           result.summaryText,

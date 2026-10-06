@@ -26,6 +26,7 @@ const foodCandidateOutput = z.object({
 const orchestratorErrorOutput = z
   .object({
     kind: z.enum([
+      'deadline_exceeded',
       'max_turns_exceeded',
       'divergence_detected',
       'interpretation_failed',

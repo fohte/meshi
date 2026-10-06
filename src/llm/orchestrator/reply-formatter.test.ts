@@ -197,6 +197,18 @@ describe('createTemplateReplyFormatter', () => {
       )
     })
 
+    it('explains that the deadline expired', () => {
+      const text = formatter.formatRecommend({
+        finalText: '',
+        error: {
+          kind: 'deadline_exceeded',
+          message: '処理が時間内に終わらなかったため中断しました。',
+        },
+      })
+
+      expect(text).toEqual('処理が時間内に終わらなかったため中断しました。')
+    })
+
     it('explains an item conversation failure', () => {
       const text = formatter.formatMealRecord({
         recorded: [],

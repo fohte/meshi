@@ -194,6 +194,13 @@ const ORCHESTRATOR_NO_USABLE_REPLY_FINGERPRINT =
 const errorMessage = (e: unknown): string =>
   e instanceof Error ? e.message : String(e)
 
+const isTimeoutError = (e: unknown): boolean =>
+  e instanceof Error &&
+  (e.name === 'TimeoutError' || e.name === 'APIConnectionTimeoutError')
+
+const DEADLINE_EXCEEDED_MESSAGE =
+  '処理が時間内に終わらなかったため中断しました。'
+
 const textContent = (
   body: string,
   occurredAt: Date | undefined,
@@ -212,6 +219,7 @@ export const createDomainAgentOrchestrator = (
   const runTurn = async (
     content: ReadonlyArray<AgentContentBlock>,
     registry: DomainToolsRegistry = options.registry,
+    signal?: AbortSignal,
   ): Promise<{
     readonly invocations: ReadonlyArray<RecordedInvocation>
     readonly reply: AgentReply | null
@@ -237,6 +245,7 @@ export const createDomainAgentOrchestrator = (
         {
           configurable: { thread_id: randomUUID() },
           recursionLimit: MESHI_AGENT_RECURSION_LIMIT,
+          ...(signal === undefined ? {} : { signal }),
         },
       ),
       (cause) => cause,
@@ -271,13 +280,19 @@ export const createDomainAgentOrchestrator = (
       },
       (cause) => {
         captureWithFingerprint(cause, ORCHESTRATOR_INVOKE_FAILED_FINGERPRINT)
+        const timedOut = isTimeoutError(cause) || isTimeoutError(signal?.reason)
         return {
           invocations,
           reply: null,
-          error: {
-            kind: AGENT_ERROR_KIND,
-            message: `${AGENT_INVOKE_FAILED_PREFIX} ${errorMessage(cause)}`,
-          },
+          error: timedOut
+            ? {
+                kind: 'deadline_exceeded',
+                message: DEADLINE_EXCEEDED_MESSAGE,
+              }
+            : {
+                kind: AGENT_ERROR_KIND,
+                message: `${AGENT_INVOKE_FAILED_PREFIX} ${errorMessage(cause)}`,
+              },
         }
       },
     )
@@ -285,8 +300,13 @@ export const createDomainAgentOrchestrator = (
 
   const runRecordTurn = async (
     content: ReadonlyArray<AgentContentBlock>,
+    signal?: AbortSignal,
   ): Promise<MealRecordResult> => {
-    const { invocations, reply, error } = await runTurn(content)
+    const { invocations, reply, error } = await runTurn(
+      content,
+      options.registry,
+      signal,
+    )
     const recorded = collectRecorded(invocations)
     const candidates = recordedAfterLastSearch(invocations)
       ? []
@@ -303,12 +323,13 @@ export const createDomainAgentOrchestrator = (
   }
 
   return {
-    recordFromText(input: RecordFromTextInput) {
+    recordFromText(input: RecordFromTextInput, signal?: AbortSignal) {
       return runRecordTurn(
         textContent(input.text, input.occurredAt, input.timezone),
+        signal,
       )
     },
-    recordFromImage(input: RecordFromImageInput) {
+    recordFromImage(input: RecordFromImageInput, signal?: AbortSignal) {
       const content: AgentContentBlock[] = []
       const meta = formatPromptMeta(input.occurredAt, input.timezone)
       if (meta !== '') content.push({ type: 'text', text: meta })
@@ -320,9 +341,12 @@ export const createDomainAgentOrchestrator = (
         mimeType: input.image.mimeType,
         data: input.image.base64,
       })
-      return runRecordTurn(content)
+      return runRecordTurn(content, signal)
     },
-    async queryMeals(input: QueryMealsInput): Promise<MealHistoryResult> {
+    async queryMeals(
+      input: QueryMealsInput,
+      signal?: AbortSignal,
+    ): Promise<MealHistoryResult> {
       const body = [
         input.query,
         input.periodFrom !== undefined
@@ -337,6 +361,7 @@ export const createDomainAgentOrchestrator = (
       const { invocations, reply, error } = await runTurn(
         textContent(body, undefined, input.timezone),
         restrictToReadOnly(options.registry),
+        signal,
       )
       const aggregate = collectLastAggregate(invocations)
       const summaryText = formatter.formatMealHistory({
@@ -351,11 +376,15 @@ export const createDomainAgentOrchestrator = (
         error,
       }
     },
-    async recommendMeal(input: RecommendInput): Promise<RecommendResult> {
+    async recommendMeal(
+      input: RecommendInput,
+      signal?: AbortSignal,
+    ): Promise<RecommendResult> {
       const body = input.conditions ?? 'No additional conditions.'
       const { reply, error } = await runTurn(
         textContent(body, undefined, input.timezone),
         restrictToReadOnly(options.registry),
+        signal,
       )
       const summaryText = formatter.formatRecommend({
         finalText: reply?.text ?? '',

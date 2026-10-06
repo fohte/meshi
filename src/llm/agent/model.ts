@@ -14,6 +14,9 @@ export const createMeshiChatModel = (
   new ChatOpenAI({
     model: options.model,
     apiKey: options.apiKey,
+    streaming: true,
+    timeout: 45_000,
+    maxRetries: 0,
     configuration: {
       baseURL: options.baseUrl ?? OPENCODE_GO_BASE_URL,
     },
