@@ -3,7 +3,7 @@ import {
   errAsync,
   ok,
   okAsync,
-  type Result,
+  Result,
   type ResultAsync,
 } from 'neverthrow'
 
@@ -145,41 +145,37 @@ export const createMealLogService = (
     )
 
     return validatedItems.andThen((items) => {
-      const insertInputs = items.map(({ item }) => ({
-        id: deps.idGenerator(),
-        foodMasterId: item.foodMasterId,
-        eatenDate: input.eatenDate,
-        mealType: input.mealType,
-        quantity: item.quantity,
+      const plannedItems = items.map(({ item, food }) => ({
+        food,
+        insertInput: {
+          id: deps.idGenerator(),
+          foodMasterId: item.foodMasterId,
+          eatenDate: input.eatenDate,
+          mealType: input.mealType,
+          quantity: item.quantity,
+        },
       }))
 
-      return deps.repository.insertMealLogs(insertInputs).andThen((rows) => {
-        const rowsById = new Map(rows.map((row) => [row.id, row] as const))
-        const results = items.map((entry, index) => {
-          const insertInput = insertInputs[index]
-          const row =
-            insertInput === undefined ? undefined : rowsById.get(insertInput.id)
-          return row === undefined
-            ? null
-            : {
-                ...buildResult(row, entry.food),
-                foodName: entry.food.name,
-              }
-        })
-
-        if (results.some((result) => result === null)) {
-          return errAsync(
-            new MealLogPersistenceError(
-              'meal_logs bulk insert returned incomplete rows',
-            ),
+      return deps.repository
+        .insertMealLogs(plannedItems.map(({ insertInput }) => insertInput))
+        .andThen((rows) => {
+          const rowsById = new Map(rows.map((row) => [row.id, row] as const))
+          return Result.combine(
+            plannedItems.map(({ food, insertInput }) => {
+              const row = rowsById.get(insertInput.id)
+              return row === undefined
+                ? err(
+                    new MealLogPersistenceError(
+                      'meal_logs bulk insert returned incomplete rows',
+                    ),
+                  )
+                : ok({
+                    ...buildResult(row, food),
+                    foodName: food.name,
+                  })
+            }),
           )
-        }
-        return okAsync(
-          results.filter(
-            (result): result is RecordMealLogItemResult => result !== null,
-          ),
-        )
-      })
+        })
     })
   },
   update(input) {
