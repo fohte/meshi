@@ -1,59 +1,14 @@
-import { and, eq, inArray } from 'drizzle-orm'
 import { drizzle } from 'drizzle-orm/postgres-js'
 import { err, ok, ResultAsync } from 'neverthrow'
 import { z } from 'zod'
 
 import type { Sql } from '#db/index'
-import { foodMasterNutrients, foodMasters } from '#db/schema'
+import { loadFoodMasterEnrichment } from '#domain/food-browse/food-enrichment'
 import type { FoodBrowseService, FoodListItem } from '#domain/food-browse/types'
 import { FoodBrowseQueryError } from '#domain/food-browse/types'
-import type { FoodSource } from '#domain/food-master/types'
 import type { FoodMatcher } from '#domain/food-matcher/food-matcher'
 
 const ENERGY_KCAL_CODE = 'energy_kcal'
-
-type Db = ReturnType<typeof drizzle>
-
-interface Enrichment {
-  readonly source: FoodSource
-  readonly energyKcalPerUnit: number | null
-}
-
-const numericOrNull = (value: string | null): number | null =>
-  value === null ? null : Number(value)
-
-const loadEnrichment = async (
-  db: Db,
-  foodMasterIds: ReadonlyArray<string>,
-): Promise<Map<string, Enrichment>> => {
-  if (foodMasterIds.length === 0) return new Map()
-
-  const rows = await db
-    .select({
-      id: foodMasters.id,
-      source: foodMasters.source,
-      energyKcal: foodMasterNutrients.value,
-    })
-    .from(foodMasters)
-    .leftJoin(
-      foodMasterNutrients,
-      and(
-        eq(foodMasterNutrients.foodMasterId, foodMasters.id),
-        eq(foodMasterNutrients.nutrientCode, ENERGY_KCAL_CODE),
-      ),
-    )
-    .where(inArray(foodMasters.id, [...foodMasterIds]))
-
-  return new Map(
-    rows.map((row) => [
-      row.id,
-      {
-        source: row.source,
-        energyKcalPerUnit: numericOrNull(row.energyKcal),
-      },
-    ]),
-  )
-}
 
 // Rows shared by the recent/frequent raw queries below: both join
 // food_masters + food_master_nutrients the same way and differ only in how
@@ -65,8 +20,9 @@ const rawRowSchema = z.object({
   source: z.enum(['web_search', 'composition_table_estimate', 'user_input']),
   energy_kcal: z
     .union([z.number(), z.string()])
-    .nullable()
-    .transform((v) => (v === null ? null : Number(v))),
+    .transform(Number)
+    .pipe(z.number())
+    .nullable(),
 })
 
 const rawRowsSchema = z.array(rawRowSchema)
@@ -104,7 +60,7 @@ export const createFoodBrowseService = (
   sql: Sql,
   foodMatcher: FoodMatcher,
 ): FoodBrowseService => {
-  const db: Db = drizzle(sql)
+  const db = drizzle(sql)
 
   return {
     search: (query, limit) =>
@@ -115,33 +71,34 @@ export const createFoodBrowseService = (
       foodMatcher
         .search({ queries: [query], origin: 'homemade', limit })
         .andThen((candidates) =>
-          ResultAsync.fromPromise(
-            loadEnrichment(
-              db,
-              candidates.map((c) => c.foodMasterId).filter((id) => id !== null),
+          loadFoodMasterEnrichment(
+            db,
+            candidates.map((c) => c.foodMasterId).filter((id) => id !== null),
+          )
+            .mapErr(
+              (caughtErr) =>
+                new FoodBrowseQueryError(
+                  'failed to enrich food search results',
+                  caughtErr,
+                ),
+            )
+            .map((enrichment) =>
+              candidates.map((candidate): FoodListItem => {
+                const enriched =
+                  candidate.foodMasterId === null
+                    ? undefined
+                    : enrichment.get(candidate.foodMasterId)
+                return {
+                  foodMasterId: candidate.foodMasterId,
+                  compositionCode: candidate.compositionCode,
+                  name: candidate.name,
+                  isEstimated: candidate.isEstimated,
+                  reason: candidate.reason,
+                  source: enriched?.source ?? null,
+                  energyKcalPerUnit: enriched?.energyKcalPerUnit ?? null,
+                }
+              }),
             ),
-            (caughtErr) =>
-              new FoodBrowseQueryError(
-                'failed to enrich food search results',
-                caughtErr,
-              ),
-          ).map((enrichment) =>
-            candidates.map((candidate): FoodListItem => {
-              const enriched =
-                candidate.foodMasterId === null
-                  ? undefined
-                  : enrichment.get(candidate.foodMasterId)
-              return {
-                foodMasterId: candidate.foodMasterId,
-                compositionCode: candidate.compositionCode,
-                name: candidate.name,
-                isEstimated: candidate.isEstimated,
-                reason: candidate.reason,
-                source: enriched?.source ?? null,
-                energyKcalPerUnit: enriched?.energyKcalPerUnit ?? null,
-              }
-            }),
-          ),
         ),
 
     listRecent: (limit) =>

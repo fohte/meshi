@@ -1,9 +1,12 @@
 import type { McpServer } from '@modelcontextprotocol/server'
 import { z } from 'zod'
 
+import type { FoodSearchService } from '#domain/food-browse/food-search-service'
+import type { MealLogService } from '#domain/meal-log/meal-log-service'
 import type { UserProfileService } from '#domain/user-profile/user-profile-service'
 import type { ConversationOrchestrator } from '#llm/orchestrator/index'
 import type { Logger } from '#logger'
+import { registerMealLoggingTools } from '#mcp-tools/meal-logging'
 import {
   buildMealHistoryPayload,
   buildMealRecordPayload,
@@ -30,6 +33,8 @@ import {
 export interface MeshiToolDeps {
   readonly orchestrator: ConversationOrchestrator
   readonly profileService: UserProfileService
+  readonly foodSearchService: FoodSearchService
+  readonly mealLogService: MealLogService
   readonly logger: Logger
 }
 
@@ -38,6 +43,12 @@ export const registerMeshiTools = (
   deps: MeshiToolDeps,
 ): void => {
   const { orchestrator, profileService, logger } = deps
+
+  registerMealLoggingTools(server, {
+    foodSearchService: deps.foodSearchService,
+    mealLogService: deps.mealLogService,
+    logger,
+  })
 
   server.registerTool(
     'record_meal_from_text',

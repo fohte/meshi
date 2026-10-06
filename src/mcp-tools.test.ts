@@ -2,6 +2,20 @@ import { Client, InMemoryTransport } from '@modelcontextprotocol/client'
 import { errAsync, okAsync } from 'neverthrow'
 import { describe, expect, it } from 'vitest'
 
+import type {
+  FoodSearchService,
+  RegisteredFoodSearchResult,
+} from '#domain/food-browse/food-search-service'
+import {
+  DomainError,
+  InvalidQuantityError,
+  MealLogItemValidationError,
+} from '#domain/meal-log/errors'
+import type { MealLogService } from '#domain/meal-log/meal-log-service'
+import type {
+  RecordMealLogItemResult,
+  RecordMealLogsInput,
+} from '#domain/meal-log/types'
 import type { UserProfileRepositoryError } from '#domain/user-profile/errors'
 import type {
   UserProfile,
@@ -23,6 +37,7 @@ import type {
 } from '#llm/orchestrator/types'
 import type { Logger } from '#logger'
 import { createMcpServer } from '#mcp'
+import { jstDate } from '#test/jst-date'
 
 const VALIDATION_ERROR_TEXT = '<schema validation error>'
 
@@ -43,6 +58,8 @@ const normalizeValidationError = <
     ),
   }
 }
+
+const observation = <T extends object>(value: T): T => value
 
 interface LogEntry {
   readonly event: string
@@ -124,6 +141,29 @@ const successRecommend: RecommendResult = {
   error: null,
 }
 
+const searchFoodResults: ReadonlyArray<RegisteredFoodSearchResult> = [
+  {
+    foodMasterId: 'fm_catalog_alpha',
+    name: 'item_token_alpha',
+    isEstimated: false,
+    energyKcalPerUnit: 42,
+  },
+]
+
+const recordedMealLogItems: ReadonlyArray<RecordMealLogItemResult> = [
+  {
+    id: 'ml_tool_alpha',
+    foodMasterId: 'fm_catalog_alpha',
+    foodName: 'item_token_alpha',
+    eatenDate: jstDate('2026-06-12'),
+    mealType: 'lunch',
+    quantity: 2,
+    createdAt: new Date('2026-06-12T03:00:00.000Z'),
+    nutrition: { energy_kcal: 84, protein_g: 3 },
+    isEstimated: false,
+  },
+]
+
 interface OrchestratorCalls {
   recordFromText: RecordFromTextInput[]
   recordFromImage: RecordFromImageInput[]
@@ -182,6 +222,11 @@ interface ProfileCalls {
   update: UserProfilePatch[]
 }
 
+interface DirectMealToolCalls {
+  foodSearch: Array<{ queries: ReadonlyArray<string>; limit: number }>
+  recordMealLogs: RecordMealLogsInput[]
+}
+
 const makeProfileService = (
   initial: UserProfile = defaultProfile,
   overrides: {
@@ -224,6 +269,7 @@ interface Harness {
   logs: LogEntry[]
   calls: OrchestratorCalls
   profileCalls: ProfileCalls
+  directMealToolCalls: DirectMealToolCalls
   close: () => Promise<void>
 }
 
@@ -234,6 +280,8 @@ interface HarnessConfig {
     update?: UserProfileRepositoryError
   }
   profile?: UserProfile
+  searchFoodResults?: ReadonlyArray<RegisteredFoodSearchResult>
+  recordMealLogError?: DomainError
 }
 
 const start = async (config: HarnessConfig = {}): Promise<Harness> => {
@@ -246,9 +294,33 @@ const start = async (config: HarnessConfig = {}): Promise<Harness> => {
     config.profile ?? defaultProfile,
     config.profileOverrides ?? {},
   )
+  const directMealToolCalls: DirectMealToolCalls = {
+    foodSearch: [],
+    recordMealLogs: [],
+  }
+  const foodSearchService: FoodSearchService = {
+    searchRegistered(queries, limit) {
+      directMealToolCalls.foodSearch.push({ queries, limit })
+      return okAsync(config.searchFoodResults ?? searchFoodResults)
+    },
+  }
+  const mealLogService: MealLogService = {
+    record: () => errAsync(new DomainError('unused', 'test/unused')),
+    recordMany(input) {
+      directMealToolCalls.recordMealLogs.push(input)
+      return config.recordMealLogError === undefined
+        ? okAsync(recordedMealLogItems)
+        : errAsync(config.recordMealLogError)
+    },
+    update: () => errAsync(new DomainError('unused', 'test/unused')),
+    getById: () => errAsync(new DomainError('unused', 'test/unused')),
+    delete: () => errAsync(new DomainError('unused', 'test/unused')),
+  }
   const server = createMcpServer({
     orchestrator,
     profileService,
+    foodSearchService,
+    mealLogService,
     logger,
   })
   const [clientTransport, serverTransport] =
@@ -261,6 +333,7 @@ const start = async (config: HarnessConfig = {}): Promise<Harness> => {
     logs,
     calls,
     profileCalls,
+    directMealToolCalls,
     async close() {
       await client.close()
       await server.close()
@@ -269,7 +342,7 @@ const start = async (config: HarnessConfig = {}): Promise<Harness> => {
 }
 
 describe('MeshiMcpServer tools/list', () => {
-  it('exposes the six public tools with stable names', async () => {
+  it('exposes the eight public tools with stable names', async () => {
     const h = await start()
     try {
       const result = await h.client.listTools()
@@ -280,6 +353,8 @@ describe('MeshiMcpServer tools/list', () => {
         'recommend_meal',
         'record_meal_from_image',
         'record_meal_from_text',
+        'record_meal_log',
+        'search_foods',
         'update_profile',
       ])
     } finally {
@@ -301,6 +376,7 @@ describe('MeshiMcpServer tools/list', () => {
       }
       expect(propsByTool).toEqual({
         get_profile: [],
+        record_meal_log: ['date', 'items', 'meal_type'],
         query_meals: [
           'period_from_iso',
           'period_to_iso',
@@ -315,6 +391,7 @@ describe('MeshiMcpServer tools/list', () => {
           'timezone',
         ],
         record_meal_from_text: ['occurred_at', 'text', 'timezone'],
+        search_foods: ['limit', 'queries'],
         update_profile: [
           'allergies',
           'constraints',
@@ -323,6 +400,19 @@ describe('MeshiMcpServer tools/list', () => {
           'likes',
         ],
       })
+    } finally {
+      await h.close()
+    }
+  })
+
+  it('marks search_foods as read-only', async () => {
+    const h = await start()
+    try {
+      const result = await h.client.listTools()
+      const tool = result.tools.find(
+        (candidate) => candidate.name === 'search_foods',
+      )
+      expect(tool?.annotations).toEqual({ readOnlyHint: true })
     } finally {
       await h.close()
     }
@@ -700,6 +790,214 @@ describe('get_profile / update_profile', () => {
         'meshi.tool_called',
         'meshi.tool_succeeded',
       ])
+    } finally {
+      await h.close()
+    }
+  })
+})
+
+describe('search_foods', () => {
+  it('passes multiple search terms to the food service without calling the orchestrator', async () => {
+    const h = await start()
+    try {
+      const result = await h.client.callTool({
+        name: 'search_foods',
+        arguments: {
+          queries: ['item_token_alpha', 'alpha item'],
+          limit: 2,
+        },
+      })
+
+      expect(
+        observation({
+          result,
+          searchCalls: h.directMealToolCalls.foodSearch,
+          orchestratorCalls: h.calls,
+        }),
+      ).toEqual({
+        result: {
+          content: [
+            { type: 'text', text: '登録済み食品を 1 件取得しました。' },
+          ],
+          structuredContent: {
+            foods: [
+              {
+                food_master_id: 'fm_catalog_alpha',
+                name: 'item_token_alpha',
+                energy_kcal: 42,
+                is_estimated: false,
+              },
+            ],
+          },
+        },
+        searchCalls: [
+          { queries: ['item_token_alpha', 'alpha item'], limit: 2 },
+        ],
+        orchestratorCalls: {
+          recordFromText: [],
+          recordFromImage: [],
+          queryMeals: [],
+          recommendMeal: [],
+        },
+      })
+    } finally {
+      await h.close()
+    }
+  })
+})
+
+describe('record_meal_log', () => {
+  it('records resolved food IDs directly without calling the orchestrator', async () => {
+    const h = await start()
+    try {
+      const result = await h.client.callTool({
+        name: 'record_meal_log',
+        arguments: {
+          date: '2026-06-12',
+          meal_type: 'lunch',
+          items: [
+            {
+              food_master_id: 'fm_catalog_alpha',
+              food_name: 'item_token_alpha',
+              quantity: 2,
+            },
+          ],
+        },
+      })
+
+      expect(
+        observation({
+          result,
+          recordCalls: h.directMealToolCalls.recordMealLogs,
+          orchestratorCalls: h.calls,
+        }),
+      ).toEqual({
+        result: {
+          content: [{ type: 'text', text: '1 品目を記録しました。' }],
+          structuredContent: {
+            recorded: [
+              {
+                meal_log_id: 'ml_tool_alpha',
+                food_master_id: 'fm_catalog_alpha',
+                food_name: 'item_token_alpha',
+                quantity: 2,
+                nutrition: { energy_kcal: 84, protein_g: 3 },
+                is_estimated: false,
+              },
+            ],
+            error: null,
+          },
+        },
+        recordCalls: [
+          {
+            eatenDate: jstDate('2026-06-12'),
+            mealType: 'lunch',
+            items: [
+              {
+                foodMasterId: 'fm_catalog_alpha',
+                foodName: 'item_token_alpha',
+                quantity: 2,
+              },
+            ],
+          },
+        ],
+        orchestratorCalls: {
+          recordFromText: [],
+          recordFromImage: [],
+          queryMeals: [],
+          recommendMeal: [],
+        },
+      })
+    } finally {
+      await h.close()
+    }
+  })
+
+  it('returns the invalid item position and domain error code', async () => {
+    const h = await start({
+      recordMealLogError: new MealLogItemValidationError(
+        2,
+        new InvalidQuantityError(0),
+      ),
+    })
+    try {
+      const result = await h.client.callTool({
+        name: 'record_meal_log',
+        arguments: {
+          date: '2026-06-12',
+          meal_type: 'lunch',
+          items: [
+            {
+              food_master_id: 'fm_catalog_alpha',
+              food_name: 'item_token_alpha',
+              quantity: 1,
+            },
+            {
+              food_master_id: 'fm_catalog_beta',
+              food_name: 'item_token_beta',
+              quantity: 0,
+            },
+          ],
+        },
+      })
+
+      expect(
+        observation({
+          result,
+          recordCalls: h.directMealToolCalls.recordMealLogs,
+          logs: h.logs,
+        }),
+      ).toEqual({
+        result: {
+          isError: true,
+          content: [
+            {
+              type: 'text',
+              text: 'item 2: quantity must be a finite positive number: 0',
+            },
+          ],
+          structuredContent: {
+            recorded: [],
+            error: {
+              item_index: 2,
+              code: 'meal_log/invalid_quantity',
+              message: 'item 2: quantity must be a finite positive number: 0',
+            },
+          },
+        },
+        recordCalls: [
+          {
+            eatenDate: jstDate('2026-06-12'),
+            mealType: 'lunch',
+            items: [
+              {
+                foodMasterId: 'fm_catalog_alpha',
+                foodName: 'item_token_alpha',
+                quantity: 1,
+              },
+              {
+                foodMasterId: 'fm_catalog_beta',
+                foodName: 'item_token_beta',
+                quantity: 0,
+              },
+            ],
+          },
+        ],
+        logs: [
+          {
+            event: 'meshi.tool_called',
+            payload: { tool: 'record_meal_log' },
+          },
+          {
+            event: 'meshi.tool_failed',
+            payload: {
+              tool: 'record_meal_log',
+              code: 'meal_log/invalid_quantity',
+              message: 'item 2: quantity must be a finite positive number: 0',
+            },
+          },
+        ],
+      })
     } finally {
       await h.close()
     }

@@ -1,6 +1,8 @@
 import { z } from 'zod'
 
 import { SUPPORTED_IMAGE_MIME_TYPES } from '#adapters/image/image-types'
+import { MEAL_TYPES } from '#domain/meal-log/types'
+import { jstDateSchema } from '#lib/jst-date'
 
 const isoDatetime = z.iso.datetime({ offset: true })
 // z.number() rejects NaN and Infinity by default in zod v4, so it is safe to
@@ -145,4 +147,80 @@ export const updateProfileInput = z.object({
   constraints: z.array(z.string().min(1)).optional(),
   // null clears any previously stored daily_targets; omit to keep them.
   daily_targets: nutritionMap.nullable().optional(),
+})
+
+export const searchFoodsInput = z.object({
+  queries: z
+    .array(z.string().trim().min(1))
+    .min(1)
+    .max(10)
+    .describe('食品名や別名の候補 (1〜10 個)'),
+  limit: z
+    .number()
+    .int()
+    .positive()
+    .optional()
+    .describe('最大件数 (省略時 10 件)'),
+})
+
+export const searchFoodsStructuredOutput = z.object({
+  foods: z.array(
+    z.object({
+      food_master_id: z.string(),
+      name: z.string(),
+      energy_kcal: z
+        .number()
+        .nullable()
+        .describe('food_master 1 つ分の kcal。食品の kcal が未登録なら null'),
+      is_estimated: z.boolean(),
+    }),
+  ),
+})
+
+export const recordMealLogInput = z.object({
+  date: jstDateSchema.describe('食事をした日付 (JST, YYYY-MM-DD)'),
+  meal_type: z.enum(MEAL_TYPES),
+  items: z
+    .array(
+      z.object({
+        food_master_id: z
+          .string()
+          .min(1)
+          .describe('search_foods で確定した ID'),
+        food_name: z
+          .string()
+          .trim()
+          .min(1)
+          .describe('food_master_id と照合する食品名'),
+        quantity: z.number().describe('食品 1 つ分に対する倍率'),
+      }),
+    )
+    .min(1),
+})
+
+export const recordMealLogStructuredOutput = z.object({
+  recorded: z.array(
+    z.object({
+      meal_log_id: z.string(),
+      food_master_id: z.string(),
+      food_name: z.string(),
+      quantity: z.number(),
+      nutrition: nutritionMap,
+      is_estimated: z.boolean(),
+    }),
+  ),
+  error: z
+    .object({
+      item_index: z
+        .number()
+        .int()
+        .positive()
+        .nullable()
+        .describe(
+          '不正な品目の 1 始まりの位置。日付など品目共通のエラーでは null',
+        ),
+      code: z.string(),
+      message: z.string(),
+    })
+    .nullable(),
 })

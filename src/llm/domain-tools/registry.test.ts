@@ -51,6 +51,13 @@ const stubDeps = (override: Partial<DomainToolsDeps> = {}): DomainToolsDeps => {
           'test/not_stubbed',
         ),
       ),
+    recordMany: () =>
+      errAsync(
+        new DomainError(
+          'mealLogService.recordMany not stubbed',
+          'test/not_stubbed',
+        ),
+      ),
     update: () =>
       errAsync(
         new DomainError(

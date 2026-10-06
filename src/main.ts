@@ -23,7 +23,10 @@ import { createSql, pingDb } from '#db/index'
 import { runMigrations } from '#db/migrations'
 import { seedNutrientDefinitions } from '#db/seed/index'
 import { createDayDetailService } from '#domain/day-detail/index'
-import { createFoodBrowseService } from '#domain/food-browse/index'
+import {
+  createFoodBrowseService,
+  createFoodSearchService,
+} from '#domain/food-browse/index'
 import { createFoodDetailService } from '#domain/food-detail/index'
 import {
   createFoodMasterRepository,
@@ -106,6 +109,7 @@ export const main = async (): Promise<void> => {
     now: () => new Date(),
   })
   const foodMatcher = createDrizzleFoodMatcher(sql)
+  const foodSearchService = createFoodSearchService(sql, foodMatcher)
   const mealHistoryService = createMealHistoryService(sql)
   const dayDetailService = createDayDetailService(
     sql,
@@ -167,6 +171,8 @@ export const main = async (): Promise<void> => {
   const toolDeps: MeshiToolDeps = {
     orchestrator,
     profileService: userProfileService,
+    foodSearchService,
+    mealLogService,
     logger,
   }
 
