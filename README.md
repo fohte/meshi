@@ -2,7 +2,7 @@
 
 @fohte's personal meal management chat service.
 
-`meshi` exposes intent-level meal-record / query / recommend / profile capabilities to upstream agents over both an MCP server and an A2A server, both backed by the same LangGraph domain agent running against Postgres.
+`meshi` exposes meal-record / query / recommend / profile capabilities to upstream agents over MCP and A2A. The MCP server provides direct domain tools for profile access, registered-food search, and resolved meal logging alongside LangGraph-backed tools; the A2A server uses the LangGraph domain agent running against Postgres.
 
 ## Development
 
