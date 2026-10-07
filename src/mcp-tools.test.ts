@@ -3,6 +3,9 @@ import { errAsync, okAsync } from 'neverthrow'
 import { describe, expect, it } from 'vitest'
 
 import type { FoodSearchService } from '#domain/food-browse/food-search-service'
+import { FoodMasterDomainError } from '#domain/food-master/errors'
+import type { FoodMasterService } from '#domain/food-master/service'
+import type { FoodMaster } from '#domain/food-master/types'
 import {
   type MealHistoryAggregate,
   MealHistoryQueryError,
@@ -10,13 +13,18 @@ import {
 } from '#domain/meal-history/types'
 import {
   DomainError,
+  FutureEatenDateError,
   InvalidQuantityError,
   MealLogItemValidationError,
+  MealLogNotFoundError,
+  MealLogPersistenceError,
 } from '#domain/meal-log/errors'
 import type { MealLogService } from '#domain/meal-log/meal-log-service'
 import type {
+  MealLogResult,
   RecordMealLogItemResult,
   RecordMealLogsInput,
+  UpdateMealLogInput,
 } from '#domain/meal-log/types'
 import type { UserProfileRepositoryError } from '#domain/user-profile/errors'
 import type {
@@ -276,11 +284,144 @@ const makeProfileService = (
   return { service, calls }
 }
 
+const testFoodMasters: ReadonlyArray<FoodMaster> = [
+  {
+    id: 'mcp_fixture_food_alpha',
+    name: '試験用食品 A',
+    aliases: [],
+    isEstimated: false,
+    source: 'user_input',
+    sourceUrl: null,
+    sourceCompositionCode: null,
+    nutrition: { energy_kcal: 137 },
+    createdAt: new Date('2026-04-17T00:00:00.000Z'),
+  },
+  {
+    id: 'mcp_fixture_food_beta',
+    name: '試験用食品 B',
+    aliases: [],
+    isEstimated: true,
+    source: 'user_input',
+    sourceUrl: null,
+    sourceCompositionCode: null,
+    nutrition: { energy_kcal: 223 },
+    createdAt: new Date('2026-04-17T00:00:00.000Z'),
+  },
+]
+
+const makeFoodMasterService = (): FoodMasterService => {
+  const foodMasters = new Map(testFoodMasters.map((food) => [food.id, food]))
+  const unused = () =>
+    errAsync(new FoodMasterDomainError('persistence_failed', 'not stubbed'))
+  return {
+    register: unused,
+    getById: (id) => okAsync(foodMasters.get(id) ?? null),
+    registerFromComposition: unused,
+    findSimilarNames: () => okAsync([]),
+    addAlias: () => okAsync(undefined),
+    merge: unused,
+  }
+}
+
+interface MealLogCalls {
+  getById: string[]
+  update: UpdateMealLogInput[]
+  delete: string[]
+}
+
+const initialMealLog: MealLogResult = {
+  id: 'mcp_fixture_meal_alpha',
+  foodMasterId: 'mcp_fixture_food_alpha',
+  eatenDate: jstDate('2026-04-17'),
+  mealType: 'lunch',
+  quantity: 1,
+  createdAt: new Date('2026-04-17T03:30:45.000Z'),
+  nutrition: { energy_kcal: 137 },
+  isEstimated: false,
+}
+
+const secondMealLog: MealLogResult = {
+  id: 'mcp_fixture_meal_beta',
+  foodMasterId: 'mcp_fixture_food_beta',
+  eatenDate: jstDate('2026-04-17'),
+  mealType: 'dinner',
+  quantity: 2,
+  createdAt: new Date('2026-04-17T04:30:45.000Z'),
+  nutrition: { energy_kcal: 446 },
+  isEstimated: true,
+}
+
+const makeMealLogService = (
+  overrides: Partial<MealLogService> = {},
+): { service: MealLogService; calls: MealLogCalls } => {
+  const records = new Map([
+    [initialMealLog.id, initialMealLog],
+    [secondMealLog.id, secondMealLog],
+  ])
+  const foodMasters = new Map(testFoodMasters.map((food) => [food.id, food]))
+  const calls: MealLogCalls = { getById: [], update: [], delete: [] }
+  const service: MealLogService = {
+    record: () =>
+      errAsync(
+        new MealLogPersistenceError('mealLogService.record not stubbed'),
+      ),
+    recordMany: () =>
+      errAsync(
+        new MealLogPersistenceError('mealLogService.recordMany not stubbed'),
+      ),
+    update(input) {
+      calls.update.push(input)
+      const existing = records.get(input.id)
+      if (existing === undefined) {
+        return errAsync(new MealLogNotFoundError(input.id))
+      }
+      const foodMasterId = input.foodMasterId ?? existing.foodMasterId
+      const food = foodMasters.get(foodMasterId)
+      if (food === undefined) {
+        return errAsync(
+          new DomainError(
+            `food_master not found: ${foodMasterId}`,
+            'test/not_found',
+          ),
+        )
+      }
+      const updated: MealLogResult = {
+        ...existing,
+        foodMasterId,
+        eatenDate: input.eatenDate ?? existing.eatenDate,
+        mealType: input.mealType ?? existing.mealType,
+        quantity: input.quantity ?? existing.quantity,
+        nutrition: {
+          energy_kcal:
+            (food.nutrition['energy_kcal'] ?? 0) *
+            (input.quantity ?? existing.quantity),
+        },
+        isEstimated: food.isEstimated,
+      }
+      records.set(input.id, updated)
+      return okAsync(updated)
+    },
+    getById(id) {
+      calls.getById.push(id)
+      return okAsync(records.get(id) ?? null)
+    },
+    delete(id) {
+      calls.delete.push(id)
+      return records.delete(id)
+        ? okAsync(undefined)
+        : errAsync(new MealLogNotFoundError(id))
+    },
+    ...overrides,
+  }
+  return { service, calls }
+}
+
 interface Harness {
   client: Client
   logs: LogEntry[]
   calls: OrchestratorCalls
   mealHistoryCalls: MealHistoryCalls
+  mealLogCalls: MealLogCalls
   profileCalls: ProfileCalls
   directMealToolCalls: DirectMealToolCalls
   close: () => Promise<void>
@@ -295,6 +436,7 @@ interface HarnessConfig {
     get?: UserProfileRepositoryError
     update?: UserProfileRepositoryError
   }
+  mealLogOverrides?: Partial<MealLogService>
   profile?: UserProfile
   foodSearchServiceResult?: ReturnType<FoodSearchService['searchRegistered']>
   recordMealLogError?: DomainError
@@ -308,6 +450,9 @@ const start = async (config: HarnessConfig = {}): Promise<Harness> => {
   )
   const { service: mealHistoryService, calls: mealHistoryCalls } =
     makeMealHistoryService(config.mealHistoryOverrides ?? {})
+  const foodMasterService = makeFoodMasterService()
+  const { service: mealLogCrudService, calls: mealLogCalls } =
+    makeMealLogService(config.mealLogOverrides)
   const { service: profileService, calls: profileCalls } = makeProfileService(
     config.profile ?? defaultProfile,
     config.profileOverrides ?? {},
@@ -323,23 +468,21 @@ const start = async (config: HarnessConfig = {}): Promise<Harness> => {
     },
   }
   const mealLogService: MealLogService = {
-    record: () => errAsync(new DomainError('unused', 'test/unused')),
+    ...mealLogCrudService,
     recordMany(input) {
       directMealToolCalls.recordMealLogs.push(input)
       return config.recordMealLogError === undefined
         ? okAsync(recordedMealLogItems)
         : errAsync(config.recordMealLogError)
     },
-    update: () => errAsync(new DomainError('unused', 'test/unused')),
-    getById: () => errAsync(new DomainError('unused', 'test/unused')),
-    delete: () => errAsync(new DomainError('unused', 'test/unused')),
   }
   const server = createMcpServer({
     orchestrator,
+    foodMasterService,
     mealHistoryService,
+    mealLogService,
     profileService,
     foodSearchService,
-    mealLogService,
     logger,
   })
   const [clientTransport, serverTransport] =
@@ -352,6 +495,7 @@ const start = async (config: HarnessConfig = {}): Promise<Harness> => {
     logs,
     calls,
     mealHistoryCalls,
+    mealLogCalls,
     profileCalls,
     directMealToolCalls,
     async close() {
@@ -362,12 +506,13 @@ const start = async (config: HarnessConfig = {}): Promise<Harness> => {
 }
 
 describe('MeshiMcpServer tools/list', () => {
-  it('exposes the eight public tools with stable names', async () => {
+  it('exposes the ten public tools with stable names', async () => {
     const h = await start()
     try {
       const result = await h.client.listTools()
       const names = result.tools.map((t) => t.name).sort()
       expect(names).toEqual([
+        'delete_meal_log',
         'get_profile',
         'query_meals',
         'recommend_meal',
@@ -375,6 +520,7 @@ describe('MeshiMcpServer tools/list', () => {
         'record_meal_from_text',
         'record_meal_log',
         'search_foods',
+        'update_meal_log',
         'update_profile',
       ])
     } finally {
@@ -410,6 +556,7 @@ describe('MeshiMcpServer tools/list', () => {
         propsByTool[tool.name] = Object.keys(schema.properties ?? {}).sort()
       }
       expect(propsByTool).toEqual({
+        delete_meal_log: ['meal_log_ids'],
         get_profile: [],
         record_meal_log: ['date', 'items', 'meal_type'],
         query_meals: ['period_from', 'period_to'],
@@ -422,6 +569,13 @@ describe('MeshiMcpServer tools/list', () => {
         ],
         record_meal_from_text: ['occurred_at', 'text', 'timezone'],
         search_foods: ['limit', 'queries'],
+        update_meal_log: [
+          'date',
+          'food_master_id',
+          'meal_log_id',
+          'meal_type',
+          'quantity',
+        ],
         update_profile: [
           'allergies',
           'constraints',
@@ -434,7 +588,6 @@ describe('MeshiMcpServer tools/list', () => {
       await h.close()
     }
   })
-
   it('marks search_foods as read-only', async () => {
     const h = await start()
     try {
@@ -443,6 +596,26 @@ describe('MeshiMcpServer tools/list', () => {
         (candidate) => candidate.name === 'search_foods',
       )
       expect(tool?.annotations).toEqual({ readOnlyHint: true })
+    } finally {
+      await h.close()
+    }
+  })
+
+  it('marks delete as destructive and update as non-destructive write tools', async () => {
+    const h = await start()
+    try {
+      const result = await h.client.listTools()
+      const annotations = Object.fromEntries(
+        result.tools
+          .filter((tool) =>
+            ['delete_meal_log', 'update_meal_log'].includes(tool.name),
+          )
+          .map((tool) => [tool.name, tool.annotations]),
+      )
+      expect(annotations).toEqual({
+        delete_meal_log: { readOnlyHint: false, destructiveHint: true },
+        update_meal_log: { readOnlyHint: false, destructiveHint: false },
+      })
     } finally {
       await h.close()
     }
@@ -882,6 +1055,262 @@ describe('query_meals', () => {
           },
         },
       ])
+    } finally {
+      await h.close()
+    }
+  })
+})
+
+describe('delete_meal_log', () => {
+  it('preloads all entries, deletes them, and returns their contents', async () => {
+    const h = await start()
+    try {
+      const result = await h.client.callTool({
+        name: 'delete_meal_log',
+        arguments: {
+          meal_log_ids: ['mcp_fixture_meal_alpha', 'mcp_fixture_meal_beta'],
+        },
+      })
+      expect(result).toEqual({
+        content: [{ type: 'text', text: '2 件の食事ログを削除しました。' }],
+        structuredContent: {
+          deleted: [
+            {
+              meal_log_id: 'mcp_fixture_meal_alpha',
+              food_master_id: 'mcp_fixture_food_alpha',
+              food_name: '試験用食品 A',
+              eaten_date: '2026-04-17',
+              meal_type: 'lunch',
+              quantity: 1,
+            },
+            {
+              meal_log_id: 'mcp_fixture_meal_beta',
+              food_master_id: 'mcp_fixture_food_beta',
+              food_name: '試験用食品 B',
+              eaten_date: '2026-04-17',
+              meal_type: 'dinner',
+              quantity: 2,
+            },
+          ],
+        },
+      })
+      expect(h.mealLogCalls).toEqual({
+        getById: ['mcp_fixture_meal_alpha', 'mcp_fixture_meal_beta'],
+        update: [],
+        delete: ['mcp_fixture_meal_alpha', 'mcp_fixture_meal_beta'],
+      })
+      expect(h.calls).toEqual({
+        recordFromText: [],
+        recordFromImage: [],
+        recommendMeal: [],
+      })
+      expect(h.logs).toEqual([
+        {
+          event: 'meshi.tool_called',
+          payload: { tool: 'delete_meal_log' },
+        },
+        {
+          event: 'meshi.tool_succeeded',
+          payload: { tool: 'delete_meal_log', deleted: 2 },
+        },
+      ])
+    } finally {
+      await h.close()
+    }
+  })
+
+  it('does not delete any entry when one requested ID does not exist', async () => {
+    const h = await start()
+    try {
+      const result = await h.client.callTool({
+        name: 'delete_meal_log',
+        arguments: {
+          meal_log_ids: ['mcp_fixture_meal_alpha', 'mcp_fixture_meal_missing'],
+        },
+      })
+      expect(result).toEqual({
+        content: [
+          {
+            type: 'text',
+            text: 'meal_log not found: mcp_fixture_meal_missing',
+          },
+        ],
+        isError: true,
+      })
+      expect(h.mealLogCalls).toEqual({
+        getById: ['mcp_fixture_meal_alpha', 'mcp_fixture_meal_missing'],
+        update: [],
+        delete: [],
+      })
+      expect(h.logs).toEqual([
+        {
+          event: 'meshi.tool_called',
+          payload: { tool: 'delete_meal_log' },
+        },
+        {
+          event: 'meshi.tool_failed',
+          payload: {
+            tool: 'delete_meal_log',
+            code: 'MealLogNotFoundError',
+            message: 'meal_log not found: mcp_fixture_meal_missing',
+          },
+        },
+      ])
+    } finally {
+      await h.close()
+    }
+  })
+
+  it('requires at least one unique meal_log_id', async () => {
+    const h = await start()
+    try {
+      const result = await h.client.callTool({
+        name: 'delete_meal_log',
+        arguments: {
+          meal_log_ids: ['mcp_fixture_meal_alpha', 'mcp_fixture_meal_alpha'],
+        },
+      })
+      expect(normalizeValidationError(result)).toEqual({
+        content: [{ type: 'text', text: VALIDATION_ERROR_TEXT }],
+        isError: true,
+      })
+      expect(h.mealLogCalls).toEqual({ getById: [], update: [], delete: [] })
+      expect(h.logs).toEqual([])
+    } finally {
+      await h.close()
+    }
+  })
+})
+
+describe('update_meal_log', () => {
+  it('passes the patch to MealLogService and returns updated content with nutrition', async () => {
+    const h = await start()
+    try {
+      const result = await h.client.callTool({
+        name: 'update_meal_log',
+        arguments: {
+          meal_log_id: 'mcp_fixture_meal_alpha',
+          food_master_id: 'mcp_fixture_food_beta',
+          date: '2026-04-18',
+          meal_type: 'dinner',
+          quantity: 2,
+        },
+      })
+      expect(result).toEqual({
+        content: [{ type: 'text', text: '食事ログを更新しました。' }],
+        structuredContent: {
+          meal_log_id: 'mcp_fixture_meal_alpha',
+          food_master_id: 'mcp_fixture_food_beta',
+          food_name: '試験用食品 B',
+          eaten_date: '2026-04-18',
+          meal_type: 'dinner',
+          quantity: 2,
+          nutrition: { energy_kcal: 446 },
+          is_estimated: true,
+        },
+      })
+      expect(h.mealLogCalls).toEqual({
+        getById: [],
+        update: [
+          {
+            id: 'mcp_fixture_meal_alpha',
+            foodMasterId: 'mcp_fixture_food_beta',
+            eatenDate: '2026-04-18',
+            mealType: 'dinner',
+            quantity: 2,
+          },
+        ],
+        delete: [],
+      })
+      expect(h.calls).toEqual({
+        recordFromText: [],
+        recordFromImage: [],
+        recommendMeal: [],
+      })
+    } finally {
+      await h.close()
+    }
+  })
+
+  it('requires at least one field to update', async () => {
+    const h = await start()
+    try {
+      const result = await h.client.callTool({
+        name: 'update_meal_log',
+        arguments: { meal_log_id: 'mcp_fixture_meal_alpha' },
+      })
+      expect(normalizeValidationError(result)).toEqual({
+        content: [{ type: 'text', text: VALIDATION_ERROR_TEXT }],
+        isError: true,
+      })
+      expect(h.mealLogCalls).toEqual({ getById: [], update: [], delete: [] })
+      expect(h.logs).toEqual([])
+    } finally {
+      await h.close()
+    }
+  })
+
+  it('returns domain validation errors as tool errors', async () => {
+    const futureDate = jstDate('2030-01-01')
+    const h = await start({
+      mealLogOverrides: {
+        update: () => errAsync(new FutureEatenDateError(futureDate)),
+      },
+    })
+    try {
+      const result = await h.client.callTool({
+        name: 'update_meal_log',
+        arguments: { meal_log_id: 'log-1', date: futureDate },
+      })
+      expect(result).toEqual({
+        content: [
+          {
+            type: 'text',
+            text: 'eaten_date must not be in the future: 2030-01-01',
+          },
+        ],
+        isError: true,
+      })
+      expect(h.logs).toEqual([
+        {
+          event: 'meshi.tool_called',
+          payload: { tool: 'update_meal_log' },
+        },
+        {
+          event: 'meshi.tool_failed',
+          payload: {
+            tool: 'update_meal_log',
+            code: 'FutureEatenDateError',
+            message: 'eaten_date must not be in the future: 2030-01-01',
+          },
+        },
+      ])
+    } finally {
+      await h.close()
+    }
+  })
+
+  it('returns a not-found error for an unknown meal_log_id', async () => {
+    const h = await start()
+    try {
+      const result = await h.client.callTool({
+        name: 'update_meal_log',
+        arguments: { meal_log_id: 'mcp_fixture_meal_missing', quantity: 2 },
+      })
+      expect(result).toEqual({
+        content: [
+          {
+            type: 'text',
+            text: 'meal_log not found: mcp_fixture_meal_missing',
+          },
+        ],
+        isError: true,
+      })
+      expect(h.mealLogCalls).toEqual({
+        getById: [],
+        update: [{ id: 'mcp_fixture_meal_missing', quantity: 2 }],
+        delete: [],
+      })
     } finally {
       await h.close()
     }

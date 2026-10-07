@@ -30,11 +30,16 @@ import {
 import { createNullLogger } from '#logger'
 import { createMcpServer } from '#mcp'
 import { describeIfDb, getTestSql, setupTx } from '#test/db'
+import { jstDate } from '#test/jst-date'
 import type {
   ScriptedFinalResponse,
   ScriptedToolCall,
 } from '#test/scripted-domain-agent-model'
 import { scriptedDomainAgentModel } from '#test/scripted-domain-agent-model'
+import {
+  seedFoodMaster as seedFoodMasterRow,
+  seedMealLog as seedMealLogRow,
+} from '#test/seed'
 
 interface WebSearchResult {
   readonly snippets: ReadonlyArray<{
@@ -200,6 +205,7 @@ const startHarness = async (opts: HarnessOptions): Promise<Harness> => {
     profileService: userProfileService,
     foodSearchService,
     mealLogService,
+    foodMasterService,
     logger: createNullLogger(),
   })
   const [clientTransport, serverTransport] =
@@ -728,6 +734,124 @@ describeIfDb('meshi integration', () => {
             text: '食事履歴を取得しました。',
           },
         ],
+      })
+    } finally {
+      await harness.close()
+    }
+  })
+
+  it('reflects meal log updates and deletions in query_meals', async () => {
+    const tx = getTx()
+    await seedFoodMasterRow(tx, {
+      id: 'mcp_fixture_food_alpha',
+      name: '試験用食品 A',
+      source: 'user_input',
+      nutrients: { energy_kcal: 137, protein_g: 5 },
+    })
+    await seedFoodMasterRow(tx, {
+      id: 'mcp_fixture_food_beta',
+      name: '試験用食品 B',
+      source: 'user_input',
+      nutrients: { energy_kcal: 89, protein_g: 3 },
+    })
+    await seedMealLogRow(tx, {
+      id: 'mcp_fixture_meal_alpha',
+      foodMasterId: 'mcp_fixture_food_alpha',
+      eatenDate: jstDate('2026-04-17'),
+      mealType: 'breakfast',
+      quantity: 1,
+      createdAt: new Date('2026-04-17T03:30:00.000Z'),
+    })
+    await seedMealLogRow(tx, {
+      id: 'mcp_fixture_meal_beta',
+      foodMasterId: 'mcp_fixture_food_beta',
+      eatenDate: jstDate('2026-04-17'),
+      mealType: 'lunch',
+      quantity: 2,
+      createdAt: new Date('2026-04-17T04:30:00.000Z'),
+    })
+
+    const harness = await startHarness({ tx })
+
+    try {
+      const updateResult = normalizeResult(
+        await harness.client.callTool({
+          name: 'update_meal_log',
+          arguments: {
+            meal_log_id: 'mcp_fixture_meal_alpha',
+            quantity: 3,
+            meal_type: 'dinner',
+          },
+        }),
+      )
+      expect(updateResult).toEqual({
+        content: [{ type: 'text', text: '食事ログを更新しました。' }],
+        structuredContent: {
+          meal_log_id: 'mcp_fixture_meal_alpha',
+          food_master_id: 'mcp_fixture_food_alpha',
+          food_name: '試験用食品 A',
+          eaten_date: '2026-04-17',
+          meal_type: 'dinner',
+          quantity: 3,
+          nutrition: { energy_kcal: 411, protein_g: 15 },
+          is_estimated: false,
+        },
+      })
+
+      const deleteResult = normalizeResult(
+        await harness.client.callTool({
+          name: 'delete_meal_log',
+          arguments: { meal_log_ids: ['mcp_fixture_meal_beta'] },
+        }),
+      )
+      expect(deleteResult).toEqual({
+        content: [{ type: 'text', text: '1 件の食事ログを削除しました。' }],
+        structuredContent: {
+          deleted: [
+            {
+              meal_log_id: 'mcp_fixture_meal_beta',
+              food_master_id: 'mcp_fixture_food_beta',
+              food_name: '試験用食品 B',
+              eaten_date: '2026-04-17',
+              meal_type: 'lunch',
+              quantity: 2,
+            },
+          ],
+        },
+      })
+
+      const queryResult = normalizeResult(
+        await harness.client.callTool({
+          name: 'query_meals',
+          arguments: {
+            period_from: '2026-04-17',
+            period_to: '2026-04-18',
+          },
+        }),
+      )
+      expect(queryResult).toEqual({
+        content: [{ type: 'text', text: '食事履歴を取得しました。' }],
+        structuredContent: {
+          totals: { energy_kcal: 411, protein_g: 15 },
+          per_day: [
+            {
+              date: '2026-04-17',
+              totals: { energy_kcal: 411, protein_g: 15 },
+            },
+          ],
+          entries: [
+            {
+              meal_log_id: 'mcp_fixture_meal_alpha',
+              food_master_id: 'mcp_fixture_food_alpha',
+              food_name: '試験用食品 A',
+              eaten_date: '2026-04-17',
+              meal_type: 'dinner',
+              quantity: 3,
+              recorded_at: '2026-04-17T03:30:00Z',
+            },
+          ],
+          has_estimated_values: false,
+        },
       })
     } finally {
       await harness.close()
