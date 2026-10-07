@@ -1,4 +1,5 @@
 import { beforeEach, expect, it } from 'vitest'
+import { z } from 'zod'
 
 import {
   createFoodMasterRepository,
@@ -20,6 +21,8 @@ const baseInput: RegisterFoodMasterInput = {
   source: 'user_input',
   isEstimated: false,
 }
+
+const observation = <T extends object>(value: T): T => value
 
 describeIfDb('FoodMasterService + Repository', () => {
   const getTx = setupTx()
@@ -79,6 +82,33 @@ describeIfDb('FoodMasterService + Repository', () => {
     candidates: ReadonlyArray<T>,
   ): ReadonlyArray<Omit<T, 'score'> & { score: number }> =>
     candidates.map((c) => ({ ...c, score: Math.round(c.score * 100) / 100 }))
+
+  const normalizeSimilarNameError = (captured: {
+    code: string
+    details: Readonly<Record<string, unknown>>
+  }) => {
+    const parsed = z
+      .object({
+        candidates: z.array(
+          z.object({
+            food_master_id: z.string(),
+            name: z.string(),
+            score: z.number(),
+          }),
+        ),
+      })
+      .parse(captured.details)
+    return {
+      code: captured.code,
+      details: {
+        candidates: parsed.candidates.map((candidate) => ({
+          food_master_id: candidate.food_master_id,
+          name: candidate.name,
+          score: '<score>',
+        })),
+      },
+    }
+  }
 
   it('registers a confirmed food master and round-trips it through getById', async () => {
     const registered = (
@@ -610,6 +640,63 @@ describeIfDb('FoodMasterService + Repository', () => {
         score: 0.77,
       },
     ])
+  })
+
+  it('blocks a similar name until its candidate id is confirmed as distinct', async () => {
+    const tx = getTx()
+    ;(
+      await service.register({
+        ...baseInput,
+        name: 'ごろごろ野菜カレー 中辛',
+      })
+    )._unsafeUnwrap()
+
+    const input = {
+      ...baseInput,
+      name: 'ごろごろ野菜カレー 中辛 レトルト',
+    }
+    const blocked = await captureDomainError(
+      service.registerWithSimilarNameCheck(input),
+    )
+    const rowsAfterBlock = await tx<{ count: string }[]>`
+      SELECT count(*)::text AS count FROM food_masters
+    `
+    const registered = await service.registerWithSimilarNameCheck(input, [
+      'fm_test_0001',
+    ])
+
+    expect(
+      observation({
+        blocked: normalizeSimilarNameError(blocked),
+        countAfterBlock: rowsAfterBlock[0]?.count,
+        registered: normalize(registered._unsafeUnwrap()),
+      }),
+    ).toEqual({
+      blocked: {
+        code: 'similar_name_exists',
+        details: {
+          candidates: [
+            {
+              food_master_id: 'fm_test_0001',
+              name: 'ごろごろ野菜カレー 中辛',
+              score: '<score>',
+            },
+          ],
+        },
+      },
+      countAfterBlock: '1',
+      registered: {
+        id: 'fm_test_0002',
+        name: 'ごろごろ野菜カレー 中辛 レトルト',
+        aliases: [],
+        isEstimated: false,
+        source: 'user_input',
+        sourceUrl: null,
+        sourceCompositionCode: null,
+        nutrition: { energy_kcal: 168, protein_g: 2.5 },
+        createdAt: '<date>',
+      },
+    })
   })
 
   it('excludes an exact name match from findSimilarNames results', async () => {

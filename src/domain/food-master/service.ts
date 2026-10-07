@@ -16,6 +16,10 @@ export interface FoodMasterService {
   register(
     input: RegisterFoodMasterInput,
   ): ResultAsync<FoodMaster, FoodMasterDomainError>
+  registerWithSimilarNameCheck(
+    input: RegisterFoodMasterInput,
+    confirmedDistinctFromMasterIds?: ReadonlyArray<FoodMasterId>,
+  ): ResultAsync<FoodMaster, FoodMasterDomainError>
   getById(
     id: FoodMasterId,
   ): ResultAsync<FoodMaster | null, FoodMasterDomainError>
@@ -46,36 +50,66 @@ export interface FoodMasterService {
 
 export const createFoodMasterService = (
   repo: FoodMasterRepository,
-): FoodMasterService => ({
-  register: (input) => repo.register(input),
-  getById: (id) => repo.findById(id),
-  findSimilarNames: (name) => repo.findSimilarNames(name),
-  addAlias: (id, alias) => repo.addAlias(id, alias),
-  merge: (survivorId, loserId, dryRun) =>
-    repo.merge(survivorId, loserId, dryRun),
-  registerFromComposition: (input) =>
-    repo.findComposition(input.compositionCode).andThen((composition) => {
-      if (composition === null) {
-        return errAsync(
-          new FoodMasterDomainError(
-            'composition_not_found',
-            `food_composition not found: ${input.compositionCode}`,
-            { compositionCode: input.compositionCode },
-          ),
+): FoodMasterService => {
+  const registerWithSimilarNameCheck: FoodMasterService['registerWithSimilarNameCheck'] =
+    (input, confirmedDistinctFromMasterIds = []) => {
+      const acknowledged = new Set(confirmedDistinctFromMasterIds)
+      return repo.findSimilarNames(input.name).andThen((candidates) => {
+        const blocking = candidates.filter(
+          (candidate) => !acknowledged.has(candidate.foodMasterId),
         )
-      }
-      return repo
-        .register({
-          name: input.name ?? composition.name,
-          nutrition: composition.nutrition,
-          source: 'composition_table_estimate',
-          isEstimated: true,
-          sourceCompositionCode: input.compositionCode,
-          ...(input.aliases !== undefined ? { aliases: input.aliases } : {}),
-        })
-        .map((foodMaster) => ({
-          foodMaster,
-          compositionName: composition.name,
-        }))
-    }),
-})
+        if (blocking.length > 0) {
+          return errAsync(
+            new FoodMasterDomainError(
+              'similar_name_exists',
+              'existing food_master(s) with a similar name were found; reuse one of them if it is the same product, gather stronger evidence and retry if unsure, ask the user to disambiguate, or retry with confirmed_distinct_from_master_ids listing exactly these food_master_id values once you have verified this is a different product',
+              {
+                candidates: blocking.map((candidate) => ({
+                  food_master_id: candidate.foodMasterId,
+                  name: candidate.name,
+                  score: candidate.score,
+                })),
+              },
+            ),
+          )
+        }
+
+        return repo.register(input)
+      })
+    }
+
+  return {
+    register: (input) => repo.register(input),
+    registerWithSimilarNameCheck,
+    getById: (id) => repo.findById(id),
+    findSimilarNames: (name) => repo.findSimilarNames(name),
+    addAlias: (id, alias) => repo.addAlias(id, alias),
+    merge: (survivorId, loserId, dryRun) =>
+      repo.merge(survivorId, loserId, dryRun),
+    registerFromComposition: (input) =>
+      repo.findComposition(input.compositionCode).andThen((composition) => {
+        if (composition === null) {
+          return errAsync(
+            new FoodMasterDomainError(
+              'composition_not_found',
+              `food_composition not found: ${input.compositionCode}`,
+              { compositionCode: input.compositionCode },
+            ),
+          )
+        }
+        return repo
+          .register({
+            name: input.name ?? composition.name,
+            nutrition: composition.nutrition,
+            source: 'composition_table_estimate',
+            isEstimated: true,
+            sourceCompositionCode: input.compositionCode,
+            ...(input.aliases !== undefined ? { aliases: input.aliases } : {}),
+          })
+          .map((foodMaster) => ({
+            foodMaster,
+            compositionName: composition.name,
+          }))
+      }),
+  }
+}

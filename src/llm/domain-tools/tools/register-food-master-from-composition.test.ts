@@ -42,6 +42,13 @@ const setup = (
           'foodMasterService.register not stubbed',
         ),
       ),
+    registerWithSimilarNameCheck: () =>
+      errAsync(
+        new FoodMasterDomainError(
+          'persistence_failed',
+          'foodMasterService.registerWithSimilarNameCheck not stubbed',
+        ),
+      ),
     getById: () => okAsync(null),
     registerFromComposition: (input) => {
       calls.push(input)

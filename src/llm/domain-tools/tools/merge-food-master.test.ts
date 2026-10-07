@@ -39,6 +39,8 @@ const setup = (
   const calls: MergeCall[] = []
   const service: FoodMasterService = {
     register: () => notStubbed('register'),
+    registerWithSimilarNameCheck: () =>
+      notStubbed('registerWithSimilarNameCheck'),
     getById: () => notStubbed('getById'),
     findSimilarNames: () => notStubbed('findSimilarNames'),
     addAlias: () => notStubbed('addAlias'),
