@@ -2,6 +2,11 @@ import { Client, InMemoryTransport } from '@modelcontextprotocol/client'
 import { errAsync, okAsync } from 'neverthrow'
 import { describe, expect, it, vi } from 'vitest'
 
+import {
+  type MealHistoryAggregate,
+  MealHistoryQueryError,
+  type MealHistoryService,
+} from '#domain/meal-history/types'
 import type { UserProfileRepositoryError } from '#domain/user-profile/errors'
 import type {
   UserProfile,
@@ -10,19 +15,18 @@ import type {
 import type { UserProfileService } from '#domain/user-profile/user-profile-service'
 import type {
   ConversationOrchestrator,
-  MealHistoryResult,
   MealRecordResult,
   OrchestratorError,
   RecommendResult,
 } from '#llm/orchestrator/index'
 import type {
-  QueryMealsInput,
   RecommendInput,
   RecordFromImageInput,
   RecordFromTextInput,
 } from '#llm/orchestrator/types'
 import type { Logger } from '#logger'
 import { createMcpServer } from '#mcp'
+import { jstDate } from '#test/jst-date'
 
 const VALIDATION_ERROR_TEXT = '<schema validation error>'
 
@@ -109,25 +113,21 @@ const deadlineMealRecord: MealRecordResult = {
   },
 }
 
-const successMealHistory: MealHistoryResult = {
-  aggregate: {
-    totals: { energy_kcal: 1850 },
-    perDay: [{ date: '2026-06-12', totals: { energy_kcal: 1850 } }],
-    entries: [
-      {
-        mealLogId: 'log-1',
-        foodMasterId: 'food-1',
-        foodName: '白米',
-        eatenDate: '2026-06-12',
-        mealType: 'lunch',
-        quantity: 1,
-      },
-    ],
-    hasEstimatedValues: false,
-  },
+const successMealHistory: MealHistoryAggregate = {
+  totals: { energy_kcal: 1850 },
+  perDay: [{ date: jstDate('2026-06-12'), totals: { energy_kcal: 1850 } }],
+  entries: [
+    {
+      id: 'log-1',
+      foodMasterId: 'food-1',
+      foodName: '白米',
+      eatenDate: jstDate('2026-06-12'),
+      mealType: 'lunch',
+      quantity: 1,
+      recordedAt: '2026-06-12T03:30:45Z',
+    },
+  ],
   hasEstimatedValues: false,
-  summaryText: '集計結果...',
-  error: null,
 }
 
 const successRecommend: RecommendResult = {
@@ -138,7 +138,6 @@ const successRecommend: RecommendResult = {
 interface OrchestratorCalls {
   recordFromText: RecordFromTextInput[]
   recordFromImage: RecordFromImageInput[]
-  queryMeals: QueryMealsInput[]
   recommendMeal: RecommendInput[]
   signals: AbortSignal[]
 }
@@ -150,7 +149,6 @@ type OrchestratorOverride<T> = T | Error | OrchestratorHandler<T>
 interface OrchestratorOverrides {
   recordFromText?: OrchestratorOverride<MealRecordResult>
   recordFromImage?: OrchestratorOverride<MealRecordResult>
-  queryMeals?: OrchestratorOverride<MealHistoryResult>
   recommendMeal?: OrchestratorOverride<RecommendResult>
 }
 
@@ -164,49 +162,59 @@ const makeOrchestrator = (
   const calls: OrchestratorCalls = {
     recordFromText: [],
     recordFromImage: [],
-    queryMeals: [],
     recommendMeal: [],
     signals: [],
   }
-  const resolve = <T>(value: T | Error): Promise<T> =>
-    value instanceof Error ? Promise.reject(value) : Promise.resolve(value)
-  const resolveOverride = <T>(
-    value: OrchestratorOverride<T> | undefined,
-    fallback: T,
-    signal: AbortSignal | undefined,
-  ): Promise<T> =>
-    isOrchestratorHandler(value) ? value(signal) : resolve(value ?? fallback)
+  const resolve = <T>(
+    value: OrchestratorOverride<T>,
+    signal?: AbortSignal,
+  ): Promise<T> => {
+    if (isOrchestratorHandler(value)) return value(signal)
+    return value instanceof Error
+      ? Promise.reject(value)
+      : Promise.resolve(value)
+  }
   const orchestrator: ConversationOrchestrator = {
     recordFromText(input, signal) {
       calls.recordFromText.push(input)
       if (signal !== undefined) calls.signals.push(signal)
-      return resolveOverride(
-        overrides.recordFromText,
-        successMealRecord,
-        signal,
-      )
+      return resolve(overrides.recordFromText ?? successMealRecord, signal)
     },
     recordFromImage(input, signal) {
       calls.recordFromImage.push(input)
       if (signal !== undefined) calls.signals.push(signal)
-      return resolveOverride(
-        overrides.recordFromImage,
-        successMealRecord,
-        signal,
-      )
-    },
-    queryMeals(input, signal) {
-      calls.queryMeals.push(input)
-      if (signal !== undefined) calls.signals.push(signal)
-      return resolveOverride(overrides.queryMeals, successMealHistory, signal)
+      return resolve(overrides.recordFromImage ?? successMealRecord, signal)
     },
     recommendMeal(input, signal) {
       calls.recommendMeal.push(input)
       if (signal !== undefined) calls.signals.push(signal)
-      return resolveOverride(overrides.recommendMeal, successRecommend, signal)
+      return resolve(overrides.recommendMeal ?? successRecommend, signal)
     },
   }
   return { orchestrator, calls }
+}
+
+interface MealHistoryCalls {
+  query: { periodFrom: string; periodTo: string }[]
+}
+
+const makeMealHistoryService = (
+  overrides: {
+    query?: MealHistoryAggregate | MealHistoryQueryError | (() => never)
+  } = {},
+): { service: MealHistoryService; calls: MealHistoryCalls } => {
+  const calls: MealHistoryCalls = { query: [] }
+  const service: MealHistoryService = {
+    query(input) {
+      calls.query.push(input)
+      const result = overrides.query ?? successMealHistory
+      if (typeof result === 'function') return result()
+      return result instanceof MealHistoryQueryError
+        ? errAsync(result)
+        : okAsync(result)
+    },
+  }
+  return { service, calls }
 }
 
 const defaultProfile: UserProfile = {
@@ -262,12 +270,16 @@ interface Harness {
   client: Client
   logs: LogEntry[]
   calls: OrchestratorCalls
+  mealHistoryCalls: MealHistoryCalls
   profileCalls: ProfileCalls
   close: () => Promise<void>
 }
 
 interface HarnessConfig {
   orchestratorOverrides?: OrchestratorOverrides
+  mealHistoryOverrides?: {
+    query?: MealHistoryAggregate | MealHistoryQueryError | (() => never)
+  }
   profileOverrides?: {
     get?: UserProfileRepositoryError
     update?: UserProfileRepositoryError
@@ -281,12 +293,15 @@ const start = async (config: HarnessConfig = {}): Promise<Harness> => {
   const { orchestrator, calls } = makeOrchestrator(
     config.orchestratorOverrides ?? {},
   )
+  const { service: mealHistoryService, calls: mealHistoryCalls } =
+    makeMealHistoryService(config.mealHistoryOverrides ?? {})
   const { service: profileService, calls: profileCalls } = makeProfileService(
     config.profile ?? defaultProfile,
     config.profileOverrides ?? {},
   )
   const server = createMcpServer({
     orchestrator,
+    mealHistoryService,
     profileService,
     logger,
   })
@@ -299,6 +314,7 @@ const start = async (config: HarnessConfig = {}): Promise<Harness> => {
     client,
     logs,
     calls,
+    mealHistoryCalls,
     profileCalls,
     async close() {
       await client.close()
@@ -326,6 +342,21 @@ describe('MeshiMcpServer tools/list', () => {
     }
   })
 
+  it('explains that the caller interprets results and can identify records by meal_log_id', async () => {
+    const h = await start()
+    try {
+      const result = await h.client.listTools()
+      const queryMeals = result.tools.find(
+        (tool) => tool.name === 'query_meals',
+      )
+      expect(queryMeals?.description).toEqual(
+        'JST の period_from 以上、period_to 未満の食事履歴と栄養集計を返す。質問の解釈と集計結果の説明は ChatGPT が行う。後で記録を削除・修正するときは各記録の meal_log_id を使う。',
+      )
+    } finally {
+      await h.close()
+    }
+  })
+
   it('pins each tool input schema to a domain-only property set (no chat-platform fields)', async () => {
     const h = await start()
     try {
@@ -340,12 +371,7 @@ describe('MeshiMcpServer tools/list', () => {
       }
       expect(propsByTool).toEqual({
         get_profile: [],
-        query_meals: [
-          'period_from_iso',
-          'period_to_iso',
-          'query_text',
-          'timezone',
-        ],
+        query_meals: ['period_from', 'period_to'],
         recommend_meal: ['additional_constraints', 'timezone'],
         record_meal_from_image: [
           'hint_text',
@@ -513,9 +539,8 @@ describe('record_meal_from_text', () => {
       timeoutController.abort(
         new DOMException('Tool deadline exceeded', 'TimeoutError'),
       )
-      const result = await call
 
-      expect(result).toEqual({
+      expect(await call).toEqual({
         content: [
           {
             type: 'text',
@@ -728,37 +753,211 @@ describe('record_meal_from_image', () => {
 })
 
 describe('query_meals', () => {
-  it('returns aggregate structuredContent and the summary text', async () => {
+  it('returns the selected period aggregate with actionable meal entries', async () => {
     const h = await start()
     try {
       const result = await h.client.callTool({
         name: 'query_meals',
         arguments: {
-          query_text: '今週のタンパク質',
-          period_from_iso: '2026-06-08T00:00:00+09:00',
-          period_to_iso: '2026-06-15T00:00:00+09:00',
+          period_from: '2026-06-08',
+          period_to: '2026-06-15',
         },
       })
       expect(result).toEqual({
-        content: [{ type: 'text', text: '集計結果...' }],
+        content: [{ type: 'text', text: '食事履歴を取得しました。' }],
         structuredContent: {
-          aggregate: {
-            totals: { energy_kcal: 1850 },
-            per_day: [{ date: '2026-06-12', totals: { energy_kcal: 1850 } }],
-            entries: [
-              {
-                meal_log_id: 'log-1',
-                food_master_id: 'food-1',
-                eaten_date: '2026-06-12',
-                quantity: 1,
-              },
-            ],
-            has_estimated_values: false,
-          },
+          totals: { energy_kcal: 1850 },
+          per_day: [{ date: '2026-06-12', totals: { energy_kcal: 1850 } }],
+          entries: [
+            {
+              meal_log_id: 'log-1',
+              food_master_id: 'food-1',
+              food_name: '白米',
+              eaten_date: '2026-06-12',
+              meal_type: 'lunch',
+              quantity: 1,
+              recorded_at: '2026-06-12T03:30:45Z',
+            },
+          ],
           has_estimated_values: false,
-          error: null,
         },
       })
+    } finally {
+      await h.close()
+    }
+  })
+
+  it('passes the selected half-open period to the meal history service', async () => {
+    const h = await start()
+    try {
+      await h.client.callTool({
+        name: 'query_meals',
+        arguments: {
+          period_from: '2026-06-08',
+          period_to: '2026-06-15',
+        },
+      })
+      expect(h.mealHistoryCalls.query).toEqual([
+        { periodFrom: '2026-06-08', periodTo: '2026-06-15' },
+      ])
+    } finally {
+      await h.close()
+    }
+  })
+
+  it('does not invoke the LLM orchestrator', async () => {
+    const h = await start()
+    try {
+      await h.client.callTool({
+        name: 'query_meals',
+        arguments: {
+          period_from: '2026-06-08',
+          period_to: '2026-06-15',
+        },
+      })
+      expect(h.calls).toEqual({
+        recordFromText: [],
+        recordFromImage: [],
+        recommendMeal: [],
+        signals: [],
+      })
+    } finally {
+      await h.close()
+    }
+  })
+
+  it('logs the query lifecycle', async () => {
+    const h = await start()
+    try {
+      await h.client.callTool({
+        name: 'query_meals',
+        arguments: {
+          period_from: '2026-06-08',
+          period_to: '2026-06-15',
+        },
+      })
+      expect(h.logs).toEqual([
+        {
+          event: 'meshi.tool_called',
+          payload: { tool: 'query_meals' },
+        },
+        {
+          event: 'meshi.tool_succeeded',
+          payload: { tool: 'query_meals' },
+        },
+      ])
+    } finally {
+      await h.close()
+    }
+  })
+
+  it('requires both period boundary dates', async () => {
+    const h = await start()
+    try {
+      const result = await h.client.callTool({
+        name: 'query_meals',
+        arguments: { period_from: '2026-06-08' },
+      })
+      expect(normalizeValidationError(result)).toEqual({
+        content: [{ type: 'text', text: VALIDATION_ERROR_TEXT }],
+        isError: true,
+      })
+    } finally {
+      await h.close()
+    }
+  })
+
+  it('does not query history when a period boundary is missing', async () => {
+    const h = await start()
+    try {
+      await h.client.callTool({
+        name: 'query_meals',
+        arguments: { period_from: '2026-06-08' },
+      })
+      expect(h.mealHistoryCalls.query).toEqual([])
+    } finally {
+      await h.close()
+    }
+  })
+
+  it('returns a structured tool error when the meal history service fails', async () => {
+    const h = await start({
+      mealHistoryOverrides: {
+        query: new MealHistoryQueryError('query failed'),
+      },
+    })
+    try {
+      const result = await h.client.callTool({
+        name: 'query_meals',
+        arguments: {
+          period_from: '2026-06-08',
+          period_to: '2026-06-15',
+        },
+      })
+      expect(result).toEqual({
+        content: [{ type: 'text', text: 'query failed' }],
+        isError: true,
+      })
+    } finally {
+      await h.close()
+    }
+  })
+
+  it('converts an unexpected synchronous service throw into a tool error', async () => {
+    const h = await start({
+      mealHistoryOverrides: {
+        query: () => {
+          throw new Error('unexpected query failure')
+        },
+      },
+    })
+    try {
+      const result = await h.client.callTool({
+        name: 'query_meals',
+        arguments: {
+          period_from: '2026-06-08',
+          period_to: '2026-06-15',
+        },
+      })
+      expect(result).toEqual({
+        content: [{ type: 'text', text: 'unexpected query failure' }],
+        isError: true,
+      })
+    } finally {
+      await h.close()
+    }
+  })
+
+  it('logs an unexpected synchronous service throw as a failed tool call', async () => {
+    const h = await start({
+      mealHistoryOverrides: {
+        query: () => {
+          throw new Error('unexpected query failure')
+        },
+      },
+    })
+    try {
+      await h.client.callTool({
+        name: 'query_meals',
+        arguments: {
+          period_from: '2026-06-08',
+          period_to: '2026-06-15',
+        },
+      })
+      expect(h.logs).toEqual([
+        {
+          event: 'meshi.tool_called',
+          payload: { tool: 'query_meals' },
+        },
+        {
+          event: 'meshi.tool_failed',
+          payload: {
+            tool: 'query_meals',
+            code: 'internal_error',
+            message: 'unexpected query failure',
+          },
+        },
+      ])
     } finally {
       await h.close()
     }
@@ -778,6 +977,36 @@ describe('recommend_meal', () => {
         structuredContent: { error: null },
       })
       expect(h.calls.recommendMeal).toEqual([{ conditions: '軽め' }])
+    } finally {
+      await h.close()
+    }
+  })
+})
+
+describe('MCP LLM tool signals', () => {
+  it('passes a deadline signal to every LLM-backed tool', async () => {
+    const h = await start()
+    try {
+      await h.client.callTool({
+        name: 'record_meal_from_text',
+        arguments: { text: 'rice' },
+      })
+      await h.client.callTool({
+        name: 'record_meal_from_image',
+        arguments: {
+          image: { type: 'image', mimeType: 'image/png', data: 'aGVsbG8=' },
+        },
+      })
+      await h.client.callTool({
+        name: 'recommend_meal',
+        arguments: { additional_constraints: 'light' },
+      })
+
+      expect(h.calls.signals.map((signal) => signal.aborted)).toEqual([
+        false,
+        false,
+        false,
+      ])
     } finally {
       await h.close()
     }

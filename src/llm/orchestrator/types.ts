@@ -1,5 +1,4 @@
 import type { SupportedImageMimeType } from '#adapters/image/image-types'
-import type { MealType } from '#domain/meal-log/types'
 
 export interface RecordFromTextInput {
   readonly text: string
@@ -14,13 +13,6 @@ export interface RecordFromImageInput {
   }
   readonly hintText?: string
   readonly occurredAt?: Date
-  readonly timezone?: string
-}
-
-export interface QueryMealsInput {
-  readonly query: string
-  readonly periodFrom?: Date
-  readonly periodTo?: Date
   readonly timezone?: string
 }
 
@@ -45,23 +37,6 @@ export interface FoodCandidate {
   readonly reason: string
 }
 
-export interface MealHistoryAggregateSnapshot {
-  readonly totals: Readonly<Record<string, number>>
-  readonly perDay: ReadonlyArray<{
-    readonly date: string
-    readonly totals: Readonly<Record<string, number>>
-  }>
-  readonly entries: ReadonlyArray<{
-    readonly mealLogId: string
-    readonly foodMasterId: string
-    readonly foodName: string
-    readonly eatenDate: string
-    readonly mealType: MealType
-    readonly quantity: number
-  }>
-  readonly hasEstimatedValues: boolean
-}
-
 type OrchestratorErrorKind =
   | 'deadline_exceeded'
   | 'max_turns_exceeded'
@@ -82,13 +57,6 @@ export interface MealRecordResult {
   readonly error: OrchestratorError | null
 }
 
-export interface MealHistoryResult {
-  readonly aggregate: MealHistoryAggregateSnapshot | null
-  readonly hasEstimatedValues: boolean
-  readonly summaryText: string
-  readonly error: OrchestratorError | null
-}
-
 export interface RecommendResult {
   readonly summaryText: string
   readonly error: OrchestratorError | null
@@ -103,10 +71,6 @@ export interface ConversationOrchestrator {
     input: RecordFromImageInput,
     signal?: AbortSignal,
   ): Promise<MealRecordResult>
-  queryMeals(
-    input: QueryMealsInput,
-    signal?: AbortSignal,
-  ): Promise<MealHistoryResult>
   recommendMeal(
     input: RecommendInput,
     signal?: AbortSignal,

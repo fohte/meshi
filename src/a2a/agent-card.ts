@@ -7,9 +7,8 @@ const MESHI_AGENT_VERSION = '0.0.0'
 const MESHI_AGENT_DESCRIPTION =
   '食事の記録・照会・提案とプロフィール管理を会話的に行う個人向け栄養管理エージェント。'
 
-// Descriptions below are carried over verbatim/near-verbatim from the MCP
-// intent tools' own descriptions (mcp-tools.ts registerMeshiTools) — both
-// surfaces advertise the same underlying domain-agent capability.
+// A2A advertises the same user-facing operations as MCP. A2A requests continue
+// to use the domain agent; MCP meal-history queries call the service directly.
 const SKILLS: readonly AgentSkill[] = [
   {
     id: 'record_meal',

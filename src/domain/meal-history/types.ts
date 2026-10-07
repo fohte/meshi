@@ -24,6 +24,7 @@ export interface MealLogEntry {
   readonly eatenDate: JstDate
   readonly mealType: MealType
   readonly quantity: number
+  readonly recordedAt: string
 }
 
 export interface MealHistoryDayTotals {

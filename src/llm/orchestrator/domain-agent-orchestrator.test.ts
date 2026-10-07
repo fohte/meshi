@@ -91,6 +91,25 @@ describe('createDomainAgentOrchestrator', () => {
     })
   })
 
+  it('returns a deadline error when the request is canceled', async () => {
+    const controller = new AbortController()
+    controller.abort()
+    const orchestrator = createDomainAgentOrchestrator({
+      model: fakeModel().respond(new AIMessage('final answer')),
+      registry: stubRegistry([]),
+    })
+
+    const result = await orchestrator.recommendMeal({}, controller.signal)
+
+    expect(result).toEqual({
+      summaryText: '処理が時間内に終わらなかったため中断しました。',
+      error: {
+        kind: 'deadline_exceeded',
+        message: '処理が時間内に終わらなかったため中断しました。',
+      },
+    })
+  })
+
   it('returns a deadline error when a model request times out', async () => {
     const orchestrator = createDomainAgentOrchestrator({
       model: fakeModel().alwaysThrow(
@@ -615,108 +634,6 @@ describe('createDomainAgentOrchestrator', () => {
         summaryText: '写真から白米を記録しました。',
         error: null,
       })
-    })
-  })
-
-  describe('queryMeals', () => {
-    it('extracts the aggregate from the last query_meal_history call', async () => {
-      const registry = stubRegistry([
-        stubTool('query_meal_history', () =>
-          Promise.resolve(
-            ok({
-              totals: { energy_kcal: 336 },
-              per_day: [{ date: '2026-06-12', totals: { energy_kcal: 336 } }],
-              entries: [
-                {
-                  meal_log_id: 'ml_1',
-                  food_master_id: 'fm_rice',
-                  food_name: '白米',
-                  eaten_date: '2026-06-12',
-                  meal_type: 'lunch',
-                  quantity: 200,
-                },
-              ],
-              has_estimated_values: false,
-            }),
-          ),
-        ),
-      ])
-      const orchestrator = createDomainAgentOrchestrator({
-        model: scriptedDomainAgentModel(
-          [
-            {
-              name: 'query_meal_history',
-              args: {
-                period_from_iso: '2026-06-12T00:00:00+00:00',
-                period_to_iso: '2026-06-13T00:00:00+00:00',
-              },
-            },
-          ],
-          { status: 'completed', message: '2026-06-12 の合計を返しました。' },
-        ),
-        registry,
-      })
-
-      const result = await orchestrator.queryMeals({
-        query: '2026-06-12 の合計を教えて',
-      })
-
-      expect(result).toEqual({
-        aggregate: {
-          totals: { energy_kcal: 336 },
-          perDay: [{ date: '2026-06-12', totals: { energy_kcal: 336 } }],
-          entries: [
-            {
-              mealLogId: 'ml_1',
-              foodMasterId: 'fm_rice',
-              foodName: '白米',
-              eatenDate: '2026-06-12',
-              mealType: 'lunch',
-              quantity: 200,
-            },
-          ],
-          hasEstimatedValues: false,
-        },
-        hasEstimatedValues: false,
-        summaryText: '2026-06-12 の合計を返しました。',
-        error: null,
-      })
-    })
-
-    it('never calls record_meal_log even when the model is scripted to invoke it and the registry has it', async () => {
-      const recordMealLog = vi.fn(() =>
-        Promise.resolve(
-          ok({
-            meal_log_id: 'ml_1',
-            nutrition: { energy_kcal: 336 },
-            is_estimated: false,
-          }),
-        ),
-      )
-      const registry = stubRegistry([
-        stubTool('query_meal_history', () =>
-          Promise.resolve(
-            ok({
-              totals: {},
-              per_day: [],
-              entries: [],
-              has_estimated_values: false,
-            }),
-          ),
-        ),
-        stubTool('record_meal_log', recordMealLog),
-      ])
-      const orchestrator = createDomainAgentOrchestrator({
-        model: scriptedDomainAgentModel(
-          [{ name: 'record_meal_log', args: { food_master_id: 'fm_rice' } }],
-          { status: 'completed', message: 'done' },
-        ),
-        registry,
-      })
-
-      await orchestrator.queryMeals({ query: 'hello' })
-
-      expect(recordMealLog).not.toHaveBeenCalled()
     })
   })
 

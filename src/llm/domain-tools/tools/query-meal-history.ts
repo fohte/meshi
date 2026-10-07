@@ -1,6 +1,7 @@
 import { z } from 'zod'
 
 import { NUTRIENT_CODES } from '#db/seed/nutrient-definitions'
+import { toMealHistoryPayload } from '#domain/meal-history/mealHistoryPayload'
 import type { MealHistoryService } from '#domain/meal-history/types'
 import { MEAL_TYPES, type MealType } from '#domain/meal-log/types'
 import { jstDateSchema } from '#lib/jst-date'
@@ -47,11 +48,8 @@ export type QueryMealHistoryOutput = z.infer<
   typeof queryMealHistoryOutputSchema
 >
 
-// The snake_case-to-camelCase field mapping every consumer of this tool's
-// wire-format entries needs (the A2A path's itemized rendering, the
-// orchestrator's MealHistoryAggregateSnapshot) — kept here as the single
-// place that knows this tool's output field names, rather than duplicated
-// per caller.
+// The A2A path's itemized rendering uses these fields. Keep the mapping here
+// as the single place that knows this tool's output field names.
 export const toMealHistoryEntryFields = (
   entry: QueryMealHistoryEntry,
 ): {
@@ -93,22 +91,6 @@ export const createQueryMealHistoryTool = (
     })
     if (queryResult.isErr()) return internalErr(queryResult.error)
 
-    const aggregate = queryResult.value
-    return ok({
-      totals: aggregate.totals,
-      per_day: aggregate.perDay.map((d) => ({
-        date: d.date,
-        totals: d.totals,
-      })),
-      entries: aggregate.entries.map((entry) => ({
-        meal_log_id: entry.id,
-        food_master_id: entry.foodMasterId,
-        food_name: entry.foodName,
-        eaten_date: entry.eatenDate,
-        meal_type: entry.mealType,
-        quantity: entry.quantity,
-      })),
-      has_estimated_values: aggregate.hasEstimatedValues,
-    })
+    return ok(toMealHistoryPayload(queryResult.value))
   },
 })

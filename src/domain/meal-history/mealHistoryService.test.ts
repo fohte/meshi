@@ -55,6 +55,7 @@ describeIfDb('MealHistoryService.query', () => {
       eatenDate: jstDate('2026-06-01'),
       mealType: 'lunch',
       quantity: 2,
+      createdAt: new Date('2026-06-01T03:04:05.789Z'),
     })
     await seedMealLog(tx, {
       id: 'log-2',
@@ -62,6 +63,7 @@ describeIfDb('MealHistoryService.query', () => {
       eatenDate: jstDate('2026-06-01'),
       mealType: 'dinner',
       quantity: 0.5,
+      createdAt: new Date('2026-06-01T03:04:05.789Z'),
     })
     await seedMealLog(tx, {
       id: 'log-3',
@@ -69,6 +71,7 @@ describeIfDb('MealHistoryService.query', () => {
       eatenDate: jstDate('2026-06-02'),
       mealType: 'breakfast',
       quantity: 1,
+      createdAt: new Date('2026-06-01T03:04:05.789Z'),
     })
 
     const service = createMealHistoryService(tx)
@@ -101,6 +104,7 @@ describeIfDb('MealHistoryService.query', () => {
           eatenDate: '2026-06-01',
           mealType: 'lunch',
           quantity: 2,
+          recordedAt: '2026-06-01T03:04:05Z',
         },
         {
           id: 'log-2',
@@ -109,6 +113,7 @@ describeIfDb('MealHistoryService.query', () => {
           eatenDate: '2026-06-01',
           mealType: 'dinner',
           quantity: 0.5,
+          recordedAt: '2026-06-01T03:04:05Z',
         },
       ],
       hasEstimatedValues: false,
@@ -136,6 +141,7 @@ describeIfDb('MealHistoryService.query', () => {
       eatenDate: jstDate('2026-06-01'),
       mealType: 'lunch',
       quantity: 2,
+      createdAt: new Date('2026-06-01T03:04:05.789Z'),
     })
     await seedMealLog(tx, {
       id: 'log-2',
@@ -143,6 +149,7 @@ describeIfDb('MealHistoryService.query', () => {
       eatenDate: jstDate('2026-06-01'),
       mealType: 'dinner',
       quantity: 0.5,
+      createdAt: new Date('2026-06-01T03:04:05.789Z'),
     })
 
     const service = createMealHistoryService(tx)
@@ -170,6 +177,7 @@ describeIfDb('MealHistoryService.query', () => {
           eatenDate: '2026-06-01',
           mealType: 'dinner',
           quantity: 0.5,
+          recordedAt: '2026-06-01T03:04:05Z',
         },
       ],
       hasEstimatedValues: false,
@@ -191,6 +199,7 @@ describeIfDb('MealHistoryService.query', () => {
       eatenDate: jstDate('2026-06-01'),
       mealType: 'lunch',
       quantity: 1,
+      createdAt: new Date('2026-06-01T03:04:05.789Z'),
     })
 
     const service = createMealHistoryService(tx)
@@ -218,6 +227,7 @@ describeIfDb('MealHistoryService.query', () => {
           eatenDate: '2026-06-01',
           mealType: 'lunch',
           quantity: 1,
+          recordedAt: '2026-06-01T03:04:05Z',
         },
       ],
       hasEstimatedValues: false,
@@ -239,6 +249,7 @@ describeIfDb('MealHistoryService.query', () => {
       eatenDate: jstDate('2026-06-01'),
       mealType: 'lunch',
       quantity: 1,
+      createdAt: new Date('2026-06-01T03:04:05.789Z'),
     })
 
     const service = createMealHistoryService(tx)
@@ -261,6 +272,7 @@ describeIfDb('MealHistoryService.query', () => {
           eatenDate: '2026-06-01',
           mealType: 'lunch',
           quantity: 1,
+          recordedAt: '2026-06-01T03:04:05Z',
         },
       ],
       hasEstimatedValues: false,
@@ -289,6 +301,7 @@ describeIfDb('MealHistoryService.query', () => {
       eatenDate: jstDate('2026-06-01'),
       mealType: 'lunch',
       quantity: 1,
+      createdAt: new Date('2026-06-01T03:04:05.789Z'),
     })
     await seedMealLog(tx, {
       id: 'log-2',
@@ -296,6 +309,7 @@ describeIfDb('MealHistoryService.query', () => {
       eatenDate: jstDate('2026-06-01'),
       mealType: 'dinner',
       quantity: 2.5,
+      createdAt: new Date('2026-06-01T03:04:05.789Z'),
     })
 
     const service = createMealHistoryService(tx)
@@ -328,6 +342,7 @@ describeIfDb('MealHistoryService.query', () => {
           eatenDate: '2026-06-01',
           mealType: 'lunch',
           quantity: 1,
+          recordedAt: '2026-06-01T03:04:05Z',
         },
         {
           id: 'log-2',
@@ -336,6 +351,7 @@ describeIfDb('MealHistoryService.query', () => {
           eatenDate: '2026-06-01',
           mealType: 'dinner',
           quantity: 2.5,
+          recordedAt: '2026-06-01T03:04:05Z',
         },
       ],
       hasEstimatedValues: true,
@@ -401,6 +417,7 @@ describeIfDb(
             eatenDate: jstDate('2026-06-01'),
             mealType: 'lunch',
             quantity: 2,
+            createdAt: new Date('2026-06-01T03:04:05.789Z'),
           })
 
           const service = createMealHistoryService(tx)
@@ -427,6 +444,7 @@ describeIfDb(
                 eatenDate: '2026-06-01',
                 mealType: 'lunch',
                 quantity: 2,
+                recordedAt: '2026-06-01T03:04:05Z',
               },
             ],
             hasEstimatedValues: false,
