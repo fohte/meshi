@@ -2,11 +2,13 @@ import type { McpServer } from '@modelcontextprotocol/server'
 import { z } from 'zod'
 
 import type { FoodSearchService } from '#domain/food-browse/food-search-service'
+import type { FoodMasterService } from '#domain/food-master/service'
 import type { MealHistoryService } from '#domain/meal-history/types'
 import type { MealLogService } from '#domain/meal-log/meal-log-service'
 import type { UserProfileService } from '#domain/user-profile/user-profile-service'
 import type { ConversationOrchestrator } from '#llm/orchestrator/index'
 import type { Logger } from '#logger'
+import { registerDeleteMealLogTool } from '#mcp-tools/delete-meal-log'
 import { registerMealLoggingTools } from '#mcp-tools/meal-logging'
 import {
   buildMealRecordPayload,
@@ -26,6 +28,7 @@ import {
   recordFromTextInput,
   updateProfileInput,
 } from '#mcp-tools/schemas'
+import { registerUpdateMealLogTool } from '#mcp-tools/update-meal-log'
 
 export interface MeshiToolDeps {
   readonly orchestrator: ConversationOrchestrator
@@ -33,6 +36,7 @@ export interface MeshiToolDeps {
   readonly profileService: UserProfileService
   readonly foodSearchService: FoodSearchService
   readonly mealLogService: MealLogService
+  readonly foodMasterService: FoodMasterService
   readonly logger: Logger
 }
 
@@ -40,11 +44,19 @@ export const registerMeshiTools = (
   server: McpServer,
   deps: MeshiToolDeps,
 ): void => {
-  const { orchestrator, mealHistoryService, profileService, logger } = deps
+  const {
+    orchestrator,
+    mealHistoryService,
+    profileService,
+    foodSearchService,
+    foodMasterService,
+    mealLogService,
+    logger,
+  } = deps
 
   registerMealLoggingTools(server, {
-    foodSearchService: deps.foodSearchService,
-    mealLogService: deps.mealLogService,
+    foodSearchService,
+    mealLogService,
     logger,
   })
 
@@ -118,6 +130,12 @@ export const registerMeshiTools = (
   )
 
   registerQueryMealsTool(server, { mealHistoryService, logger })
+  registerDeleteMealLogTool(server, { mealLogService, logger })
+  registerUpdateMealLogTool(server, {
+    mealLogService,
+    foodMasterService,
+    logger,
+  })
   registerRecommendationContextTool(server, {
     mealHistoryService,
     profileService,

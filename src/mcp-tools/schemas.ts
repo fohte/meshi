@@ -130,6 +130,33 @@ export const queryMealsInput = z.object({
   period_to: jstDateSchema.describe('期間の終了日 (JST、含まない。YYYY-MM-DD)'),
 })
 
+export const deleteMealLogInput = z.object({
+  meal_log_ids: z
+    .array(z.string().min(1))
+    .min(1)
+    .refine((ids) => new Set(ids).size === ids.length, {
+      message: 'meal_log_ids must not contain duplicates',
+    }),
+})
+
+const mealLogMutationOutput = z.object({
+  meal_log_id: z.string(),
+  food_master_id: z.string(),
+  food_name: z.string(),
+  eaten_date: jstDateSchema,
+  meal_type: z.enum(MEAL_TYPES),
+  quantity: z.number(),
+})
+
+export const deleteMealLogStructuredOutput = z.object({
+  deleted: z.array(mealLogMutationOutput),
+})
+
+export const updateMealLogStructuredOutput = mealLogMutationOutput.extend({
+  nutrition: nutritionMap,
+  is_estimated: z.boolean(),
+})
+
 export const updateProfileInput = z.object({
   likes: z.array(z.string().min(1)).optional(),
   dislikes: z.array(z.string().min(1)).optional(),

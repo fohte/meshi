@@ -58,6 +58,10 @@ export const createStubApiDeps = (): ApiDeps => ({
       errAsync(
         new MealLogPersistenceError('mealLogService.delete not stubbed'),
       ),
+    deleteMany: () =>
+      errAsync(
+        new MealLogPersistenceError('mealLogService.deleteMany not stubbed'),
+      ),
   },
   foodMasterService: {
     register: () =>

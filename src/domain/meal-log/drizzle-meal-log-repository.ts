@@ -1,12 +1,20 @@
-import { eq } from 'drizzle-orm'
+import { eq, inArray } from 'drizzle-orm'
 import { drizzle } from 'drizzle-orm/postgres-js'
-import { err, ok, type Result, ResultAsync } from 'neverthrow'
+import {
+  err,
+  errAsync,
+  ok,
+  okAsync,
+  type Result,
+  ResultAsync,
+} from 'neverthrow'
 
 import type { Sql } from '#db/index'
 import { foodMasterNutrients, foodMasters, mealLogs } from '#db/schema'
-import type { DomainError } from '#domain/meal-log/errors'
 import {
+  DomainError,
   FoodMasterNotFoundError,
+  MealLogNotFoundError,
   MealLogPersistenceError,
 } from '#domain/meal-log/errors'
 import type {
@@ -17,12 +25,19 @@ import type {
 } from '#domain/meal-log/meal-log-repository'
 import type {
   FoodMasterRef,
+  MealLogDeletionResult,
   MealLogRow,
   MealType,
 } from '#domain/meal-log/types'
 import type { JstDate } from '#lib/jst-date'
 
 type Db = ReturnType<typeof drizzle>
+type Transaction = Parameters<Parameters<Db['transaction']>[0]>[0]
+type DbSession = Db | Transaction
+
+export interface DrizzleMealLogRepositoryOptions {
+  readonly wrapDeleteManyInTransaction?: boolean
+}
 
 const loadNutrition = async (
   db: Db,
@@ -92,8 +107,68 @@ const toRow = (row: {
   createdAt: row.createdAt,
 })
 
-export const createDrizzleMealLogRepository = (sql: Sql): MealLogRepository => {
+export const createDrizzleMealLogRepository = (
+  sql: Sql,
+  options: DrizzleMealLogRepositoryOptions = {},
+): MealLogRepository => {
   const db = drizzle(sql)
+  const wrapDeleteManyInTransaction =
+    options.wrapDeleteManyInTransaction ?? true
+
+  const deleteMealLogs = async (
+    session: DbSession,
+    ids: ReadonlyArray<string>,
+  ): Promise<Result<ReadonlyArray<MealLogDeletionResult>, DomainError>> => {
+    // Lock the rows so another delete cannot invalidate the all-or-none check.
+    const rows = await session
+      .select({
+        id: mealLogs.id,
+        foodMasterId: mealLogs.foodMasterId,
+        foodName: foodMasters.name,
+        eatenDate: mealLogs.eatenDate,
+        mealType: mealLogs.mealType,
+        quantity: mealLogs.quantity,
+      })
+      .from(mealLogs)
+      .innerJoin(foodMasters, eq(mealLogs.foodMasterId, foodMasters.id))
+      .where(inArray(mealLogs.id, ids))
+      .for('update', { of: mealLogs })
+
+    const foundIds = new Set(rows.map((row) => row.id))
+    const missingId = ids.find((id) => !foundIds.has(id))
+    if (missingId !== undefined) {
+      return err(new MealLogNotFoundError(missingId))
+    }
+
+    const deletedRows = await session
+      .delete(mealLogs)
+      .where(inArray(mealLogs.id, ids))
+      .returning({ id: mealLogs.id })
+    if (deletedRows.length !== ids.length) {
+      return err(
+        new MealLogPersistenceError(
+          'meal_logs bulk delete returned an unexpected number of rows',
+        ),
+      )
+    }
+
+    const positions = new Map(ids.map((id, index) => [id, index]))
+    return ok(
+      rows
+        .toSorted(
+          (left, right) =>
+            (positions.get(left.id) ?? 0) - (positions.get(right.id) ?? 0),
+        )
+        .map((row) => ({
+          id: row.id,
+          foodMasterId: row.foodMasterId,
+          foodName: row.foodName,
+          eatenDate: row.eatenDate,
+          mealType: row.mealType,
+          quantity: Number(row.quantity),
+        })),
+    )
+  }
 
   return {
     findFoodMaster: (id) => loadFoodMaster(db, id),
@@ -197,6 +272,28 @@ export const createDrizzleMealLogRepository = (sql: Sql): MealLogRepository => {
         (caughtErr) =>
           new MealLogPersistenceError('failed to delete meal_log', caughtErr),
       ).map((deleted) => deleted.length > 0),
+
+    deleteMealLogs: (
+      ids: ReadonlyArray<string>,
+    ): ResultAsync<ReadonlyArray<MealLogDeletionResult>, DomainError> => {
+      if (ids.length === 0) return okAsync([])
+      if (new Set(ids).size !== ids.length) {
+        return errAsync(
+          new DomainError(
+            'meal_log_ids must not contain duplicates',
+            'meal_log/duplicate_ids',
+          ),
+        )
+      }
+      const operation = wrapDeleteManyInTransaction
+        ? db.transaction((tx) => deleteMealLogs(tx, ids))
+        : deleteMealLogs(db, ids)
+      return ResultAsync.fromPromise(
+        operation,
+        (caughtErr) =>
+          new MealLogPersistenceError('failed to delete meal_logs', caughtErr),
+      ).andThen((result) => result)
+    },
 
     findMealLogById: (
       id: string,
