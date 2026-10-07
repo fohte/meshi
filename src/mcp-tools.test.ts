@@ -263,7 +263,7 @@ interface DirectMealToolCalls {
 const makeProfileService = (
   initial: UserProfile = defaultProfile,
   overrides: {
-    get?: UserProfileRepositoryError
+    get?: UserProfileRepositoryError | (() => never)
     update?: UserProfileRepositoryError
   } = {},
 ): { service: UserProfileService; calls: ProfileCalls } => {
@@ -272,6 +272,7 @@ const makeProfileService = (
   const service: UserProfileService = {
     get() {
       calls.get++
+      if (typeof overrides.get === 'function') return overrides.get()
       if (overrides.get) return errAsync(overrides.get)
       return okAsync(current)
     },
@@ -313,7 +314,7 @@ interface HarnessConfig {
     query?: MealHistoryAggregate | MealHistoryQueryError | (() => never)
   }
   profileOverrides?: {
-    get?: UserProfileRepositoryError
+    get?: UserProfileRepositoryError | (() => never)
     update?: UserProfileRepositoryError
   }
   profile?: UserProfile
@@ -1029,6 +1030,28 @@ describe('get_recommendation_context', () => {
     }
   })
 
+  it('returns an error without context when profile retrieval throws', async () => {
+    const h = await start({
+      profileOverrides: {
+        get: () => {
+          throw new Error('unexpected profile failure')
+        },
+      },
+    })
+    try {
+      const result = await h.client.callTool({
+        name: 'get_recommendation_context',
+        arguments: recommendationPeriod,
+      })
+      expect(result).toEqual({
+        content: [{ type: 'text', text: 'unexpected profile failure' }],
+        isError: true,
+      })
+    } finally {
+      await h.close()
+    }
+  })
+
   it('returns an error without context when history retrieval fails', async () => {
     const h = await start({
       mealHistoryOverrides: {
@@ -1042,6 +1065,28 @@ describe('get_recommendation_context', () => {
       })
       expect(result).toEqual({
         content: [{ type: 'text', text: 'history unavailable' }],
+        isError: true,
+      })
+    } finally {
+      await h.close()
+    }
+  })
+
+  it('returns an error without context when history retrieval throws', async () => {
+    const h = await start({
+      mealHistoryOverrides: {
+        query: () => {
+          throw new Error('unexpected history failure')
+        },
+      },
+    })
+    try {
+      const result = await h.client.callTool({
+        name: 'get_recommendation_context',
+        arguments: recommendationPeriod,
+      })
+      expect(result).toEqual({
+        content: [{ type: 'text', text: 'unexpected history failure' }],
         isError: true,
       })
     } finally {
