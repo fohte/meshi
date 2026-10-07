@@ -72,16 +72,17 @@ export const mealHistoryStructuredOutput = z.object({
   has_estimated_values: z.boolean(),
 })
 
-export const recommendStructuredOutput = z.object({
-  error: orchestratorErrorOutput,
-})
-
 export const profileStructuredOutput = z.object({
   likes: z.array(z.string()),
   dislikes: z.array(z.string()),
   allergies: z.array(z.string()),
   constraints: z.array(z.string()),
   daily_targets: nutritionMap.nullable(),
+})
+
+export const recommendationContextStructuredOutput = z.object({
+  profile: profileStructuredOutput,
+  history: mealHistoryStructuredOutput,
 })
 
 export const recordFromTextInput = z.object({
@@ -127,15 +128,6 @@ export const recordFromImageInput = z.object({
 export const queryMealsInput = z.object({
   period_from: jstDateSchema.describe('期間の開始日 (JST、含む。YYYY-MM-DD)'),
   period_to: jstDateSchema.describe('期間の終了日 (JST、含まない。YYYY-MM-DD)'),
-})
-
-export const recommendMealInput = z.object({
-  additional_constraints: z
-    .string()
-    .min(1)
-    .optional()
-    .describe('追加条件 (例: 軽め、外食可)'),
-  timezone: z.string().min(1).optional(),
 })
 
 export const updateProfileInput = z.object({

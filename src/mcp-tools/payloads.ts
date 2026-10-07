@@ -6,7 +6,6 @@ import type { UserProfile } from '#domain/user-profile/user-profile'
 import type {
   MealRecordResult,
   OrchestratorError,
-  RecommendResult,
 } from '#llm/orchestrator/index'
 import type { Logger } from '#logger'
 
@@ -65,12 +64,6 @@ export const buildMealHistoryPayload = (
   aggregate: MealHistoryAggregate,
 ): Record<string, unknown> => ({
   ...toMealHistoryPayload(aggregate, { includeRecordedAt: true }),
-})
-
-export const buildRecommendPayload = (
-  result: RecommendResult,
-): Record<string, unknown> => ({
-  error: orchestratorErrorPayload(result.error),
 })
 
 const orchestratorErrorPayload = (

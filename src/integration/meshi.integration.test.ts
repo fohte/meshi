@@ -734,49 +734,6 @@ describeIfDb('meshi integration', () => {
     }
   })
 
-  it('recommends a meal based on profile + recent history', async () => {
-    const tx = getTx()
-    await seedFoodMaster(tx, {
-      id: 'fm_rice',
-      name: '白米',
-      nutrition: { energy_kcal: 168 },
-    })
-
-    const harness = await startHarness({
-      tx,
-      toolCalls: [
-        { name: 'get_user_profile', args: {} },
-        {
-          name: 'query_meal_history',
-          args: {
-            period_from: '2026-06-11',
-            period_to: '2026-06-13',
-          },
-        },
-      ],
-      final: {
-        status: 'completed',
-        message: 'サバ味噌煮定食はいかがでしょう。',
-      },
-    })
-
-    try {
-      const result = normalizeResult(
-        await harness.client.callTool({
-          name: 'recommend_meal',
-          arguments: { additional_constraints: '軽め' },
-        }),
-      )
-
-      expect(result).toEqual({
-        structuredContent: { error: null },
-        content: [{ type: 'text', text: 'サバ味噌煮定食はいかがでしょう。' }],
-      })
-    } finally {
-      await harness.close()
-    }
-  })
-
   it('records a meal from an image (vision agent)', async () => {
     const tx = getTx()
     await seedFoodMaster(tx, {

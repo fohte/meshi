@@ -4,5 +4,4 @@ export type {
   ConversationOrchestrator,
   MealRecordResult,
   OrchestratorError,
-  RecommendResult,
 } from '#llm/orchestrator/types'

@@ -18,7 +18,7 @@ import type {
   RecordMealLogItemResult,
   RecordMealLogsInput,
 } from '#domain/meal-log/types'
-import type { UserProfileRepositoryError } from '#domain/user-profile/errors'
+import { UserProfileRepositoryError } from '#domain/user-profile/errors'
 import type {
   UserProfile,
   UserProfilePatch,
@@ -28,10 +28,8 @@ import type {
   ConversationOrchestrator,
   MealRecordResult,
   OrchestratorError,
-  RecommendResult,
 } from '#llm/orchestrator/index'
 import type {
-  RecommendInput,
   RecordFromImageInput,
   RecordFromTextInput,
 } from '#llm/orchestrator/types'
@@ -132,11 +130,6 @@ const successMealHistory: MealHistoryAggregate = {
   hasEstimatedValues: false,
 }
 
-const successRecommend: RecommendResult = {
-  summaryText: 'サバ味噌煮定食はどうでしょう',
-  error: null,
-}
-
 const searchFoodResults = [
   {
     foodMasterId: 'fm_catalog_alpha',
@@ -163,13 +156,11 @@ const recordedMealLogItems: ReadonlyArray<RecordMealLogItemResult> = [
 interface OrchestratorCalls {
   recordFromText: RecordFromTextInput[]
   recordFromImage: RecordFromImageInput[]
-  recommendMeal: RecommendInput[]
 }
 
 interface OrchestratorOverrides {
   recordFromText?: MealRecordResult | Error
   recordFromImage?: MealRecordResult | Error
-  recommendMeal?: RecommendResult | Error
 }
 
 const makeOrchestrator = (
@@ -178,7 +169,6 @@ const makeOrchestrator = (
   const calls: OrchestratorCalls = {
     recordFromText: [],
     recordFromImage: [],
-    recommendMeal: [],
   }
   const resolve = <T>(value: T | Error): Promise<T> =>
     value instanceof Error ? Promise.reject(value) : Promise.resolve(value)
@@ -190,10 +180,6 @@ const makeOrchestrator = (
     recordFromImage(input) {
       calls.recordFromImage.push(input)
       return resolve(overrides.recordFromImage ?? successMealRecord)
-    },
-    recommendMeal(input) {
-      calls.recommendMeal.push(input)
-      return resolve(overrides.recommendMeal ?? successRecommend)
     },
   }
   return { orchestrator, calls }
@@ -227,6 +213,41 @@ const defaultProfile: UserProfile = {
   dislikes: [],
   allergies: [],
   constraints: [],
+}
+
+const recommendationProfile: UserProfile = {
+  likes: ['profile_favorite_alpha'],
+  dislikes: ['profile_avoid_beta'],
+  allergies: ['allergen_gamma'],
+  constraints: ['diet_constraint_delta'],
+  dailyTargets: { energy_kcal: 2222, protein_g: 111 },
+}
+
+const recommendationHistory: MealHistoryAggregate = {
+  totals: { energy_kcal: 701, protein_g: 27 },
+  perDay: [
+    {
+      date: jstDate('2025-11-23'),
+      totals: { energy_kcal: 701, protein_g: 27 },
+    },
+  ],
+  entries: [
+    {
+      id: 'meal_log_delta',
+      foodMasterId: 'food_master_delta',
+      foodName: 'sample_meal_delta',
+      eatenDate: jstDate('2025-11-23'),
+      mealType: 'breakfast',
+      quantity: 1.25,
+      recordedAt: '2025-11-23T04:05:06Z',
+    },
+  ],
+  hasEstimatedValues: true,
+}
+
+const recommendationPeriod = {
+  period_from: '2025-11-20',
+  period_to: '2025-11-27',
 }
 
 interface ProfileCalls {
@@ -369,8 +390,8 @@ describe('MeshiMcpServer tools/list', () => {
       const names = result.tools.map((t) => t.name).sort()
       expect(names).toEqual([
         'get_profile',
+        'get_recommendation_context',
         'query_meals',
-        'recommend_meal',
         'record_meal_from_image',
         'record_meal_from_text',
         'record_meal_log',
@@ -411,9 +432,9 @@ describe('MeshiMcpServer tools/list', () => {
       }
       expect(propsByTool).toEqual({
         get_profile: [],
+        get_recommendation_context: ['period_from', 'period_to'],
         record_meal_log: ['date', 'items', 'meal_type'],
         query_meals: ['period_from', 'period_to'],
-        recommend_meal: ['additional_constraints', 'timezone'],
         record_meal_from_image: [
           'hint_text',
           'image',
@@ -441,6 +462,19 @@ describe('MeshiMcpServer tools/list', () => {
       const result = await h.client.listTools()
       const tool = result.tools.find(
         (candidate) => candidate.name === 'search_foods',
+      )
+      expect(tool?.annotations).toEqual({ readOnlyHint: true })
+    } finally {
+      await h.close()
+    }
+  })
+
+  it('marks get_recommendation_context as read-only', async () => {
+    const h = await start()
+    try {
+      const result = await h.client.listTools()
+      const tool = result.tools.find(
+        (candidate) => candidate.name === 'get_recommendation_context',
       )
       expect(tool?.annotations).toEqual({ readOnlyHint: true })
     } finally {
@@ -743,7 +777,6 @@ describe('query_meals', () => {
       expect(h.calls).toEqual({
         recordFromText: [],
         recordFromImage: [],
-        recommendMeal: [],
       })
     } finally {
       await h.close()
@@ -888,19 +921,129 @@ describe('query_meals', () => {
   })
 })
 
-describe('recommend_meal', () => {
-  it('forwards additional_constraints to the orchestrator', async () => {
-    const h = await start()
+describe('get_recommendation_context', () => {
+  it('returns the profile and selected-period history together', async () => {
+    const h = await start({
+      profile: recommendationProfile,
+      mealHistoryOverrides: { query: recommendationHistory },
+    })
     try {
       const result = await h.client.callTool({
-        name: 'recommend_meal',
-        arguments: { additional_constraints: '軽め' },
+        name: 'get_recommendation_context',
+        arguments: recommendationPeriod,
       })
       expect(result).toEqual({
-        content: [{ type: 'text', text: 'サバ味噌煮定食はどうでしょう' }],
-        structuredContent: { error: null },
+        content: [
+          { type: 'text', text: 'プロフィールと食事履歴を取得しました。' },
+        ],
+        structuredContent: {
+          profile: {
+            likes: ['profile_favorite_alpha'],
+            dislikes: ['profile_avoid_beta'],
+            allergies: ['allergen_gamma'],
+            constraints: ['diet_constraint_delta'],
+            daily_targets: { energy_kcal: 2222, protein_g: 111 },
+          },
+          history: {
+            totals: { energy_kcal: 701, protein_g: 27 },
+            per_day: [
+              {
+                date: '2025-11-23',
+                totals: { energy_kcal: 701, protein_g: 27 },
+              },
+            ],
+            entries: [
+              {
+                meal_log_id: 'meal_log_delta',
+                food_master_id: 'food_master_delta',
+                food_name: 'sample_meal_delta',
+                eaten_date: '2025-11-23',
+                meal_type: 'breakfast',
+                quantity: 1.25,
+                recorded_at: '2025-11-23T04:05:06Z',
+              },
+            ],
+            has_estimated_values: true,
+          },
+        },
       })
-      expect(h.calls.recommendMeal).toEqual([{ conditions: '軽め' }])
+    } finally {
+      await h.close()
+    }
+  })
+
+  it('passes the selected period to the history service and reads the profile once', async () => {
+    const h = await start()
+    try {
+      await h.client.callTool({
+        name: 'get_recommendation_context',
+        arguments: recommendationPeriod,
+      })
+      expect(
+        observation({
+          historyCalls: h.mealHistoryCalls.query,
+          profileCalls: h.profileCalls.get,
+        }),
+      ).toEqual({
+        historyCalls: [{ periodFrom: '2025-11-20', periodTo: '2025-11-27' }],
+        profileCalls: 1,
+      })
+    } finally {
+      await h.close()
+    }
+  })
+
+  it('does not invoke the LLM orchestrator', async () => {
+    const h = await start()
+    try {
+      await h.client.callTool({
+        name: 'get_recommendation_context',
+        arguments: recommendationPeriod,
+      })
+      expect(h.calls).toEqual({
+        recordFromText: [],
+        recordFromImage: [],
+      })
+    } finally {
+      await h.close()
+    }
+  })
+
+  it('returns an error without context when profile retrieval fails', async () => {
+    const h = await start({
+      profileOverrides: {
+        get: new UserProfileRepositoryError('profile unavailable'),
+      },
+    })
+    try {
+      const result = await h.client.callTool({
+        name: 'get_recommendation_context',
+        arguments: recommendationPeriod,
+      })
+      expect(result).toEqual({
+        content: [{ type: 'text', text: 'profile unavailable' }],
+        isError: true,
+      })
+    } finally {
+      await h.close()
+    }
+  })
+
+  it('returns an error without context when history retrieval fails', async () => {
+    const h = await start({
+      mealHistoryOverrides: {
+        query: new MealHistoryQueryError('history unavailable'),
+      },
+    })
+    try {
+      const result = await h.client.callTool({
+        name: 'get_recommendation_context',
+        arguments: recommendationPeriod,
+      })
+      expect(result).toEqual({
+        content: [{ type: 'text', text: 'history unavailable' }],
+        isError: true,
+      })
     } finally {
       await h.close()
     }
@@ -1039,7 +1182,6 @@ describe('search_foods', () => {
         orchestratorCalls: {
           recordFromText: [],
           recordFromImage: [],
-          recommendMeal: [],
         },
       })
     } finally {
@@ -1141,7 +1283,6 @@ describe('record_meal_log', () => {
         orchestratorCalls: {
           recordFromText: [],
           recordFromImage: [],
-          recommendMeal: [],
         },
       })
     } finally {
@@ -1177,7 +1318,6 @@ describe('record_meal_log', () => {
         orchestratorCalls: {
           recordFromText: [],
           recordFromImage: [],
-          recommendMeal: [],
         },
         logs: [],
       })
