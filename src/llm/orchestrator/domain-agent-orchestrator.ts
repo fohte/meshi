@@ -255,10 +255,7 @@ export const createDomainAgentOrchestrator = (
       },
       (cause) => {
         captureWithFingerprint(cause, ORCHESTRATOR_INVOKE_FAILED_FINGERPRINT)
-        const timedOut =
-          signal?.aborted === true ||
-          isTimeoutError(cause) ||
-          isTimeoutError(signal?.reason)
+        const timedOut = signal?.aborted === true || isTimeoutError(cause)
         return {
           invocations,
           reply: null,

@@ -984,7 +984,10 @@ describe('recommend_meal', () => {
 })
 
 describe('MCP LLM tool signals', () => {
-  it('passes a deadline signal to every LLM-backed tool', async () => {
+  it('sets a 50-second deadline for every LLM-backed tool', async () => {
+    const timeout = vi
+      .spyOn(AbortSignal, 'timeout')
+      .mockReturnValue(new AbortController().signal)
     const h = await start()
     try {
       await h.client.callTool({
@@ -1002,12 +1005,16 @@ describe('MCP LLM tool signals', () => {
         arguments: { additional_constraints: 'light' },
       })
 
-      expect(h.calls.signals.map((signal) => signal.aborted)).toEqual([
-        false,
-        false,
-        false,
+      const readSignalResults = (): [number[], boolean[]] => [
+        timeout.mock.calls.map(([delay]) => delay),
+        h.calls.signals.map((signal) => signal.aborted),
+      ]
+      expect(readSignalResults()).toEqual([
+        [50_000, 50_000, 50_000],
+        [false, false, false],
       ])
     } finally {
+      timeout.mockRestore()
       await h.close()
     }
   })
