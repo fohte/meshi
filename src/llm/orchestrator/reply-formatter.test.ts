@@ -256,40 +256,4 @@ describe('createTemplateReplyFormatter', () => {
       )
     })
   })
-
-  describe('formatRecommend', () => {
-    it('returns the final text on success', () => {
-      const text = formatter.formatRecommend({
-        finalText: 'サラダはいかがでしょう。',
-        error: null,
-      })
-
-      expect(text).toEqual('サラダはいかがでしょう。')
-    })
-
-    it('returns the error reply when the loop diverges', () => {
-      const text = formatter.formatRecommend({
-        finalText: '',
-        error: { kind: 'divergence_detected', message: 'dup tool call' },
-      })
-
-      expect(text).toEqual(
-        [
-          '内部処理で同じ操作が繰り返されたため中断しました。',
-          '入力を変えてもう一度試してください。',
-        ].join('\n'),
-      )
-    })
-
-    it('falls back to a hint when the loop returns empty text', () => {
-      const text = formatter.formatRecommend({
-        finalText: '',
-        error: null,
-      })
-
-      expect(text).toEqual(
-        'おすすめを提案できませんでした。条件を変えて試してください。',
-      )
-    })
-  })
 })

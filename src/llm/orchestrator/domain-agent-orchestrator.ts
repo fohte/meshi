@@ -29,7 +29,6 @@ import type { RecordMealLogOutput } from '#llm/domain-tools/tools/record-meal-lo
 import type { SearchFoodMasterOutput } from '#llm/domain-tools/tools/search-food-master'
 import type { DomainTool } from '#llm/domain-tools/types'
 import { deriveDomainToolsRegistry } from '#llm/orchestrator/derived-tool-registry'
-import { restrictToReadOnly } from '#llm/orchestrator/read-only-tool-registry'
 import {
   createPassthroughReplyFormatter,
   type ReplyFormatter,
@@ -39,8 +38,6 @@ import type {
   FoodCandidate,
   MealRecordResult,
   OrchestratorError,
-  RecommendInput,
-  RecommendResult,
   RecordedMeal,
   RecordFromImageInput,
   RecordFromTextInput,
@@ -296,18 +293,6 @@ export const createDomainAgentOrchestrator = (
         data: input.image.base64,
       })
       return runRecordTurn(content)
-    },
-    async recommendMeal(input: RecommendInput): Promise<RecommendResult> {
-      const body = input.conditions ?? 'No additional conditions.'
-      const { reply, error } = await runTurn(
-        textContent(body, undefined, input.timezone),
-        restrictToReadOnly(options.registry),
-      )
-      const summaryText = formatter.formatRecommend({
-        finalText: reply?.text ?? '',
-        error,
-      })
-      return { summaryText, error }
     },
   }
 }

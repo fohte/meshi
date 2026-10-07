@@ -7,7 +7,6 @@ import type { UserProfile } from '#domain/user-profile/user-profile'
 import type {
   MealRecordResult,
   OrchestratorError,
-  RecommendResult,
 } from '#llm/orchestrator/index'
 import type { Logger } from '#logger'
 
@@ -77,12 +76,6 @@ export const buildMealLogMutationPayload = (
   eaten_date: record.eatenDate,
   meal_type: record.mealType,
   quantity: record.quantity,
-})
-
-export const buildRecommendPayload = (
-  result: RecommendResult,
-): Record<string, unknown> => ({
-  error: orchestratorErrorPayload(result.error),
 })
 
 const orchestratorErrorPayload = (

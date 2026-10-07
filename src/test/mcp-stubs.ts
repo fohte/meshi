@@ -19,7 +19,6 @@ import type { MeshiToolDeps } from '#mcp-tools'
 const rejectingOrchestrator: ConversationOrchestrator = {
   recordFromText: () => Promise.reject(new Error('stub')),
   recordFromImage: () => Promise.reject(new Error('stub')),
-  recommendMeal: () => Promise.reject(new Error('stub')),
 }
 
 const rejectingMealHistoryService: MealHistoryService = {
