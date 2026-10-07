@@ -296,7 +296,7 @@ interface HarnessConfig {
     update?: UserProfileRepositoryError
   }
   profile?: UserProfile
-  searchFoodResults?: typeof searchFoodResults
+  foodSearchServiceResult?: ReturnType<FoodSearchService['searchRegistered']>
   recordMealLogError?: DomainError
 }
 
@@ -319,7 +319,7 @@ const start = async (config: HarnessConfig = {}): Promise<Harness> => {
   const foodSearchService: FoodSearchService = {
     searchRegistered(queries, limit) {
       directMealToolCalls.foodSearch.push({ queries, limit })
-      return okAsync(config.searchFoodResults ?? searchFoodResults)
+      return config.foodSearchServiceResult ?? okAsync(searchFoodResults)
     },
   }
   const mealLogService: MealLogService = {
@@ -1040,6 +1040,41 @@ describe('search_foods', () => {
           recordFromText: [],
           recordFromImage: [],
           recommendMeal: [],
+        },
+      })
+    } finally {
+      await h.close()
+    }
+  })
+
+  it('returns null energy when enrichment is unavailable', async () => {
+    const h = await start({
+      foodSearchServiceResult: okAsync([
+        {
+          foodMasterId: 'fm_catalog_beta',
+          name: 'item_token_beta',
+          isEstimated: true,
+          energyKcalPerUnit: null,
+        },
+      ]),
+    })
+    try {
+      const result = await h.client.callTool({
+        name: 'search_foods',
+        arguments: { queries: ['item_token_beta'] },
+      })
+
+      expect(result).toEqual({
+        content: [{ type: 'text', text: '登録済み食品を 1 件取得しました。' }],
+        structuredContent: {
+          foods: [
+            {
+              food_master_id: 'fm_catalog_beta',
+              name: 'item_token_beta',
+              energy_kcal: null,
+              is_estimated: true,
+            },
+          ],
         },
       })
     } finally {
