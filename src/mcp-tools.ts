@@ -132,11 +132,7 @@ export const registerMeshiTools = (
   )
 
   registerQueryMealsTool(server, { mealHistoryService, logger })
-  registerDeleteMealLogTool(server, {
-    mealLogService,
-    foodMasterService,
-    logger,
-  })
+  registerDeleteMealLogTool(server, { mealLogService, logger })
   registerUpdateMealLogTool(server, {
     mealLogService,
     foodMasterService,

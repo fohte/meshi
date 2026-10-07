@@ -58,6 +58,7 @@ const rejectingMealLogService: MealLogService = {
   update: () => errAsync(new DomainError('stub', 'test/unused')),
   getById: () => errAsync(new DomainError('stub', 'test/unused')),
   delete: () => errAsync(new DomainError('stub', 'test/unused')),
+  deleteMany: () => errAsync(new DomainError('stub', 'test/unused')),
 }
 export const createStubMcpDeps = (): MeshiToolDeps => ({
   orchestrator: rejectingOrchestrator,

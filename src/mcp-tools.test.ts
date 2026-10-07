@@ -21,6 +21,7 @@ import {
 } from '#domain/meal-log/errors'
 import type { MealLogService } from '#domain/meal-log/meal-log-service'
 import type {
+  MealLogDeletionResult,
   MealLogResult,
   RecordMealLogItemResult,
   RecordMealLogsInput,
@@ -327,6 +328,7 @@ interface MealLogCalls {
   getById: string[]
   update: UpdateMealLogInput[]
   delete: string[]
+  deleteMany: string[][]
 }
 
 const initialMealLog: MealLogResult = {
@@ -353,13 +355,19 @@ const secondMealLog: MealLogResult = {
 
 const makeMealLogService = (
   overrides: Partial<MealLogService> = {},
+  deleteManyError?: DomainError,
 ): { service: MealLogService; calls: MealLogCalls } => {
   const records = new Map([
     [initialMealLog.id, initialMealLog],
     [secondMealLog.id, secondMealLog],
   ])
   const foodMasters = new Map(testFoodMasters.map((food) => [food.id, food]))
-  const calls: MealLogCalls = { getById: [], update: [], delete: [] }
+  const calls: MealLogCalls = {
+    getById: [],
+    update: [],
+    delete: [],
+    deleteMany: [],
+  }
   const service: MealLogService = {
     record: () =>
       errAsync(
@@ -411,6 +419,38 @@ const makeMealLogService = (
         ? okAsync(undefined)
         : errAsync(new MealLogNotFoundError(id))
     },
+    deleteMany(ids) {
+      calls.deleteMany.push([...ids])
+      if (deleteManyError !== undefined) return errAsync(deleteManyError)
+      const missingId = ids.find((id) => !records.has(id))
+      if (missingId !== undefined) {
+        return errAsync(new MealLogNotFoundError(missingId))
+      }
+
+      const deleted: MealLogDeletionResult[] = []
+      for (const id of ids) {
+        const record = records.get(id)
+        const food =
+          record === undefined
+            ? undefined
+            : foodMasters.get(record.foodMasterId)
+        if (record === undefined || food === undefined) {
+          return errAsync(
+            new DomainError(`meal_log not found: ${id}`, 'test/not_found'),
+          )
+        }
+        deleted.push({
+          id: record.id,
+          foodMasterId: record.foodMasterId,
+          foodName: food.name,
+          eatenDate: record.eatenDate,
+          mealType: record.mealType,
+          quantity: record.quantity,
+        })
+      }
+      for (const id of ids) records.delete(id)
+      return okAsync(deleted)
+    },
     ...overrides,
   }
   return { service, calls }
@@ -437,6 +477,7 @@ interface HarnessConfig {
     update?: UserProfileRepositoryError
   }
   mealLogOverrides?: Partial<MealLogService>
+  deleteManyError?: DomainError
   profile?: UserProfile
   foodSearchServiceResult?: ReturnType<FoodSearchService['searchRegistered']>
   recordMealLogError?: DomainError
@@ -452,7 +493,7 @@ const start = async (config: HarnessConfig = {}): Promise<Harness> => {
     makeMealHistoryService(config.mealHistoryOverrides ?? {})
   const foodMasterService = makeFoodMasterService()
   const { service: mealLogCrudService, calls: mealLogCalls } =
-    makeMealLogService(config.mealLogOverrides)
+    makeMealLogService(config.mealLogOverrides, config.deleteManyError)
   const { service: profileService, calls: profileCalls } = makeProfileService(
     config.profile ?? defaultProfile,
     config.profileOverrides ?? {},
@@ -1062,7 +1103,7 @@ describe('query_meals', () => {
 })
 
 describe('delete_meal_log', () => {
-  it('preloads all entries, deletes them, and returns their contents', async () => {
+  it('deletes all entries and returns their contents', async () => {
     const h = await start()
     try {
       const result = await h.client.callTool({
@@ -1071,49 +1112,59 @@ describe('delete_meal_log', () => {
           meal_log_ids: ['mcp_fixture_meal_alpha', 'mcp_fixture_meal_beta'],
         },
       })
-      expect(result).toEqual({
-        content: [{ type: 'text', text: '2 件の食事ログを削除しました。' }],
-        structuredContent: {
-          deleted: [
-            {
-              meal_log_id: 'mcp_fixture_meal_alpha',
-              food_master_id: 'mcp_fixture_food_alpha',
-              food_name: '試験用食品 A',
-              eaten_date: '2026-04-17',
-              meal_type: 'lunch',
-              quantity: 1,
-            },
-            {
-              meal_log_id: 'mcp_fixture_meal_beta',
-              food_master_id: 'mcp_fixture_food_beta',
-              food_name: '試験用食品 B',
-              eaten_date: '2026-04-17',
-              meal_type: 'dinner',
-              quantity: 2,
-            },
-          ],
+      expect(
+        observation({
+          result,
+          mealLogCalls: h.mealLogCalls,
+          orchestratorCalls: h.calls,
+          logs: h.logs,
+        }),
+      ).toEqual({
+        result: {
+          content: [{ type: 'text', text: '2 件の食事ログを削除しました。' }],
+          structuredContent: {
+            deleted: [
+              {
+                meal_log_id: 'mcp_fixture_meal_alpha',
+                food_master_id: 'mcp_fixture_food_alpha',
+                food_name: '試験用食品 A',
+                eaten_date: '2026-04-17',
+                meal_type: 'lunch',
+                quantity: 1,
+              },
+              {
+                meal_log_id: 'mcp_fixture_meal_beta',
+                food_master_id: 'mcp_fixture_food_beta',
+                food_name: '試験用食品 B',
+                eaten_date: '2026-04-17',
+                meal_type: 'dinner',
+                quantity: 2,
+              },
+            ],
+          },
         },
-      })
-      expect(h.mealLogCalls).toEqual({
-        getById: ['mcp_fixture_meal_alpha', 'mcp_fixture_meal_beta'],
-        update: [],
-        delete: ['mcp_fixture_meal_alpha', 'mcp_fixture_meal_beta'],
-      })
-      expect(h.calls).toEqual({
-        recordFromText: [],
-        recordFromImage: [],
-        recommendMeal: [],
-      })
-      expect(h.logs).toEqual([
-        {
-          event: 'meshi.tool_called',
-          payload: { tool: 'delete_meal_log' },
+        mealLogCalls: {
+          getById: [],
+          update: [],
+          delete: [],
+          deleteMany: [['mcp_fixture_meal_alpha', 'mcp_fixture_meal_beta']],
         },
-        {
-          event: 'meshi.tool_succeeded',
-          payload: { tool: 'delete_meal_log', deleted: 2 },
+        orchestratorCalls: {
+          recordFromText: [],
+          recordFromImage: [],
+          recommendMeal: [],
         },
-      ])
+        logs: [
+          {
+            event: 'meshi.tool_called',
+            payload: { tool: 'delete_meal_log' },
+          },
+          {
+            event: 'meshi.tool_succeeded',
+            payload: { tool: 'delete_meal_log', deleted: 2 },
+          },
+        ],
+      })
     } finally {
       await h.close()
     }
@@ -1128,34 +1179,39 @@ describe('delete_meal_log', () => {
           meal_log_ids: ['mcp_fixture_meal_alpha', 'mcp_fixture_meal_missing'],
         },
       })
-      expect(result).toEqual({
-        content: [
+      expect(
+        observation({ result, mealLogCalls: h.mealLogCalls, logs: h.logs }),
+      ).toEqual({
+        result: {
+          content: [
+            {
+              type: 'text',
+              text: 'meal_log not found: mcp_fixture_meal_missing',
+            },
+          ],
+          isError: true,
+        },
+        mealLogCalls: {
+          getById: [],
+          update: [],
+          delete: [],
+          deleteMany: [['mcp_fixture_meal_alpha', 'mcp_fixture_meal_missing']],
+        },
+        logs: [
           {
-            type: 'text',
-            text: 'meal_log not found: mcp_fixture_meal_missing',
+            event: 'meshi.tool_called',
+            payload: { tool: 'delete_meal_log' },
+          },
+          {
+            event: 'meshi.tool_failed',
+            payload: {
+              tool: 'delete_meal_log',
+              code: 'MealLogNotFoundError',
+              message: 'meal_log not found: mcp_fixture_meal_missing',
+            },
           },
         ],
-        isError: true,
       })
-      expect(h.mealLogCalls).toEqual({
-        getById: ['mcp_fixture_meal_alpha', 'mcp_fixture_meal_missing'],
-        update: [],
-        delete: [],
-      })
-      expect(h.logs).toEqual([
-        {
-          event: 'meshi.tool_called',
-          payload: { tool: 'delete_meal_log' },
-        },
-        {
-          event: 'meshi.tool_failed',
-          payload: {
-            tool: 'delete_meal_log',
-            code: 'MealLogNotFoundError',
-            message: 'meal_log not found: mcp_fixture_meal_missing',
-          },
-        },
-      ])
     } finally {
       await h.close()
     }
@@ -1170,12 +1226,67 @@ describe('delete_meal_log', () => {
           meal_log_ids: ['mcp_fixture_meal_alpha', 'mcp_fixture_meal_alpha'],
         },
       })
-      expect(normalizeValidationError(result)).toEqual({
-        content: [{ type: 'text', text: VALIDATION_ERROR_TEXT }],
-        isError: true,
+      expect(
+        observation({
+          result: normalizeValidationError(result),
+          mealLogCalls: h.mealLogCalls,
+          logs: h.logs,
+        }),
+      ).toEqual({
+        result: {
+          content: [{ type: 'text', text: VALIDATION_ERROR_TEXT }],
+          isError: true,
+        },
+        mealLogCalls: {
+          getById: [],
+          update: [],
+          delete: [],
+          deleteMany: [],
+        },
+        logs: [],
       })
-      expect(h.mealLogCalls).toEqual({ getById: [], update: [], delete: [] })
-      expect(h.logs).toEqual([])
+    } finally {
+      await h.close()
+    }
+  })
+
+  it('returns a service error when the atomic delete fails', async () => {
+    const h = await start({
+      deleteManyError: new MealLogPersistenceError('bulk delete failed'),
+    })
+    try {
+      const result = await h.client.callTool({
+        name: 'delete_meal_log',
+        arguments: { meal_log_ids: ['mcp_fixture_meal_alpha'] },
+      })
+      expect(
+        observation({ result, mealLogCalls: h.mealLogCalls, logs: h.logs }),
+      ).toEqual({
+        result: {
+          content: [{ type: 'text', text: 'bulk delete failed' }],
+          isError: true,
+        },
+        mealLogCalls: {
+          getById: [],
+          update: [],
+          delete: [],
+          deleteMany: [['mcp_fixture_meal_alpha']],
+        },
+        logs: [
+          {
+            event: 'meshi.tool_called',
+            payload: { tool: 'delete_meal_log' },
+          },
+          {
+            event: 'meshi.tool_failed',
+            payload: {
+              tool: 'delete_meal_log',
+              code: 'MealLogPersistenceError',
+              message: 'bulk delete failed',
+            },
+          },
+        ],
+      })
     } finally {
       await h.close()
     }
@@ -1196,36 +1307,45 @@ describe('update_meal_log', () => {
           quantity: 2,
         },
       })
-      expect(result).toEqual({
-        content: [{ type: 'text', text: '食事ログを更新しました。' }],
-        structuredContent: {
-          meal_log_id: 'mcp_fixture_meal_alpha',
-          food_master_id: 'mcp_fixture_food_beta',
-          food_name: '試験用食品 B',
-          eaten_date: '2026-04-18',
-          meal_type: 'dinner',
-          quantity: 2,
-          nutrition: { energy_kcal: 446 },
-          is_estimated: true,
-        },
-      })
-      expect(h.mealLogCalls).toEqual({
-        getById: [],
-        update: [
-          {
-            id: 'mcp_fixture_meal_alpha',
-            foodMasterId: 'mcp_fixture_food_beta',
-            eatenDate: '2026-04-18',
-            mealType: 'dinner',
+      expect(
+        observation({
+          result,
+          mealLogCalls: h.mealLogCalls,
+          orchestratorCalls: h.calls,
+        }),
+      ).toEqual({
+        result: {
+          content: [{ type: 'text', text: '食事ログを更新しました。' }],
+          structuredContent: {
+            meal_log_id: 'mcp_fixture_meal_alpha',
+            food_master_id: 'mcp_fixture_food_beta',
+            food_name: '試験用食品 B',
+            eaten_date: '2026-04-18',
+            meal_type: 'dinner',
             quantity: 2,
+            nutrition: { energy_kcal: 446 },
+            is_estimated: true,
           },
-        ],
-        delete: [],
-      })
-      expect(h.calls).toEqual({
-        recordFromText: [],
-        recordFromImage: [],
-        recommendMeal: [],
+        },
+        mealLogCalls: {
+          getById: [],
+          update: [
+            {
+              id: 'mcp_fixture_meal_alpha',
+              foodMasterId: 'mcp_fixture_food_beta',
+              eatenDate: '2026-04-18',
+              mealType: 'dinner',
+              quantity: 2,
+            },
+          ],
+          delete: [],
+          deleteMany: [],
+        },
+        orchestratorCalls: {
+          recordFromText: [],
+          recordFromImage: [],
+          recommendMeal: [],
+        },
       })
     } finally {
       await h.close()
@@ -1239,12 +1359,56 @@ describe('update_meal_log', () => {
         name: 'update_meal_log',
         arguments: { meal_log_id: 'mcp_fixture_meal_alpha' },
       })
-      expect(normalizeValidationError(result)).toEqual({
-        content: [{ type: 'text', text: VALIDATION_ERROR_TEXT }],
-        isError: true,
+      expect(
+        observation({
+          result: normalizeValidationError(result),
+          mealLogCalls: h.mealLogCalls,
+          logs: h.logs,
+        }),
+      ).toEqual({
+        result: {
+          content: [{ type: 'text', text: VALIDATION_ERROR_TEXT }],
+          isError: true,
+        },
+        mealLogCalls: {
+          getById: [],
+          update: [],
+          delete: [],
+          deleteMany: [],
+        },
+        logs: [],
       })
-      expect(h.mealLogCalls).toEqual({ getById: [], update: [], delete: [] })
-      expect(h.logs).toEqual([])
+    } finally {
+      await h.close()
+    }
+  })
+
+  it('rejects non-positive quantities at the MCP boundary', async () => {
+    const h = await start()
+    try {
+      const result = await h.client.callTool({
+        name: 'update_meal_log',
+        arguments: { meal_log_id: 'mcp_fixture_meal_alpha', quantity: 0 },
+      })
+      expect(
+        observation({
+          result: normalizeValidationError(result),
+          mealLogCalls: h.mealLogCalls,
+          logs: h.logs,
+        }),
+      ).toEqual({
+        result: {
+          content: [{ type: 'text', text: VALIDATION_ERROR_TEXT }],
+          isError: true,
+        },
+        mealLogCalls: {
+          getById: [],
+          update: [],
+          delete: [],
+          deleteMany: [],
+        },
+        logs: [],
+      })
     } finally {
       await h.close()
     }
@@ -1252,9 +1416,13 @@ describe('update_meal_log', () => {
 
   it('returns domain validation errors as tool errors', async () => {
     const futureDate = jstDate('2030-01-01')
+    const attemptedUpdates: UpdateMealLogInput[] = []
     const h = await start({
       mealLogOverrides: {
-        update: () => errAsync(new FutureEatenDateError(futureDate)),
+        update: (input) => {
+          attemptedUpdates.push(input)
+          return errAsync(new FutureEatenDateError(futureDate))
+        },
       },
     })
     try {
@@ -1262,29 +1430,32 @@ describe('update_meal_log', () => {
         name: 'update_meal_log',
         arguments: { meal_log_id: 'log-1', date: futureDate },
       })
-      expect(result).toEqual({
-        content: [
+      expect(observation({ result, attemptedUpdates, logs: h.logs })).toEqual({
+        result: {
+          content: [
+            {
+              type: 'text',
+              text: 'eaten_date must not be in the future: 2030-01-01',
+            },
+          ],
+          isError: true,
+        },
+        attemptedUpdates: [{ id: 'log-1', eatenDate: '2030-01-01' }],
+        logs: [
           {
-            type: 'text',
-            text: 'eaten_date must not be in the future: 2030-01-01',
+            event: 'meshi.tool_called',
+            payload: { tool: 'update_meal_log' },
+          },
+          {
+            event: 'meshi.tool_failed',
+            payload: {
+              tool: 'update_meal_log',
+              code: 'FutureEatenDateError',
+              message: 'eaten_date must not be in the future: 2030-01-01',
+            },
           },
         ],
-        isError: true,
       })
-      expect(h.logs).toEqual([
-        {
-          event: 'meshi.tool_called',
-          payload: { tool: 'update_meal_log' },
-        },
-        {
-          event: 'meshi.tool_failed',
-          payload: {
-            tool: 'update_meal_log',
-            code: 'FutureEatenDateError',
-            message: 'eaten_date must not be in the future: 2030-01-01',
-          },
-        },
-      ])
     } finally {
       await h.close()
     }
@@ -1297,19 +1468,22 @@ describe('update_meal_log', () => {
         name: 'update_meal_log',
         arguments: { meal_log_id: 'mcp_fixture_meal_missing', quantity: 2 },
       })
-      expect(result).toEqual({
-        content: [
-          {
-            type: 'text',
-            text: 'meal_log not found: mcp_fixture_meal_missing',
-          },
-        ],
-        isError: true,
-      })
-      expect(h.mealLogCalls).toEqual({
-        getById: [],
-        update: [{ id: 'mcp_fixture_meal_missing', quantity: 2 }],
-        delete: [],
+      expect(observation({ result, mealLogCalls: h.mealLogCalls })).toEqual({
+        result: {
+          content: [
+            {
+              type: 'text',
+              text: 'meal_log not found: mcp_fixture_meal_missing',
+            },
+          ],
+          isError: true,
+        },
+        mealLogCalls: {
+          getById: [],
+          update: [{ id: 'mcp_fixture_meal_missing', quantity: 2 }],
+          delete: [],
+          deleteMany: [],
+        },
       })
     } finally {
       await h.close()

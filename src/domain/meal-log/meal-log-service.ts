@@ -21,6 +21,7 @@ import {
 import type { MealLogRepository } from '#domain/meal-log/meal-log-repository'
 import type {
   FoodMasterRef,
+  MealLogDeletionResult,
   MealLogResult,
   MealLogRow,
   NutritionMap,
@@ -93,6 +94,9 @@ export interface MealLogService {
   update(input: UpdateMealLogInput): ResultAsync<MealLogResult, DomainError>
   getById(id: string): ResultAsync<MealLogResult | null, DomainError>
   delete(id: string): ResultAsync<void, DomainError>
+  deleteMany(
+    ids: ReadonlyArray<string>,
+  ): ResultAsync<ReadonlyArray<MealLogDeletionResult>, DomainError>
 }
 
 export interface MealLogServiceDeps {
@@ -272,6 +276,9 @@ export const createMealLogService = (
       .andThen((deleted) =>
         deleted ? okAsync(undefined) : errAsync(new MealLogNotFoundError(id)),
       )
+  },
+  deleteMany(ids) {
+    return deps.repository.deleteMealLogs(ids)
   },
 })
 

@@ -21,7 +21,11 @@ import type {
   UpdateMealLogPatch,
 } from '#domain/meal-log/meal-log-repository'
 import { createMealLogService } from '#domain/meal-log/meal-log-service'
-import type { FoodMasterRef, MealLogRow } from '#domain/meal-log/types'
+import type {
+  FoodMasterRef,
+  MealLogDeletionResult,
+  MealLogRow,
+} from '#domain/meal-log/types'
 import { jstDate } from '#test/jst-date'
 
 const NOW = new Date('2026-06-16T12:00:00.000Z')
@@ -44,6 +48,7 @@ const createFakeRepository = (
   inserted: InsertMealLogInput[]
   batchInserted: InsertMealLogInput[][]
   updated: UpdateMealLogPatch[]
+  batchDeleted: string[][]
 } => {
   const foodMasterById = new Map(options.foodMasters.map((f) => [f.id, f]))
   const logs = new Map(
@@ -52,6 +57,7 @@ const createFakeRepository = (
   const inserted: InsertMealLogInput[] = []
   const batchInserted: InsertMealLogInput[][] = []
   const updated: UpdateMealLogPatch[] = []
+  const batchDeleted: string[][] = []
   const repository: MealLogRepository = {
     findFoodMaster: (id) => {
       const food = foodMasterById.get(id)
@@ -112,8 +118,32 @@ const createFakeRepository = (
       const existed = logs.delete(id)
       return okAsync(existed)
     },
+    deleteMealLogs: (ids) => {
+      batchDeleted.push([...ids])
+      const missingId = ids.find((id) => !logs.has(id))
+      if (missingId !== undefined) {
+        return errAsync(new MealLogNotFoundError(missingId))
+      }
+      const deleted: MealLogDeletionResult[] = []
+      for (const id of ids) {
+        const found = logs.get(id)
+        if (found === undefined) {
+          return errAsync(new MealLogNotFoundError(id))
+        }
+        deleted.push({
+          id: found.log.id,
+          foodMasterId: found.log.foodMasterId,
+          foodName: found.food.name,
+          eatenDate: found.log.eatenDate,
+          mealType: found.log.mealType,
+          quantity: found.log.quantity,
+        })
+      }
+      for (const id of ids) logs.delete(id)
+      return okAsync(deleted)
+    },
   }
-  return { repository, inserted, batchInserted, updated }
+  return { repository, inserted, batchInserted, updated, batchDeleted }
 }
 
 interface FakeFoodMasterServiceOptions {
@@ -216,12 +246,8 @@ const buildService = (
   existingLogs: ReadonlyArray<FoundMealLog> = [],
   foodMasterServiceOptions: FakeFoodMasterServiceOptions = {},
 ) => {
-  const { repository, inserted, batchInserted, updated } = createFakeRepository(
-    {
-      foodMasters,
-      existingLogs,
-    },
-  )
+  const { repository, inserted, batchInserted, updated, batchDeleted } =
+    createFakeRepository({ foodMasters, existingLogs })
   const { foodMasterService, learnedAliases } = createFakeFoodMasterService(
     foodMasterServiceOptions,
   )
@@ -233,7 +259,14 @@ const buildService = (
     idGenerator: () => ids[idx++] ?? 'ml_overflow',
     now: () => NOW,
   })
-  return { service, inserted, batchInserted, updated, learnedAliases }
+  return {
+    service,
+    inserted,
+    batchInserted,
+    updated,
+    batchDeleted,
+    learnedAliases,
+  }
 }
 
 describe('MealLogService.record', () => {
@@ -965,6 +998,7 @@ describe('MealLogService.getById', () => {
           food: KARAAGE_GUESS,
         }),
       deleteMealLog: () => errAsync(new DomainError('unused', 'unused')),
+      deleteMealLogs: () => errAsync(new DomainError('unused', 'unused')),
     }
     const service = createMealLogService({
       repository,
@@ -1005,5 +1039,60 @@ describe('MealLogService.delete', () => {
     expect(error instanceof MealLogNotFoundError ? error.id : undefined).toBe(
       'ml_missing',
     )
+  })
+})
+
+describe('MealLogService.deleteMany', () => {
+  it('deletes all requested logs and returns their contents in input order', async () => {
+    const secondLog: FoundMealLog = {
+      log: {
+        id: 'ml_2',
+        foodMasterId: KARAAGE_GUESS.id,
+        eatenDate: EATEN_DATE,
+        mealType: 'lunch',
+        quantity: 2,
+        createdAt: CREATED_AT,
+      },
+      food: KARAAGE_GUESS,
+    }
+    const { service, batchDeleted } = buildService(
+      [RICE, KARAAGE_GUESS],
+      [EXISTING_RICE_LOG, secondLog],
+    )
+
+    const result = await service.deleteMany(['ml_2', 'ml_1'])
+    const remainingLogs = await Promise.all([
+      service.getById('ml_1'),
+      service.getById('ml_2'),
+    ])
+
+    expect(
+      observation({
+        result: result._unsafeUnwrap(),
+        batchDeleted,
+        remainingLogs: remainingLogs.map((log) => log._unsafeUnwrap()),
+      }),
+    ).toEqual({
+      result: [
+        {
+          id: 'ml_2',
+          foodMasterId: 'fm_karaage',
+          foodName: '唐揚げ',
+          eatenDate: EATEN_DATE,
+          mealType: 'lunch',
+          quantity: 2,
+        },
+        {
+          id: 'ml_1',
+          foodMasterId: 'fm_rice',
+          foodName: '白米',
+          eatenDate: EATEN_DATE,
+          mealType: 'dinner',
+          quantity: 1,
+        },
+      ],
+      batchDeleted: [['ml_2', 'ml_1']],
+      remainingLogs: [null, null],
+    })
   })
 })

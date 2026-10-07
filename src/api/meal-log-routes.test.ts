@@ -63,6 +63,8 @@ const notStubbed = (name: string): MealLogService => ({
     errAsync(new MealLogPersistenceError(`${name}.getById not stubbed`)),
   delete: () =>
     errAsync(new MealLogPersistenceError(`${name}.delete not stubbed`)),
+  deleteMany: () =>
+    errAsync(new MealLogPersistenceError(`${name}.deleteMany not stubbed`)),
 })
 
 describe('POST /api/meal-logs', () => {

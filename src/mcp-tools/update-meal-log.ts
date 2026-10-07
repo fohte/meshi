@@ -6,7 +6,12 @@ import type { FoodMasterService } from '#domain/food-master/service'
 import type { MealLogService } from '#domain/meal-log/meal-log-service'
 import { updateMealLogInputSchema } from '#domain/meal-log/update-meal-log-input-schema'
 import type { Logger } from '#logger'
-import { errorResult, TOOL_CALLED, TOOL_SUCCEEDED } from '#mcp-tools/payloads'
+import {
+  buildMealLogMutationPayload,
+  errorResult,
+  TOOL_CALLED,
+  TOOL_SUCCEEDED,
+} from '#mcp-tools/payloads'
 import { updateMealLogStructuredOutput } from '#mcp-tools/schemas'
 
 export const registerUpdateMealLogTool = (
@@ -69,12 +74,7 @@ export const registerUpdateMealLogTool = (
             { type: 'text' as const, text: '食事ログを更新しました。' },
           ],
           structuredContent: {
-            meal_log_id: mealLog.id,
-            food_master_id: mealLog.foodMasterId,
-            food_name: food.name,
-            eaten_date: mealLog.eatenDate,
-            meal_type: mealLog.mealType,
-            quantity: mealLog.quantity,
+            ...buildMealLogMutationPayload({ ...mealLog, foodName: food.name }),
             nutrition: mealLog.nutrition,
             is_estimated: mealLog.isEstimated,
           },

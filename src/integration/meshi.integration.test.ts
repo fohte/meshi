@@ -53,6 +53,8 @@ const stubWebSearchClient = (result: WebSearchResult): WebSearchClient => ({
   search: () => okAsync(result),
 })
 
+const observation = <T extends object>(value: T): T => value
+
 // harness -----------------------------------------------------------------
 
 interface Harness {
@@ -149,7 +151,9 @@ const startHarness = async (opts: HarnessOptions): Promise<Harness> => {
   })
   const foodMasterService = createFoodMasterService(foodMasterRepository)
 
-  const mealLogRepository = createDrizzleMealLogRepository(tx)
+  const mealLogRepository = createDrizzleMealLogRepository(tx, {
+    wrapDeleteManyInTransaction: false,
+  })
   const mealLogIds = opts.mealLogIds ?? []
   let mealLogIdCursor = 0
   const idGenerator = (): string => {
@@ -784,19 +788,6 @@ describeIfDb('meshi integration', () => {
           },
         }),
       )
-      expect(updateResult).toEqual({
-        content: [{ type: 'text', text: '食事ログを更新しました。' }],
-        structuredContent: {
-          meal_log_id: 'mcp_fixture_meal_alpha',
-          food_master_id: 'mcp_fixture_food_alpha',
-          food_name: '試験用食品 A',
-          eaten_date: '2026-04-17',
-          meal_type: 'dinner',
-          quantity: 3,
-          nutrition: { energy_kcal: 411, protein_g: 15 },
-          is_estimated: false,
-        },
-      })
 
       const deleteResult = normalizeResult(
         await harness.client.callTool({
@@ -804,21 +795,6 @@ describeIfDb('meshi integration', () => {
           arguments: { meal_log_ids: ['mcp_fixture_meal_beta'] },
         }),
       )
-      expect(deleteResult).toEqual({
-        content: [{ type: 'text', text: '1 件の食事ログを削除しました。' }],
-        structuredContent: {
-          deleted: [
-            {
-              meal_log_id: 'mcp_fixture_meal_beta',
-              food_master_id: 'mcp_fixture_food_beta',
-              food_name: '試験用食品 B',
-              eaten_date: '2026-04-17',
-              meal_type: 'lunch',
-              quantity: 2,
-            },
-          ],
-        },
-      })
 
       const queryResult = normalizeResult(
         await harness.client.callTool({
@@ -829,28 +805,58 @@ describeIfDb('meshi integration', () => {
           },
         }),
       )
-      expect(queryResult).toEqual({
-        content: [{ type: 'text', text: '食事履歴を取得しました。' }],
-        structuredContent: {
-          totals: { energy_kcal: 411, protein_g: 15 },
-          per_day: [
-            {
-              date: '2026-04-17',
-              totals: { energy_kcal: 411, protein_g: 15 },
-            },
-          ],
-          entries: [
-            {
-              meal_log_id: 'mcp_fixture_meal_alpha',
-              food_master_id: 'mcp_fixture_food_alpha',
-              food_name: '試験用食品 A',
-              eaten_date: '2026-04-17',
-              meal_type: 'dinner',
-              quantity: 3,
-              recorded_at: '2026-04-17T03:30:00Z',
-            },
-          ],
-          has_estimated_values: false,
+      expect(observation({ updateResult, deleteResult, queryResult })).toEqual({
+        updateResult: {
+          content: [{ type: 'text', text: '食事ログを更新しました。' }],
+          structuredContent: {
+            meal_log_id: 'mcp_fixture_meal_alpha',
+            food_master_id: 'mcp_fixture_food_alpha',
+            food_name: '試験用食品 A',
+            eaten_date: '2026-04-17',
+            meal_type: 'dinner',
+            quantity: 3,
+            nutrition: { energy_kcal: 411, protein_g: 15 },
+            is_estimated: false,
+          },
+        },
+        deleteResult: {
+          content: [{ type: 'text', text: '1 件の食事ログを削除しました。' }],
+          structuredContent: {
+            deleted: [
+              {
+                meal_log_id: 'mcp_fixture_meal_beta',
+                food_master_id: 'mcp_fixture_food_beta',
+                food_name: '試験用食品 B',
+                eaten_date: '2026-04-17',
+                meal_type: 'lunch',
+                quantity: 2,
+              },
+            ],
+          },
+        },
+        queryResult: {
+          content: [{ type: 'text', text: '食事履歴を取得しました。' }],
+          structuredContent: {
+            totals: { energy_kcal: 411, protein_g: 15 },
+            per_day: [
+              {
+                date: '2026-04-17',
+                totals: { energy_kcal: 411, protein_g: 15 },
+              },
+            ],
+            entries: [
+              {
+                meal_log_id: 'mcp_fixture_meal_alpha',
+                food_master_id: 'mcp_fixture_food_alpha',
+                food_name: '試験用食品 A',
+                eaten_date: '2026-04-17',
+                meal_type: 'dinner',
+                quantity: 3,
+                recorded_at: '2026-04-17T03:30:00Z',
+              },
+            ],
+            has_estimated_values: false,
+          },
         },
       })
     } finally {

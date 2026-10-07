@@ -73,6 +73,13 @@ const stubDeps = (override: Partial<DomainToolsDeps> = {}): DomainToolsDeps => {
           'test/not_stubbed',
         ),
       ),
+    deleteMany: () =>
+      errAsync(
+        new DomainError(
+          'mealLogService.deleteMany not stubbed',
+          'test/not_stubbed',
+        ),
+      ),
   }
   const foodMasterService: FoodMasterService = {
     register: () =>

@@ -61,6 +61,15 @@ export interface MealLogResult extends MealLogRow {
   readonly isEstimated: boolean
 }
 
+export interface MealLogDeletionResult {
+  readonly id: string
+  readonly foodMasterId: string
+  readonly foodName: string
+  readonly eatenDate: JstDate
+  readonly mealType: MealType
+  readonly quantity: number
+}
+
 export interface RecordMealLogItemResult extends MealLogResult {
   readonly foodName: string
 }
