@@ -1042,7 +1042,6 @@ describe('search_foods', () => {
         orchestratorCalls: {
           recordFromText: [],
           recordFromImage: [],
-          queryMeals: [],
           recommendMeal: [],
         },
       })
@@ -1110,7 +1109,6 @@ describe('record_meal_log', () => {
         orchestratorCalls: {
           recordFromText: [],
           recordFromImage: [],
-          queryMeals: [],
           recommendMeal: [],
         },
       })
@@ -1147,7 +1145,6 @@ describe('record_meal_log', () => {
         orchestratorCalls: {
           recordFromText: [],
           recordFromImage: [],
-          queryMeals: [],
           recommendMeal: [],
         },
         logs: [],
