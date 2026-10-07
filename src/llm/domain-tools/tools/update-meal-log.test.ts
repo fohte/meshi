@@ -58,6 +58,13 @@ const setup = (
           'test/not_stubbed',
         ),
       ),
+    deleteMany: () =>
+      errAsync(
+        new DomainError(
+          'mealLogService.deleteMany not stubbed',
+          'test/not_stubbed',
+        ),
+      ),
     ...override,
   }
   return { tool: createUpdateMealLogTool(service), calls }

@@ -3,6 +3,7 @@ import { expect, it } from 'vitest'
 import { createDrizzleMealLogRepository } from '#domain/meal-log/drizzle-meal-log-repository'
 import {
   FoodMasterNotFoundError,
+  MealLogNotFoundError,
   MealLogPersistenceError,
 } from '#domain/meal-log/errors'
 import type { MealLogRow } from '#domain/meal-log/types'
@@ -11,6 +12,8 @@ import { jstDate } from '#test/jst-date'
 import { seedFoodMaster } from '#test/seed'
 
 const CREATED_AT_PLACEHOLDER = new Date('2000-01-01T00:00:00.000Z')
+
+const observation = <T extends object>(value: T): T => value
 
 const normalizeRow = (row: MealLogRow): MealLogRow => ({
   ...row,
@@ -273,5 +276,102 @@ describeIfDb('createDrizzleMealLogRepository', () => {
     const repo = createDrizzleMealLogRepository(tx)
 
     expect((await repo.deleteMealLog('ml_missing'))._unsafeUnwrap()).toBe(false)
+  })
+
+  it('deleteMealLogs returns deleted entries in input order', async () => {
+    const tx = getTx()
+    await seedFoodMaster(tx, {
+      id: 'fm_batch_delete',
+      name: '試験用食品',
+      isEstimated: false,
+      source: 'user_input',
+    })
+    const repo = createDrizzleMealLogRepository(tx, {
+      wrapDeleteManyInTransaction: false,
+    })
+    for (const [id, quantity] of [
+      ['ml_batch_alpha', 1],
+      ['ml_batch_beta', 2],
+    ] as const) {
+      await repo.insertMealLog({
+        id,
+        foodMasterId: 'fm_batch_delete',
+        eatenDate: jstDate('2026-06-15'),
+        mealType: 'lunch',
+        quantity,
+      })
+    }
+
+    const result = await repo.deleteMealLogs([
+      'ml_batch_beta',
+      'ml_batch_alpha',
+    ])
+    const remaining = await Promise.all([
+      repo.findMealLogById('ml_batch_alpha'),
+      repo.findMealLogById('ml_batch_beta'),
+    ])
+
+    expect(
+      observation({
+        deleted: result._unsafeUnwrap(),
+        remaining: remaining.map((entry) => entry._unsafeUnwrap()),
+      }),
+    ).toEqual({
+      deleted: [
+        {
+          id: 'ml_batch_beta',
+          foodMasterId: 'fm_batch_delete',
+          foodName: '試験用食品',
+          eatenDate: jstDate('2026-06-15'),
+          mealType: 'lunch',
+          quantity: 2,
+        },
+        {
+          id: 'ml_batch_alpha',
+          foodMasterId: 'fm_batch_delete',
+          foodName: '試験用食品',
+          eatenDate: jstDate('2026-06-15'),
+          mealType: 'lunch',
+          quantity: 1,
+        },
+      ],
+      remaining: [null, null],
+    })
+  })
+
+  it('deleteMealLogs leaves existing rows untouched when an ID is missing', async () => {
+    const tx = getTx()
+    await seedFoodMaster(tx, {
+      id: 'fm_batch_delete',
+      name: '試験用食品',
+      isEstimated: false,
+      source: 'user_input',
+    })
+    const repo = createDrizzleMealLogRepository(tx, {
+      wrapDeleteManyInTransaction: false,
+    })
+    await repo.insertMealLog({
+      id: 'ml_batch_alpha',
+      foodMasterId: 'fm_batch_delete',
+      eatenDate: jstDate('2026-06-15'),
+      mealType: 'lunch',
+      quantity: 1,
+    })
+
+    const result = await repo.deleteMealLogs([
+      'ml_batch_alpha',
+      'ml_batch_missing',
+    ])
+    const remaining = await repo.findMealLogById('ml_batch_alpha')
+
+    expect(
+      observation({
+        error: result.isErr() ? result.error : null,
+        remaining: remaining._unsafeUnwrap()?.log.id ?? null,
+      }),
+    ).toEqual({
+      error: new MealLogNotFoundError('ml_batch_missing'),
+      remaining: 'ml_batch_alpha',
+    })
   })
 })
