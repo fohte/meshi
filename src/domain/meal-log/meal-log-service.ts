@@ -3,7 +3,7 @@ import {
   errAsync,
   ok,
   okAsync,
-  type Result,
+  Result,
   type ResultAsync,
 } from 'neverthrow'
 
@@ -14,6 +14,7 @@ import {
   FutureEatenDateError,
   ImplausibleQuantityError,
   InvalidQuantityError,
+  MealLogItemValidationError,
   MealLogNotFoundError,
   MealLogPersistenceError,
 } from '#domain/meal-log/errors'
@@ -24,6 +25,9 @@ import type {
   MealLogRow,
   NutritionMap,
   RecordMealLogInput,
+  RecordMealLogItemInput,
+  RecordMealLogItemResult,
+  RecordMealLogsInput,
   UpdateMealLogInput,
 } from '#domain/meal-log/types'
 import { toJstDateString } from '#lib/jst-date'
@@ -62,8 +66,30 @@ const checkPlausibleQuantity = (
     : ok(undefined)
 }
 
+const validateRecordItem = (
+  repository: MealLogRepository,
+  item: Pick<RecordMealLogInput, 'foodMasterId' | 'foodName' | 'quantity'>,
+): ResultAsync<FoodMasterRef, DomainError> => {
+  if (!Number.isFinite(item.quantity) || item.quantity <= 0) {
+    return errAsync(new InvalidQuantityError(item.quantity))
+  }
+  return repository.findFoodMaster(item.foodMasterId).andThen((food) => {
+    const nameCheck = checkFoodNameMatches(item.foodName, food.name)
+    if (nameCheck.isErr()) return errAsync(nameCheck.error)
+    const plausibility = checkPlausibleQuantity(
+      food.nutritionPerUnit,
+      item.quantity,
+    )
+    if (plausibility.isErr()) return errAsync(plausibility.error)
+    return okAsync(food)
+  })
+}
+
 export interface MealLogService {
   record(input: RecordMealLogInput): ResultAsync<MealLogResult, DomainError>
+  recordMany(
+    input: RecordMealLogsInput,
+  ): ResultAsync<ReadonlyArray<RecordMealLogItemResult>, DomainError>
   update(input: UpdateMealLogInput): ResultAsync<MealLogResult, DomainError>
   getById(id: string): ResultAsync<MealLogResult | null, DomainError>
   delete(id: string): ResultAsync<void, DomainError>
@@ -83,29 +109,74 @@ export const createMealLogService = (
     if (input.eatenDate > toJstDateString(deps.now())) {
       return errAsync(new FutureEatenDateError(input.eatenDate))
     }
-    if (!Number.isFinite(input.quantity) || input.quantity <= 0) {
-      return errAsync(new InvalidQuantityError(input.quantity))
+    return validateRecordItem(deps.repository, input).andThen((food) =>
+      deps.repository
+        .insertMealLog({
+          id: deps.idGenerator(),
+          foodMasterId: input.foodMasterId,
+          eatenDate: input.eatenDate,
+          mealType: input.mealType,
+          quantity: input.quantity,
+        })
+        .map((log) => buildResult(log, food)),
+    )
+  },
+  recordMany(input) {
+    if (input.eatenDate > toJstDateString(deps.now())) {
+      return errAsync(new FutureEatenDateError(input.eatenDate))
     }
-    return deps.repository
-      .findFoodMaster(input.foodMasterId)
-      .andThen((food) => {
-        const nameCheck = checkFoodNameMatches(input.foodName, food.name)
-        if (nameCheck.isErr()) return errAsync(nameCheck.error)
-        const plausibility = checkPlausibleQuantity(
-          food.nutritionPerUnit,
-          input.quantity,
-        )
-        if (plausibility.isErr()) return errAsync(plausibility.error)
-        return deps.repository
-          .insertMealLog({
-            id: deps.idGenerator(),
-            foodMasterId: input.foodMasterId,
-            eatenDate: input.eatenDate,
-            mealType: input.mealType,
-            quantity: input.quantity,
-          })
-          .map((log) => buildResult(log, food))
-      })
+
+    const validatedItems = input.items.reduce<
+      ResultAsync<
+        ReadonlyArray<{
+          readonly item: RecordMealLogItemInput
+          readonly food: FoodMasterRef
+        }>,
+        DomainError
+      >
+    >(
+      (validated, item, index) =>
+        validated.andThen((items) =>
+          validateRecordItem(deps.repository, item)
+            .mapErr((error) => new MealLogItemValidationError(index + 1, error))
+            .map((food) => [...items, { item, food }]),
+        ),
+      okAsync([]),
+    )
+
+    return validatedItems.andThen((items) => {
+      const plannedItems = items.map(({ item, food }) => ({
+        food,
+        insertInput: {
+          id: deps.idGenerator(),
+          foodMasterId: item.foodMasterId,
+          eatenDate: input.eatenDate,
+          mealType: input.mealType,
+          quantity: item.quantity,
+        },
+      }))
+
+      return deps.repository
+        .insertMealLogs(plannedItems.map(({ insertInput }) => insertInput))
+        .andThen((rows) => {
+          const rowsById = new Map(rows.map((row) => [row.id, row] as const))
+          return Result.combine(
+            plannedItems.map(({ food, insertInput }) => {
+              const row = rowsById.get(insertInput.id)
+              return row === undefined
+                ? err(
+                    new MealLogPersistenceError(
+                      'meal_logs bulk insert returned incomplete rows',
+                    ),
+                  )
+                : ok({
+                    ...buildResult(row, food),
+                    foodName: food.name,
+                  })
+            }),
+          )
+        })
+    })
   },
   update(input) {
     if (

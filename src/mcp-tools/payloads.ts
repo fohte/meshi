@@ -21,16 +21,22 @@ export const errorResult = (
   logger: Logger,
   toolName: string,
   err: unknown,
+  options: {
+    readonly code?: string
+    readonly structuredContent?: Record<string, unknown>
+  } = {},
 ): CallToolResult => {
   const message = err instanceof Error ? err.message : String(err)
   const code =
-    err instanceof Error && err.name !== 'Error' ? err.name : 'internal_error'
+    options.code ??
+    (err instanceof Error && err.name !== 'Error' ? err.name : 'internal_error')
   logger.log(TOOL_FAILED, { tool: toolName, code, message })
-  // structuredContent omitted: there is no shape that satisfies every tool's
-  // outputSchema simultaneously.
   return {
     isError: true,
     content: [{ type: 'text', text: toErrorSummary(message) }],
+    ...(options.structuredContent === undefined
+      ? {}
+      : { structuredContent: options.structuredContent }),
   }
 }
 

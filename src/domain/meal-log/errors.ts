@@ -77,3 +77,14 @@ export class FoodNameMismatchError extends DomainError {
     this.name = 'FoodNameMismatchError'
   }
 }
+
+export class MealLogItemValidationError extends DomainError {
+  constructor(
+    public readonly itemIndex: number,
+    public readonly itemError: DomainError,
+  ) {
+    super(`item ${String(itemIndex)}: ${itemError.message}`, itemError.code)
+    this.name = 'MealLogItemValidationError'
+    this.cause = itemError
+  }
+}

@@ -32,6 +32,9 @@ export interface FoundMealLog {
 export interface MealLogRepository {
   findFoodMaster(foodMasterId: string): ResultAsync<FoodMasterRef, DomainError>
   insertMealLog(input: InsertMealLogInput): ResultAsync<MealLogRow, DomainError>
+  insertMealLogs(
+    inputs: ReadonlyArray<InsertMealLogInput>,
+  ): ResultAsync<ReadonlyArray<MealLogRow>, DomainError>
   updateMealLog(input: UpdateMealLogPatch): ResultAsync<MealLogRow, DomainError>
   findMealLogById(id: string): ResultAsync<FoundMealLog | null, DomainError>
   // Resolves to false when no row matched `id`, rather than an error — the

@@ -29,6 +29,13 @@ const setup = (
           'test/not_stubbed',
         ),
       ),
+    recordMany: () =>
+      errAsync(
+        new DomainError(
+          'mealLogService.recordMany not stubbed',
+          'test/not_stubbed',
+        ),
+      ),
     update: (input) => {
       calls.update.push(input)
       const result: MealLogResult = {

@@ -124,6 +124,37 @@ export const createDrizzleMealLogRepository = (sql: Sql): MealLogRepository => {
           new MealLogPersistenceError('failed to insert meal_log', caughtErr),
       ).andThen((result) => result),
 
+    insertMealLogs: (
+      inputs: ReadonlyArray<InsertMealLogInput>,
+    ): ResultAsync<ReadonlyArray<MealLogRow>, DomainError> =>
+      ResultAsync.fromPromise(
+        (async (): Promise<Result<ReadonlyArray<MealLogRow>, DomainError>> => {
+          if (inputs.length === 0) return ok([])
+          const inserted = await db
+            .insert(mealLogs)
+            .values(
+              inputs.map((input) => ({
+                id: input.id,
+                foodMasterId: input.foodMasterId,
+                eatenDate: input.eatenDate,
+                mealType: input.mealType,
+                quantity: input.quantity.toString(),
+              })),
+            )
+            .returning()
+          if (inserted.length !== inputs.length) {
+            return err(
+              new MealLogPersistenceError(
+                'meal_logs bulk insert returned an unexpected number of rows',
+              ),
+            )
+          }
+          return ok(inserted.map(toRow))
+        })(),
+        (caughtErr) =>
+          new MealLogPersistenceError('failed to insert meal_logs', caughtErr),
+      ).andThen((result) => result),
+
     updateMealLog: (
       input: UpdateMealLogPatch,
     ): ResultAsync<MealLogRow, DomainError> =>

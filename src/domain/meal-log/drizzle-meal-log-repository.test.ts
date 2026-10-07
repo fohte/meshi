@@ -82,6 +82,61 @@ describeIfDb('createDrizzleMealLogRepository', () => {
     })
   })
 
+  it('inserts multiple meal logs together and returns each inserted row', async () => {
+    const tx = getTx()
+    await seedFoodMaster(tx, {
+      id: 'fm_batch_alpha',
+      name: 'item_token_alpha',
+      isEstimated: false,
+      source: 'user_input',
+    })
+    await seedFoodMaster(tx, {
+      id: 'fm_batch_beta',
+      name: 'item_token_beta',
+      isEstimated: false,
+      source: 'user_input',
+    })
+    const repo = createDrizzleMealLogRepository(tx)
+
+    const inserted = (
+      await repo.insertMealLogs([
+        {
+          id: 'ml_batch_alpha',
+          foodMasterId: 'fm_batch_alpha',
+          eatenDate: jstDate('2026-06-15'),
+          mealType: 'dinner',
+          quantity: 1,
+        },
+        {
+          id: 'ml_batch_beta',
+          foodMasterId: 'fm_batch_beta',
+          eatenDate: jstDate('2026-06-15'),
+          mealType: 'dinner',
+          quantity: 2,
+        },
+      ])
+    )._unsafeUnwrap()
+
+    expect(inserted.map(normalizeRow)).toEqual([
+      {
+        id: 'ml_batch_alpha',
+        foodMasterId: 'fm_batch_alpha',
+        eatenDate: '2026-06-15',
+        mealType: 'dinner',
+        quantity: 1,
+        createdAt: CREATED_AT_PLACEHOLDER,
+      },
+      {
+        id: 'ml_batch_beta',
+        foodMasterId: 'fm_batch_beta',
+        eatenDate: '2026-06-15',
+        mealType: 'dinner',
+        quantity: 2,
+        createdAt: CREATED_AT_PLACEHOLDER,
+      },
+    ])
+  })
+
   it('returns null from findMealLogById when the id is unknown', async () => {
     const tx = getTx()
     const repo = createDrizzleMealLogRepository(tx)

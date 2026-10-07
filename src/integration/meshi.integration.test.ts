@@ -9,6 +9,7 @@ import { createDrizzleUserProfileRepository } from '#adapters/db/drizzle-user-pr
 import type { WebSearchClient } from '#adapters/web-search/web-search-client'
 import type { Sql } from '#db/index'
 import { upsertNutrientDefinitions } from '#db/seed/nutrient-definitions'
+import { createFoodSearchService } from '#domain/food-browse/index'
 import {
   createFoodMasterRepository,
   createFoodMasterService,
@@ -165,6 +166,7 @@ const startHarness = async (opts: HarnessOptions): Promise<Harness> => {
     now: () => new Date('2026-06-12T22:00:00+09:00'),
   })
   const foodMatcher = createDrizzleFoodMatcher(tx)
+  const foodSearchService = createFoodSearchService(tx, foodMatcher)
   const mealHistoryService = createMealHistoryService(tx)
   const userProfileService = createUserProfileService(
     createDrizzleUserProfileRepository(tx),
@@ -196,6 +198,8 @@ const startHarness = async (opts: HarnessOptions): Promise<Harness> => {
     orchestrator,
     mealHistoryService,
     profileService: userProfileService,
+    foodSearchService,
+    mealLogService,
     logger: createNullLogger(),
   })
   const [clientTransport, serverTransport] =
