@@ -2,6 +2,10 @@ import { errAsync } from 'neverthrow'
 
 import type { FoodSearchService } from '#domain/food-browse/food-search-service'
 import { FoodSearchQueryError } from '#domain/food-browse/food-search-service'
+import {
+  MealHistoryQueryError,
+  type MealHistoryService,
+} from '#domain/meal-history/types'
 import { DomainError } from '#domain/meal-log/errors'
 import type { MealLogService } from '#domain/meal-log/meal-log-service'
 import { UserProfileRepositoryError } from '#domain/user-profile/errors'
@@ -13,8 +17,11 @@ import type { MeshiToolDeps } from '#mcp-tools'
 const rejectingOrchestrator: ConversationOrchestrator = {
   recordFromText: () => Promise.reject(new Error('stub')),
   recordFromImage: () => Promise.reject(new Error('stub')),
-  queryMeals: () => Promise.reject(new Error('stub')),
   recommendMeal: () => Promise.reject(new Error('stub')),
+}
+
+const rejectingMealHistoryService: MealHistoryService = {
+  query: () => errAsync(new MealHistoryQueryError('stub')),
 }
 
 const rejectingProfileService: UserProfileService = {
@@ -36,6 +43,7 @@ const rejectingMealLogService: MealLogService = {
 
 export const createStubMcpDeps = (): MeshiToolDeps => ({
   orchestrator: rejectingOrchestrator,
+  mealHistoryService: rejectingMealHistoryService,
   profileService: rejectingProfileService,
   foodSearchService: rejectingFoodSearchService,
   mealLogService: rejectingMealLogService,

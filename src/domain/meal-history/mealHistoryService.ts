@@ -38,6 +38,7 @@ const entryRowSchema = z.object({
   eaten_date: jstDateSchema,
   meal_type: z.enum(MEAL_TYPES),
   quantity: numericString,
+  recorded_at: z.iso.datetime({ offset: true }),
   is_estimated: z.boolean(),
 })
 
@@ -99,6 +100,10 @@ export const createMealHistoryService = (sql: Sql): MealHistoryService => {
               to_char(ml.eaten_date, 'YYYY-MM-DD') AS eaten_date,
               ml.meal_type AS meal_type,
               ml.quantity AS quantity,
+              to_char(
+                ml.created_at AT TIME ZONE 'UTC',
+                'YYYY-MM-DD"T"HH24:MI:SS"Z"'
+              ) AS recorded_at,
               fm.is_estimated AS is_estimated
             FROM meal_logs ml
             INNER JOIN food_masters fm ON fm.id = ml.food_master_id
@@ -146,6 +151,7 @@ export const createMealHistoryService = (sql: Sql): MealHistoryService => {
           eatenDate: row.eaten_date,
           mealType: row.meal_type,
           quantity: row.quantity,
+          recordedAt: row.recorded_at,
         }))
         const hasEstimatedValues = entryParsed.data.some(
           (row) => row.is_estimated,

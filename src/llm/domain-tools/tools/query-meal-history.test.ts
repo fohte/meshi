@@ -23,6 +23,7 @@ const AGGREGATE: MealHistoryAggregate = {
       eatenDate: jstDate('2026-05-19'),
       mealType: 'lunch',
       quantity: 1,
+      recordedAt: '2026-05-19T03:00:00Z',
     },
   ],
   hasEstimatedValues: true,

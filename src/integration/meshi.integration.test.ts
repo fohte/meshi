@@ -196,6 +196,7 @@ const startHarness = async (opts: HarnessOptions): Promise<Harness> => {
 
   const server = createMcpServer({
     orchestrator,
+    mealHistoryService,
     profileService: userProfileService,
     foodSearchService,
     mealLogService,
@@ -252,16 +253,18 @@ const seedMealLog = async (
     readonly eatenDate: string
     readonly mealType: MealType
     readonly quantity: number
+    readonly createdAt?: Date
   },
 ): Promise<void> => {
   await tx`
-    INSERT INTO meal_logs (id, food_master_id, eaten_date, meal_type, quantity)
+    INSERT INTO meal_logs (id, food_master_id, eaten_date, meal_type, quantity, created_at)
     VALUES (
       ${args.id},
       ${args.foodMasterId},
       ${args.eatenDate},
       ${args.mealType},
-      ${String(args.quantity)}
+      ${String(args.quantity)},
+      COALESCE(${args.createdAt ?? null}::timestamptz, now())
     )
   `
 }
@@ -673,79 +676,56 @@ describeIfDb('meshi integration', () => {
       eatenDate: '2026-06-12',
       mealType: 'lunch',
       quantity: 2,
+      createdAt: new Date('2026-06-12T03:30:45.789Z'),
     })
 
-    const harness = await startHarness({
-      tx,
-      toolCalls: [
-        {
-          name: 'query_meal_history',
-          args: {
-            period_from: '2026-06-12',
-            period_to: '2026-06-13',
-          },
-        },
-      ],
-      final: {
-        status: 'completed',
-        message: '2026-06-12 の合計を返しました。',
-      },
-    })
+    const harness = await startHarness({ tx })
 
     try {
       const result = normalizeResult(
         await harness.client.callTool({
           name: 'query_meals',
           arguments: {
-            query_text: '2026-06-12 の合計を教えて',
-            period_from_iso: '2026-06-12T00:00:00+00:00',
-            period_to_iso: '2026-06-13T00:00:00+00:00',
+            period_from: '2026-06-12',
+            period_to: '2026-06-13',
           },
         }),
       )
 
       expect(result).toEqual({
         structuredContent: {
-          aggregate: {
-            totals: {
-              energy_kcal: 336,
-              protein_g: 5,
-              carbohydrate_g: 74,
-            },
-            per_day: [
-              {
-                date: '2026-06-12',
-                totals: {
-                  energy_kcal: 336,
-                  protein_g: 5,
-                  carbohydrate_g: 74,
-                },
-              },
-            ],
-            entries: [
-              {
-                meal_log_id: 'ml_history_1',
-                food_master_id: 'fm_rice',
-                eaten_date: '2026-06-12',
-                quantity: 2,
-              },
-            ],
-            has_estimated_values: false,
+          totals: {
+            energy_kcal: 336,
+            protein_g: 5,
+            carbohydrate_g: 74,
           },
+          per_day: [
+            {
+              date: '2026-06-12',
+              totals: {
+                energy_kcal: 336,
+                protein_g: 5,
+                carbohydrate_g: 74,
+              },
+            },
+          ],
+          entries: [
+            {
+              meal_log_id: 'ml_history_1',
+              food_master_id: 'fm_rice',
+              food_name: '白米',
+              eaten_date: '2026-06-12',
+              meal_type: 'lunch',
+              quantity: 2,
+              recorded_at: '2026-06-12T03:30:45Z',
+            },
+          ],
           has_estimated_values: false,
-          error: null,
         },
         content: [
           {
             type: 'text',
-            text: [
-              '集計結果:',
-              '- 合計: 336 kcal / P 5g / C 74g',
-              '- 期間内の日数: 1 日',
-              '- 記録件数: 1 件',
-              '明細 (1 件):',
-              '- 2026-06-12 昼食 白米 × 2',
-            ].join('\n'),
+            text: '食事履歴を取得しました。',
           },
         ],
       })

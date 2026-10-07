@@ -25,10 +25,6 @@ import {
   MESHI_AGENT_RECURSION_LIMIT,
 } from '#llm/agent/domain-agent'
 import type { DomainToolsRegistry } from '#llm/domain-tools/registry'
-import {
-  type QueryMealHistoryOutput,
-  toMealHistoryEntryFields,
-} from '#llm/domain-tools/tools/query-meal-history'
 import type { RecordMealLogOutput } from '#llm/domain-tools/tools/record-meal-log'
 import type { SearchFoodMasterOutput } from '#llm/domain-tools/tools/search-food-master'
 import type { DomainTool } from '#llm/domain-tools/types'
@@ -41,11 +37,8 @@ import {
 import type {
   ConversationOrchestrator,
   FoodCandidate,
-  MealHistoryAggregateSnapshot,
-  MealHistoryResult,
   MealRecordResult,
   OrchestratorError,
-  QueryMealsInput,
   RecommendInput,
   RecommendResult,
   RecordedMeal,
@@ -141,24 +134,6 @@ const collectLastSearchCandidates = (
     score: c.score,
     reason: c.reason,
   }))
-}
-
-const collectLastAggregate = (
-  invocations: ReadonlyArray<RecordedInvocation>,
-): MealHistoryAggregateSnapshot | null => {
-  const value = findLastInvocationValue(invocations, 'query_meal_history')
-  if (value === null) return null
-  // eslint-disable-next-line @typescript-eslint/no-unsafe-type-assertion -- value is the return value of createQueryMealHistoryTool.execute.
-  const output = value as QueryMealHistoryOutput
-  return {
-    totals: output.totals,
-    perDay: output.per_day.map((d) => ({ date: d.date, totals: d.totals })),
-    entries: output.entries.map((entry) => ({
-      mealLogId: entry.meal_log_id,
-      ...toMealHistoryEntryFields(entry),
-    })),
-    hasEstimatedValues: output.has_estimated_values,
-  }
 }
 
 // A single agent turn has no per-item boundaries in `invocations` (a multi-
@@ -321,35 +296,6 @@ export const createDomainAgentOrchestrator = (
         data: input.image.base64,
       })
       return runRecordTurn(content)
-    },
-    async queryMeals(input: QueryMealsInput): Promise<MealHistoryResult> {
-      const body = [
-        input.query,
-        input.periodFrom !== undefined
-          ? `period_from=${input.periodFrom.toISOString()}`
-          : null,
-        input.periodTo !== undefined
-          ? `period_to=${input.periodTo.toISOString()}`
-          : null,
-      ]
-        .filter((s): s is string => s !== null)
-        .join('\n')
-      const { invocations, reply, error } = await runTurn(
-        textContent(body, undefined, input.timezone),
-        restrictToReadOnly(options.registry),
-      )
-      const aggregate = collectLastAggregate(invocations)
-      const summaryText = formatter.formatMealHistory({
-        aggregate,
-        finalText: reply?.text ?? '',
-        error,
-      })
-      return {
-        aggregate,
-        hasEstimatedValues: aggregate?.hasEstimatedValues ?? false,
-        summaryText,
-        error,
-      }
     },
     async recommendMeal(input: RecommendInput): Promise<RecommendResult> {
       const body = input.conditions ?? 'No additional conditions.'
