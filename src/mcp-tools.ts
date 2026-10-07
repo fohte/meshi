@@ -13,7 +13,6 @@ import { registerMealLoggingTools } from '#mcp-tools/meal-logging'
 import {
   buildMealRecordPayload,
   buildProfilePayload,
-  buildRecommendPayload,
   errorResult,
   logOrchestratorOutcome,
   orchestratorCallToolResult,
@@ -21,11 +20,10 @@ import {
   TOOL_SUCCEEDED,
 } from '#mcp-tools/payloads'
 import { registerQueryMealsTool } from '#mcp-tools/query-meals'
+import { registerRecommendationContextTool } from '#mcp-tools/recommendation'
 import {
   mealRecordStructuredOutput,
   profileStructuredOutput,
-  recommendMealInput,
-  recommendStructuredOutput,
   recordFromImageInput,
   recordFromTextInput,
   updateProfileInput,
@@ -156,41 +154,11 @@ export const registerMeshiTools = (
     foodMasterService,
     logger,
   })
-
-  server.registerTool(
-    'recommend_meal',
-    {
-      description:
-        '任意の追加条件からプロファイル + 履歴ベースの食事レコメンドを返す。',
-      inputSchema: recommendMealInput,
-      outputSchema: recommendStructuredOutput,
-      annotations: { readOnlyHint: true },
-    },
-    async (args, context) => {
-      logger.log(TOOL_CALLED, { tool: 'recommend_meal' })
-      const signal = createMcpLlmToolSignal(context.mcpReq.signal)
-      // eslint-disable-next-line no-restricted-syntax -- orchestrator.recommendMeal() already converts its own failures into result.error rather than rejecting; this guards against a genuinely unexpected throw so it gets structured TOOL_FAILED logging via errorResult() instead of the MCP SDK's own generic isError fallback
-      try {
-        const result = await orchestrator.recommendMeal(
-          {
-            ...(args.additional_constraints === undefined
-              ? {}
-              : { conditions: args.additional_constraints }),
-            ...(args.timezone === undefined ? {} : { timezone: args.timezone }),
-          },
-          signal,
-        )
-        logOrchestratorOutcome(logger, 'recommend_meal', result.error, {})
-        return orchestratorCallToolResult(
-          result.summaryText,
-          buildRecommendPayload(result),
-          result.error,
-        )
-      } catch (err) {
-        return errorResult(logger, 'recommend_meal', err)
-      }
-    },
-  )
+  registerRecommendationContextTool(server, {
+    mealHistoryService,
+    profileService,
+    logger,
+  })
 
   server.registerTool(
     'get_profile',

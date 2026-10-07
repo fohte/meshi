@@ -18,14 +18,8 @@ interface MealRecordSummaryInput {
   readonly error: OrchestratorError | null
 }
 
-interface RecommendSummaryInput {
-  readonly finalText: string
-  readonly error: OrchestratorError | null
-}
-
 export interface ReplyFormatter {
   formatMealRecord(input: MealRecordSummaryInput): string
-  formatRecommend(input: RecommendSummaryInput): string
 }
 
 const passthroughFinalText = (
@@ -35,9 +29,6 @@ const passthroughFinalText = (
 
 export const createPassthroughReplyFormatter = (): ReplyFormatter => ({
   formatMealRecord(input) {
-    return passthroughFinalText(input.finalText, input.error)
-  },
-  formatRecommend(input) {
     return passthroughFinalText(input.finalText, input.error)
   },
 })
@@ -170,18 +161,8 @@ export const formatMealHistoryEntries = (
   return lines.join('\n')
 }
 
-const formatRecommendTemplate = (input: RecommendSummaryInput): string => {
-  if (input.error) return formatErrorReply(input.error)
-  const trimmed = input.finalText.trim()
-  if (trimmed !== '') return trimmed
-  return 'おすすめを提案できませんでした。条件を変えて試してください。'
-}
-
 export const createTemplateReplyFormatter = (): ReplyFormatter => ({
   formatMealRecord(input) {
     return formatMealRecordTemplate(input)
-  },
-  formatRecommend(input) {
-    return formatRecommendTemplate(input)
   },
 })

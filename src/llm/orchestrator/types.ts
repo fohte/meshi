@@ -16,11 +16,6 @@ export interface RecordFromImageInput {
   readonly timezone?: string
 }
 
-export interface RecommendInput {
-  readonly conditions?: string
-  readonly timezone?: string
-}
-
 export interface RecordedMeal {
   readonly mealLogId: string
   readonly foodMasterId: string
@@ -57,11 +52,6 @@ export interface MealRecordResult {
   readonly error: OrchestratorError | null
 }
 
-export interface RecommendResult {
-  readonly summaryText: string
-  readonly error: OrchestratorError | null
-}
-
 export interface ConversationOrchestrator {
   recordFromText(
     input: RecordFromTextInput,
@@ -71,8 +61,4 @@ export interface ConversationOrchestrator {
     input: RecordFromImageInput,
     signal?: AbortSignal,
   ): Promise<MealRecordResult>
-  recommendMeal(
-    input: RecommendInput,
-    signal?: AbortSignal,
-  ): Promise<RecommendResult>
 }

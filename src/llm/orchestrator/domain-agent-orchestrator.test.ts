@@ -66,6 +66,17 @@ const normalizeInvokeError = (result: MealRecordResult): MealRecordResult => ({
         },
 })
 
+const expectedDeadlineMealRecord = {
+  recorded: [],
+  candidates: [],
+  hasEstimatedValues: false,
+  summaryText: '処理が時間内に終わらなかったため中断しました。',
+  error: {
+    kind: 'deadline_exceeded',
+    message: '処理が時間内に終わらなかったため中断しました。',
+  },
+} satisfies MealRecordResult
+
 describe('createDomainAgentOrchestrator', () => {
   it('stops a turn when its abort signal is already expired', async () => {
     const controller = new AbortController()
@@ -80,15 +91,12 @@ describe('createDomainAgentOrchestrator', () => {
       registry: stubRegistry([]),
     })
 
-    const result = await orchestrator.recommendMeal({}, controller.signal)
+    const result = await orchestrator.recordFromText(
+      { text: 'meal description' },
+      controller.signal,
+    )
 
-    expect(result).toEqual({
-      summaryText: '処理が時間内に終わらなかったため中断しました。',
-      error: {
-        kind: 'deadline_exceeded',
-        message: '処理が時間内に終わらなかったため中断しました。',
-      },
-    })
+    expect(result).toEqual(expectedDeadlineMealRecord)
   })
 
   it('returns a deadline error when the request is canceled', async () => {
@@ -99,15 +107,12 @@ describe('createDomainAgentOrchestrator', () => {
       registry: stubRegistry([]),
     })
 
-    const result = await orchestrator.recommendMeal({}, controller.signal)
+    const result = await orchestrator.recordFromText(
+      { text: 'meal description' },
+      controller.signal,
+    )
 
-    expect(result).toEqual({
-      summaryText: '処理が時間内に終わらなかったため中断しました。',
-      error: {
-        kind: 'deadline_exceeded',
-        message: '処理が時間内に終わらなかったため中断しました。',
-      },
-    })
+    expect(result).toEqual(expectedDeadlineMealRecord)
   })
 
   it('returns a deadline error when a model request times out', async () => {
@@ -121,15 +126,11 @@ describe('createDomainAgentOrchestrator', () => {
       registry: stubRegistry([]),
     })
 
-    const result = await orchestrator.recommendMeal({})
-
-    expect(result).toEqual({
-      summaryText: '処理が時間内に終わらなかったため中断しました。',
-      error: {
-        kind: 'deadline_exceeded',
-        message: '処理が時間内に終わらなかったため中断しました。',
-      },
+    const result = await orchestrator.recordFromText({
+      text: 'meal description',
     })
+
+    expect(result).toEqual(expectedDeadlineMealRecord)
   })
 
   it('returns a deadline error when the OpenAI client reports a connection timeout', async () => {
@@ -140,15 +141,11 @@ describe('createDomainAgentOrchestrator', () => {
       registry: stubRegistry([]),
     })
 
-    const result = await orchestrator.recommendMeal({})
-
-    expect(result).toEqual({
-      summaryText: '処理が時間内に終わらなかったため中断しました。',
-      error: {
-        kind: 'deadline_exceeded',
-        message: '処理が時間内に終わらなかったため中断しました。',
-      },
+    const result = await orchestrator.recordFromText({
+      text: 'meal description',
     })
+
+    expect(result).toEqual(expectedDeadlineMealRecord)
   })
 
   describe('recordFromText', () => {
@@ -634,52 +631,6 @@ describe('createDomainAgentOrchestrator', () => {
         summaryText: '写真から白米を記録しました。',
         error: null,
       })
-    })
-  })
-
-  describe('recommendMeal', () => {
-    it('returns the agent message as the summary with no error', async () => {
-      const registry = stubRegistry([
-        stubTool('get_user_profile', () => Promise.resolve(ok({}))),
-      ])
-      const orchestrator = createDomainAgentOrchestrator({
-        model: scriptedDomainAgentModel(
-          [{ name: 'get_user_profile', args: {} }],
-          {
-            status: 'completed',
-            message: 'サバ味噌煮定食はいかがでしょう。',
-          },
-        ),
-        registry,
-      })
-
-      const result = await orchestrator.recommendMeal({
-        conditions: '軽め',
-      })
-
-      expect(result).toEqual({
-        summaryText: 'サバ味噌煮定食はいかがでしょう。',
-        error: null,
-      })
-    })
-
-    it('never calls update_user_profile even when the model is scripted to invoke it and the registry has it', async () => {
-      const updateUserProfile = vi.fn(() => Promise.resolve(ok({})))
-      const registry = stubRegistry([
-        stubTool('get_user_profile', () => Promise.resolve(ok({}))),
-        stubTool('update_user_profile', updateUserProfile),
-      ])
-      const orchestrator = createDomainAgentOrchestrator({
-        model: scriptedDomainAgentModel(
-          [{ name: 'update_user_profile', args: { likes: ['sushi'] } }],
-          { status: 'completed', message: 'done' },
-        ),
-        registry,
-      })
-
-      await orchestrator.recommendMeal({ conditions: '軽め' })
-
-      expect(updateUserProfile).not.toHaveBeenCalled()
     })
   })
 })

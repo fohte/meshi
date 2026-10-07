@@ -2,7 +2,7 @@
 
 @fohte's personal meal management chat service.
 
-`meshi` exposes meal-record / query / recommend / profile capabilities to upstream agents over MCP and A2A. The MCP server calls domain services directly for meal-history queries, profile management, registered-food search, resolved meal logging, and meal-log updates and deletions. It uses the LangGraph domain agent for text and image meal recording and recommendations; the A2A server also uses that agent against Postgres.
+`meshi` exposes meal-record / query / recommend / profile capabilities to upstream agents over MCP and A2A. The MCP server calls domain services directly for meal-history queries, profile management, registered-food search, resolved meal logging, meal-log updates and deletions, and recommendation context. It uses the LangGraph domain agent for text and image meal recording. The A2A server also uses that agent against Postgres for recommendation requests.
 
 ## Development
 
