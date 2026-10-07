@@ -9,14 +9,14 @@ import type {
   FoodMatcherError,
 } from '#domain/food-matcher/food-matcher'
 
-export interface RegisteredFoodSearchResult {
+interface RegisteredFoodSearchResult {
   readonly foodMasterId: string
   readonly name: string
   readonly isEstimated: boolean
   readonly energyKcalPerUnit: number | null
 }
 
-export class FoodSearchQueryError extends Error {
+class FoodSearchQueryError extends Error {
   constructor(message: string, cause?: unknown) {
     super(message, cause === undefined ? undefined : { cause })
     this.name = 'FoodSearchQueryError'

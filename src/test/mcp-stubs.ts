@@ -1,7 +1,7 @@
 import { errAsync } from 'neverthrow'
 
 import type { FoodSearchService } from '#domain/food-browse/food-search-service'
-import { FoodSearchQueryError } from '#domain/food-browse/food-search-service'
+import { FoodMatcherQueryError } from '#domain/food-matcher/drizzle-food-matcher'
 import {
   MealHistoryQueryError,
   type MealHistoryService,
@@ -30,7 +30,7 @@ const rejectingProfileService: UserProfileService = {
 }
 
 const rejectingFoodSearchService: FoodSearchService = {
-  searchRegistered: () => errAsync(new FoodSearchQueryError('stub')),
+  searchRegistered: () => errAsync(new FoodMatcherQueryError('stub')),
 }
 
 const rejectingMealLogService: MealLogService = {

@@ -2,10 +2,7 @@ import { Client, InMemoryTransport } from '@modelcontextprotocol/client'
 import { errAsync, okAsync } from 'neverthrow'
 import { describe, expect, it } from 'vitest'
 
-import type {
-  FoodSearchService,
-  RegisteredFoodSearchResult,
-} from '#domain/food-browse/food-search-service'
+import type { FoodSearchService } from '#domain/food-browse/food-search-service'
 import {
   type MealHistoryAggregate,
   MealHistoryQueryError,
@@ -140,7 +137,7 @@ const successRecommend: RecommendResult = {
   error: null,
 }
 
-const searchFoodResults: ReadonlyArray<RegisteredFoodSearchResult> = [
+const searchFoodResults = [
   {
     foodMasterId: 'fm_catalog_alpha',
     name: 'item_token_alpha',
@@ -299,7 +296,7 @@ interface HarnessConfig {
     update?: UserProfileRepositoryError
   }
   profile?: UserProfile
-  searchFoodResults?: ReadonlyArray<RegisteredFoodSearchResult>
+  searchFoodResults?: typeof searchFoodResults
   recordMealLogError?: DomainError
 }
 
