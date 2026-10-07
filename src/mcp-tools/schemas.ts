@@ -1,6 +1,7 @@
 import { z } from 'zod'
 
 import { SUPPORTED_IMAGE_MIME_TYPES } from '#adapters/image/image-types'
+import { hasDuplicateAfterTrim } from '#domain/food-master/validation'
 import { MEAL_TYPES } from '#domain/meal-log/types'
 import { jstDateSchema } from '#lib/jst-date'
 
@@ -178,20 +179,51 @@ export const searchFoodsInput = z.object({
     .positive()
     .optional()
     .describe('最大件数 (省略時 10 件)'),
+  origin: z
+    .enum(['retail', 'homemade'])
+    .optional()
+    .describe('retail は買ったものや外食、homemade は自炊'),
 })
 
 export const searchFoodsStructuredOutput = z.object({
   foods: z.array(
     z.object({
-      food_master_id: z.string(),
+      food_master_id: z.string().nullable(),
+      composition_code: z.string().nullable(),
       name: z.string(),
       energy_kcal: z
         .number()
         .nullable()
-        .describe('food_master 1 つ分の kcal。食品の kcal が未登録なら null'),
+        .describe(
+          'food_master は 1 つ分、食品成分表候補は 100g あたり。該当する kcal がなければ null',
+        ),
       is_estimated: z.boolean(),
     }),
   ),
+})
+
+export const registerFoodFromCompositionInput = z
+  .object({
+    composition_code: z
+      .string()
+      .trim()
+      .min(1)
+      .describe('search_foods が自炊向けに返した食品成分表候補のコード'),
+    name: z.string().trim().min(1).optional().describe('登録する食品名'),
+    aliases: z
+      .array(z.string().trim().min(1))
+      .optional()
+      .describe('登録する別名'),
+  })
+  .strict()
+  .refine((value) => !hasDuplicateAfterTrim(value.aliases ?? []), {
+    message: 'aliases must not contain duplicates within the same input',
+    path: ['aliases'],
+  })
+
+export const registerFoodFromCompositionStructuredOutput = z.object({
+  food_master_id: z.string(),
+  name: z.string(),
 })
 
 export const recordMealLogInput = z.object({

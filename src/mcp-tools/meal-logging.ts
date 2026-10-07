@@ -28,7 +28,7 @@ export const registerMealLoggingTools = (
     'search_foods',
     {
       description:
-        '登録済み食品を複数の名前候補から検索し、1 つ分の kcal と推定値かどうかを返す。',
+        '登録済み食品を複数の名前候補から検索し、食品名、kcal、推定値かどうかを返す。origin が homemade の場合のみ食品成分表の候補も返す。成分表候補は自炊の素材にだけ使い、買った商品や外食には使わない。成分表候補の energy_kcal は 100g あたり。',
       inputSchema: searchFoodsInput,
       outputSchema: searchFoodsStructuredOutput,
       annotations: { readOnlyHint: true },
@@ -36,14 +36,18 @@ export const registerMealLoggingTools = (
     async (args) => {
       logger.log(TOOL_CALLED, { tool: 'search_foods' })
       return await foodSearchService
-        .searchRegistered(args.queries, args.limit ?? 10)
+        .search(args.queries, args.limit ?? 10, args.origin ?? 'retail')
         .match(
           (foods) => {
             const payload = {
               foods: foods.map((food) => ({
                 food_master_id: food.foodMasterId,
+                composition_code: food.compositionCode,
                 name: food.name,
-                energy_kcal: food.energyKcalPerUnit,
+                energy_kcal:
+                  food.foodMasterId === null
+                    ? food.energyKcalPer100g
+                    : food.energyKcalPerUnit,
                 is_estimated: food.isEstimated,
               })),
             }
@@ -51,11 +55,16 @@ export const registerMealLoggingTools = (
               tool: 'search_foods',
               result_count: foods.length,
             })
+            const hasCompositionCandidate = foods.some(
+              (food) => food.foodMasterId === null,
+            )
             return {
               content: [
                 {
                   type: 'text' as const,
-                  text: `登録済み食品を ${String(foods.length)} 件取得しました。`,
+                  text: hasCompositionCandidate
+                    ? `食品候補を ${String(foods.length)} 件取得しました。`
+                    : `登録済み食品を ${String(foods.length)} 件取得しました。`,
                 },
               ],
               structuredContent: payload,

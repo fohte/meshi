@@ -9,6 +9,7 @@ import type { UserProfileService } from '#domain/user-profile/user-profile-servi
 import type { ConversationOrchestrator } from '#llm/orchestrator/index'
 import type { Logger } from '#logger'
 import { registerDeleteMealLogTool } from '#mcp-tools/delete-meal-log'
+import { registerFoodFromCompositionTool } from '#mcp-tools/food-composition'
 import { registerMealLoggingTools } from '#mcp-tools/meal-logging'
 import {
   buildMealRecordPayload,
@@ -59,6 +60,7 @@ export const registerMeshiTools = (
     mealLogService,
     logger,
   })
+  registerFoodFromCompositionTool(server, { foodMasterService, logger })
 
   server.registerTool(
     'record_meal_from_text',
