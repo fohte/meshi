@@ -1,11 +1,11 @@
 import type { McpServer } from '@modelcontextprotocol/server'
 import { z } from 'zod'
 
+import type { MealHistoryService } from '#domain/meal-history/types'
 import type { UserProfileService } from '#domain/user-profile/user-profile-service'
 import type { ConversationOrchestrator } from '#llm/orchestrator/index'
 import type { Logger } from '#logger'
 import {
-  buildMealHistoryPayload,
   buildMealRecordPayload,
   buildProfilePayload,
   buildRecommendPayload,
@@ -15,11 +15,10 @@ import {
   TOOL_CALLED,
   TOOL_SUCCEEDED,
 } from '#mcp-tools/payloads'
+import { registerQueryMealsTool } from '#mcp-tools/query-meals'
 import {
-  mealHistoryStructuredOutput,
   mealRecordStructuredOutput,
   profileStructuredOutput,
-  queryMealsInput,
   recommendMealInput,
   recommendStructuredOutput,
   recordFromImageInput,
@@ -29,6 +28,7 @@ import {
 
 export interface MeshiToolDeps {
   readonly orchestrator: ConversationOrchestrator
+  readonly mealHistoryService: MealHistoryService
   readonly profileService: UserProfileService
   readonly logger: Logger
 }
@@ -37,7 +37,7 @@ export const registerMeshiTools = (
   server: McpServer,
   deps: MeshiToolDeps,
 ): void => {
-  const { orchestrator, profileService, logger } = deps
+  const { orchestrator, mealHistoryService, profileService, logger } = deps
 
   server.registerTool(
     'record_meal_from_text',
@@ -108,41 +108,7 @@ export const registerMeshiTools = (
     },
   )
 
-  server.registerTool(
-    'query_meals',
-    {
-      description: '自然言語クエリ (+ 任意の期間) から食事履歴を集計する。',
-      inputSchema: queryMealsInput,
-      outputSchema: mealHistoryStructuredOutput,
-      annotations: { readOnlyHint: true },
-    },
-    async (args) => {
-      logger.log(TOOL_CALLED, { tool: 'query_meals' })
-      // eslint-disable-next-line no-restricted-syntax -- orchestrator.queryMeals() already converts its own failures into result.error rather than rejecting; this guards against a genuinely unexpected throw so it gets structured TOOL_FAILED logging via errorResult() instead of the MCP SDK's own generic isError fallback
-      try {
-        const result = await orchestrator.queryMeals({
-          query: args.query_text,
-          ...(args.period_from_iso === undefined
-            ? {}
-            : { periodFrom: new Date(args.period_from_iso) }),
-          ...(args.period_to_iso === undefined
-            ? {}
-            : { periodTo: new Date(args.period_to_iso) }),
-          ...(args.timezone === undefined ? {} : { timezone: args.timezone }),
-        })
-        logOrchestratorOutcome(logger, 'query_meals', result.error, {
-          has_aggregate: result.aggregate !== null,
-        })
-        return orchestratorCallToolResult(
-          result.summaryText,
-          buildMealHistoryPayload(result),
-          result.error,
-        )
-      } catch (err) {
-        return errorResult(logger, 'query_meals', err)
-      }
-    },
-  )
+  registerQueryMealsTool(server, { mealHistoryService, logger })
 
   server.registerTool(
     'recommend_meal',

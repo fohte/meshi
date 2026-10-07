@@ -1,7 +1,6 @@
 import type { MealType } from '#domain/meal-log/types'
 import type {
   FoodCandidate,
-  MealHistoryAggregateSnapshot,
   OrchestratorError,
   RecordedMeal,
 } from '#llm/orchestrator/types'
@@ -19,12 +18,6 @@ interface MealRecordSummaryInput {
   readonly error: OrchestratorError | null
 }
 
-interface MealHistorySummaryInput {
-  readonly aggregate: MealHistoryAggregateSnapshot | null
-  readonly finalText: string
-  readonly error: OrchestratorError | null
-}
-
 interface RecommendSummaryInput {
   readonly finalText: string
   readonly error: OrchestratorError | null
@@ -32,7 +25,6 @@ interface RecommendSummaryInput {
 
 export interface ReplyFormatter {
   formatMealRecord(input: MealRecordSummaryInput): string
-  formatMealHistory(input: MealHistorySummaryInput): string
   formatRecommend(input: RecommendSummaryInput): string
 }
 
@@ -43,9 +35,6 @@ const passthroughFinalText = (
 
 export const createPassthroughReplyFormatter = (): ReplyFormatter => ({
   formatMealRecord(input) {
-    return passthroughFinalText(input.finalText, input.error)
-  },
-  formatMealHistory(input) {
     return passthroughFinalText(input.finalText, input.error)
   },
   formatRecommend(input) {
@@ -152,15 +141,7 @@ const formatMealRecordTemplate = (input: MealRecordSummaryInput): string => {
   return '記録できませんでした。食品名と量がわかる形でもう一度入力してください。'
 }
 
-const formatTotalsLine = (totals: Readonly<Record<string, number>>): string => {
-  const formatted = formatNutrition(totals)
-  return formatted === '' ? '合計: (該当データなし)' : `合計: ${formatted}`
-}
-
-// The rendering-relevant subset of MealHistoryAggregateSnapshot['entries'][number]
-// — deliberately narrower than that type (omits mealLogId) so callers outside
-// the orchestrator (e.g. the A2A path re-deriving entries from a tool result)
-// can build this shape without needing an orchestrator-internal id.
+// A2A renders these fields without needing the tool's meal_log_id.
 export interface MealHistoryEntryDisplay {
   readonly foodName: string
   readonly eatenDate: string
@@ -178,42 +159,12 @@ const MEAL_TYPE_LABEL: Readonly<Record<MealType, string>> = {
 const formatMealHistoryEntry = (entry: MealHistoryEntryDisplay): string =>
   `- ${entry.eatenDate} ${MEAL_TYPE_LABEL[entry.mealType]} ${entry.foodName} × ${formatNumber(entry.quantity)}`
 
-// Itemizes meal-history entries deterministically from structured data,
-// mirroring formatMealRecordTemplate's per-item bullet list — shared between
-// formatMealHistoryTemplate (MCP/orchestrator path) and the A2A path
-// (agent-executor.ts), which has no orchestrator layer of its own to render
-// through.
+// Itemizes meal-history entries deterministically from structured data.
 export const formatMealHistoryEntries = (
   entries: ReadonlyArray<MealHistoryEntryDisplay>,
 ): string => {
   const lines = [`明細 (${String(entries.length)} 件):`]
   for (const entry of entries) lines.push(formatMealHistoryEntry(entry))
-  return lines.join('\n')
-}
-
-const formatMealHistoryTemplate = (input: MealHistorySummaryInput): string => {
-  if (input.error) return formatErrorReply(input.error)
-
-  const aggregate = input.aggregate
-  if (aggregate === null) {
-    const trimmed = input.finalText.trim()
-    if (trimmed !== '') return trimmed
-    return '集計データが取得できませんでした。期間や条件を変えて試してください。'
-  }
-
-  const lines: string[] = []
-  lines.push('集計結果:')
-  lines.push(`- ${formatTotalsLine(aggregate.totals)}`)
-  lines.push(`- 期間内の日数: ${String(aggregate.perDay.length)} 日`)
-  lines.push(`- 記録件数: ${String(aggregate.entries.length)} 件`)
-  if (aggregate.entries.length > 0) {
-    lines.push(formatMealHistoryEntries(aggregate.entries))
-  }
-  if (aggregate.hasEstimatedValues) {
-    lines.push(
-      '※ 集計には推測値が含まれています。値は目安としてご確認ください。',
-    )
-  }
   return lines.join('\n')
 }
 
@@ -227,9 +178,6 @@ const formatRecommendTemplate = (input: RecommendSummaryInput): string => {
 export const createTemplateReplyFormatter = (): ReplyFormatter => ({
   formatMealRecord(input) {
     return formatMealRecordTemplate(input)
-  },
-  formatMealHistory(input) {
-    return formatMealHistoryTemplate(input)
   },
   formatRecommend(input) {
     return formatRecommendTemplate(input)

@@ -68,6 +68,7 @@ describe('GET /api/meal-history', () => {
               eatenDate: jstDate('2026-07-29'),
               mealType: 'breakfast',
               quantity: 100,
+              recordedAt: '2026-07-29T03:00:00Z',
             },
           ],
           hasEstimatedValues: false,

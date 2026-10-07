@@ -166,6 +166,7 @@ export const main = async (): Promise<void> => {
   })
   const toolDeps: MeshiToolDeps = {
     orchestrator,
+    mealHistoryService,
     profileService: userProfileService,
     logger,
   }

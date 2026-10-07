@@ -93,18 +93,19 @@ export const seedFoodMasterAlias = async (
 
 export const seedMealLog = async (
   sql: Sql,
-  values: Omit<typeof mealLogs.$inferInsert, 'quantity' | 'createdAt'> & {
+  values: Omit<typeof mealLogs.$inferInsert, 'quantity'> & {
     quantity: number
   },
 ): Promise<void> => {
   await sql`
-    INSERT INTO meal_logs (id, food_master_id, eaten_date, meal_type, quantity)
+    INSERT INTO meal_logs (id, food_master_id, eaten_date, meal_type, quantity, created_at)
     VALUES (
       ${values.id},
       ${values.foodMasterId},
       ${values.eatenDate},
       ${values.mealType},
-      ${values.quantity}
+      ${values.quantity},
+      COALESCE(${values.createdAt?.toISOString() ?? null}::timestamptz, now())
     )
   `
 }
