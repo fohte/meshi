@@ -1315,6 +1315,7 @@ describe('delete_meal_log', () => {
           recordFromText: [],
           recordFromImage: [],
           recommendMeal: [],
+          signals: [],
         },
         logs: [
           {
@@ -1507,6 +1508,7 @@ describe('update_meal_log', () => {
           recordFromText: [],
           recordFromImage: [],
           recommendMeal: [],
+          signals: [],
         },
       })
     } finally {
@@ -1842,6 +1844,7 @@ describe('search_foods', () => {
           recordFromText: [],
           recordFromImage: [],
           recommendMeal: [],
+          signals: [],
         },
       })
     } finally {
@@ -1944,6 +1947,7 @@ describe('record_meal_log', () => {
           recordFromText: [],
           recordFromImage: [],
           recommendMeal: [],
+          signals: [],
         },
       })
     } finally {
@@ -1980,6 +1984,7 @@ describe('record_meal_log', () => {
           recordFromText: [],
           recordFromImage: [],
           recommendMeal: [],
+          signals: [],
         },
         logs: [],
       })
