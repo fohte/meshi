@@ -3,6 +3,7 @@ import type { ResultAsync } from 'neverthrow'
 import type { DomainError } from '#domain/meal-log/errors'
 import type {
   FoodMasterRef,
+  MealLogDeletionResult,
   MealLogRow,
   MealType,
 } from '#domain/meal-log/types'
@@ -32,9 +33,15 @@ export interface FoundMealLog {
 export interface MealLogRepository {
   findFoodMaster(foodMasterId: string): ResultAsync<FoodMasterRef, DomainError>
   insertMealLog(input: InsertMealLogInput): ResultAsync<MealLogRow, DomainError>
+  insertMealLogs(
+    inputs: ReadonlyArray<InsertMealLogInput>,
+  ): ResultAsync<ReadonlyArray<MealLogRow>, DomainError>
   updateMealLog(input: UpdateMealLogPatch): ResultAsync<MealLogRow, DomainError>
   findMealLogById(id: string): ResultAsync<FoundMealLog | null, DomainError>
   // Resolves to false when no row matched `id`, rather than an error — the
   // service layer decides whether a no-op delete is a MealLogNotFoundError.
   deleteMealLog(id: string): ResultAsync<boolean, DomainError>
+  deleteMealLogs(
+    ids: ReadonlyArray<string>,
+  ): ResultAsync<ReadonlyArray<MealLogDeletionResult>, DomainError>
 }

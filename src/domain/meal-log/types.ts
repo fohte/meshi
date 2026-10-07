@@ -36,6 +36,18 @@ export interface RecordMealLogInput {
   readonly foodName?: string
 }
 
+export interface RecordMealLogItemInput {
+  readonly foodMasterId: string
+  readonly foodName: string
+  readonly quantity: number
+}
+
+export interface RecordMealLogsInput {
+  readonly eatenDate: JstDate
+  readonly mealType: MealType
+  readonly items: ReadonlyArray<RecordMealLogItemInput>
+}
+
 export interface UpdateMealLogInput {
   readonly id: string
   readonly foodMasterId?: string
@@ -47,4 +59,17 @@ export interface UpdateMealLogInput {
 export interface MealLogResult extends MealLogRow {
   readonly nutrition: NutritionMap
   readonly isEstimated: boolean
+}
+
+export interface MealLogDeletionResult {
+  readonly id: string
+  readonly foodMasterId: string
+  readonly foodName: string
+  readonly eatenDate: JstDate
+  readonly mealType: MealType
+  readonly quantity: number
+}
+
+export interface RecordMealLogItemResult extends MealLogResult {
+  readonly foodName: string
 }

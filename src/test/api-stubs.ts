@@ -45,6 +45,10 @@ export const createStubApiDeps = (): ApiDeps => ({
       errAsync(
         new MealLogPersistenceError('mealLogService.record not stubbed'),
       ),
+    recordMany: () =>
+      errAsync(
+        new MealLogPersistenceError('mealLogService.recordMany not stubbed'),
+      ),
     update: () =>
       errAsync(
         new MealLogPersistenceError('mealLogService.update not stubbed'),
@@ -53,6 +57,10 @@ export const createStubApiDeps = (): ApiDeps => ({
     delete: () =>
       errAsync(
         new MealLogPersistenceError('mealLogService.delete not stubbed'),
+      ),
+    deleteMany: () =>
+      errAsync(
+        new MealLogPersistenceError('mealLogService.deleteMany not stubbed'),
       ),
   },
   foodMasterService: {

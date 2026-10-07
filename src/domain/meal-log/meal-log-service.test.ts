@@ -10,6 +10,7 @@ import {
   FutureEatenDateError,
   ImplausibleQuantityError,
   InvalidQuantityError,
+  MealLogItemValidationError,
   MealLogNotFoundError,
   MealLogPersistenceError,
 } from '#domain/meal-log/errors'
@@ -20,7 +21,11 @@ import type {
   UpdateMealLogPatch,
 } from '#domain/meal-log/meal-log-repository'
 import { createMealLogService } from '#domain/meal-log/meal-log-service'
-import type { FoodMasterRef, MealLogRow } from '#domain/meal-log/types'
+import type {
+  FoodMasterRef,
+  MealLogDeletionResult,
+  MealLogRow,
+} from '#domain/meal-log/types'
 import { jstDate } from '#test/jst-date'
 
 const NOW = new Date('2026-06-16T12:00:00.000Z')
@@ -28,6 +33,8 @@ const CREATED_AT = new Date('2026-06-16T12:00:00.500Z')
 // JST calendar date of NOW — deps.now() returns NOW, so this doubles as
 // "today" for the future-date boundary tests below.
 const EATEN_DATE = jstDate('2026-06-16')
+
+const observation = <T extends object>(value: T): T => value
 
 interface FakeRepoOptions {
   readonly foodMasters: ReadonlyArray<FoodMasterRef>
@@ -39,14 +46,18 @@ const createFakeRepository = (
 ): {
   repository: MealLogRepository
   inserted: InsertMealLogInput[]
+  batchInserted: InsertMealLogInput[][]
   updated: UpdateMealLogPatch[]
+  batchDeleted: string[][]
 } => {
   const foodMasterById = new Map(options.foodMasters.map((f) => [f.id, f]))
   const logs = new Map(
     (options.existingLogs ?? []).map((found) => [found.log.id, found]),
   )
   const inserted: InsertMealLogInput[] = []
+  const batchInserted: InsertMealLogInput[][] = []
   const updated: UpdateMealLogPatch[] = []
+  const batchDeleted: string[][] = []
   const repository: MealLogRepository = {
     findFoodMaster: (id) => {
       const food = foodMasterById.get(id)
@@ -66,6 +77,19 @@ const createFakeRepository = (
         createdAt: CREATED_AT,
       }
       return okAsync(row)
+    },
+    insertMealLogs: (inputs) => {
+      batchInserted.push([...inputs])
+      return okAsync(
+        inputs.map((input): MealLogRow => ({
+          id: input.id,
+          foodMasterId: input.foodMasterId,
+          eatenDate: input.eatenDate,
+          mealType: input.mealType,
+          quantity: input.quantity,
+          createdAt: CREATED_AT,
+        })),
+      )
     },
     updateMealLog: (input) => {
       updated.push(input)
@@ -94,8 +118,32 @@ const createFakeRepository = (
       const existed = logs.delete(id)
       return okAsync(existed)
     },
+    deleteMealLogs: (ids) => {
+      batchDeleted.push([...ids])
+      const missingId = ids.find((id) => !logs.has(id))
+      if (missingId !== undefined) {
+        return errAsync(new MealLogNotFoundError(missingId))
+      }
+      const deleted: MealLogDeletionResult[] = []
+      for (const id of ids) {
+        const found = logs.get(id)
+        if (found === undefined) {
+          return errAsync(new MealLogNotFoundError(id))
+        }
+        deleted.push({
+          id: found.log.id,
+          foodMasterId: found.log.foodMasterId,
+          foodName: found.food.name,
+          eatenDate: found.log.eatenDate,
+          mealType: found.log.mealType,
+          quantity: found.log.quantity,
+        })
+      }
+      for (const id of ids) logs.delete(id)
+      return okAsync(deleted)
+    },
   }
-  return { repository, inserted, updated }
+  return { repository, inserted, batchInserted, updated, batchDeleted }
 }
 
 interface FakeFoodMasterServiceOptions {
@@ -157,6 +205,30 @@ const KARAAGE_GUESS: FoodMasterRef = {
   },
 }
 
+const BATCH_FOOD_ALPHA: FoodMasterRef = {
+  id: 'fm_batch_alpha',
+  name: 'item_token_alpha',
+  isEstimated: false,
+  nutritionPerUnit: {
+    energy_kcal: 80,
+    protein_g: 4,
+    fat_g: 1,
+    carb_g: 15,
+  },
+}
+
+const BATCH_FOOD_BETA: FoodMasterRef = {
+  id: 'fm_batch_beta',
+  name: 'item_token_beta',
+  isEstimated: true,
+  nutritionPerUnit: {
+    energy_kcal: 240,
+    protein_g: 10,
+    fat_g: 8,
+    carb_g: 30,
+  },
+}
+
 const EXISTING_RICE_LOG: FoundMealLog = {
   log: {
     id: 'ml_1',
@@ -174,10 +246,8 @@ const buildService = (
   existingLogs: ReadonlyArray<FoundMealLog> = [],
   foodMasterServiceOptions: FakeFoodMasterServiceOptions = {},
 ) => {
-  const { repository, inserted, updated } = createFakeRepository({
-    foodMasters,
-    existingLogs,
-  })
+  const { repository, inserted, batchInserted, updated, batchDeleted } =
+    createFakeRepository({ foodMasters, existingLogs })
   const { foodMasterService, learnedAliases } = createFakeFoodMasterService(
     foodMasterServiceOptions,
   )
@@ -189,7 +259,14 @@ const buildService = (
     idGenerator: () => ids[idx++] ?? 'ml_overflow',
     now: () => NOW,
   })
-  return { service, inserted, updated, learnedAliases }
+  return {
+    service,
+    inserted,
+    batchInserted,
+    updated,
+    batchDeleted,
+    learnedAliases,
+  }
 }
 
 describe('MealLogService.record', () => {
@@ -555,6 +632,130 @@ describe('MealLogService.record', () => {
   })
 })
 
+describe('MealLogService.recordMany', () => {
+  it('validates every item before inserting the meal in one batch', async () => {
+    const { service, batchInserted, inserted } = buildService([
+      BATCH_FOOD_ALPHA,
+      BATCH_FOOD_BETA,
+    ])
+
+    const result = (
+      await service.recordMany({
+        eatenDate: EATEN_DATE,
+        mealType: 'dinner',
+        items: [
+          {
+            foodMasterId: BATCH_FOOD_ALPHA.id,
+            foodName: BATCH_FOOD_ALPHA.name,
+            quantity: 2,
+          },
+          {
+            foodMasterId: BATCH_FOOD_BETA.id,
+            foodName: BATCH_FOOD_BETA.name,
+            quantity: 0.5,
+          },
+        ],
+      })
+    )._unsafeUnwrap()
+
+    expect(observation({ result, batchInserted, inserted })).toEqual({
+      result: [
+        {
+          id: 'ml_1',
+          foodMasterId: 'fm_batch_alpha',
+          eatenDate: EATEN_DATE,
+          mealType: 'dinner',
+          quantity: 2,
+          createdAt: CREATED_AT,
+          nutrition: {
+            energy_kcal: 160,
+            protein_g: 8,
+            fat_g: 2,
+            carb_g: 30,
+          },
+          isEstimated: false,
+          foodName: 'item_token_alpha',
+        },
+        {
+          id: 'ml_2',
+          foodMasterId: 'fm_batch_beta',
+          eatenDate: EATEN_DATE,
+          mealType: 'dinner',
+          quantity: 0.5,
+          createdAt: CREATED_AT,
+          nutrition: {
+            energy_kcal: 120,
+            protein_g: 5,
+            fat_g: 4,
+            carb_g: 15,
+          },
+          isEstimated: true,
+          foodName: 'item_token_beta',
+        },
+      ],
+      batchInserted: [
+        [
+          {
+            id: 'ml_1',
+            foodMasterId: 'fm_batch_alpha',
+            eatenDate: EATEN_DATE,
+            mealType: 'dinner',
+            quantity: 2,
+          },
+          {
+            id: 'ml_2',
+            foodMasterId: 'fm_batch_beta',
+            eatenDate: EATEN_DATE,
+            mealType: 'dinner',
+            quantity: 0.5,
+          },
+        ],
+      ],
+      inserted: [],
+    })
+  })
+
+  it('reports the invalid item position and inserts nothing', async () => {
+    const { service, batchInserted, inserted } = buildService([
+      BATCH_FOOD_ALPHA,
+    ])
+    const failure = (
+      await service.recordMany({
+        eatenDate: EATEN_DATE,
+        mealType: 'dinner',
+        items: [
+          {
+            foodMasterId: BATCH_FOOD_ALPHA.id,
+            foodName: BATCH_FOOD_ALPHA.name,
+            quantity: 1,
+          },
+          {
+            foodMasterId: BATCH_FOOD_ALPHA.id,
+            foodName: BATCH_FOOD_ALPHA.name,
+            quantity: 0,
+          },
+        ],
+      })
+    )._unsafeUnwrapErr()
+    const error =
+      failure instanceof MealLogItemValidationError ? failure : undefined
+
+    expect(
+      observation({
+        itemIndex: error?.itemIndex ?? null,
+        code: error?.code ?? null,
+        batchInserted,
+        inserted,
+      }),
+    ).toEqual({
+      itemIndex: 2,
+      code: 'meal_log/invalid_quantity',
+      batchInserted: [],
+      inserted: [],
+    })
+  })
+})
+
 describe('MealLogService.update', () => {
   it('returns the current state as a no-op when the patch carries no fields', async () => {
     const { service, updated } = buildService(
@@ -782,6 +983,7 @@ describe('MealLogService.getById', () => {
     const repository: MealLogRepository = {
       findFoodMaster: () => errAsync(new DomainError('unused', 'unused')),
       insertMealLog: () => errAsync(new DomainError('unused', 'unused')),
+      insertMealLogs: () => errAsync(new DomainError('unused', 'unused')),
       updateMealLog: () => errAsync(new DomainError('unused', 'unused')),
       findMealLogById: (id) =>
         okAsync({
@@ -796,6 +998,7 @@ describe('MealLogService.getById', () => {
           food: KARAAGE_GUESS,
         }),
       deleteMealLog: () => errAsync(new DomainError('unused', 'unused')),
+      deleteMealLogs: () => errAsync(new DomainError('unused', 'unused')),
     }
     const service = createMealLogService({
       repository,
@@ -836,5 +1039,60 @@ describe('MealLogService.delete', () => {
     expect(error instanceof MealLogNotFoundError ? error.id : undefined).toBe(
       'ml_missing',
     )
+  })
+})
+
+describe('MealLogService.deleteMany', () => {
+  it('deletes all requested logs and returns their contents in input order', async () => {
+    const secondLog: FoundMealLog = {
+      log: {
+        id: 'ml_2',
+        foodMasterId: KARAAGE_GUESS.id,
+        eatenDate: EATEN_DATE,
+        mealType: 'lunch',
+        quantity: 2,
+        createdAt: CREATED_AT,
+      },
+      food: KARAAGE_GUESS,
+    }
+    const { service, batchDeleted } = buildService(
+      [RICE, KARAAGE_GUESS],
+      [EXISTING_RICE_LOG, secondLog],
+    )
+
+    const result = await service.deleteMany(['ml_2', 'ml_1'])
+    const remainingLogs = await Promise.all([
+      service.getById('ml_1'),
+      service.getById('ml_2'),
+    ])
+
+    expect(
+      observation({
+        result: result._unsafeUnwrap(),
+        batchDeleted,
+        remainingLogs: remainingLogs.map((log) => log._unsafeUnwrap()),
+      }),
+    ).toEqual({
+      result: [
+        {
+          id: 'ml_2',
+          foodMasterId: 'fm_karaage',
+          foodName: '唐揚げ',
+          eatenDate: EATEN_DATE,
+          mealType: 'lunch',
+          quantity: 2,
+        },
+        {
+          id: 'ml_1',
+          foodMasterId: 'fm_rice',
+          foodName: '白米',
+          eatenDate: EATEN_DATE,
+          mealType: 'dinner',
+          quantity: 1,
+        },
+      ],
+      batchDeleted: [['ml_2', 'ml_1']],
+      remainingLogs: [null, null],
+    })
   })
 })

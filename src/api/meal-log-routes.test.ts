@@ -55,12 +55,16 @@ const jsonRequest = (path: string, method: string, body?: unknown): Request =>
 const notStubbed = (name: string): MealLogService => ({
   record: () =>
     errAsync(new MealLogPersistenceError(`${name}.record not stubbed`)),
+  recordMany: () =>
+    errAsync(new MealLogPersistenceError(`${name}.recordMany not stubbed`)),
   update: () =>
     errAsync(new MealLogPersistenceError(`${name}.update not stubbed`)),
   getById: () =>
     errAsync(new MealLogPersistenceError(`${name}.getById not stubbed`)),
   delete: () =>
     errAsync(new MealLogPersistenceError(`${name}.delete not stubbed`)),
+  deleteMany: () =>
+    errAsync(new MealLogPersistenceError(`${name}.deleteMany not stubbed`)),
 })
 
 describe('POST /api/meal-logs', () => {
