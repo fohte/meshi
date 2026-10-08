@@ -222,7 +222,7 @@ export const registerFoodInput = z.object({
     .describe('別物だと確認した類似食品の food_master_id'),
 })
 
-const similarFoodMasterCandidateOutput = z.object({
+export const similarFoodMasterCandidateOutput = z.object({
   food_master_id: z.string(),
   name: z.string(),
   score: z.number(),

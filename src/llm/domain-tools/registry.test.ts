@@ -82,13 +82,6 @@ const stubDeps = (override: Partial<DomainToolsDeps> = {}): DomainToolsDeps => {
       ),
   }
   const foodMasterService: FoodMasterService = {
-    register: () =>
-      errAsync(
-        new FoodMasterDomainError(
-          'persistence_failed',
-          'foodMasterService.register not stubbed',
-        ),
-      ),
     registerWithSimilarNameCheck: () =>
       errAsync(
         new FoodMasterDomainError(

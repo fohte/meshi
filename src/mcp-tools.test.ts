@@ -342,7 +342,6 @@ const makeFoodMasterService = (
   const unused = () =>
     errAsync(new FoodMasterDomainError('persistence_failed', 'not stubbed'))
   return {
-    register: unused,
     registerWithSimilarNameCheck: unused,
     getById: (id) => okAsync(foodMasters.get(id) ?? null),
     registerFromComposition: unused,

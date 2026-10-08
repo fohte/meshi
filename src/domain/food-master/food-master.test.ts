@@ -10,6 +10,7 @@ import type {
   RegisteredFromComposition,
   RegisterFoodMasterInput,
 } from '#domain/food-master/types'
+import { similarFoodMasterCandidateOutput } from '#mcp-tools/schemas'
 import { captureDomainError } from '#test/capture-domain-error'
 import { describeIfDb, setupTx } from '#test/db'
 import { createCountingIdGenerator, type IdCounter } from '#test/id-counter'
@@ -27,6 +28,7 @@ const observation = <T extends object>(value: T): T => value
 describeIfDb('FoodMasterService + Repository', () => {
   const getTx = setupTx()
   let service: FoodMasterService
+  let repository: ReturnType<typeof createFoodMasterRepository>
 
   beforeEach(async () => {
     const tx = getTx()
@@ -44,13 +46,13 @@ describeIfDb('FoodMasterService + Repository', () => {
         return n
       },
     }
-    const repo = createFoodMasterRepository(tx, {
+    repository = createFoodMasterRepository(tx, {
       generateId: createCountingIdGenerator(idCounter),
       // The outer per-test transaction already provides atomicity, and
       // postgres-js rejects a nested BEGIN inside it.
       wrapInTransaction: false,
     })
-    service = createFoodMasterService(repo)
+    service = createFoodMasterService(repository)
   })
 
   const normalize = <T extends { createdAt: Date }>(
@@ -89,21 +91,16 @@ describeIfDb('FoodMasterService + Repository', () => {
   }) => {
     const parsed = z
       .object({
-        candidates: z.array(
-          z.object({
-            food_master_id: z.string(),
-            name: z.string(),
-            score: z.number(),
-          }),
-        ),
+        candidates: z.array(similarFoodMasterCandidateOutput.loose()),
       })
+      .loose()
       .parse(captured.details)
     return {
       code: captured.code,
       details: {
+        ...parsed,
         candidates: parsed.candidates.map((candidate) => ({
-          food_master_id: candidate.food_master_id,
-          name: candidate.name,
+          ...candidate,
           score: '<score>',
         })),
       },
@@ -112,7 +109,7 @@ describeIfDb('FoodMasterService + Repository', () => {
 
   it('registers a confirmed food master and round-trips it through getById', async () => {
     const registered = (
-      await service.register({
+      await service.registerWithSimilarNameCheck({
         name: 'rice',
         aliases: ['ご飯', 'cooked rice'],
         nutrition: { energy_kcal: 168, protein_g: 2.5, iron_mg: 0.1 },
@@ -143,7 +140,7 @@ describeIfDb('FoodMasterService + Repository', () => {
   it("rejects is_estimated=true combined with source='web_search'", async () => {
     const tx = getTx()
     const captured = await captureDomainError(
-      service.register({
+      repository.register({
         ...baseInput,
         name: 'guess from web',
         source: 'web_search',
@@ -166,7 +163,7 @@ describeIfDb('FoodMasterService + Repository', () => {
   it("rejects is_estimated=false combined with source='composition_table_estimate'", async () => {
     const tx = getTx()
     const captured = await captureDomainError(
-      service.register({
+      repository.register({
         ...baseInput,
         name: 'homemade curry',
         source: 'composition_table_estimate',
@@ -189,7 +186,7 @@ describeIfDb('FoodMasterService + Repository', () => {
   it("rejects source='web_search' without source_url", async () => {
     const tx = getTx()
     const captured = await captureDomainError(
-      service.register({
+      repository.register({
         name: 'milk',
         nutrition: { energy_kcal: 67 },
         source: 'web_search',
@@ -214,7 +211,7 @@ describeIfDb('FoodMasterService + Repository', () => {
 
   it("registers source='web_search' with source_url and round-trips sourceCompositionCode as null", async () => {
     const registered = (
-      await service.register({
+      await repository.register({
         name: 'milk',
         nutrition: { energy_kcal: 67 },
         source: 'web_search',
@@ -238,7 +235,7 @@ describeIfDb('FoodMasterService + Repository', () => {
 
   it("rejects source='composition_table_estimate' without sourceCompositionCode", async () => {
     const captured = await captureDomainError(
-      service.register({
+      repository.register({
         name: 'homemade curry',
         nutrition: { energy_kcal: 250 },
         source: 'composition_table_estimate',
@@ -260,7 +257,7 @@ describeIfDb('FoodMasterService + Repository', () => {
     const tx = getTx()
     await seedFoodComposition(tx, { code: '18008', name: 'カレールウ' })
     const captured = await captureDomainError(
-      service.register({
+      repository.register({
         name: 'homemade curry',
         nutrition: { energy_kcal: 250 },
         source: 'composition_table_estimate',
@@ -284,7 +281,7 @@ describeIfDb('FoodMasterService + Repository', () => {
     const tx = getTx()
     await seedFoodComposition(tx, { code: '18008', name: 'カレールウ' })
     const captured = await captureDomainError(
-      service.register({
+      repository.register({
         ...baseInput,
         name: 'homemade curry',
         sourceCompositionCode: '18008',
@@ -305,7 +302,7 @@ describeIfDb('FoodMasterService + Repository', () => {
     const tx = getTx()
     await seedFoodComposition(tx, { code: '18008', name: 'カレールウ' })
     const captured = await captureDomainError(
-      service.register({
+      repository.register({
         name: 'homemade curry',
         nutrition: { energy_kcal: 250 },
         source: 'web_search',
@@ -327,7 +324,7 @@ describeIfDb('FoodMasterService + Repository', () => {
 
   it("rejects sourceUrl set with source='user_input'", async () => {
     const captured = await captureDomainError(
-      service.register({
+      repository.register({
         ...baseInput,
         name: 'homemade curry',
         sourceUrl: 'https://example.com/curry',
@@ -348,7 +345,7 @@ describeIfDb('FoodMasterService + Repository', () => {
     const tx = getTx()
     await seedFoodComposition(tx, { code: '18008', name: 'カレールウ' })
     const registered = (
-      await service.register({
+      await repository.register({
         name: 'homemade curry',
         nutrition: { energy_kcal: 250 },
         source: 'composition_table_estimate',
@@ -378,7 +375,7 @@ describeIfDb('FoodMasterService + Repository', () => {
   it('rejects registrations with nutrient_code not present in nutrient_definitions', async () => {
     const tx = getTx()
     const captured = await captureDomainError(
-      service.register({
+      repository.register({
         ...baseInput,
         name: 'mystery food',
         nutrition: { energy_kcal: 100, mystery_nutrient_g: 5 },
@@ -398,9 +395,9 @@ describeIfDb('FoodMasterService + Repository', () => {
 
   it('rejects duplicate name registration', async () => {
     const tx = getTx()
-    ;(await service.register(baseInput))._unsafeUnwrap()
+    ;(await repository.register(baseInput))._unsafeUnwrap()
     const captured = await captureDomainError(
-      service.register({ ...baseInput, nutrition: { energy_kcal: 200 } }),
+      repository.register({ ...baseInput, nutrition: { energy_kcal: 200 } }),
     )
 
     expect(captured).toEqual({
@@ -416,7 +413,7 @@ describeIfDb('FoodMasterService + Repository', () => {
 
   it('rejects empty name', async () => {
     const captured = await captureDomainError(
-      service.register({ ...baseInput, name: '   ' }),
+      repository.register({ ...baseInput, name: '   ' }),
     )
 
     expect(captured).toEqual({ code: 'empty_name', details: {} })
@@ -425,7 +422,11 @@ describeIfDb('FoodMasterService + Repository', () => {
   it('rejects empty nutrition', async () => {
     const tx = getTx()
     const captured = await captureDomainError(
-      service.register({ ...baseInput, name: 'no-nutrition', nutrition: {} }),
+      repository.register({
+        ...baseInput,
+        name: 'no-nutrition',
+        nutrition: {},
+      }),
     )
 
     expect(captured).toEqual({ code: 'empty_nutrition', details: {} })
@@ -438,7 +439,7 @@ describeIfDb('FoodMasterService + Repository', () => {
 
   it('rejects negative nutrient values', async () => {
     const captured = await captureDomainError(
-      service.register({
+      repository.register({
         ...baseInput,
         name: 'broken',
         nutrition: { energy_kcal: -1 },
@@ -453,7 +454,7 @@ describeIfDb('FoodMasterService + Repository', () => {
 
   it('rejects non-finite nutrient values', async () => {
     const captured = await captureDomainError(
-      service.register({
+      repository.register({
         ...baseInput,
         name: 'broken-inf',
         nutrition: { energy_kcal: Number.POSITIVE_INFINITY },
@@ -468,7 +469,7 @@ describeIfDb('FoodMasterService + Repository', () => {
 
   it('rejects duplicate aliases within the same input before hitting the DB', async () => {
     const captured = await captureDomainError(
-      service.register({
+      repository.register({
         ...baseInput,
         name: 'apple',
         aliases: ['りんご', 'りんご'],
@@ -483,7 +484,7 @@ describeIfDb('FoodMasterService + Repository', () => {
 
   it('rejects empty alias strings', async () => {
     const captured = await captureDomainError(
-      service.register({
+      repository.register({
         ...baseInput,
         name: 'apple',
         aliases: ['ok', ''],
@@ -495,7 +496,7 @@ describeIfDb('FoodMasterService + Repository', () => {
 
   it('distinguishes alias-UNIQUE collision from name collision', async () => {
     ;(
-      await service.register({
+      await repository.register({
         name: 'apple',
         nutrition: { energy_kcal: 50 },
         source: 'user_input',
@@ -505,7 +506,7 @@ describeIfDb('FoodMasterService + Repository', () => {
     )._unsafeUnwrap()
 
     const captured = await captureDomainError(
-      service.register({
+      repository.register({
         name: 'red apple',
         nutrition: { energy_kcal: 52 },
         source: 'user_input',
@@ -609,7 +610,7 @@ describeIfDb('FoodMasterService + Repository', () => {
       INSERT INTO food_composition_nutrients (food_composition_code, nutrient_code, value)
       VALUES ('01088', 'energy_kcal', '130')
     `
-    ;(await service.register(baseInput))._unsafeUnwrap()
+    ;(await repository.register(baseInput))._unsafeUnwrap()
 
     const captured = await captureDomainError(
       service.registerFromComposition({ compositionCode: '01088' }),
@@ -623,7 +624,7 @@ describeIfDb('FoodMasterService + Repository', () => {
 
   it('finds an existing food_master whose name is a plausible near-duplicate, scored above the threshold', async () => {
     ;(
-      await service.register({
+      await repository.register({
         ...baseInput,
         name: 'ごろごろ野菜カレー 中辛',
       })
@@ -645,7 +646,7 @@ describeIfDb('FoodMasterService + Repository', () => {
   it('blocks a similar name until its candidate id is confirmed as distinct', async () => {
     const tx = getTx()
     ;(
-      await service.register({
+      await repository.register({
         ...baseInput,
         name: 'ごろごろ野菜カレー 中辛',
       })
@@ -686,7 +687,7 @@ describeIfDb('FoodMasterService + Repository', () => {
       },
       countAfterBlock: '1',
       registered: {
-        id: 'fm_test_0002',
+        id: 'fm_test_0003',
         name: 'ごろごろ野菜カレー 中辛 レトルト',
         aliases: [],
         isEstimated: false,
@@ -699,9 +700,63 @@ describeIfDb('FoodMasterService + Repository', () => {
     })
   })
 
+  it('keeps unconfirmed similar-name candidates after confirming another candidate as distinct', async () => {
+    const tx = getTx()
+    const first = (
+      await repository.register({
+        ...baseInput,
+        name: 'ごろごろ野菜カレー 中辛',
+      })
+    )._unsafeUnwrap()
+    const second = (
+      await repository.register({
+        ...baseInput,
+        name: 'ごろごろ野菜カレーパン 中辛',
+      })
+    )._unsafeUnwrap()
+
+    const blocked = await captureDomainError(
+      service.registerWithSimilarNameCheck(
+        {
+          ...baseInput,
+          name: 'ごろごろ野菜カレー（レトルト）',
+        },
+        [first.id],
+      ),
+    )
+    const rows = await tx<{ count: string }[]>`
+      SELECT count(*)::text AS count FROM food_masters
+    `
+
+    expect(
+      observation({
+        blocked: normalizeSimilarNameError(blocked),
+        count: rows[0]?.count,
+        confirmedId: first.id,
+        remainingId: second.id,
+      }),
+    ).toEqual({
+      blocked: {
+        code: 'similar_name_exists',
+        details: {
+          candidates: [
+            {
+              food_master_id: 'fm_test_0003',
+              name: 'ごろごろ野菜カレーパン 中辛',
+              score: '<score>',
+            },
+          ],
+        },
+      },
+      count: '2',
+      confirmedId: 'fm_test_0001',
+      remainingId: 'fm_test_0003',
+    })
+  })
+
   it('excludes an exact name match from findSimilarNames results', async () => {
     ;(
-      await service.register({
+      await repository.register({
         ...baseInput,
         name: 'ごろごろ野菜カレー 中辛',
       })
@@ -715,7 +770,9 @@ describeIfDb('FoodMasterService + Repository', () => {
   })
 
   it('returns no candidates when nothing registered scores above the threshold', async () => {
-    ;(await service.register({ ...baseInput, name: 'バナナ' }))._unsafeUnwrap()
+    ;(
+      await repository.register({ ...baseInput, name: 'バナナ' })
+    )._unsafeUnwrap()
 
     const result = (await service.findSimilarNames('ラーメン'))._unsafeUnwrap()
 
@@ -724,13 +781,13 @@ describeIfDb('FoodMasterService + Repository', () => {
 
   it('orders findSimilarNames results by score, highest first', async () => {
     ;(
-      await service.register({
+      await repository.register({
         ...baseInput,
         name: 'ごろごろ野菜カレー 中辛',
       })
     )._unsafeUnwrap()
     ;(
-      await service.register({
+      await repository.register({
         ...baseInput,
         name: 'ごろごろ野菜カレーパン 中辛',
       })
@@ -755,7 +812,7 @@ describeIfDb('FoodMasterService + Repository', () => {
   })
 
   it('adds an alias to an existing food_master, visible through getById', async () => {
-    await service.register(baseInput)
+    await repository.register(baseInput)
 
     const added = await service.addAlias('fm_test_0001', 'ご飯')
 
@@ -776,10 +833,14 @@ describeIfDb('FoodMasterService + Repository', () => {
 
   it('does not error, and does not move the alias, when it already belongs to another food_master', async () => {
     const rice = (
-      await service.register({ ...baseInput, name: 'rice', aliases: ['ご飯'] })
+      await repository.register({
+        ...baseInput,
+        name: 'rice',
+        aliases: ['ご飯'],
+      })
     )._unsafeUnwrap()
     const friedRice = (
-      await service.register({ ...baseInput, name: 'fried rice' })
+      await repository.register({ ...baseInput, name: 'fried rice' })
     )._unsafeUnwrap()
 
     const added = await service.addAlias(friedRice.id, 'ご飯')

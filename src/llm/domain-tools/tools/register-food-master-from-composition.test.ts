@@ -35,13 +35,6 @@ const setup = (
 } => {
   const calls: RegisterFromCompositionInput[] = []
   const service: FoodMasterService = {
-    register: () =>
-      errAsync(
-        new FoodMasterDomainError(
-          'persistence_failed',
-          'foodMasterService.register not stubbed',
-        ),
-      ),
     registerWithSimilarNameCheck: () =>
       errAsync(
         new FoodMasterDomainError(

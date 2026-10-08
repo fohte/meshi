@@ -13,9 +13,6 @@ import type {
 } from '#domain/food-master/types'
 
 export interface FoodMasterService {
-  register(
-    input: RegisterFoodMasterInput,
-  ): ResultAsync<FoodMaster, FoodMasterDomainError>
   registerWithSimilarNameCheck(
     input: RegisterFoodMasterInput,
     confirmedDistinctFromMasterIds?: ReadonlyArray<FoodMasterId>,
@@ -79,7 +76,6 @@ export const createFoodMasterService = (
     }
 
   return {
-    register: (input) => repo.register(input),
     registerWithSimilarNameCheck,
     getById: (id) => repo.findById(id),
     findSimilarNames: (name) => repo.findSimilarNames(name),

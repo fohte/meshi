@@ -7,19 +7,14 @@ import { errorResult, TOOL_CALLED, TOOL_SUCCEEDED } from '#mcp-tools/payloads'
 import {
   registerFoodInput,
   registerFoodStructuredOutput,
+  similarFoodMasterCandidateOutput,
 } from '#mcp-tools/schemas'
 
 const description =
   '未登録の食品を登録し、food_master_id と名前を返す。nutrition.energy_kcal は必須。栄養値を一般知識から作らない。出典はメーカーまたは店の公式ページを優先し、まとめサイトやブログは使わない。source_url はこの商品とサイズの栄養値を載せたページにする。name はブランド名を先頭に付け、残りは公式の商品名をそのまま書く。source=web_search は is_estimated=false かつ source_url 必須。source=user_input はユーザー本人が値を伝えた場合だけ使い、source_url は指定しない。栄養値は出典が示す 1 つ分 (1 個、1 食、100g など) のまま渡す。食品成分表に載っている自炊の素材は成分表から登録する。似た名前の候補が返されたら、同じ食品なら既存候補を使う。確信がなければ出典を調べ直すかユーザーに確認する。候補すべてと別物だと確認できた場合のみ、confirmed_distinct_from_master_ids に候補の food_master_id をすべて指定して再送する。'
 
 const similarNameDetailsSchema = z.object({
-  candidates: z.array(
-    z.object({
-      food_master_id: z.string(),
-      name: z.string(),
-      score: z.number(),
-    }),
-  ),
+  candidates: z.array(similarFoodMasterCandidateOutput),
 })
 
 export const registerFoodTool = (

@@ -64,13 +64,6 @@ export const createStubApiDeps = (): ApiDeps => ({
       ),
   },
   foodMasterService: {
-    register: () =>
-      errAsync(
-        new FoodMasterDomainError(
-          'persistence_failed',
-          'foodMasterService.register not stubbed',
-        ),
-      ),
     registerWithSimilarNameCheck: () =>
       errAsync(
         new FoodMasterDomainError(

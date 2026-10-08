@@ -41,14 +41,11 @@ const setup = (
     input: RegisterFoodMasterInput
     confirmedDistinctFromMasterIds?: ReadonlyArray<string>
   }> = []
-  const defaultRegister: FoodMasterService['register'] = (input) =>
-    okAsync(sampleMaster('fm_new', input))
-  const register = override.register ?? defaultRegister
+  const defaultRegisterWithSimilarNameCheck: FoodMasterService['registerWithSimilarNameCheck'] =
+    (input) => okAsync(sampleMaster('fm_new', input))
   const registerHandler =
-    override.registerWithSimilarNameCheck ??
-    ((input: RegisterFoodMasterInput) => register(input))
+    override.registerWithSimilarNameCheck ?? defaultRegisterWithSimilarNameCheck
   const service: FoodMasterService = {
-    register,
     getById: () => okAsync(null),
     findSimilarNames: () => okAsync([]),
     registerFromComposition: () =>
