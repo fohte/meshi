@@ -36,8 +36,7 @@ export const AGENT_QUESTION_TEXT_MISSING_EVENT =
   'meshi.agent_question_text_missing'
 export const AGENT_NO_USABLE_REPLY_EVENT = 'meshi.agent_no_usable_reply'
 
-// Shared between a2a/agent-executor.ts and domain-agent-orchestrator.ts so
-// both surfaces report the same failure identically.
+// Used by the A2A executor when a turn has no usable response.
 export const NO_USABLE_REPLY_MESSAGE =
   'The agent did not return a valid response.'
 export const buildNoUsableReplyError = (): Error =>
@@ -81,7 +80,7 @@ const findRequestUserInputCall = (
 // FALLBACK_QUESTION_TEXT, rather than losing the fact that the agent needs
 // an answer to proceed. Returns null only when the turn produced neither
 // reply text nor a request_user_input call at all — callers treat that as a
-// hard failure (see a2a/agent-executor.ts and domain-agent-orchestrator.ts).
+// hard failure in a2a/agent-executor.ts.
 export const deriveAgentReply = (
   messages: ReadonlyArray<AgentInvokeMessage> | undefined,
   onThinkBlockLeaked: () => void,

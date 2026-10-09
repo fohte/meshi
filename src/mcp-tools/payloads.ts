@@ -4,10 +4,6 @@ import { toMealHistoryPayload } from '#domain/meal-history/mealHistoryPayload'
 import type { MealHistoryAggregate } from '#domain/meal-history/types'
 import type { MealLogDeletionResult } from '#domain/meal-log/types'
 import type { UserProfile } from '#domain/user-profile/user-profile'
-import type {
-  MealRecordResult,
-  OrchestratorError,
-} from '#llm/orchestrator/index'
 import type { Logger } from '#logger'
 
 export const TOOL_CALLED = 'meshi.tool_called'
@@ -40,27 +36,6 @@ export const errorResult = (
   }
 }
 
-export const buildMealRecordPayload = (
-  result: MealRecordResult,
-): Record<string, unknown> => ({
-  recorded: result.recorded.map((r) => ({
-    meal_log_id: r.mealLogId,
-    food_master_id: r.foodMasterId,
-    nutrition: r.nutrition,
-    is_estimated: r.isEstimated,
-  })),
-  candidates: result.candidates.map((c) => ({
-    food_master_id: c.foodMasterId,
-    composition_code: c.compositionCode,
-    name: c.name,
-    is_estimated: c.isEstimated,
-    score: c.score,
-    reason: c.reason,
-  })),
-  has_estimated_values: result.hasEstimatedValues,
-  error: orchestratorErrorPayload(result.error),
-})
-
 export const buildMealHistoryPayload = (
   aggregate: MealHistoryAggregate,
 ): Record<string, unknown> => ({
@@ -78,11 +53,6 @@ export const buildMealLogMutationPayload = (
   quantity: record.quantity,
 })
 
-const orchestratorErrorPayload = (
-  error: OrchestratorError | null,
-): Record<string, unknown> | null =>
-  error === null ? null : { kind: error.kind, message: error.message }
-
 export const buildProfilePayload = (
   profile: UserProfile,
 ): Record<string, unknown> => ({
@@ -92,36 +62,3 @@ export const buildProfilePayload = (
   constraints: profile.constraints,
   daily_targets: profile.dailyTargets ?? null,
 })
-
-export const logOrchestratorOutcome = (
-  logger: Logger,
-  toolName: string,
-  error: OrchestratorError | null,
-  extras: Readonly<Record<string, unknown>>,
-): void => {
-  if (error === null) {
-    logger.log(TOOL_SUCCEEDED, { tool: toolName, ...extras })
-    return
-  }
-  logger.log(TOOL_FAILED, {
-    tool: toolName,
-    code: error.kind,
-    message: error.message,
-    ...extras,
-  })
-}
-
-export const orchestratorCallToolResult = (
-  summaryText: string,
-  payload: Record<string, unknown>,
-  error: OrchestratorError | null,
-): CallToolResult => {
-  const result: CallToolResult = {
-    content: [{ type: 'text', text: summaryText }],
-    structuredContent: payload,
-  }
-  if (error !== null) {
-    result.isError = true
-  }
-  return result
-}

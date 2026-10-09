@@ -1,18 +1,12 @@
 import { HumanMessage } from '@langchain/core/messages'
 
 // The user message content block shape accepted by
-// createMeshiDomainAgent(...).invoke() — shared by both callers that build
-// it (src/a2a/message-content.ts for A2A FileParts, and
-// src/llm/orchestrator/domain-agent-orchestrator.ts for MCP inputs) so the
-// shape is defined once.
+// createMeshiDomainAgent(...).invoke() for A2A FileParts.
 export type AgentContentBlock =
   | { readonly type: 'text'; readonly text: string }
   | { readonly type: 'image'; readonly mimeType: string; readonly data: string }
 
-// Shared by both callers that ground the LLM in the current date/time
-// (src/a2a/message-content.ts's caller for the A2A path, and
-// domain-agent-orchestrator.ts for the MCP path) so the wire format
-// MESHI_AGENT_SYSTEM_PROMPT documents for the LLM can't drift between them.
+// Keeps the date/time metadata format aligned with MESHI_AGENT_SYSTEM_PROMPT.
 export const formatPromptMeta = (
   occurredAt: Date | undefined,
   timezone: string | undefined,

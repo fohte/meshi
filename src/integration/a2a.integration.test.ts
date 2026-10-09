@@ -51,10 +51,8 @@ const stubWebSearchClient = (): WebSearchClient => ({
   search: () => okAsync({ snippets: [] }),
 })
 
-// Wires the real domain tools (record_meal_log, search_food_master, ...)
-// against a per-test Postgres transaction, mirroring the harness in
-// src/integration/meshi.integration.test.ts but without the MCP/orchestrator
-// layer — the A2A path invokes createMeshiDomainAgent directly.
+// Wires the real domain tools against a per-test Postgres transaction. The
+// A2A path invokes createMeshiDomainAgent directly.
 const buildRegistry = (tx: Sql): DomainToolsRegistry => {
   const foodMasterRepository = createFoodMasterRepository(tx, {
     generateId: (prefix) => `${prefix}_a2a_test`,

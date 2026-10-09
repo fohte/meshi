@@ -17,8 +17,7 @@ import { createStubMcpDeps } from '#test/mcp-stubs'
 
 const stubDeps = createStubMcpDeps()
 
-// get_profile is used to exercise a real tool result below: it needs no
-// orchestrator/LLM call, only a profileService.get() that resolves.
+// get_profile is used to exercise a real tool result below.
 const stubProfile: UserProfile = {
   likes: ['白米'],
   dislikes: [],
@@ -167,15 +166,15 @@ describe('handleMcpRequest', () => {
         id: 1,
         method: 'tools/call',
         params: {
-          name: 'record_meal_from_text',
-          arguments: { text: 'ラーメン' },
+          name: 'get_profile',
+          arguments: {},
         },
       },
       expectedSpan: {
-        name: 'tools/call record_meal_from_text',
+        name: 'tools/call get_profile',
         attributes: {
           'mcp.method.name': 'tools/call',
-          'gen_ai.tool.name': 'record_meal_from_text',
+          'gen_ai.tool.name': 'get_profile',
           'gen_ai.operation.name': 'execute_tool',
         },
       },
