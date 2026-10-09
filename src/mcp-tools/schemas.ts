@@ -194,6 +194,52 @@ export const searchFoodsStructuredOutput = z.object({
   ),
 })
 
+const registerFoodNutrition = z
+  .object({ energy_kcal: z.number().nonnegative() })
+  .catchall(z.number().nonnegative())
+
+export const registerFoodInput = z.object({
+  name: z.string().trim().min(1).describe('登録する食品名'),
+  aliases: z
+    .array(z.string().trim().min(1))
+    .optional()
+    .describe('食品名の別名'),
+  nutrition: registerFoodNutrition.describe(
+    '出典が示す 1 つ分の栄養値。energy_kcal は必須',
+  ),
+  source: z.enum(['web_search', 'user_input']),
+  is_estimated: z.boolean().describe('栄養値が推定値かどうか'),
+  source_url: z
+    .url()
+    .refine((url) => !/[\r\n]/.test(url), {
+      message: 'source_url must not contain control characters',
+    })
+    .optional()
+    .describe('web_search で参照した公式ページ'),
+  confirmed_distinct_from_master_ids: z
+    .array(z.string().trim().min(1))
+    .optional()
+    .describe('別物だと確認した類似食品の food_master_id'),
+})
+
+export const similarFoodMasterCandidateOutput = z.object({
+  food_master_id: z.string(),
+  name: z.string(),
+  score: z.number(),
+})
+
+export const registerFoodStructuredOutput = z.object({
+  food_master_id: z.string().optional(),
+  name: z.string().optional(),
+  error: z
+    .object({
+      code: z.string(),
+      message: z.string(),
+      candidates: z.array(similarFoodMasterCandidateOutput).optional(),
+    })
+    .optional(),
+})
+
 export const recordMealLogInput = z.object({
   date: jstDateSchema.describe('食事をした日付 (JST, YYYY-MM-DD)'),
   meal_type: z.enum(MEAL_TYPES),

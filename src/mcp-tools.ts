@@ -21,6 +21,7 @@ import {
 } from '#mcp-tools/payloads'
 import { registerQueryMealsTool } from '#mcp-tools/query-meals'
 import { registerRecommendationContextTool } from '#mcp-tools/recommendation'
+import { registerFoodTool } from '#mcp-tools/register-food'
 import {
   mealRecordStructuredOutput,
   profileStructuredOutput,
@@ -59,6 +60,8 @@ export const registerMeshiTools = (
     mealLogService,
     logger,
   })
+
+  registerFoodTool(server, { foodMasterService, logger })
 
   server.registerTool(
     'record_meal_from_text',

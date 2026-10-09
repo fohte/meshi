@@ -90,48 +90,22 @@ export const createRegisterFoodMasterTool = (
     const parsed = parseToolInput(inputSchema, input)
     if (parsed.isErr()) return err(parsed.error)
 
-    const similar = await service.findSimilarNames(parsed.value.name)
-    if (similar.isErr()) {
-      return err({
-        code: `food_master/${similar.error.code}`,
-        message: similar.error.message,
-        details: similar.error.details,
-      })
-    }
-    const acknowledged = new Set(
-      parsed.value.confirmed_distinct_from_master_ids ?? [],
-    )
-    const blocking = similar.value.filter(
-      (c) => !acknowledged.has(c.foodMasterId),
-    )
-    if (blocking.length > 0) {
-      return err({
-        code: 'food_master/similar_name_exists',
-        message:
-          'existing food_master(s) with a similar name were found; reuse one of them if it is the same product, gather stronger evidence and retry if unsure, ask the user to disambiguate, or retry with confirmed_distinct_from_master_ids listing exactly these food_master_id values once you have verified this is a different product',
-        details: {
-          candidates: blocking.map((c) => ({
-            food_master_id: c.foodMasterId,
-            name: c.name,
-            score: c.score,
-          })),
-        },
-      })
-    }
-
     return await service
-      .register({
-        name: parsed.value.name,
-        nutrition: parsed.value.nutrition_per_basis,
-        source: parsed.value.source,
-        isEstimated: parsed.value.is_estimated,
-        ...(parsed.value.aliases === undefined
-          ? {}
-          : { aliases: parsed.value.aliases }),
-        ...(parsed.value.source_url === undefined
-          ? {}
-          : { sourceUrl: parsed.value.source_url }),
-      })
+      .registerWithSimilarNameCheck(
+        {
+          name: parsed.value.name,
+          nutrition: parsed.value.nutrition_per_basis,
+          source: parsed.value.source,
+          isEstimated: parsed.value.is_estimated,
+          ...(parsed.value.aliases === undefined
+            ? {}
+            : { aliases: parsed.value.aliases }),
+          ...(parsed.value.source_url === undefined
+            ? {}
+            : { sourceUrl: parsed.value.source_url }),
+        },
+        parsed.value.confirmed_distinct_from_master_ids,
+      )
       .map((master) => ({
         food_master_id: master.id,
         name: master.name,
