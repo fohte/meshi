@@ -48,7 +48,7 @@ const rejectingFoodMasterService: FoodMasterService = {
 }
 
 const rejectingFoodSearchService: FoodSearchService = {
-  searchRegistered: () => errAsync(new FoodMatcherQueryError('stub')),
+  search: () => errAsync(new FoodMatcherQueryError('stub')),
 }
 
 const rejectingMealLogService: MealLogService = {

@@ -8,6 +8,7 @@ import type { FoodMasterService } from '#domain/food-master/service'
 import type {
   FoodMaster,
   RegisterFoodMasterInput,
+  RegisterFromCompositionInput,
 } from '#domain/food-master/types'
 import {
   type MealHistoryAggregate,
@@ -145,6 +146,7 @@ const successMealHistory: MealHistoryAggregate = {
 const searchFoodResults = [
   {
     foodMasterId: 'fm_catalog_alpha',
+    compositionCode: null,
     name: 'item_token_alpha',
     isEstimated: false,
     energyKcalPerUnit: 42,
@@ -268,8 +270,16 @@ interface ProfileCalls {
 }
 
 interface DirectMealToolCalls {
-  foodSearch: Array<{ queries: ReadonlyArray<string>; limit: number }>
+  foodSearch: Array<{
+    queries: ReadonlyArray<string>
+    limit: number
+    origin: 'retail' | 'homemade'
+  }>
   recordMealLogs: RecordMealLogsInput[]
+}
+
+interface FoodMasterCalls {
+  registerFromComposition: RegisterFromCompositionInput[]
 }
 
 const makeProfileService = (
@@ -336,6 +346,8 @@ const testFoodMasters: ReadonlyArray<FoodMaster> = [
 ]
 
 const makeFoodMasterService = (
+  calls: FoodMasterCalls,
+  registrationResult?: ReturnType<FoodMasterService['registerFromComposition']>,
   overrides: Partial<FoodMasterService> = {},
 ): FoodMasterService => {
   const foodMasters = new Map(testFoodMasters.map((food) => [food.id, food]))
@@ -344,7 +356,10 @@ const makeFoodMasterService = (
   return {
     registerWithSimilarNameCheck: unused,
     getById: (id) => okAsync(foodMasters.get(id) ?? null),
-    registerFromComposition: unused,
+    registerFromComposition(input) {
+      calls.registerFromComposition.push(input)
+      return registrationResult ?? unused()
+    },
     findSimilarNames: () => okAsync([]),
     addAlias: () => okAsync(undefined),
     merge: unused,
@@ -491,6 +506,7 @@ interface Harness {
   mealHistoryCalls: MealHistoryCalls
   mealLogCalls: MealLogCalls
   profileCalls: ProfileCalls
+  foodMasterCalls: FoodMasterCalls
   directMealToolCalls: DirectMealToolCalls
   close: () => Promise<void>
 }
@@ -507,7 +523,10 @@ interface HarnessConfig {
   mealLogOverrides?: Partial<MealLogService>
   deleteManyError?: DomainError
   profile?: UserProfile
-  foodSearchServiceResult?: ReturnType<FoodSearchService['searchRegistered']>
+  foodSearchServiceResult?: ReturnType<FoodSearchService['search']>
+  foodMasterRegistrationResult?: ReturnType<
+    FoodMasterService['registerFromComposition']
+  >
   recordMealLogError?: DomainError
   foodMasterOverrides?: Partial<FoodMasterService>
 }
@@ -520,7 +539,12 @@ const start = async (config: HarnessConfig = {}): Promise<Harness> => {
   )
   const { service: mealHistoryService, calls: mealHistoryCalls } =
     makeMealHistoryService(config.mealHistoryOverrides ?? {})
-  const foodMasterService = makeFoodMasterService(config.foodMasterOverrides)
+  const foodMasterCalls: FoodMasterCalls = { registerFromComposition: [] }
+  const foodMasterService = makeFoodMasterService(
+    foodMasterCalls,
+    config.foodMasterRegistrationResult,
+    config.foodMasterOverrides,
+  )
   const { service: mealLogCrudService, calls: mealLogCalls } =
     makeMealLogService(config.mealLogOverrides, config.deleteManyError)
   const { service: profileService, calls: profileCalls } = makeProfileService(
@@ -532,8 +556,8 @@ const start = async (config: HarnessConfig = {}): Promise<Harness> => {
     recordMealLogs: [],
   }
   const foodSearchService: FoodSearchService = {
-    searchRegistered(queries, limit) {
-      directMealToolCalls.foodSearch.push({ queries, limit })
+    search(queries, limit, origin = 'retail') {
+      directMealToolCalls.foodSearch.push({ queries, limit, origin })
       return config.foodSearchServiceResult ?? okAsync(searchFoodResults)
     },
   }
@@ -567,6 +591,7 @@ const start = async (config: HarnessConfig = {}): Promise<Harness> => {
     mealHistoryCalls,
     mealLogCalls,
     profileCalls,
+    foodMasterCalls,
     directMealToolCalls,
     async close() {
       await client.close()
@@ -576,7 +601,7 @@ const start = async (config: HarnessConfig = {}): Promise<Harness> => {
 }
 
 describe('MeshiMcpServer tools/list', () => {
-  it('exposes the eleven public tools with stable names', async () => {
+  it('exposes the twelve public tools with stable names', async () => {
     const h = await start()
     try {
       const result = await h.client.listTools()
@@ -590,6 +615,7 @@ describe('MeshiMcpServer tools/list', () => {
         'record_meal_from_text',
         'record_meal_log',
         'register_food',
+        'register_food_from_composition',
         'search_foods',
         'update_meal_log',
         'update_profile',
@@ -654,7 +680,8 @@ describe('MeshiMcpServer tools/list', () => {
           'timezone',
         ],
         record_meal_from_text: ['occurred_at', 'text', 'timezone'],
-        search_foods: ['limit', 'queries'],
+        register_food_from_composition: ['aliases', 'composition_code', 'name'],
+        search_foods: ['limit', 'origin', 'queries'],
         register_food: [
           'aliases',
           'confirmed_distinct_from_master_ids',
@@ -678,6 +705,77 @@ describe('MeshiMcpServer tools/list', () => {
           'dislikes',
           'likes',
         ],
+      })
+    } finally {
+      await h.close()
+    }
+  })
+
+  it('requires only composition_code for composition registration', async () => {
+    const h = await start()
+    try {
+      const result = await h.client.listTools()
+      const tool = result.tools.find(
+        (candidate) => candidate.name === 'register_food_from_composition',
+      )
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-type-assertion -- MCP SDK exposes a generic JSON Schema; this test reads its standard object fields.
+      const inputSchema = tool?.inputSchema as {
+        properties?: Record<string, unknown>
+        required?: string[]
+        additionalProperties?: boolean
+      }
+      expect(inputSchema.required).toEqual(['composition_code'])
+    } finally {
+      await h.close()
+    }
+  })
+
+  it('rejects nutrition values for composition registration', async () => {
+    const h = await start()
+    try {
+      const result = await h.client.callTool({
+        name: 'register_food_from_composition',
+        arguments: {
+          composition_code: 'fc_composition_tool_alpha',
+          nutrition: { energy_kcal: 42 },
+        },
+      })
+
+      expect(
+        observation({
+          result: normalizeValidationError(result),
+          registrationCalls: h.foodMasterCalls.registerFromComposition,
+        }),
+      ).toEqual({
+        result: {
+          content: [{ type: 'text', text: VALIDATION_ERROR_TEXT }],
+          isError: true,
+        },
+        registrationCalls: [],
+      })
+    } finally {
+      await h.close()
+    }
+  })
+
+  it('limits composition-table candidates to homemade ingredients', async () => {
+    const h = await start()
+    try {
+      const result = await h.client.listTools()
+      const descriptions = Object.fromEntries(
+        result.tools
+          .filter((tool) =>
+            ['search_foods', 'register_food_from_composition'].includes(
+              tool.name,
+            ),
+          )
+          .map((tool) => [tool.name, tool.description]),
+      )
+      expect(descriptions).toEqual({
+        search_foods:
+          '登録済み食品を複数の名前候補から検索し、食品名、kcal、推定値かどうかを返す。origin が homemade の場合のみ食品成分表の候補も返す。成分表候補は自炊の素材にだけ使い、買った商品や外食には使わない。成分表候補の energy_kcal は 100g あたり。',
+        register_food_from_composition:
+          '食品成分表の composition_code から食品マスタを登録する。成分表候補は自炊の素材にだけ使い、買った商品や外食には使わない。栄養値は食品成分表から 100g あたりの値をコピーするため、入力では指定できない。',
       })
     } finally {
       await h.close()
@@ -1846,6 +1944,7 @@ describe('search_foods', () => {
             foods: [
               {
                 food_master_id: 'fm_catalog_alpha',
+                composition_code: null,
                 name: 'item_token_alpha',
                 energy_kcal: 42,
                 is_estimated: false,
@@ -1854,7 +1953,11 @@ describe('search_foods', () => {
           },
         },
         searchCalls: [
-          { queries: ['item_token_alpha', 'alpha item'], limit: 2 },
+          {
+            queries: ['item_token_alpha', 'alpha item'],
+            limit: 2,
+            origin: 'retail',
+          },
         ],
         orchestratorCalls: {
           recordFromText: [],
@@ -1871,6 +1974,7 @@ describe('search_foods', () => {
       foodSearchServiceResult: okAsync([
         {
           foodMasterId: 'fm_catalog_beta',
+          compositionCode: null,
           name: 'item_token_beta',
           isEstimated: true,
           energyKcalPerUnit: null,
@@ -1889,12 +1993,208 @@ describe('search_foods', () => {
           foods: [
             {
               food_master_id: 'fm_catalog_beta',
+              composition_code: null,
               name: 'item_token_beta',
               energy_kcal: null,
               is_estimated: true,
             },
           ],
         },
+      })
+    } finally {
+      await h.close()
+    }
+  })
+
+  it('returns composition candidates and their per-100g kcal for homemade searches', async () => {
+    const h = await start({
+      foodSearchServiceResult: okAsync([
+        {
+          foodMasterId: 'fm_search_fixture_alpha',
+          compositionCode: null,
+          name: 'search_fixture_alpha',
+          isEstimated: false,
+          energyKcalPerUnit: 42,
+        },
+        {
+          foodMasterId: null,
+          compositionCode: 'fc_search_fixture_beta',
+          name: 'search_fixture_beta',
+          isEstimated: true,
+          energyKcalPer100g: 88,
+        },
+      ]),
+    })
+    try {
+      const result = await h.client.callTool({
+        name: 'search_foods',
+        arguments: {
+          queries: ['search_fixture_alpha', 'search_fixture_beta'],
+          origin: 'homemade',
+        },
+      })
+
+      expect(
+        observation({
+          result,
+          searchCalls: h.directMealToolCalls.foodSearch,
+          orchestratorCalls: h.calls,
+        }),
+      ).toEqual({
+        result: {
+          content: [{ type: 'text', text: '食品候補を 2 件取得しました。' }],
+          structuredContent: {
+            foods: [
+              {
+                food_master_id: 'fm_search_fixture_alpha',
+                composition_code: null,
+                name: 'search_fixture_alpha',
+                energy_kcal: 42,
+                is_estimated: false,
+              },
+              {
+                food_master_id: null,
+                composition_code: 'fc_search_fixture_beta',
+                name: 'search_fixture_beta',
+                energy_kcal: 88,
+                is_estimated: true,
+              },
+            ],
+          },
+        },
+        searchCalls: [
+          {
+            queries: ['search_fixture_alpha', 'search_fixture_beta'],
+            limit: 10,
+            origin: 'homemade',
+          },
+        ],
+        orchestratorCalls: {
+          recordFromText: [],
+          recordFromImage: [],
+        },
+      })
+    } finally {
+      await h.close()
+    }
+  })
+})
+
+describe('register_food_from_composition', () => {
+  it('registers a composition-backed food without calling the orchestrator', async () => {
+    const foodMaster: FoodMaster = {
+      id: 'fm_composition_tool_alpha',
+      name: 'composition_tool_alpha',
+      aliases: ['composition_tool_alias'],
+      isEstimated: true,
+      source: 'composition_table_estimate',
+      sourceUrl: null,
+      sourceCompositionCode: 'fc_composition_tool_alpha',
+      nutrition: { energy_kcal: 92 },
+      createdAt: new Date('2026-04-17T00:00:00.000Z'),
+    }
+    const h = await start({
+      foodMasterRegistrationResult: okAsync({
+        foodMaster,
+        compositionName: 'composition_tool_source_alpha',
+      }),
+    })
+    try {
+      const result = await h.client.callTool({
+        name: 'register_food_from_composition',
+        arguments: {
+          composition_code: 'fc_composition_tool_alpha',
+          name: 'composition_tool_alpha',
+          aliases: ['composition_tool_alias'],
+        },
+      })
+
+      expect(
+        observation({
+          result,
+          foodMasterCalls: h.foodMasterCalls,
+          orchestratorCalls: h.calls,
+          logs: h.logs,
+        }),
+      ).toEqual({
+        result: {
+          content: [
+            { type: 'text', text: '食品成分表から食品を登録しました。' },
+          ],
+          structuredContent: {
+            food_master_id: 'fm_composition_tool_alpha',
+            name: 'composition_tool_alpha',
+          },
+        },
+        foodMasterCalls: {
+          registerFromComposition: [
+            {
+              compositionCode: 'fc_composition_tool_alpha',
+              name: 'composition_tool_alpha',
+              aliases: ['composition_tool_alias'],
+            },
+          ],
+        },
+        orchestratorCalls: {
+          recordFromText: [],
+          recordFromImage: [],
+        },
+        logs: [
+          {
+            event: 'meshi.tool_called',
+            payload: { tool: 'register_food_from_composition' },
+          },
+          {
+            event: 'meshi.tool_succeeded',
+            payload: { tool: 'register_food_from_composition' },
+          },
+        ],
+      })
+    } finally {
+      await h.close()
+    }
+  })
+
+  it('returns composition lookup errors with a domain code', async () => {
+    const compositionCode = 'fc_composition_missing'
+    const message = `food_composition not found: ${compositionCode}`
+    const h = await start({
+      foodMasterRegistrationResult: errAsync(
+        new FoodMasterDomainError('composition_not_found', message),
+      ),
+    })
+    try {
+      const result = await h.client.callTool({
+        name: 'register_food_from_composition',
+        arguments: { composition_code: compositionCode },
+      })
+
+      expect(
+        observation({
+          result,
+          registrationCalls: h.foodMasterCalls.registerFromComposition,
+          logs: h.logs,
+        }),
+      ).toEqual({
+        result: {
+          isError: true,
+          content: [{ type: 'text', text: message }],
+        },
+        registrationCalls: [{ compositionCode }],
+        logs: [
+          {
+            event: 'meshi.tool_called',
+            payload: { tool: 'register_food_from_composition' },
+          },
+          {
+            event: 'meshi.tool_failed',
+            payload: {
+              tool: 'register_food_from_composition',
+              code: 'food_master/composition_not_found',
+              message,
+            },
+          },
+        ],
       })
     } finally {
       await h.close()

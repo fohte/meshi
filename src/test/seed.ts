@@ -3,6 +3,7 @@ import type postgres from 'postgres'
 import type { Sql } from '#db/index'
 import type {
   a2aPushConfigs,
+  foodCompositionNutrients,
   foodCompositions,
   foodMasterAliases,
   foodMasterNutrients,
@@ -117,6 +118,24 @@ export const seedFoodComposition = async (
   await sql`
     INSERT INTO food_compositions (code, name)
     VALUES (${values.code}, ${values.name})
+  `
+}
+
+export const seedFoodCompositionNutrient = async (
+  sql: Sql,
+  values: Omit<typeof foodCompositionNutrients.$inferInsert, 'value'> & {
+    value: number
+    unit: typeof nutrientDefinitions.$inferInsert.unit
+  },
+): Promise<void> => {
+  await seedNutrientDefinition(sql, {
+    code: values.nutrientCode,
+    displayName: values.nutrientCode,
+    unit: values.unit,
+  })
+  await sql`
+    INSERT INTO food_composition_nutrients (food_composition_code, nutrient_code, value)
+    VALUES (${values.foodCompositionCode}, ${values.nutrientCode}, ${values.value})
   `
 }
 
