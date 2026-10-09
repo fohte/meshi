@@ -29,11 +29,11 @@ const SAMPLE_FOOD_MASTER: FoodMaster = {
 }
 
 const notStubbed = (name: string): FoodMasterService => ({
-  register: () =>
+  registerWithSimilarNameCheck: () =>
     errAsync(
       new FoodMasterDomainError(
         'persistence_failed',
-        `${name}.register not stubbed`,
+        `${name}.registerWithSimilarNameCheck not stubbed`,
       ),
     ),
   getById: () =>

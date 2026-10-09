@@ -14,6 +14,7 @@ type FoodMasterErrorCode =
   | 'negative_nutrient_value'
   | 'duplicate_name'
   | 'duplicate_alias'
+  | 'similar_name_exists'
   | 'composition_not_found'
   | 'food_master_not_found'
   | 'same_food_master'

@@ -7,6 +7,7 @@ import { FoodMasterDomainError } from '#domain/food-master/errors'
 import type { FoodMasterService } from '#domain/food-master/service'
 import type {
   FoodMaster,
+  RegisterFoodMasterInput,
   RegisterFromCompositionInput,
 } from '#domain/food-master/types'
 import {
@@ -347,12 +348,13 @@ const testFoodMasters: ReadonlyArray<FoodMaster> = [
 const makeFoodMasterService = (
   calls: FoodMasterCalls,
   registrationResult?: ReturnType<FoodMasterService['registerFromComposition']>,
+  overrides: Partial<FoodMasterService> = {},
 ): FoodMasterService => {
   const foodMasters = new Map(testFoodMasters.map((food) => [food.id, food]))
   const unused = () =>
     errAsync(new FoodMasterDomainError('persistence_failed', 'not stubbed'))
   return {
-    register: unused,
+    registerWithSimilarNameCheck: unused,
     getById: (id) => okAsync(foodMasters.get(id) ?? null),
     registerFromComposition(input) {
       calls.registerFromComposition.push(input)
@@ -361,6 +363,7 @@ const makeFoodMasterService = (
     findSimilarNames: () => okAsync([]),
     addAlias: () => okAsync(undefined),
     merge: unused,
+    ...overrides,
   }
 }
 
@@ -525,6 +528,7 @@ interface HarnessConfig {
     FoodMasterService['registerFromComposition']
   >
   recordMealLogError?: DomainError
+  foodMasterOverrides?: Partial<FoodMasterService>
 }
 
 const start = async (config: HarnessConfig = {}): Promise<Harness> => {
@@ -539,6 +543,7 @@ const start = async (config: HarnessConfig = {}): Promise<Harness> => {
   const foodMasterService = makeFoodMasterService(
     foodMasterCalls,
     config.foodMasterRegistrationResult,
+    config.foodMasterOverrides,
   )
   const { service: mealLogCrudService, calls: mealLogCalls } =
     makeMealLogService(config.mealLogOverrides, config.deleteManyError)
@@ -596,7 +601,7 @@ const start = async (config: HarnessConfig = {}): Promise<Harness> => {
 }
 
 describe('MeshiMcpServer tools/list', () => {
-  it('exposes the eleven public tools with stable names', async () => {
+  it('exposes the twelve public tools with stable names', async () => {
     const h = await start()
     try {
       const result = await h.client.listTools()
@@ -609,6 +614,7 @@ describe('MeshiMcpServer tools/list', () => {
         'record_meal_from_image',
         'record_meal_from_text',
         'record_meal_log',
+        'register_food',
         'register_food_from_composition',
         'search_foods',
         'update_meal_log',
@@ -628,6 +634,21 @@ describe('MeshiMcpServer tools/list', () => {
       )
       expect(queryMeals?.description).toEqual(
         'JST の period_from 以上、period_to 未満の食事履歴と栄養集計を返す。質問の解釈と集計結果の説明は ChatGPT が行う。後で記録を削除・修正するときは各記録の meal_log_id を使う。',
+      )
+    } finally {
+      await h.close()
+    }
+  })
+
+  it('explains the evidence and naming rules for register_food', async () => {
+    const h = await start()
+    try {
+      const result = await h.client.listTools()
+      const registerFood = result.tools.find(
+        (tool) => tool.name === 'register_food',
+      )
+      expect(registerFood?.description).toEqual(
+        '未登録の食品を登録し、food_master_id と名前を返す。nutrition.energy_kcal は必須。栄養値を一般知識から作らない。出典はメーカーまたは店の公式ページを優先し、まとめサイトやブログは使わない。source_url はこの商品とサイズの栄養値を載せたページにする。name はブランド名を先頭に付け、残りは公式の商品名をそのまま書く。source=web_search は is_estimated=false かつ source_url 必須。source=user_input はユーザー本人が値を伝えた場合だけ使い、source_url は指定しない。栄養値は出典が示す 1 つ分 (1 個、1 食、100g など) のまま渡す。食品成分表に載っている自炊の素材は成分表から登録する。似た名前の候補が返されたら、同じ食品なら既存候補を使う。確信がなければ出典を調べ直すかユーザーに確認する。候補すべてと別物だと確認できた場合のみ、confirmed_distinct_from_master_ids に候補の food_master_id をすべて指定して再送する。',
       )
     } finally {
       await h.close()
@@ -661,6 +682,15 @@ describe('MeshiMcpServer tools/list', () => {
         record_meal_from_text: ['occurred_at', 'text', 'timezone'],
         register_food_from_composition: ['aliases', 'composition_code', 'name'],
         search_foods: ['limit', 'origin', 'queries'],
+        register_food: [
+          'aliases',
+          'confirmed_distinct_from_master_ids',
+          'is_estimated',
+          'name',
+          'nutrition',
+          'source',
+          'source_url',
+        ],
         update_meal_log: [
           'date',
           'food_master_id',
@@ -2112,6 +2142,202 @@ describe('register_food_from_composition', () => {
             payload: { tool: 'register_food_from_composition' },
           },
         ],
+      })
+    } finally {
+      await h.close()
+    }
+  })
+})
+
+describe('register_food', () => {
+  it('registers the supplied one-unit nutrition through FoodMasterService without calling the orchestrator', async () => {
+    const calls: Array<{
+      input: RegisterFoodMasterInput
+      confirmedDistinctFromMasterIds?: ReadonlyArray<string>
+    }> = []
+    const h = await start({
+      foodMasterOverrides: {
+        registerWithSimilarNameCheck: (
+          input,
+          confirmedDistinctFromMasterIds,
+        ) => {
+          calls.push({
+            input,
+            ...(confirmedDistinctFromMasterIds === undefined
+              ? {}
+              : { confirmedDistinctFromMasterIds }),
+          })
+          const foodMaster: FoodMaster = {
+            id: 'fm_registered_alpha',
+            name: input.name,
+            aliases: input.aliases ?? [],
+            isEstimated: input.isEstimated,
+            source: input.source,
+            sourceUrl: input.sourceUrl ?? null,
+            sourceCompositionCode: null,
+            nutrition: input.nutrition,
+            createdAt: new Date('2026-04-17T00:00:00.000Z'),
+          }
+          return okAsync(foodMaster)
+        },
+      },
+    })
+    try {
+      const result = await h.client.callTool({
+        name: 'register_food',
+        arguments: {
+          name: 'Sample Pantry cereal blend',
+          aliases: ['sample cereal mix'],
+          nutrition: { energy_kcal: 137, protein_g: 2.5 },
+          source: 'web_search',
+          is_estimated: false,
+          source_url: 'https://example.test/items/sample-cereal',
+          confirmed_distinct_from_master_ids: ['fm_candidate_alpha'],
+        },
+      })
+
+      expect(
+        observation({ result, calls, orchestratorCalls: h.calls }),
+      ).toEqual({
+        result: {
+          content: [{ type: 'text', text: '食品を登録しました。' }],
+          structuredContent: {
+            food_master_id: 'fm_registered_alpha',
+            name: 'Sample Pantry cereal blend',
+          },
+        },
+        calls: [
+          {
+            input: {
+              name: 'Sample Pantry cereal blend',
+              aliases: ['sample cereal mix'],
+              nutrition: { energy_kcal: 137, protein_g: 2.5 },
+              source: 'web_search',
+              isEstimated: false,
+              sourceUrl: 'https://example.test/items/sample-cereal',
+            },
+            confirmedDistinctFromMasterIds: ['fm_candidate_alpha'],
+          },
+        ],
+        orchestratorCalls: { recordFromText: [], recordFromImage: [] },
+      })
+    } finally {
+      await h.close()
+    }
+  })
+
+  it('rejects nutrition without energy_kcal before calling FoodMasterService', async () => {
+    const calls: Array<{ input: RegisterFoodMasterInput }> = []
+    const h = await start({
+      foodMasterOverrides: {
+        registerWithSimilarNameCheck: (input) => {
+          calls.push({ input })
+          return errAsync(
+            new FoodMasterDomainError('persistence_failed', 'should not run'),
+          )
+        },
+      },
+    })
+    try {
+      const result = await h.client.callTool({
+        name: 'register_food',
+        arguments: {
+          name: 'Sample Pantry cereal blend',
+          nutrition: { protein_g: 2.5 },
+          source: 'user_input',
+          is_estimated: false,
+        },
+      })
+
+      expect(
+        observation({ result: normalizeValidationError(result), calls }),
+      ).toEqual({
+        result: {
+          content: [{ type: 'text', text: VALIDATION_ERROR_TEXT }],
+          isError: true,
+        },
+        calls: [],
+      })
+    } finally {
+      await h.close()
+    }
+  })
+
+  it('returns similar-name candidates in the structured error and does not call the orchestrator', async () => {
+    const calls: Array<{
+      input: RegisterFoodMasterInput
+      confirmedDistinctFromMasterIds?: ReadonlyArray<string>
+    }> = []
+    const message =
+      'existing food_master(s) with a similar name were found; reuse one of them if it is the same product, gather stronger evidence and retry if unsure, ask the user to disambiguate, or retry with confirmed_distinct_from_master_ids listing exactly these food_master_id values once you have verified this is a different product'
+    const h = await start({
+      foodMasterOverrides: {
+        registerWithSimilarNameCheck: (
+          input,
+          confirmedDistinctFromMasterIds,
+        ) => {
+          calls.push({
+            input,
+            ...(confirmedDistinctFromMasterIds === undefined
+              ? {}
+              : { confirmedDistinctFromMasterIds }),
+          })
+          return errAsync(
+            new FoodMasterDomainError('similar_name_exists', message, {
+              candidates: [
+                {
+                  food_master_id: 'fm_candidate_alpha',
+                  name: 'Sample Pantry cereal bites',
+                  score: 0.73,
+                },
+              ],
+            }),
+          )
+        },
+      },
+    })
+    try {
+      const result = await h.client.callTool({
+        name: 'register_food',
+        arguments: {
+          name: 'Sample Pantry cereal blend',
+          nutrition: { energy_kcal: 137 },
+          source: 'user_input',
+          is_estimated: false,
+        },
+      })
+
+      expect(
+        observation({ result, calls, orchestratorCalls: h.calls }),
+      ).toEqual({
+        result: {
+          isError: true,
+          content: [{ type: 'text', text: message }],
+          structuredContent: {
+            error: {
+              code: 'food_master/similar_name_exists',
+              message,
+              candidates: [
+                {
+                  food_master_id: 'fm_candidate_alpha',
+                  name: 'Sample Pantry cereal bites',
+                  score: 0.73,
+                },
+              ],
+            },
+          },
+        },
+        calls: [
+          {
+            input: {
+              name: 'Sample Pantry cereal blend',
+              nutrition: { energy_kcal: 137 },
+              source: 'user_input',
+              isEstimated: false,
+            },
+          },
+        ],
+        orchestratorCalls: { recordFromText: [], recordFromImage: [] },
       })
     } finally {
       await h.close()
