@@ -280,6 +280,11 @@ interface DirectMealToolCalls {
 
 interface FoodMasterCalls {
   registerFromComposition: RegisterFromCompositionInput[]
+  merge: {
+    survivorId: string
+    loserId: string
+    dryRun: boolean
+  }[]
 }
 
 const makeProfileService = (
@@ -362,7 +367,18 @@ const makeFoodMasterService = (
     },
     findSimilarNames: () => okAsync([]),
     addAlias: () => okAsync(undefined),
-    merge: unused,
+    merge(survivorId, loserId, dryRun) {
+      calls.merge.push({ survivorId, loserId, dryRun })
+      return okAsync({
+        survivorId,
+        loserId,
+        applied: !dryRun,
+        movedAliases: ['alternate_label'],
+        nameMovedAsAlias: 'removed_food_label',
+        discardedNutrition: { energy_kcal: 118 },
+        movedMealLogCount: 3,
+      })
+    },
     ...overrides,
   }
 }
@@ -539,7 +555,10 @@ const start = async (config: HarnessConfig = {}): Promise<Harness> => {
   )
   const { service: mealHistoryService, calls: mealHistoryCalls } =
     makeMealHistoryService(config.mealHistoryOverrides ?? {})
-  const foodMasterCalls: FoodMasterCalls = { registerFromComposition: [] }
+  const foodMasterCalls: FoodMasterCalls = {
+    registerFromComposition: [],
+    merge: [],
+  }
   const foodMasterService = makeFoodMasterService(
     foodMasterCalls,
     config.foodMasterRegistrationResult,
@@ -601,7 +620,7 @@ const start = async (config: HarnessConfig = {}): Promise<Harness> => {
 }
 
 describe('MeshiMcpServer tools/list', () => {
-  it('exposes the twelve public tools with stable names', async () => {
+  it('exposes the thirteen public tools with stable names', async () => {
     const h = await start()
     try {
       const result = await h.client.listTools()
@@ -610,6 +629,7 @@ describe('MeshiMcpServer tools/list', () => {
         'delete_meal_log',
         'get_profile',
         'get_recommendation_context',
+        'merge_food_master',
         'query_meals',
         'record_meal_from_image',
         'record_meal_from_text',
@@ -671,6 +691,11 @@ describe('MeshiMcpServer tools/list', () => {
         delete_meal_log: ['meal_log_ids'],
         get_profile: [],
         get_recommendation_context: ['period_from', 'period_to'],
+        merge_food_master: [
+          'dry_run',
+          'loser_food_master_id',
+          'survivor_food_master_id',
+        ],
         record_meal_log: ['date', 'items', 'meal_type'],
         query_meals: ['period_from', 'period_to'],
         record_meal_from_image: [
@@ -813,13 +838,140 @@ describe('MeshiMcpServer tools/list', () => {
       const annotations = Object.fromEntries(
         result.tools
           .filter((tool) =>
-            ['delete_meal_log', 'update_meal_log'].includes(tool.name),
+            [
+              'delete_meal_log',
+              'merge_food_master',
+              'update_meal_log',
+            ].includes(tool.name),
           )
           .map((tool) => [tool.name, tool.annotations]),
       )
       expect(annotations).toEqual({
         delete_meal_log: { readOnlyHint: false, destructiveHint: true },
+        merge_food_master: { readOnlyHint: false, destructiveHint: true },
         update_meal_log: { readOnlyHint: false, destructiveHint: false },
+      })
+    } finally {
+      await h.close()
+    }
+  })
+
+  it('explains the irreversible merge preview and survivor selection rules', async () => {
+    const h = await start()
+    try {
+      const result = await h.client.listTools()
+      const tool = result.tools.find(
+        (candidate) => candidate.name === 'merge_food_master',
+      )
+      expect(tool?.description).toEqual(
+        '同じ食品を指す 2 つの食品マスタを統合する。survivor_food_master_id に残す食品、loser_food_master_id に統合する食品を指定する。survivor は、より信頼できる情報が揃っている食品を選ぶ。値が衝突した場合は survivor を優先し、loser の栄養情報はすべて破棄する。loser の別名と食事ログは survivor に移り、loser の名前は同じ文字列の別名が既に存在しない場合に survivor の別名へ加わる。dry_run は既定で true で、変更せずに移動・破棄の内容を返す。試し実行の結果をユーザーに見せて確認を得てから dry_run=false を指定する。実際に統合すると取り消せない。',
+      )
+    } finally {
+      await h.close()
+    }
+  })
+
+  it('requires both food master IDs and defaults dry_run to true', async () => {
+    const h = await start()
+    try {
+      const result = await h.client.listTools()
+      const tool = result.tools.find(
+        (candidate) => candidate.name === 'merge_food_master',
+      )
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-type-assertion -- MCP SDK exposes the JSON Schema as a generic record.
+      const schema = tool?.inputSchema as {
+        properties?: Record<string, unknown>
+        required?: string[]
+      }
+      expect(
+        observation({
+          properties: schema.properties,
+          required: schema.required,
+        }),
+      ).toEqual({
+        properties: {
+          survivor_food_master_id: { type: 'string', minLength: 1 },
+          loser_food_master_id: { type: 'string', minLength: 1 },
+          dry_run: { type: 'boolean', default: true },
+        },
+        required: ['survivor_food_master_id', 'loser_food_master_id'],
+      })
+    } finally {
+      await h.close()
+    }
+  })
+})
+
+describe('merge_food_master', () => {
+  it('defaults to a dry run and returns the merge plan', async () => {
+    const h = await start()
+    try {
+      const result = await h.client.callTool({
+        name: 'merge_food_master',
+        arguments: {
+          survivor_food_master_id: 'food_master_keep_test',
+          loser_food_master_id: 'food_master_remove_test',
+        },
+      })
+      expect(observation({ result, calls: h.foodMasterCalls.merge })).toEqual({
+        result: {
+          content: [
+            { type: 'text', text: '食品マスタ統合の試し実行結果です。' },
+          ],
+          structuredContent: {
+            survivor_food_master_id: 'food_master_keep_test',
+            loser_food_master_id: 'food_master_remove_test',
+            applied: false,
+            moved_aliases: ['alternate_label'],
+            name_moved_as_alias: 'removed_food_label',
+            discarded_nutrition: { energy_kcal: 118 },
+            moved_meal_log_count: 3,
+          },
+        },
+        calls: [
+          {
+            survivorId: 'food_master_keep_test',
+            loserId: 'food_master_remove_test',
+            dryRun: true,
+          },
+        ],
+      })
+    } finally {
+      await h.close()
+    }
+  })
+
+  it('applies the merge only when dry_run is false', async () => {
+    const h = await start()
+    try {
+      const result = await h.client.callTool({
+        name: 'merge_food_master',
+        arguments: {
+          survivor_food_master_id: 'food_master_keep_test',
+          loser_food_master_id: 'food_master_remove_test',
+          dry_run: false,
+        },
+      })
+      expect(observation({ result, calls: h.foodMasterCalls.merge })).toEqual({
+        result: {
+          content: [{ type: 'text', text: '食品マスタを統合しました。' }],
+          structuredContent: {
+            survivor_food_master_id: 'food_master_keep_test',
+            loser_food_master_id: 'food_master_remove_test',
+            applied: true,
+            moved_aliases: ['alternate_label'],
+            name_moved_as_alias: 'removed_food_label',
+            discarded_nutrition: { energy_kcal: 118 },
+            moved_meal_log_count: 3,
+          },
+        },
+        calls: [
+          {
+            survivorId: 'food_master_keep_test',
+            loserId: 'food_master_remove_test',
+            dryRun: false,
+          },
+        ],
       })
     } finally {
       await h.close()
