@@ -47,13 +47,22 @@ import { seedFoodMaster, seedMealLog } from '#test/seed'
 const AGENT_CARD_URL = 'http://localhost/a2a'
 const NORMALIZED = 'NORMALIZED'
 
-const stubWebSearchClient = (): WebSearchClient => ({
-  search: () => okAsync({ snippets: [] }),
+const stubWebSearchClient = (
+  snippets: ReadonlyArray<{
+    readonly title: string
+    readonly url: string
+    readonly text: string
+  }> = [],
+): WebSearchClient => ({
+  search: () => okAsync({ snippets }),
 })
 
 // Wires the real domain tools against a per-test Postgres transaction. The
 // A2A path invokes createMeshiDomainAgent directly.
-const buildRegistry = (tx: Sql): DomainToolsRegistry => {
+const buildRegistry = (
+  tx: Sql,
+  webSearchClient: WebSearchClient = stubWebSearchClient(),
+): DomainToolsRegistry => {
   const foodMasterRepository = createFoodMasterRepository(tx, {
     generateId: (prefix) => `${prefix}_a2a_test`,
     // The outer per-test transaction already provides atomicity; postgres-js
@@ -84,7 +93,7 @@ const buildRegistry = (tx: Sql): DomainToolsRegistry => {
     userProfileService: createUserProfileService(
       createDrizzleUserProfileRepository(tx),
     ),
-    webSearchClient: stubWebSearchClient(),
+    webSearchClient,
     mealSkipService,
   })
 }
@@ -197,6 +206,12 @@ const buildAgentMessage = (
   contextId,
 })
 
+const registrationObservation = <TFoodMasters, TMealLogs>(
+  task: Task,
+  foodMasters: TFoodMasters,
+  mealLogs: TMealLogs,
+) => ({ task: normalizeTask(task), foodMasters, mealLogs })
+
 describeIfDb('A2A integration', () => {
   const getDomainTx = setupDrizzleTx()
   const getTaskStoreTx = setupTx()
@@ -291,6 +306,145 @@ describeIfDb('A2A integration', () => {
           quantity: '2',
         },
       ])
+    } finally {
+      await checkpointer.deleteThread(contextId)
+      await checkpointer.end()
+    }
+  })
+
+  it('registers a food from web search and records it via A2A message/send', async () => {
+    if (TEST_DATABASE_URL === undefined)
+      throw new Error('TEST_DATABASE_URL is not set')
+    const domainTx = getDomainTx()
+    const foodName = '星雲堂 白桃ソーダ'
+    const sourceUrl = 'https://nutrition.example.test/items/nebula-peach-soda'
+    const messageText = '2026-06-12 の昼食に星雲堂 白桃ソーダを 2 本飲んだ'
+    const finalText = '新しい食品を登録し、記録しました。'
+
+    const model = fakeModel()
+      .respondWithTools([
+        {
+          name: 'search_food_master',
+          args: {
+            user_input_item: foodName,
+            queries: [foodName],
+            origin: 'retail',
+          },
+          id: 'call_1',
+        },
+      ])
+      .respondWithTools([
+        {
+          name: 'web_search',
+          args: {
+            user_input_item: foodName,
+            query: `${foodName} 栄養成分`,
+          },
+          id: 'call_2',
+        },
+      ])
+      .respondWithTools([
+        {
+          name: 'register_food_master',
+          args: {
+            name: foodName,
+            nutrition_per_basis: { energy_kcal: 42, protein_g: 0.2 },
+            source: 'web_search',
+            is_estimated: false,
+            source_url: sourceUrl,
+          },
+          id: 'call_3',
+        },
+      ])
+      .respondWithTools([
+        {
+          name: 'record_meal_log',
+          args: {
+            food_master_id: 'fm_a2a_test',
+            food_name: foodName,
+            date: '2026-06-12',
+            meal_type: 'lunch',
+            quantity: 2,
+          },
+          id: 'call_4',
+        },
+      ])
+      .respond(new AIMessage(finalText))
+
+    const registry = buildRegistry(
+      domainTx,
+      stubWebSearchClient([
+        {
+          title: '星雲堂 白桃ソーダの栄養成分',
+          url: sourceUrl,
+          text: '1 本あたり 42 kcal、たんぱく質 0.2 g',
+        },
+      ]),
+    )
+    const contextId = `ctx-${randomUUID()}`
+    const checkpointer = createMeshiCheckpointer(TEST_DATABASE_URL)
+    try {
+      const client = await buildHarness({
+        registry,
+        model,
+        checkpointer,
+        taskStoreTx: getTaskStoreTx(),
+      })
+      const messageId = randomUUID()
+      const task = await sendUserMessage(client, messageText, {
+        messageId,
+        contextId,
+      })
+
+      const userMessage: Message = {
+        kind: 'message',
+        messageId,
+        role: 'user',
+        parts: [{ kind: 'text', text: messageText }],
+        taskId: task.id,
+        contextId,
+      }
+      const agentMessage = buildAgentMessage(task.id, contextId, finalText)
+      const foodMasters = await domainTx<
+        {
+          id: string
+          name: string
+          source: string
+          source_url: string | null
+        }[]
+      >`SELECT id, name, source, source_url FROM food_masters ORDER BY id`
+      const mealLogs = await domainTx<
+        { id: string; food_master_id: string; quantity: string }[]
+      >`SELECT id, food_master_id, quantity FROM meal_logs`
+
+      expect(registrationObservation(task, foodMasters, mealLogs)).toEqual({
+        task: {
+          kind: 'task',
+          id: task.id,
+          contextId,
+          status: {
+            state: 'completed',
+            timestamp: NORMALIZED,
+            message: agentMessage,
+          },
+          history: [userMessage, agentMessage],
+        },
+        foodMasters: [
+          {
+            id: 'fm_a2a_test',
+            name: foodName,
+            source: 'web_search',
+            source_url: sourceUrl,
+          },
+        ],
+        mealLogs: [
+          {
+            id: 'ml_a2a_test_0001',
+            food_master_id: 'fm_a2a_test',
+            quantity: '2',
+          },
+        ],
+      })
     } finally {
       await checkpointer.deleteThread(contextId)
       await checkpointer.end()
