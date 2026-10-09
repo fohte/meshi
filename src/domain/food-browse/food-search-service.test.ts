@@ -101,4 +101,27 @@ describeIfDb('createFoodSearchService', () => {
       },
     ])
   })
+
+  it('keeps composition candidates without an energy row', async () => {
+    const tx = getTx()
+    await seedFoodComposition(tx, {
+      code: 'fc_search_fixture_gamma',
+      name: 'search_fixture_gamma',
+    })
+    const service = createFoodSearchService(tx, createDrizzleFoodMatcher(tx))
+
+    const result = (
+      await service.search(['search_fixture_gamma'], 5, 'homemade')
+    )._unsafeUnwrap()
+
+    expect(result).toEqual([
+      {
+        foodMasterId: null,
+        compositionCode: 'fc_search_fixture_gamma',
+        name: 'search_fixture_gamma',
+        isEstimated: true,
+        energyKcalPer100g: null,
+      },
+    ])
+  })
 })

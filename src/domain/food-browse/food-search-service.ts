@@ -1,5 +1,5 @@
 import { drizzle } from 'drizzle-orm/postgres-js'
-import type { ResultAsync } from 'neverthrow'
+import { ResultAsync } from 'neverthrow'
 
 import type { Sql } from '#db/index'
 import { loadFoodCompositionEnergy } from '#domain/food-browse/food-composition-enrichment'
@@ -59,6 +59,37 @@ const isCompositionFood = (
   readonly compositionCode: string
 } => candidate.foodMasterId === null && candidate.compositionCode !== null
 
+type ClassifiedFoodCandidate =
+  | {
+      readonly kind: 'registered'
+      readonly candidate: FoodMatchCandidate & {
+        readonly foodMasterId: string
+        readonly compositionCode: null
+      }
+    }
+  | {
+      readonly kind: 'composition'
+      readonly candidate: FoodMatchCandidate & {
+        readonly foodMasterId: null
+        readonly compositionCode: string
+      }
+    }
+
+const classifyCandidate = (
+  candidate: FoodMatchCandidate,
+): ClassifiedFoodCandidate | null => {
+  if (isRegisteredFood(candidate)) {
+    return { kind: 'registered', candidate }
+  }
+  if (isCompositionFood(candidate)) {
+    return { kind: 'composition', candidate }
+  }
+  return null
+}
+
+const toQueryError = (caughtErr: unknown): FoodSearchQueryError =>
+  new FoodSearchQueryError('failed to enrich food search results', caughtErr)
+
 export const createFoodSearchService = (
   sql: Sql,
   foodMatcher: FoodMatcher,
@@ -68,64 +99,44 @@ export const createFoodSearchService = (
   return {
     search: (queries, limit, origin = 'retail') =>
       foodMatcher.search({ queries, limit, origin }).andThen((candidates) => {
-        const registered = candidates.filter(isRegisteredFood)
-        const compositions = candidates.filter(isCompositionFood)
-        return loadFoodMasterEnrichment(
-          db,
-          registered.map((c) => c.foodMasterId),
+        const classified = candidates.flatMap((candidate) => {
+          const result = classifyCandidate(candidate)
+          return result === null ? [] : [result]
+        })
+        const registeredIds = classified
+          .filter((candidate) => candidate.kind === 'registered')
+          .map((candidate) => candidate.candidate.foodMasterId)
+        const compositionCodes = classified
+          .filter((candidate) => candidate.kind === 'composition')
+          .map((candidate) => candidate.candidate.compositionCode)
+
+        return ResultAsync.combine([
+          loadFoodMasterEnrichment(db, registeredIds).mapErr(toQueryError),
+          loadFoodCompositionEnergy(db, compositionCodes).mapErr(toQueryError),
+        ]).map(([masterEnrichment, compositionEnrichment]) =>
+          classified.map((match): FoodSearchResult => {
+            if (match.kind === 'registered') {
+              return {
+                foodMasterId: match.candidate.foodMasterId,
+                compositionCode: null,
+                name: match.candidate.name,
+                isEstimated: match.candidate.isEstimated,
+                energyKcalPerUnit:
+                  masterEnrichment.get(match.candidate.foodMasterId)
+                    ?.energyKcalPerUnit ?? null,
+              }
+            }
+            return {
+              foodMasterId: null,
+              compositionCode: match.candidate.compositionCode,
+              name: match.candidate.name,
+              isEstimated: match.candidate.isEstimated,
+              energyKcalPer100g:
+                compositionEnrichment.get(match.candidate.compositionCode) ??
+                null,
+            }
+          }),
         )
-          .mapErr(
-            (caughtErr) =>
-              new FoodSearchQueryError(
-                'failed to enrich food search results',
-                caughtErr,
-              ),
-          )
-          .andThen((masterEnrichment) =>
-            loadFoodCompositionEnergy(
-              db,
-              compositions.map((candidate) => candidate.compositionCode),
-            )
-              .mapErr(
-                (caughtErr) =>
-                  new FoodSearchQueryError(
-                    'failed to enrich food search results',
-                    caughtErr,
-                  ),
-              )
-              .map((compositionEnrichment) =>
-                candidates.flatMap<FoodSearchResult>((candidate) => {
-                  if (isRegisteredFood(candidate)) {
-                    return [
-                      {
-                        foodMasterId: candidate.foodMasterId,
-                        compositionCode: null,
-                        name: candidate.name,
-                        isEstimated: candidate.isEstimated,
-                        energyKcalPerUnit:
-                          masterEnrichment.get(candidate.foodMasterId)
-                            ?.energyKcalPerUnit ?? null,
-                      },
-                    ]
-                  }
-                  if (isCompositionFood(candidate)) {
-                    return [
-                      {
-                        foodMasterId: null,
-                        compositionCode: candidate.compositionCode,
-                        name: candidate.name,
-                        isEstimated: candidate.isEstimated,
-                        energyKcalPer100g:
-                          compositionEnrichment.get(
-                            candidate.compositionCode,
-                          ) ?? null,
-                      },
-                    ]
-                  }
-                  return []
-                }),
-              ),
-          )
       }),
   }
 }

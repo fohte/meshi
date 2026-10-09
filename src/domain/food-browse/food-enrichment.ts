@@ -21,7 +21,7 @@ export class FoodMasterEnrichmentError extends Error {
   }
 }
 
-const finiteNumeric = z.union([
+export const finiteNumeric = z.union([
   z.number(),
   z.string().transform((value, ctx) => {
     const numberValue = Number(value)

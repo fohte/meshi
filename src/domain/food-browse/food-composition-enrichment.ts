@@ -3,8 +3,11 @@ import { errAsync, okAsync, ResultAsync } from 'neverthrow'
 import { z } from 'zod'
 
 import { foodCompositionNutrients } from '#db/schema'
-import type { FoodSearchDb } from '#domain/food-browse/food-enrichment'
-import { ENERGY_KCAL_CODE } from '#domain/food-browse/food-enrichment'
+import {
+  ENERGY_KCAL_CODE,
+  finiteNumeric,
+  type FoodSearchDb,
+} from '#domain/food-browse/food-enrichment'
 
 class FoodCompositionEnrichmentError extends Error {
   constructor(message: string, cause?: unknown) {
@@ -12,21 +15,6 @@ class FoodCompositionEnrichmentError extends Error {
     this.name = 'FoodCompositionEnrichmentError'
   }
 }
-
-const finiteNumeric = z.union([
-  z.number(),
-  z.string().transform((value, ctx) => {
-    const numberValue = Number(value)
-    if (!Number.isFinite(numberValue)) {
-      ctx.addIssue({
-        code: 'custom',
-        message: `expected a finite numeric, got ${value}`,
-      })
-      return z.NEVER
-    }
-    return numberValue
-  }),
-])
 
 const compositionEnergyRowsSchema = z.array(
   z.object({

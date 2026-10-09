@@ -741,11 +741,18 @@ describe('MeshiMcpServer tools/list', () => {
         },
       })
 
-      expect(normalizeValidationError(result)).toEqual({
-        content: [{ type: 'text', text: VALIDATION_ERROR_TEXT }],
-        isError: true,
+      expect(
+        observation({
+          result: normalizeValidationError(result),
+          registrationCalls: h.foodMasterCalls.registerFromComposition,
+        }),
+      ).toEqual({
+        result: {
+          content: [{ type: 'text', text: VALIDATION_ERROR_TEXT }],
+          isError: true,
+        },
+        registrationCalls: [],
       })
-      expect(h.foodMasterCalls.registerFromComposition).toEqual([])
     } finally {
       await h.close()
     }
@@ -2140,6 +2147,52 @@ describe('register_food_from_composition', () => {
           {
             event: 'meshi.tool_succeeded',
             payload: { tool: 'register_food_from_composition' },
+          },
+        ],
+      })
+    } finally {
+      await h.close()
+    }
+  })
+
+  it('returns composition lookup errors with a domain code', async () => {
+    const compositionCode = 'fc_composition_missing'
+    const message = `food_composition not found: ${compositionCode}`
+    const h = await start({
+      foodMasterRegistrationResult: errAsync(
+        new FoodMasterDomainError('composition_not_found', message),
+      ),
+    })
+    try {
+      const result = await h.client.callTool({
+        name: 'register_food_from_composition',
+        arguments: { composition_code: compositionCode },
+      })
+
+      expect(
+        observation({
+          result,
+          registrationCalls: h.foodMasterCalls.registerFromComposition,
+          logs: h.logs,
+        }),
+      ).toEqual({
+        result: {
+          isError: true,
+          content: [{ type: 'text', text: message }],
+        },
+        registrationCalls: [{ compositionCode }],
+        logs: [
+          {
+            event: 'meshi.tool_called',
+            payload: { tool: 'register_food_from_composition' },
+          },
+          {
+            event: 'meshi.tool_failed',
+            payload: {
+              tool: 'register_food_from_composition',
+              code: 'food_master/composition_not_found',
+              message,
+            },
           },
         ],
       })
