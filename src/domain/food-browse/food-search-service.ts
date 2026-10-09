@@ -45,34 +45,34 @@ export interface FoodSearchService {
   >
 }
 
-const isRegisteredFood = (
-  candidate: FoodMatchCandidate,
-): candidate is FoodMatchCandidate & {
+type RegisteredFoodCandidate = FoodMatchCandidate & {
   readonly foodMasterId: string
   readonly compositionCode: null
-} => candidate.foodMasterId !== null && candidate.compositionCode === null
+}
+
+type CompositionFoodCandidate = FoodMatchCandidate & {
+  readonly foodMasterId: null
+  readonly compositionCode: string
+}
+
+const isRegisteredFood = (
+  candidate: FoodMatchCandidate,
+): candidate is RegisteredFoodCandidate =>
+  candidate.foodMasterId !== null && candidate.compositionCode === null
 
 const isCompositionFood = (
   candidate: FoodMatchCandidate,
-): candidate is FoodMatchCandidate & {
-  readonly foodMasterId: null
-  readonly compositionCode: string
-} => candidate.foodMasterId === null && candidate.compositionCode !== null
+): candidate is CompositionFoodCandidate =>
+  candidate.foodMasterId === null && candidate.compositionCode !== null
 
 type ClassifiedFoodCandidate =
   | {
       readonly kind: 'registered'
-      readonly candidate: FoodMatchCandidate & {
-        readonly foodMasterId: string
-        readonly compositionCode: null
-      }
+      readonly candidate: RegisteredFoodCandidate
     }
   | {
       readonly kind: 'composition'
-      readonly candidate: FoodMatchCandidate & {
-        readonly foodMasterId: null
-        readonly compositionCode: string
-      }
+      readonly candidate: CompositionFoodCandidate
     }
 
 const classifyCandidate = (
