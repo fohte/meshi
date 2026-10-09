@@ -2328,6 +2328,7 @@ describe('register_food_from_composition', () => {
               aliases: ['composition_tool_alias'],
             },
           ],
+          merge: [],
         },
         orchestratorCalls: {
           recordFromText: [],
