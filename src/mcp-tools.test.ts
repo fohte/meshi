@@ -977,6 +977,48 @@ describe('merge_food_master', () => {
       await h.close()
     }
   })
+
+  it('returns merge errors with a domain code and failed log', async () => {
+    const message = 'survivor and loser must be different food_master rows'
+    const h = await start({
+      foodMasterOverrides: {
+        merge: () =>
+          errAsync(new FoodMasterDomainError('same_food_master', message)),
+      },
+    })
+    try {
+      const result = await h.client.callTool({
+        name: 'merge_food_master',
+        arguments: {
+          survivor_food_master_id: 'food_master_keep_test',
+          loser_food_master_id: 'food_master_remove_test',
+        },
+      })
+
+      expect(observation({ result, logs: h.logs })).toEqual({
+        result: {
+          isError: true,
+          content: [{ type: 'text', text: message }],
+        },
+        logs: [
+          {
+            event: 'meshi.tool_called',
+            payload: { tool: 'merge_food_master' },
+          },
+          {
+            event: 'meshi.tool_failed',
+            payload: {
+              tool: 'merge_food_master',
+              code: 'food_master/same_food_master',
+              message,
+            },
+          },
+        ],
+      })
+    } finally {
+      await h.close()
+    }
+  })
 })
 
 describe('record_meal_from_text', () => {
