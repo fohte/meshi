@@ -512,17 +512,17 @@ interface MealSkipCalls {
 }
 
 const makeMealSkipService = (
-  overrides: {
-    recordError?: MealSkipDomainError
-    cancelError?: MealSkipDomainError
+  errors: {
+    record?: MealSkipDomainError
+    cancel?: MealSkipDomainError
   } = {},
 ): { service: MealSkipService; calls: MealSkipCalls } => {
   const calls: MealSkipCalls = { record: [], cancel: [] }
   const service: MealSkipService = {
     record(input) {
       calls.record.push(input)
-      if (overrides.recordError !== undefined) {
-        return errAsync(overrides.recordError)
+      if (errors.record !== undefined) {
+        return errAsync(errors.record)
       }
       const row: MealSkipRow = {
         id: 'mcp_fixture_skip_alpha',
@@ -534,9 +534,9 @@ const makeMealSkipService = (
     },
     cancel(input) {
       calls.cancel.push(input)
-      return overrides.cancelError === undefined
+      return errors.cancel === undefined
         ? okAsync(undefined)
-        : errAsync(overrides.cancelError)
+        : errAsync(errors.cancel)
     },
     findForDate: () => okAsync([]),
   }
@@ -597,14 +597,7 @@ const start = async (config: HarnessConfig = {}): Promise<Harness> => {
   const { service: mealLogCrudService, calls: mealLogCalls } =
     makeMealLogService(config.mealLogOverrides, config.deleteManyError)
   const { service: mealSkipService, calls: mealSkipCalls } =
-    makeMealSkipService({
-      ...(config.mealSkipErrors?.record === undefined
-        ? {}
-        : { recordError: config.mealSkipErrors.record }),
-      ...(config.mealSkipErrors?.cancel === undefined
-        ? {}
-        : { cancelError: config.mealSkipErrors.cancel }),
-    })
+    makeMealSkipService(config.mealSkipErrors)
   const { service: profileService, calls: profileCalls } = makeProfileService(
     config.profile ?? defaultProfile,
     config.profileOverrides ?? {},
@@ -806,11 +799,7 @@ describe('MeshiMcpServer tools/list', () => {
           .filter((tool) =>
             ['record_meal_skip', 'cancel_meal_skip'].includes(tool.name),
           )
-          .map((tool) => {
-            // eslint-disable-next-line @typescript-eslint/no-unsafe-type-assertion -- MCP SDK exposes a generic JSON Schema; this test reads its standard required field.
-            const schema = tool.inputSchema as { required?: string[] }
-            return [tool.name, schema.required]
-          }),
+          .map((tool) => [tool.name, tool.inputSchema.required]),
       )
       expect(requiredByTool).toEqual({
         cancel_meal_skip: ['date', 'meal_type'],
