@@ -153,6 +153,26 @@ export const deleteMealLogStructuredOutput = z.object({
   deleted: z.array(mealLogMutationOutput),
 })
 
+const mealSkipInput = z.object({
+  date: jstDateSchema.describe('対象の日付 (JST、YYYY-MM-DD)'),
+  meal_type: z.enum(MEAL_TYPES).describe('対象の食事区分'),
+})
+
+export const recordMealSkipInput = mealSkipInput
+
+export const cancelMealSkipInput = mealSkipInput
+
+export const recordMealSkipStructuredOutput = z.object({
+  meal_skip_id: z.string(),
+  date: jstDateSchema,
+  meal_type: z.enum(MEAL_TYPES),
+})
+
+export const cancelMealSkipStructuredOutput = z.object({
+  date: jstDateSchema,
+  meal_type: z.enum(MEAL_TYPES),
+})
+
 export const updateMealLogStructuredOutput = mealLogMutationOutput.extend({
   nutrition: nutritionMap,
   is_estimated: z.boolean(),

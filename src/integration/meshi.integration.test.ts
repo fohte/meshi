@@ -209,6 +209,7 @@ const startHarness = async (opts: HarnessOptions): Promise<Harness> => {
     profileService: userProfileService,
     foodSearchService,
     mealLogService,
+    mealSkipService,
     foodMasterService,
     logger: createNullLogger(),
   })

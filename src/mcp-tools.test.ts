@@ -31,6 +31,13 @@ import type {
   RecordMealLogsInput,
   UpdateMealLogInput,
 } from '#domain/meal-log/types'
+import {
+  FutureMealSkipDateError,
+  type MealSkipDomainError,
+  MealSkipNotFoundError,
+} from '#domain/meal-skip/errors'
+import type { MealSkipService } from '#domain/meal-skip/meal-skip-service'
+import type { MealSkipRow } from '#domain/meal-skip/types'
 import { UserProfileRepositoryError } from '#domain/user-profile/errors'
 import type {
   UserProfile,
@@ -499,12 +506,50 @@ const makeMealLogService = (
   return { service, calls }
 }
 
+interface MealSkipCalls {
+  record: Array<Parameters<MealSkipService['record']>[0]>
+  cancel: Array<Parameters<MealSkipService['cancel']>[0]>
+}
+
+const makeMealSkipService = (
+  overrides: {
+    recordError?: MealSkipDomainError
+    cancelError?: MealSkipDomainError
+  } = {},
+): { service: MealSkipService; calls: MealSkipCalls } => {
+  const calls: MealSkipCalls = { record: [], cancel: [] }
+  const service: MealSkipService = {
+    record(input) {
+      calls.record.push(input)
+      if (overrides.recordError !== undefined) {
+        return errAsync(overrides.recordError)
+      }
+      const row: MealSkipRow = {
+        id: 'mcp_fixture_skip_alpha',
+        date: input.date,
+        mealType: input.mealType,
+        createdAt: new Date('2026-04-17T03:30:45.000Z'),
+      }
+      return okAsync(row)
+    },
+    cancel(input) {
+      calls.cancel.push(input)
+      return overrides.cancelError === undefined
+        ? okAsync(undefined)
+        : errAsync(overrides.cancelError)
+    },
+    findForDate: () => okAsync([]),
+  }
+  return { service, calls }
+}
+
 interface Harness {
   client: Client
   logs: LogEntry[]
   calls: OrchestratorCalls
   mealHistoryCalls: MealHistoryCalls
   mealLogCalls: MealLogCalls
+  mealSkipCalls: MealSkipCalls
   profileCalls: ProfileCalls
   foodMasterCalls: FoodMasterCalls
   directMealToolCalls: DirectMealToolCalls
@@ -522,6 +567,10 @@ interface HarnessConfig {
   }
   mealLogOverrides?: Partial<MealLogService>
   deleteManyError?: DomainError
+  mealSkipErrors?: {
+    record?: MealSkipDomainError
+    cancel?: MealSkipDomainError
+  }
   profile?: UserProfile
   foodSearchServiceResult?: ReturnType<FoodSearchService['search']>
   foodMasterRegistrationResult?: ReturnType<
@@ -547,6 +596,15 @@ const start = async (config: HarnessConfig = {}): Promise<Harness> => {
   )
   const { service: mealLogCrudService, calls: mealLogCalls } =
     makeMealLogService(config.mealLogOverrides, config.deleteManyError)
+  const { service: mealSkipService, calls: mealSkipCalls } =
+    makeMealSkipService({
+      ...(config.mealSkipErrors?.record === undefined
+        ? {}
+        : { recordError: config.mealSkipErrors.record }),
+      ...(config.mealSkipErrors?.cancel === undefined
+        ? {}
+        : { cancelError: config.mealSkipErrors.cancel }),
+    })
   const { service: profileService, calls: profileCalls } = makeProfileService(
     config.profile ?? defaultProfile,
     config.profileOverrides ?? {},
@@ -575,6 +633,7 @@ const start = async (config: HarnessConfig = {}): Promise<Harness> => {
     foodMasterService,
     mealHistoryService,
     mealLogService,
+    mealSkipService,
     profileService,
     foodSearchService,
     logger,
@@ -590,6 +649,7 @@ const start = async (config: HarnessConfig = {}): Promise<Harness> => {
     calls,
     mealHistoryCalls,
     mealLogCalls,
+    mealSkipCalls,
     profileCalls,
     foodMasterCalls,
     directMealToolCalls,
@@ -601,12 +661,13 @@ const start = async (config: HarnessConfig = {}): Promise<Harness> => {
 }
 
 describe('MeshiMcpServer tools/list', () => {
-  it('exposes the twelve public tools with stable names', async () => {
+  it('exposes the fourteen public tools with stable names', async () => {
     const h = await start()
     try {
       const result = await h.client.listTools()
       const names = result.tools.map((t) => t.name).sort()
       expect(names).toEqual([
+        'cancel_meal_skip',
         'delete_meal_log',
         'get_profile',
         'get_recommendation_context',
@@ -614,6 +675,7 @@ describe('MeshiMcpServer tools/list', () => {
         'record_meal_from_image',
         'record_meal_from_text',
         'record_meal_log',
+        'record_meal_skip',
         'register_food',
         'register_food_from_composition',
         'search_foods',
@@ -635,6 +697,28 @@ describe('MeshiMcpServer tools/list', () => {
       expect(queryMeals?.description).toEqual(
         'JST の period_from 以上、period_to 未満の食事履歴と栄養集計を返す。質問の解釈と集計結果の説明は ChatGPT が行う。後で記録を削除・修正するときは各記録の meal_log_id を使う。',
       )
+    } finally {
+      await h.close()
+    }
+  })
+
+  it('only records meal skips when the user explicitly says they skipped a meal', async () => {
+    const h = await start()
+    try {
+      const result = await h.client.listTools()
+      const descriptions = Object.fromEntries(
+        result.tools
+          .filter((tool) =>
+            ['record_meal_skip', 'cancel_meal_skip'].includes(tool.name),
+          )
+          .map((tool) => [tool.name, tool.description]),
+      )
+      expect(descriptions).toEqual({
+        cancel_meal_skip:
+          '以前に記録した食事スキップを取り消す。ユーザーがその食事を抜いていないと伝えた場合に使う。対象が存在しない場合はエラーになる。',
+        record_meal_skip:
+          'ユーザーが特定の日の特定の食事を抜いたと明言した場合だけ記録する。食事ログがないことだけを理由に記録しない。date は JST の YYYY-MM-DD、meal_type は breakfast / lunch / dinner / snack。',
+      })
     } finally {
       await h.close()
     }
@@ -668,11 +752,13 @@ describe('MeshiMcpServer tools/list', () => {
         propsByTool[tool.name] = Object.keys(schema.properties ?? {}).sort()
       }
       expect(propsByTool).toEqual({
+        cancel_meal_skip: ['date', 'meal_type'],
         delete_meal_log: ['meal_log_ids'],
         get_profile: [],
         get_recommendation_context: ['period_from', 'period_to'],
-        record_meal_log: ['date', 'items', 'meal_type'],
         query_meals: ['period_from', 'period_to'],
+        record_meal_log: ['date', 'items', 'meal_type'],
+        record_meal_skip: ['date', 'meal_type'],
         record_meal_from_image: [
           'hint_text',
           'image',
@@ -705,6 +791,30 @@ describe('MeshiMcpServer tools/list', () => {
           'dislikes',
           'likes',
         ],
+      })
+    } finally {
+      await h.close()
+    }
+  })
+
+  it('requires a date and meal type for both skip operations', async () => {
+    const h = await start()
+    try {
+      const result = await h.client.listTools()
+      const requiredByTool = Object.fromEntries(
+        result.tools
+          .filter((tool) =>
+            ['record_meal_skip', 'cancel_meal_skip'].includes(tool.name),
+          )
+          .map((tool) => {
+            // eslint-disable-next-line @typescript-eslint/no-unsafe-type-assertion -- MCP SDK exposes a generic JSON Schema; this test reads its standard required field.
+            const schema = tool.inputSchema as { required?: string[] }
+            return [tool.name, schema.required]
+          }),
+      )
+      expect(requiredByTool).toEqual({
+        cancel_meal_skip: ['date', 'meal_type'],
+        record_meal_skip: ['date', 'meal_type'],
       })
     } finally {
       await h.close()
@@ -820,6 +930,26 @@ describe('MeshiMcpServer tools/list', () => {
       expect(annotations).toEqual({
         delete_meal_log: { readOnlyHint: false, destructiveHint: true },
         update_meal_log: { readOnlyHint: false, destructiveHint: false },
+      })
+    } finally {
+      await h.close()
+    }
+  })
+
+  it('marks cancel_meal_skip as destructive and record_meal_skip as a non-destructive write tool', async () => {
+    const h = await start()
+    try {
+      const result = await h.client.listTools()
+      const annotations = Object.fromEntries(
+        result.tools
+          .filter((tool) =>
+            ['cancel_meal_skip', 'record_meal_skip'].includes(tool.name),
+          )
+          .map((tool) => [tool.name, tool.annotations]),
+      )
+      expect(annotations).toEqual({
+        cancel_meal_skip: { readOnlyHint: false, destructiveHint: true },
+        record_meal_skip: { readOnlyHint: false, destructiveHint: false },
       })
     } finally {
       await h.close()
@@ -1445,6 +1575,208 @@ describe('delete_meal_log', () => {
               tool: 'delete_meal_log',
               code: 'MealLogPersistenceError',
               message: 'bulk delete failed',
+            },
+          },
+        ],
+      })
+    } finally {
+      await h.close()
+    }
+  })
+})
+
+describe('record_meal_skip', () => {
+  it('records the explicitly skipped meal and returns its structured identity', async () => {
+    const h = await start()
+    try {
+      const result = await h.client.callTool({
+        name: 'record_meal_skip',
+        arguments: { date: '2026-04-17', meal_type: 'breakfast' },
+      })
+      expect(
+        observation({
+          result,
+          mealSkipCalls: h.mealSkipCalls,
+          orchestratorCalls: h.calls,
+          logs: h.logs,
+        }),
+      ).toEqual({
+        result: {
+          content: [{ type: 'text', text: '食事スキップを記録しました。' }],
+          structuredContent: {
+            meal_skip_id: 'mcp_fixture_skip_alpha',
+            date: '2026-04-17',
+            meal_type: 'breakfast',
+          },
+        },
+        mealSkipCalls: {
+          record: [{ date: '2026-04-17', mealType: 'breakfast' }],
+          cancel: [],
+        },
+        orchestratorCalls: { recordFromText: [], recordFromImage: [] },
+        logs: [
+          {
+            event: 'meshi.tool_called',
+            payload: { tool: 'record_meal_skip' },
+          },
+          {
+            event: 'meshi.tool_succeeded',
+            payload: { tool: 'record_meal_skip' },
+          },
+        ],
+      })
+    } finally {
+      await h.close()
+    }
+  })
+
+  it('rejects invalid meal types before calling the service', async () => {
+    const h = await start()
+    try {
+      const result = await h.client.callTool({
+        name: 'record_meal_skip',
+        arguments: { date: '2026-04-17', meal_type: 'brunch' },
+      })
+      expect(
+        observation({
+          result: normalizeValidationError(result),
+          mealSkipCalls: h.mealSkipCalls,
+          logs: h.logs,
+        }),
+      ).toEqual({
+        result: {
+          content: [{ type: 'text', text: VALIDATION_ERROR_TEXT }],
+          isError: true,
+        },
+        mealSkipCalls: { record: [], cancel: [] },
+        logs: [],
+      })
+    } finally {
+      await h.close()
+    }
+  })
+
+  it('returns the domain error when the requested date is in the future', async () => {
+    const error = new FutureMealSkipDateError(jstDate('2099-04-18'))
+    const h = await start({ mealSkipErrors: { record: error } })
+    try {
+      const result = await h.client.callTool({
+        name: 'record_meal_skip',
+        arguments: { date: '2099-04-18', meal_type: 'breakfast' },
+      })
+      expect(
+        observation({ result, mealSkipCalls: h.mealSkipCalls, logs: h.logs }),
+      ).toEqual({
+        result: {
+          content: [
+            {
+              type: 'text',
+              text: 'date must not be in the future: 2099-04-18',
+            },
+          ],
+          isError: true,
+        },
+        mealSkipCalls: {
+          record: [{ date: '2099-04-18', mealType: 'breakfast' }],
+          cancel: [],
+        },
+        logs: [
+          {
+            event: 'meshi.tool_called',
+            payload: { tool: 'record_meal_skip' },
+          },
+          {
+            event: 'meshi.tool_failed',
+            payload: {
+              tool: 'record_meal_skip',
+              code: 'FutureMealSkipDateError',
+              message: 'date must not be in the future: 2099-04-18',
+            },
+          },
+        ],
+      })
+    } finally {
+      await h.close()
+    }
+  })
+})
+
+describe('cancel_meal_skip', () => {
+  it('cancels the specified meal skip', async () => {
+    const h = await start()
+    try {
+      const result = await h.client.callTool({
+        name: 'cancel_meal_skip',
+        arguments: { date: '2026-04-17', meal_type: 'breakfast' },
+      })
+      expect(
+        observation({
+          result,
+          mealSkipCalls: h.mealSkipCalls,
+          orchestratorCalls: h.calls,
+          logs: h.logs,
+        }),
+      ).toEqual({
+        result: {
+          content: [{ type: 'text', text: '食事スキップを取り消しました。' }],
+          structuredContent: {
+            date: '2026-04-17',
+            meal_type: 'breakfast',
+          },
+        },
+        mealSkipCalls: {
+          record: [],
+          cancel: [{ date: '2026-04-17', mealType: 'breakfast' }],
+        },
+        orchestratorCalls: { recordFromText: [], recordFromImage: [] },
+        logs: [
+          {
+            event: 'meshi.tool_called',
+            payload: { tool: 'cancel_meal_skip' },
+          },
+          {
+            event: 'meshi.tool_succeeded',
+            payload: { tool: 'cancel_meal_skip' },
+          },
+        ],
+      })
+    } finally {
+      await h.close()
+    }
+  })
+
+  it('returns the domain error when no skip exists for the date and meal', async () => {
+    const error = new MealSkipNotFoundError(jstDate('2026-04-17'), 'breakfast')
+    const h = await start({ mealSkipErrors: { cancel: error } })
+    try {
+      const result = await h.client.callTool({
+        name: 'cancel_meal_skip',
+        arguments: { date: '2026-04-17', meal_type: 'breakfast' },
+      })
+      expect(
+        observation({ result, mealSkipCalls: h.mealSkipCalls, logs: h.logs }),
+      ).toEqual({
+        result: {
+          content: [
+            { type: 'text', text: 'meal_skip not found: 2026-04-17 breakfast' },
+          ],
+          isError: true,
+        },
+        mealSkipCalls: {
+          record: [],
+          cancel: [{ date: '2026-04-17', mealType: 'breakfast' }],
+        },
+        logs: [
+          {
+            event: 'meshi.tool_called',
+            payload: { tool: 'cancel_meal_skip' },
+          },
+          {
+            event: 'meshi.tool_failed',
+            payload: {
+              tool: 'cancel_meal_skip',
+              code: 'MealSkipNotFoundError',
+              message: 'meal_skip not found: 2026-04-17 breakfast',
             },
           },
         ],
