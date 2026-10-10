@@ -54,6 +54,7 @@ export const createFoodDetailService = (
           id: master.id,
           name: master.name,
           isEstimated: master.isEstimated,
+          nutritionStatus: master.nutritionStatus,
           source: master.source,
           sourceUrl: master.sourceUrl,
           aliases: master.aliases,

@@ -12,6 +12,7 @@ import type {
   NutritionMap,
   RegisterFoodMasterInput,
 } from '#domain/food-master/types'
+import { nutritionStatusFromIsEstimated } from '#domain/food-master/types'
 import {
   hasDuplicateAfterTrim,
   INVALID_SOURCE_COMBINATION_MESSAGE,
@@ -251,6 +252,7 @@ export const createFoodMasterRegistrar = (
       name: inserted.name,
       aliases: normalized.aliases,
       isEstimated: normalized.isEstimated,
+      nutritionStatus: nutritionStatusFromIsEstimated(normalized.isEstimated),
       source: normalized.source,
       sourceUrl: normalized.sourceUrl,
       sourceCompositionCode: normalized.sourceCompositionCode,

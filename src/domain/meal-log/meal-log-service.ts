@@ -284,6 +284,7 @@ const buildResult = (log: MealLogRow, food: FoodMasterRef): MealLogResult => ({
   ...log,
   nutrition: scaleNutrition(food.nutritionPerUnit, log.quantity),
   isEstimated: food.isEstimated,
+  nutritionStatus: food.nutritionStatus,
 })
 
 const scaleNutrition = (

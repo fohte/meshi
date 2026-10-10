@@ -2,6 +2,7 @@ import { err, ok, ResultAsync } from 'neverthrow'
 import { z } from 'zod'
 
 import { createAsText, type Sql } from '#db/index'
+import { nutritionStatusFromIsEstimated } from '#domain/food-master/types'
 import type {
   MealHistoryDayTotals,
   MealHistoryService,
@@ -39,7 +40,7 @@ const entryRowSchema = z.object({
   meal_type: z.enum(MEAL_TYPES),
   quantity: numericString,
   recorded_at: z.iso.datetime({ offset: true }),
-  is_estimated: z.boolean(),
+  is_estimated: z.boolean().nullable(),
 })
 
 export const createMealHistoryService = (sql: Sql): MealHistoryService => {
@@ -103,7 +104,7 @@ export const createMealHistoryService = (sql: Sql): MealHistoryService => {
               fmn.is_estimated AS is_estimated
             FROM meal_logs ml
             INNER JOIN food_masters fm ON fm.id = ml.food_master_id
-            INNER JOIN food_master_nutrition fmn ON fmn.food_master_id = fm.id
+            LEFT JOIN food_master_nutrition fmn ON fmn.food_master_id = fm.id
             WHERE ml.eaten_date >= ${periodFrom}::date
               AND ml.eaten_date < ${periodTo}::date
               AND (
@@ -139,7 +140,19 @@ export const createMealHistoryService = (sql: Sql): MealHistoryService => {
           )
         }
 
-        const perDay = buildPerDay(aggregateParsed.data)
+        const perDay = buildPerDay(
+          aggregateParsed.data,
+          entryParsed.data.map((row) => row.eaten_date),
+          new Set(
+            entryParsed.data
+              .filter(
+                (row) =>
+                  nutritionStatusFromIsEstimated(row.is_estimated) ===
+                  'unknown',
+              )
+              .map((row) => row.eaten_date),
+          ),
+        )
         const totals = sumPerDay(perDay)
         const entries: MealLogEntry[] = entryParsed.data.map((row) => ({
           id: row.id,
@@ -149,12 +162,24 @@ export const createMealHistoryService = (sql: Sql): MealHistoryService => {
           mealType: row.meal_type,
           quantity: row.quantity,
           recordedAt: row.recorded_at,
+          nutritionStatus: nutritionStatusFromIsEstimated(row.is_estimated),
         }))
         const hasEstimatedValues = entryParsed.data.some(
-          (row) => row.is_estimated,
+          (row) =>
+            nutritionStatusFromIsEstimated(row.is_estimated) === 'estimated',
+        )
+        const hasUnknownValues = entryParsed.data.some(
+          (row) =>
+            nutritionStatusFromIsEstimated(row.is_estimated) === 'unknown',
         )
 
-        return ok({ totals, perDay, entries, hasEstimatedValues })
+        return ok({
+          totals,
+          perDay,
+          entries,
+          hasEstimatedValues,
+          hasUnknownValues,
+        })
       })
     },
   }
@@ -166,16 +191,34 @@ const buildPerDay = (
     nutrient_code: NutrientCode
     value: number
   }>,
+  entryDays: ReadonlyArray<JstDate>,
+  unknownDays: ReadonlySet<JstDate>,
 ): ReadonlyArray<MealHistoryDayTotals> => {
-  const byDay = new Map<JstDate, Record<NutrientCode, number>>()
+  const byDay = new Map<
+    JstDate,
+    { totals: Record<NutrientCode, number>; hasUnknownValues: boolean }
+  >()
+  for (const date of entryDays) {
+    byDay.set(date, {
+      totals: {},
+      hasUnknownValues: unknownDays.has(date),
+    })
+  }
   for (const row of rows) {
-    const day = byDay.get(row.day) ?? {}
-    day[row.nutrient_code] = row.value
+    const day = byDay.get(row.day) ?? {
+      totals: {},
+      hasUnknownValues: false,
+    }
+    day.totals[row.nutrient_code] = row.value
     byDay.set(row.day, day)
   }
   return [...byDay.entries()]
     .sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))
-    .map(([date, totals]) => ({ date, totals }))
+    .map(([date, day]) => ({
+      date,
+      totals: day.totals,
+      hasUnknownValues: day.hasUnknownValues,
+    }))
 }
 
 const sumPerDay = (

@@ -83,6 +83,7 @@ type Story = StoryObj<typeof NutritionSummary>
 export const WithTargets: Story = {
   args: {
     hasEstimatedValues: true,
+    hasUnknownValues: false,
     data: buildNutritionSummaryData(
       {
         energy_kcal: 1820,
@@ -109,6 +110,7 @@ export const WithTargets: Story = {
 export const NoTargets: Story = {
   args: {
     hasEstimatedValues: false,
+    hasUnknownValues: false,
     data: buildNutritionSummaryData(
       { energy_kcal: 1500, protein_g: 60, fat_g: 40, carb_g: 200 },
       DEFINITIONS,
@@ -120,6 +122,16 @@ export const NoTargets: Story = {
 export const Empty: Story = {
   args: {
     hasEstimatedValues: false,
+    hasUnknownValues: false,
     data: buildNutritionSummaryData({}, DEFINITIONS, null),
+  },
+}
+
+export const UnknownNutrition: Story = {
+  name: '栄養値が不明な食事を含み、既知の合計だけを表示しています',
+  args: {
+    hasEstimatedValues: false,
+    hasUnknownValues: true,
+    data: buildNutritionSummaryData({}, DEFINITIONS, null, true),
   },
 }

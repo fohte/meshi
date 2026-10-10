@@ -38,7 +38,13 @@ export const HistoryCalendarView = ({
 
   const energyTarget = targets?.[ENERGY_CODE]
   const kcalByDate = new Map(
-    (query.data?.perDay ?? []).map((d) => [d.date, d.totals[ENERGY_CODE] ?? 0]),
+    (query.data?.perDay ?? []).map((day) => [
+      day.date,
+      {
+        kcal: day.totals[ENERGY_CODE],
+        hasUnknownValues: day.hasUnknownValues,
+      },
+    ]),
   )
   const cells = buildCalendarCells(monthStart, today, kcalByDate, energyTarget)
   const avgText = formatMonthAverage(cells)
@@ -117,7 +123,9 @@ export const HistoryCalendarView = ({
 }
 
 const formatMonthAverage = (cells: ReadonlyArray<CalendarCell>): string => {
-  const withData = cells.filter((c) => c.kcal !== null && c.kcal > 0)
+  const withData = cells.filter(
+    (cell) => !cell.hasUnknownValues && cell.kcal !== null && cell.kcal > 0,
+  )
   if (withData.length === 0) return '—'
   const sum = withData.reduce((total, c) => total + (c.kcal ?? 0), 0)
   return `${String(Math.round(sum / withData.length))} kcal`
@@ -149,8 +157,22 @@ const CalendarCellButton = ({
       data-today={cell.isToday ? '' : undefined}
     >
       <span className={styles.day}>{cell.day}</span>
-      <span className={styles.kcal} data-achievement={cell.achievement}>
-        {cell.kcal !== null && cell.kcal > 0 ? cell.kcal : ''}
+      <span
+        className={styles.kcal}
+        data-achievement={cell.achievement}
+        title={
+          cell.hasUnknownValues
+            ? '栄養値不明の食事を含み、合計は下限です'
+            : undefined
+        }
+      >
+        {cell.hasUnknownValues
+          ? cell.kcal === null
+            ? '不明'
+            : `≥${String(cell.kcal)}`
+          : cell.kcal !== null && cell.kcal > 0
+            ? cell.kcal
+            : ''}
       </span>
       <span className={styles.dot} data-achievement={cell.achievement} />
     </Link>

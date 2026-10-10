@@ -185,6 +185,7 @@ const RICE: FoodMasterRef = {
   id: 'fm_rice',
   name: '白米',
   isEstimated: false,
+  nutritionStatus: 'confirmed',
   nutritionPerUnit: {
     energy_kcal: 156,
     protein_g: 2.5,
@@ -197,6 +198,7 @@ const KARAAGE_GUESS: FoodMasterRef = {
   id: 'fm_karaage',
   name: '唐揚げ',
   isEstimated: true,
+  nutritionStatus: 'estimated',
   nutritionPerUnit: {
     energy_kcal: 290,
     protein_g: 24.2,
@@ -209,6 +211,7 @@ const BATCH_FOOD_ALPHA: FoodMasterRef = {
   id: 'fm_batch_alpha',
   name: 'item_token_alpha',
   isEstimated: false,
+  nutritionStatus: 'confirmed',
   nutritionPerUnit: {
     energy_kcal: 80,
     protein_g: 4,
@@ -221,6 +224,7 @@ const BATCH_FOOD_BETA: FoodMasterRef = {
   id: 'fm_batch_beta',
   name: 'item_token_beta',
   isEstimated: true,
+  nutritionStatus: 'estimated',
   nutritionPerUnit: {
     energy_kcal: 240,
     protein_g: 10,
@@ -296,6 +300,7 @@ describe('MealLogService.record', () => {
         carb_g: 37.1,
       },
       isEstimated: false,
+      nutritionStatus: 'confirmed',
     })
     expect(inserted).toEqual([
       {
@@ -334,6 +339,7 @@ describe('MealLogService.record', () => {
         carb_g: 74.2,
       },
       isEstimated: false,
+      nutritionStatus: 'confirmed',
     })
   })
 
@@ -371,6 +377,7 @@ describe('MealLogService.record', () => {
         carb_g: 37.1,
       },
       isEstimated: false,
+      nutritionStatus: 'confirmed',
     })
     expect(estimated).toEqual({
       id: 'ml_2',
@@ -386,6 +393,7 @@ describe('MealLogService.record', () => {
         carb_g: 7.9,
       },
       isEstimated: true,
+      nutritionStatus: 'estimated',
     })
   })
 
@@ -436,6 +444,7 @@ describe('MealLogService.record', () => {
         carb_g: 37.1,
       },
       isEstimated: false,
+      nutritionStatus: 'confirmed',
     })
   })
 
@@ -506,6 +515,7 @@ describe('MealLogService.record', () => {
         carb_g: 37.1,
       },
       isEstimated: false,
+      nutritionStatus: 'confirmed',
     })
     expect(inserted).toEqual([
       {
@@ -563,6 +573,7 @@ describe('MealLogService.record', () => {
         carb_g: 37.1,
       },
       isEstimated: false,
+      nutritionStatus: 'confirmed',
     })
     expect(inserted).toEqual([
       {
@@ -597,6 +608,7 @@ describe('MealLogService.record', () => {
       id: 'fm_water',
       name: '水',
       isEstimated: false,
+      nutritionStatus: 'confirmed',
       nutritionPerUnit: { protein_g: 0 },
     }
     const { service, inserted } = buildService([WATER])
@@ -619,6 +631,7 @@ describe('MealLogService.record', () => {
       createdAt: CREATED_AT,
       nutrition: { protein_g: 0 },
       isEstimated: false,
+      nutritionStatus: 'confirmed',
     })
     expect(inserted).toEqual([
       {
@@ -674,6 +687,7 @@ describe('MealLogService.recordMany', () => {
             carb_g: 30,
           },
           isEstimated: false,
+          nutritionStatus: 'confirmed',
           foodName: 'item_token_alpha',
         },
         {
@@ -690,6 +704,7 @@ describe('MealLogService.recordMany', () => {
             carb_g: 15,
           },
           isEstimated: true,
+          nutritionStatus: 'estimated',
           foodName: 'item_token_beta',
         },
       ],
@@ -779,6 +794,7 @@ describe('MealLogService.update', () => {
         carb_g: 37.1,
       },
       isEstimated: false,
+      nutritionStatus: 'confirmed',
     })
     expect(updated).toEqual([])
   })
@@ -807,6 +823,7 @@ describe('MealLogService.update', () => {
         carb_g: 74.2,
       },
       isEstimated: false,
+      nutritionStatus: 'confirmed',
     })
     expect(updated).toEqual([{ id: 'ml_1', quantity: 2 }])
   })
@@ -835,6 +852,7 @@ describe('MealLogService.update', () => {
         carb_g: 7.9,
       },
       isEstimated: true,
+      nutritionStatus: 'estimated',
     })
     expect(updated).toEqual([{ id: 'ml_1', foodMasterId: 'fm_karaage' }])
     expect(learnedAliases).toEqual([{ id: 'fm_karaage', alias: '白米' }])
@@ -883,6 +901,7 @@ describe('MealLogService.update', () => {
         carb_g: 37.1,
       },
       isEstimated: false,
+      nutritionStatus: 'confirmed',
     })
     expect(updated).toEqual([{ id: 'ml_1', foodMasterId: 'fm_rice' }])
     expect(learnedAliases).toEqual([])
@@ -1021,6 +1040,7 @@ describe('MealLogService.getById', () => {
         carb_g: 15.8,
       },
       isEstimated: true,
+      nutritionStatus: 'estimated',
     })
   })
 })

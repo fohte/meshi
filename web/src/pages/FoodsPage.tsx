@@ -54,14 +54,20 @@ interface FoodRowProps {
 }
 
 const FoodRow = ({ item }: FoodRowProps): React.JSX.Element | null => {
-  if (item.foodMasterId === null || item.source === null) return null
+  if (item.foodMasterId === null) return null
 
   return (
     <Link to={`/foods/${item.foodMasterId}`} className={styles.row}>
       <span className={styles.rowMain}>
         <span className={styles.rowName}>{item.name}</span>
-        {item.isEstimated && <span className={styles.rowEstMark}>推定</span>}
-        <span className={styles.rowMeta}>{SOURCE_LABELS[item.source]}</span>
+        {item.nutritionStatus === 'unknown' ? (
+          <span className={styles.rowEstMark}>不明</span>
+        ) : item.isEstimated ? (
+          <span className={styles.rowEstMark}>推定</span>
+        ) : null}
+        {item.source !== null && (
+          <span className={styles.rowMeta}>{SOURCE_LABELS[item.source]}</span>
+        )}
       </span>
       <span className={styles.rowKcal}>{kcalText(item.energyKcalPerUnit)}</span>
     </Link>

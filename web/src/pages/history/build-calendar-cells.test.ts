@@ -9,10 +9,10 @@ describe('buildCalendarCells', () => {
       '2026-07-01',
       '2026-07-05',
       new Map([
-        ['2026-07-01', 2400], // over target (target 2000 * 1.1 = 2200)
-        ['2026-07-02', 1500], // under target (target 2000 * 0.85 = 1700)
-        ['2026-07-03', 2000], // on target
-        ['2026-07-04', 0], // no data
+        ['2026-07-01', { kcal: 2400, hasUnknownValues: false }], // over target (target 2000 * 1.1 = 2200)
+        ['2026-07-02', { kcal: 1500, hasUnknownValues: false }], // under target (target 2000 * 0.85 = 1700)
+        ['2026-07-03', { kcal: 2000, hasUnknownValues: false }], // on target
+        ['2026-07-04', { kcal: 0, hasUnknownValues: false }], // no data
         // 2026-07-05 (today) intentionally has no entry either.
       ]),
       2000,
@@ -26,6 +26,7 @@ describe('buildCalendarCells', () => {
       date: `2026-07-${String(i + 6).padStart(2, '0')}`,
       day: i + 6,
       kcal: null,
+      hasUnknownValues: false,
       isToday: false,
       isFuture: true,
       achievement: 'none',
@@ -36,6 +37,7 @@ describe('buildCalendarCells', () => {
         date: null,
         day: null,
         kcal: null,
+        hasUnknownValues: false,
         isToday: false,
         isFuture: false,
         achievement: 'none',
@@ -44,6 +46,7 @@ describe('buildCalendarCells', () => {
         date: null,
         day: null,
         kcal: null,
+        hasUnknownValues: false,
         isToday: false,
         isFuture: false,
         achievement: 'none',
@@ -52,6 +55,7 @@ describe('buildCalendarCells', () => {
         date: null,
         day: null,
         kcal: null,
+        hasUnknownValues: false,
         isToday: false,
         isFuture: false,
         achievement: 'none',
@@ -60,6 +64,7 @@ describe('buildCalendarCells', () => {
         date: '2026-07-01',
         day: 1,
         kcal: 2400,
+        hasUnknownValues: false,
         isToday: false,
         isFuture: false,
         achievement: 'over',
@@ -68,6 +73,7 @@ describe('buildCalendarCells', () => {
         date: '2026-07-02',
         day: 2,
         kcal: 1500,
+        hasUnknownValues: false,
         isToday: false,
         isFuture: false,
         achievement: 'under',
@@ -76,6 +82,7 @@ describe('buildCalendarCells', () => {
         date: '2026-07-03',
         day: 3,
         kcal: 2000,
+        hasUnknownValues: false,
         isToday: false,
         isFuture: false,
         achievement: 'onTarget',
@@ -84,6 +91,7 @@ describe('buildCalendarCells', () => {
         date: '2026-07-04',
         day: 4,
         kcal: 0,
+        hasUnknownValues: false,
         isToday: false,
         isFuture: false,
         achievement: 'none',
@@ -92,6 +100,7 @@ describe('buildCalendarCells', () => {
         date: '2026-07-05',
         day: 5,
         kcal: 0,
+        hasUnknownValues: false,
         isToday: true,
         isFuture: false,
         achievement: 'none',
@@ -104,7 +113,7 @@ describe('buildCalendarCells', () => {
     const cells = buildCalendarCells(
       '2026-07-01',
       '2026-07-01',
-      new Map([['2026-07-02', 9999]]),
+      new Map([['2026-07-02', { kcal: 9999, hasUnknownValues: false }]]),
       2000,
     )
 
@@ -113,6 +122,7 @@ describe('buildCalendarCells', () => {
       date: '2026-07-02',
       day: 2,
       kcal: null,
+      hasUnknownValues: false,
       isToday: false,
       isFuture: true,
       achievement: 'none',
@@ -123,7 +133,7 @@ describe('buildCalendarCells', () => {
     const cells = buildCalendarCells(
       '2026-07-01',
       '2026-07-01',
-      new Map([['2026-07-01', 5000]]),
+      new Map([['2026-07-01', { kcal: 5000, hasUnknownValues: false }]]),
       undefined,
     )
 
@@ -131,9 +141,48 @@ describe('buildCalendarCells', () => {
       date: '2026-07-01',
       day: 1,
       kcal: 5000,
+      hasUnknownValues: false,
       isToday: true,
       isFuture: false,
       achievement: 'onTarget',
+    })
+  })
+
+  it('keeps unknown-only days visible without treating them as zero kcal', () => {
+    const cells = buildCalendarCells(
+      '2026-07-01',
+      '2026-07-01',
+      new Map([['2026-07-01', { kcal: undefined, hasUnknownValues: true }]]),
+      2000,
+    )
+
+    expect(cells.find((cell) => cell.date === '2026-07-01')).toEqual({
+      date: '2026-07-01',
+      day: 1,
+      kcal: null,
+      hasUnknownValues: true,
+      isToday: true,
+      isFuture: false,
+      achievement: 'none',
+    })
+  })
+
+  it('shows a known lower bound without assigning an achievement when the day has unknown foods', () => {
+    const cells = buildCalendarCells(
+      '2026-07-01',
+      '2026-07-01',
+      new Map([['2026-07-01', { kcal: 900, hasUnknownValues: true }]]),
+      2000,
+    )
+
+    expect(cells.find((cell) => cell.date === '2026-07-01')).toEqual({
+      date: '2026-07-01',
+      day: 1,
+      kcal: 900,
+      hasUnknownValues: true,
+      isToday: true,
+      isFuture: false,
+      achievement: 'none',
     })
   })
 })

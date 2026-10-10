@@ -83,7 +83,13 @@ const makeLogger = (sink: LogEntry[]): Logger => ({
 
 const successMealHistory: MealHistoryAggregate = {
   totals: { energy_kcal: 1850 },
-  perDay: [{ date: jstDate('2026-06-12'), totals: { energy_kcal: 1850 } }],
+  perDay: [
+    {
+      date: jstDate('2026-06-12'),
+      totals: { energy_kcal: 1850 },
+      hasUnknownValues: true,
+    },
+  ],
   entries: [
     {
       id: 'log-1',
@@ -93,9 +99,21 @@ const successMealHistory: MealHistoryAggregate = {
       mealType: 'lunch',
       quantity: 1,
       recordedAt: '2026-06-12T03:30:45Z',
+      nutritionStatus: 'confirmed',
+    },
+    {
+      id: 'log-2',
+      foodMasterId: 'unknown-food',
+      foodName: 'unknown meal',
+      eatenDate: jstDate('2026-06-12'),
+      mealType: 'dinner',
+      quantity: 1,
+      recordedAt: '2026-06-12T05:30:45Z',
+      nutritionStatus: 'unknown',
     },
   ],
   hasEstimatedValues: false,
+  hasUnknownValues: true,
 }
 
 const searchFoodResults = [
@@ -104,6 +122,7 @@ const searchFoodResults = [
     compositionCode: null,
     name: 'item_token_alpha',
     isEstimated: false,
+    nutritionStatus: 'confirmed' as const,
     energyKcalPerUnit: 42,
   },
 ]
@@ -119,6 +138,7 @@ const recordedMealLogItems: ReadonlyArray<RecordMealLogItemResult> = [
     createdAt: new Date('2026-06-12T03:00:00.000Z'),
     nutrition: { energy_kcal: 84, protein_g: 3 },
     isEstimated: false,
+    nutritionStatus: 'confirmed',
   },
 ]
 
@@ -166,6 +186,7 @@ const recommendationHistory: MealHistoryAggregate = {
     {
       date: jstDate('2025-11-23'),
       totals: { energy_kcal: 701, protein_g: 27 },
+      hasUnknownValues: true,
     },
   ],
   entries: [
@@ -177,9 +198,21 @@ const recommendationHistory: MealHistoryAggregate = {
       mealType: 'breakfast',
       quantity: 1.25,
       recordedAt: '2025-11-23T04:05:06Z',
+      nutritionStatus: 'estimated',
+    },
+    {
+      id: 'meal_log_epsilon',
+      foodMasterId: 'food_master_epsilon',
+      foodName: 'unknown meal',
+      eatenDate: jstDate('2025-11-23'),
+      mealType: 'dinner',
+      quantity: 1,
+      recordedAt: '2025-11-23T06:05:06Z',
+      nutritionStatus: 'unknown',
     },
   ],
   hasEstimatedValues: true,
+  hasUnknownValues: true,
 }
 
 const recommendationPeriod = {
@@ -254,6 +287,7 @@ const testFoodMasters: ReadonlyArray<FoodMaster> = [
     name: '試験用食品 A',
     aliases: [],
     isEstimated: false,
+    nutritionStatus: 'confirmed',
     source: 'user_input',
     sourceUrl: null,
     sourceCompositionCode: null,
@@ -265,6 +299,7 @@ const testFoodMasters: ReadonlyArray<FoodMaster> = [
     name: '試験用食品 B',
     aliases: [],
     isEstimated: true,
+    nutritionStatus: 'estimated',
     source: 'user_input',
     sourceUrl: null,
     sourceCompositionCode: null,
@@ -322,6 +357,7 @@ const initialMealLog: MealLogResult = {
   createdAt: new Date('2026-04-17T03:30:45.000Z'),
   nutrition: { energy_kcal: 137 },
   isEstimated: false,
+  nutritionStatus: 'confirmed',
 }
 
 const secondMealLog: MealLogResult = {
@@ -333,6 +369,7 @@ const secondMealLog: MealLogResult = {
   createdAt: new Date('2026-04-17T04:30:45.000Z'),
   nutrition: { energy_kcal: 446 },
   isEstimated: true,
+  nutritionStatus: 'estimated',
 }
 
 const makeMealLogService = (
@@ -387,6 +424,7 @@ const makeMealLogService = (
             (input.quantity ?? existing.quantity),
         },
         isEstimated: food.isEstimated,
+        nutritionStatus: food.nutritionStatus,
       }
       records.set(input.id, updated)
       return okAsync(updated)
@@ -503,6 +541,7 @@ interface HarnessConfig {
   }
   profile?: UserProfile
   foodSearchServiceResult?: ReturnType<FoodSearchService['search']>
+  recordMealLogResults?: ReadonlyArray<RecordMealLogItemResult>
   foodMasterRegistrationResult?: ReturnType<
     FoodMasterService['registerFromComposition']
   >
@@ -547,7 +586,7 @@ const start = async (config: HarnessConfig = {}): Promise<Harness> => {
     recordMany(input) {
       directMealToolCalls.recordMealLogs.push(input)
       return config.recordMealLogError === undefined
-        ? okAsync(recordedMealLogItems)
+        ? okAsync(config.recordMealLogResults ?? recordedMealLogItems)
         : errAsync(config.recordMealLogError)
     },
   }
@@ -797,7 +836,7 @@ describe('MeshiMcpServer tools/list', () => {
       )
       expect(descriptions).toEqual({
         search_foods:
-          '登録済み食品を複数の名前候補から検索し、食品名、kcal、推定値かどうかを返す。origin が homemade の場合のみ食品成分表の候補も返す。成分表候補は自炊の素材にだけ使い、買った商品や外食には使わない。成分表候補の energy_kcal は 100g あたり。',
+          '登録済み食品を複数の名前候補から検索し、食品名、kcal、栄養状態 (nutrition_status: confirmed / estimated / unknown) を返す。栄養値が不明な食品の kcal は null。origin が homemade の場合のみ食品成分表の候補も返す。成分表候補は自炊の素材にだけ使い、買った商品や外食には使わない。成分表候補の energy_kcal は 100g あたり。',
         register_food_from_composition:
           '食品成分表の composition_code から食品マスタを登録する。成分表候補は自炊の素材にだけ使い、買った商品や外食には使わない。栄養値は食品成分表から 100g あたりの値をコピーするため、入力では指定できない。',
       })
@@ -1054,7 +1093,13 @@ describe('query_meals', () => {
         content: [{ type: 'text', text: '食事履歴を取得しました。' }],
         structuredContent: {
           totals: { energy_kcal: 1850 },
-          per_day: [{ date: '2026-06-12', totals: { energy_kcal: 1850 } }],
+          per_day: [
+            {
+              date: '2026-06-12',
+              totals: { energy_kcal: 1850 },
+              has_unknown_values: true,
+            },
+          ],
           entries: [
             {
               meal_log_id: 'log-1',
@@ -1064,9 +1109,21 @@ describe('query_meals', () => {
               meal_type: 'lunch',
               quantity: 1,
               recorded_at: '2026-06-12T03:30:45Z',
+              nutrition_status: 'confirmed',
+            },
+            {
+              meal_log_id: 'log-2',
+              food_master_id: 'unknown-food',
+              food_name: 'unknown meal',
+              eaten_date: '2026-06-12',
+              meal_type: 'dinner',
+              quantity: 1,
+              recorded_at: '2026-06-12T05:30:45Z',
+              nutrition_status: 'unknown',
             },
           ],
           has_estimated_values: false,
+          has_unknown_values: true,
         },
       })
     } finally {
@@ -1834,6 +1891,7 @@ describe('get_recommendation_context', () => {
               {
                 date: '2025-11-23',
                 totals: { energy_kcal: 701, protein_g: 27 },
+                has_unknown_values: true,
               },
             ],
             entries: [
@@ -1845,9 +1903,21 @@ describe('get_recommendation_context', () => {
                 meal_type: 'breakfast',
                 quantity: 1.25,
                 recorded_at: '2025-11-23T04:05:06Z',
+                nutrition_status: 'estimated',
+              },
+              {
+                meal_log_id: 'meal_log_epsilon',
+                food_master_id: 'food_master_epsilon',
+                food_name: 'unknown meal',
+                eaten_date: '2025-11-23',
+                meal_type: 'dinner',
+                quantity: 1,
+                recorded_at: '2025-11-23T06:05:06Z',
+                nutrition_status: 'unknown',
               },
             ],
             has_estimated_values: true,
+            has_unknown_values: true,
           },
         },
       })
@@ -2084,6 +2154,7 @@ describe('search_foods', () => {
                 name: 'item_token_alpha',
                 energy_kcal: 42,
                 is_estimated: false,
+                nutrition_status: 'confirmed',
               },
             ],
           },
@@ -2109,6 +2180,7 @@ describe('search_foods', () => {
           compositionCode: null,
           name: 'item_token_beta',
           isEstimated: true,
+          nutritionStatus: 'estimated',
           energyKcalPerUnit: null,
         },
       ]),
@@ -2129,6 +2201,7 @@ describe('search_foods', () => {
               name: 'item_token_beta',
               energy_kcal: null,
               is_estimated: true,
+              nutrition_status: 'estimated',
             },
           ],
         },
@@ -2146,6 +2219,7 @@ describe('search_foods', () => {
           compositionCode: null,
           name: 'search_fixture_alpha',
           isEstimated: false,
+          nutritionStatus: 'confirmed' as const,
           energyKcalPerUnit: 42,
         },
         {
@@ -2153,6 +2227,7 @@ describe('search_foods', () => {
           compositionCode: 'fc_search_fixture_beta',
           name: 'search_fixture_beta',
           isEstimated: true,
+          nutritionStatus: 'estimated',
           energyKcalPer100g: 88,
         },
       ]),
@@ -2182,6 +2257,7 @@ describe('search_foods', () => {
                 name: 'search_fixture_alpha',
                 energy_kcal: 42,
                 is_estimated: false,
+                nutrition_status: 'confirmed',
               },
               {
                 food_master_id: null,
@@ -2189,6 +2265,7 @@ describe('search_foods', () => {
                 name: 'search_fixture_beta',
                 energy_kcal: 88,
                 is_estimated: true,
+                nutrition_status: 'estimated',
               },
             ],
           },
@@ -2205,6 +2282,45 @@ describe('search_foods', () => {
       await h.close()
     }
   })
+
+  it('returns unknown status and null energy for a food without nutrition metadata', async () => {
+    const h = await start({
+      foodSearchServiceResult: okAsync([
+        {
+          foodMasterId: 'fm_catalog_unknown',
+          compositionCode: null,
+          name: 'unknown menu',
+          isEstimated: false,
+          nutritionStatus: 'unknown',
+          energyKcalPerUnit: null,
+        },
+      ]),
+    })
+    try {
+      const result = await h.client.callTool({
+        name: 'search_foods',
+        arguments: { queries: ['unknown menu'] },
+      })
+
+      expect(result).toEqual({
+        content: [{ type: 'text', text: '登録済み食品を 1 件取得しました。' }],
+        structuredContent: {
+          foods: [
+            {
+              food_master_id: 'fm_catalog_unknown',
+              composition_code: null,
+              name: 'unknown menu',
+              energy_kcal: null,
+              is_estimated: false,
+              nutrition_status: 'unknown',
+            },
+          ],
+        },
+      })
+    } finally {
+      await h.close()
+    }
+  })
 })
 
 describe('register_food_from_composition', () => {
@@ -2214,6 +2330,7 @@ describe('register_food_from_composition', () => {
       name: 'composition_tool_alpha',
       aliases: ['composition_tool_alias'],
       isEstimated: true,
+      nutritionStatus: 'estimated',
       source: 'composition_table_estimate',
       sourceUrl: null,
       sourceCompositionCode: 'fc_composition_tool_alpha',
@@ -2348,6 +2465,7 @@ describe('register_food', () => {
             name: input.name,
             aliases: input.aliases ?? [],
             isEstimated: input.isEstimated,
+            nutritionStatus: input.isEstimated ? 'estimated' : 'confirmed',
             source: input.source,
             sourceUrl: input.sourceUrl ?? null,
             sourceCompositionCode: null,
@@ -2551,6 +2669,7 @@ describe('record_meal_log', () => {
                 quantity: 2,
                 nutrition: { energy_kcal: 84, protein_g: 3 },
                 is_estimated: false,
+                nutrition_status: 'confirmed',
               },
             ],
             error: null,
@@ -2569,6 +2688,61 @@ describe('record_meal_log', () => {
             ],
           },
         ],
+      })
+    } finally {
+      await h.close()
+    }
+  })
+
+  it('returns unknown status when the recorded food has no nutrition metadata', async () => {
+    const h = await start({
+      recordMealLogResults: [
+        {
+          id: 'ml_tool_unknown',
+          foodMasterId: 'fm_catalog_unknown',
+          foodName: 'unknown menu',
+          eatenDate: jstDate('2026-06-12'),
+          mealType: 'dinner',
+          quantity: 1,
+          createdAt: new Date('2026-06-12T05:00:00.000Z'),
+          nutrition: {},
+          isEstimated: false,
+          nutritionStatus: 'unknown',
+        },
+      ],
+    })
+    try {
+      const result = await h.client.callTool({
+        name: 'record_meal_log',
+        arguments: {
+          date: '2026-06-12',
+          meal_type: 'dinner',
+          items: [
+            {
+              food_master_id: 'fm_catalog_unknown',
+              food_name: 'unknown menu',
+              quantity: 1,
+            },
+          ],
+        },
+      })
+
+      expect(result).toEqual({
+        content: [{ type: 'text', text: '1 品目を記録しました。' }],
+        structuredContent: {
+          recorded: [
+            {
+              meal_log_id: 'ml_tool_unknown',
+              food_master_id: 'fm_catalog_unknown',
+              food_name: 'unknown menu',
+              quantity: 1,
+              nutrition: {},
+              is_estimated: false,
+              nutrition_status: 'unknown',
+            },
+          ],
+          error: null,
+        },
       })
     } finally {
       await h.close()

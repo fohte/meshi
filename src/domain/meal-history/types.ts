@@ -1,5 +1,6 @@
 import type { ResultAsync } from 'neverthrow'
 
+import type { NutritionStatus } from '#domain/food-master/types'
 import type { MealType } from '#domain/meal-log/types'
 import type { JstDate } from '#lib/jst-date'
 
@@ -25,11 +26,13 @@ export interface MealLogEntry {
   readonly mealType: MealType
   readonly quantity: number
   readonly recordedAt: string
+  readonly nutritionStatus: NutritionStatus
 }
 
 export interface MealHistoryDayTotals {
   readonly date: JstDate
   readonly totals: NutritionMap
+  readonly hasUnknownValues: boolean
 }
 
 export interface MealHistoryAggregate {
@@ -37,6 +40,7 @@ export interface MealHistoryAggregate {
   readonly perDay: ReadonlyArray<MealHistoryDayTotals>
   readonly entries: ReadonlyArray<MealLogEntry>
   readonly hasEstimatedValues: boolean
+  readonly hasUnknownValues: boolean
 }
 
 export class MealHistoryQueryError extends Error {

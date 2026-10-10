@@ -16,7 +16,13 @@ const buildApp = (mealHistoryService: MealHistoryService): Hono => {
 
 const stubEmptyAggregate: MealHistoryService = {
   query: () =>
-    okAsync({ totals: {}, perDay: [], entries: [], hasEstimatedValues: false }),
+    okAsync({
+      totals: {},
+      perDay: [],
+      entries: [],
+      hasEstimatedValues: false,
+      hasUnknownValues: false,
+    }),
 }
 
 describe('GET /api/meal-history', () => {
@@ -38,6 +44,7 @@ describe('GET /api/meal-history', () => {
           perDay: [],
           entries: [],
           hasEstimatedValues: false,
+          hasUnknownValues: false,
         })
       },
     }
@@ -58,7 +65,11 @@ describe('GET /api/meal-history', () => {
         okAsync({
           totals: { energy_kcal: 100 },
           perDay: [
-            { date: jstDate('2026-07-29'), totals: { energy_kcal: 100 } },
+            {
+              date: jstDate('2026-07-29'),
+              totals: { energy_kcal: 100 },
+              hasUnknownValues: false,
+            },
           ],
           entries: [
             {
@@ -69,9 +80,11 @@ describe('GET /api/meal-history', () => {
               mealType: 'breakfast',
               quantity: 100,
               recordedAt: '2026-07-29T03:00:00Z',
+              nutritionStatus: 'confirmed',
             },
           ],
           hasEstimatedValues: false,
+          hasUnknownValues: false,
         }),
     }
     const app = buildApp(mealHistoryService)
@@ -83,7 +96,13 @@ describe('GET /api/meal-history', () => {
     expect(res.status).toBe(200)
     expect(await res.json()).toEqual({
       totals: { energy_kcal: 100 },
-      perDay: [{ date: '2026-07-29', totals: { energy_kcal: 100 } }],
+      perDay: [
+        {
+          date: '2026-07-29',
+          totals: { energy_kcal: 100 },
+          hasUnknownValues: false,
+        },
+      ],
       entries: [
         {
           id: 'log-1',
@@ -92,9 +111,11 @@ describe('GET /api/meal-history', () => {
           eatenDate: '2026-07-29',
           mealType: 'breakfast',
           quantity: 100,
+          nutritionStatus: 'confirmed',
         },
       ],
       hasEstimatedValues: false,
+      hasUnknownValues: false,
     })
   })
 

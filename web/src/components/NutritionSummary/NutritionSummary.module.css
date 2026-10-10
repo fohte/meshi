@@ -22,6 +22,11 @@
   color: var(--color-muted);
 }
 
+.unknownNote {
+  font-size: 12px;
+  color: var(--color-muted);
+}
+
 .estimateMark {
   font-family: var(--font-mono);
 }

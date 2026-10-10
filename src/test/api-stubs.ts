@@ -16,6 +16,7 @@ export const createStubApiDeps = (): ApiDeps => ({
         perDay: [],
         entries: [],
         hasEstimatedValues: false,
+        hasUnknownValues: false,
       }),
   },
   dayDetailService: {
@@ -23,6 +24,7 @@ export const createStubApiDeps = (): ApiDeps => ({
       okAsync({
         totals: {},
         hasEstimatedValues: false,
+        hasUnknownValues: false,
         entries: [],
         skippedMealTypes: [],
       }),

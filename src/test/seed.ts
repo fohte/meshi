@@ -83,6 +83,13 @@ export const seedFoodMaster = async (
   }
 }
 
+export const seedFoodMasterWithoutNutrition = async (
+  sql: Sql,
+  values: typeof foodMasters.$inferInsert,
+): Promise<void> => {
+  await sql`INSERT INTO food_masters (id, name) VALUES (${values.id}, ${values.name})`
+}
+
 export const seedFoodMasterAlias = async (
   sql: Sql,
   values: typeof foodMasterAliases.$inferInsert,

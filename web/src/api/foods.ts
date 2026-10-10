@@ -2,6 +2,7 @@ import { errAsync, ok, ResultAsync } from 'neverthrow'
 import { z } from 'zod'
 
 import { ApiRequestError } from '#api/errors'
+import { nutritionStatusSchema } from '#api/nutrition-status'
 import { requestJson } from '#api/request'
 import { BoundaryError } from '#errors'
 
@@ -33,6 +34,7 @@ const foodListItemSchema = z.object({
   compositionCode: z.string().nullable(),
   name: z.string(),
   isEstimated: z.boolean(),
+  nutritionStatus: nutritionStatusSchema,
   reason: foodMatchReasonSchema,
   source: foodSourceSchema.nullable(),
   energyKcalPerUnit: z.number().nullable(),
@@ -65,7 +67,8 @@ const foodDetailSchema = z.object({
   id: z.string(),
   name: z.string(),
   isEstimated: z.boolean(),
-  source: foodSourceSchema,
+  nutritionStatus: nutritionStatusSchema,
+  source: foodSourceSchema.nullable(),
   sourceUrl: z.string().nullable(),
   aliases: z.array(z.string()),
   nutrition: z.record(z.string(), z.number()),

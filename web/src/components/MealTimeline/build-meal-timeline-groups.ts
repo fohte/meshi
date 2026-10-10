@@ -17,6 +17,7 @@ interface MealTimelineItem {
   readonly id: string
   readonly name: string
   readonly isEstimated: boolean
+  readonly isUnknown: boolean
   readonly quantityText: string
   readonly kcalText: string
 }
@@ -49,19 +50,31 @@ export const buildMealTimelineGroups = (
   return MEAL_ORDER.map((mealType) => {
     const items = entries.filter((entry) => entry.mealType === mealType)
     if (items.length > 0) {
-      const kcalTotal = items.reduce((sum, entry) => sum + entry.kcal, 0)
+      const hasUnknownValues = items.some(
+        (entry) => entry.nutritionStatus === 'unknown' || entry.kcal === null,
+      )
+      const kcalTotal = items.reduce((sum, entry) => sum + (entry.kcal ?? 0), 0)
       return {
         mealType,
         label: MEAL_LABELS[mealType],
         status: 'eaten' as const,
-        kcalText: `${String(Math.round(kcalTotal))} kcal`,
-        items: items.map((entry) => ({
-          id: entry.id,
-          name: entry.foodName,
-          isEstimated: entry.isEstimated,
-          quantityText: `×${formatQuantity(entry.quantity)}`,
-          kcalText: `${String(Math.round(entry.kcal))} kcal`,
-        })),
+        kcalText: hasUnknownValues
+          ? '不明'
+          : `${String(Math.round(kcalTotal))} kcal`,
+        items: items.map((entry) => {
+          const isUnknown =
+            entry.nutritionStatus === 'unknown' || entry.kcal === null
+          return {
+            id: entry.id,
+            name: entry.foodName,
+            isEstimated: entry.isEstimated,
+            isUnknown,
+            quantityText: `×${formatQuantity(entry.quantity)}`,
+            kcalText: isUnknown
+              ? '不明'
+              : `${String(Math.round(entry.kcal ?? 0))} kcal`,
+          }
+        }),
       }
     }
     return {

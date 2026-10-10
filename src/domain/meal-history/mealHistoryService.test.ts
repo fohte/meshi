@@ -5,7 +5,12 @@ import { expect, it } from 'vitest'
 import { createMealHistoryService } from '#domain/meal-history/mealHistoryService'
 import { describeIfDb, setupTx, TEST_DATABASE_URL } from '#test/db'
 import { jstDate } from '#test/jst-date'
-import { seedFoodMaster, seedMealLog, seedNutrientDefinition } from '#test/seed'
+import {
+  seedFoodMaster,
+  seedFoodMasterWithoutNutrition,
+  seedMealLog,
+  seedNutrientDefinition,
+} from '#test/seed'
 
 const seedNutrientDefinitions = async (sql: postgres.Sql): Promise<void> => {
   await seedNutrientDefinition(sql, {
@@ -49,6 +54,10 @@ describeIfDb('MealHistoryService.query', () => {
       source: 'user_input',
       nutrients: { energy_kcal: 142, protein_g: 12, iron_mg: 1.5 },
     })
+    await seedFoodMasterWithoutNutrition(tx, {
+      id: 'unknown-food',
+      name: 'unknown menu item',
+    })
     await seedMealLog(tx, {
       id: 'log-1',
       foodMasterId: 'rice',
@@ -73,6 +82,14 @@ describeIfDb('MealHistoryService.query', () => {
       quantity: 1,
       createdAt: new Date('2026-06-01T03:04:05.789Z'),
     })
+    await seedMealLog(tx, {
+      id: 'log-4',
+      foodMasterId: 'unknown-food',
+      eatenDate: jstDate('2026-06-01'),
+      mealType: 'snack',
+      quantity: 1,
+      createdAt: new Date('2026-06-01T03:04:05.789Z'),
+    })
 
     const service = createMealHistoryService(tx)
     const result = (
@@ -94,6 +111,7 @@ describeIfDb('MealHistoryService.query', () => {
             energy_kcal: 156 * 2 + 142 * 0.5,
             protein_g: 2.5 * 2 + 12 * 0.5,
           },
+          hasUnknownValues: true,
         },
       ],
       entries: [
@@ -105,6 +123,7 @@ describeIfDb('MealHistoryService.query', () => {
           mealType: 'lunch',
           quantity: 2,
           recordedAt: '2026-06-01T03:04:05Z',
+          nutritionStatus: 'confirmed',
         },
         {
           id: 'log-2',
@@ -114,9 +133,21 @@ describeIfDb('MealHistoryService.query', () => {
           mealType: 'dinner',
           quantity: 0.5,
           recordedAt: '2026-06-01T03:04:05Z',
+          nutritionStatus: 'confirmed',
+        },
+        {
+          id: 'log-4',
+          foodMasterId: 'unknown-food',
+          foodName: 'unknown menu item',
+          eatenDate: '2026-06-01',
+          mealType: 'snack',
+          quantity: 1,
+          recordedAt: '2026-06-01T03:04:05Z',
+          nutritionStatus: 'unknown',
         },
       ],
       hasEstimatedValues: false,
+      hasUnknownValues: true,
     })
   })
 
@@ -167,6 +198,7 @@ describeIfDb('MealHistoryService.query', () => {
         {
           date: '2026-06-01',
           totals: { energy_kcal: 142 * 0.5, protein_g: 12 * 0.5 },
+          hasUnknownValues: false,
         },
       ],
       entries: [
@@ -178,9 +210,61 @@ describeIfDb('MealHistoryService.query', () => {
           mealType: 'dinner',
           quantity: 0.5,
           recordedAt: '2026-06-01T03:04:05Z',
+          nutritionStatus: 'confirmed',
         },
       ],
       hasEstimatedValues: false,
+      hasUnknownValues: false,
+    })
+  })
+
+  it('returns unknown-only days with empty totals and an unknown flag', async () => {
+    const tx = getTx()
+    await seedNutrientDefinitions(tx)
+    await seedFoodMasterWithoutNutrition(tx, {
+      id: 'unknown-food',
+      name: 'unknown menu item',
+    })
+    await seedMealLog(tx, {
+      id: 'unknown-log',
+      foodMasterId: 'unknown-food',
+      eatenDate: jstDate('2026-06-01'),
+      mealType: 'dinner',
+      quantity: 1,
+      createdAt: new Date('2026-06-01T03:04:05.789Z'),
+    })
+
+    const result = (
+      await createMealHistoryService(tx).query({
+        periodFrom: jstDate('2026-06-01'),
+        periodTo: jstDate('2026-06-02'),
+        nutrientCodes: [],
+      })
+    )._unsafeUnwrap()
+
+    expect(result).toEqual({
+      totals: {},
+      perDay: [
+        {
+          date: '2026-06-01',
+          totals: {},
+          hasUnknownValues: true,
+        },
+      ],
+      entries: [
+        {
+          id: 'unknown-log',
+          foodMasterId: 'unknown-food',
+          foodName: 'unknown menu item',
+          eatenDate: '2026-06-01',
+          mealType: 'dinner',
+          quantity: 1,
+          recordedAt: '2026-06-01T03:04:05Z',
+          nutritionStatus: 'unknown',
+        },
+      ],
+      hasEstimatedValues: false,
+      hasUnknownValues: true,
     })
   })
 
@@ -217,6 +301,7 @@ describeIfDb('MealHistoryService.query', () => {
         {
           date: '2026-06-01',
           totals: { iron_mg: 2 * 1 },
+          hasUnknownValues: false,
         },
       ],
       entries: [
@@ -228,9 +313,11 @@ describeIfDb('MealHistoryService.query', () => {
           mealType: 'lunch',
           quantity: 1,
           recordedAt: '2026-06-01T03:04:05Z',
+          nutritionStatus: 'confirmed',
         },
       ],
       hasEstimatedValues: false,
+      hasUnknownValues: false,
     })
   })
 
@@ -263,7 +350,13 @@ describeIfDb('MealHistoryService.query', () => {
 
     expect(result).toEqual({
       totals: {},
-      perDay: [],
+      perDay: [
+        {
+          date: '2026-06-01',
+          totals: {},
+          hasUnknownValues: false,
+        },
+      ],
       entries: [
         {
           id: 'log-1',
@@ -273,9 +366,11 @@ describeIfDb('MealHistoryService.query', () => {
           mealType: 'lunch',
           quantity: 1,
           recordedAt: '2026-06-01T03:04:05Z',
+          nutritionStatus: 'confirmed',
         },
       ],
       hasEstimatedValues: false,
+      hasUnknownValues: false,
     })
   })
 
@@ -332,6 +427,7 @@ describeIfDb('MealHistoryService.query', () => {
             energy_kcal: 156 * 1 + 200 * 2.5,
             protein_g: 2.5 * 1 + 8 * 2.5,
           },
+          hasUnknownValues: false,
         },
       ],
       entries: [
@@ -343,6 +439,7 @@ describeIfDb('MealHistoryService.query', () => {
           mealType: 'lunch',
           quantity: 1,
           recordedAt: '2026-06-01T03:04:05Z',
+          nutritionStatus: 'confirmed',
         },
         {
           id: 'log-2',
@@ -352,9 +449,11 @@ describeIfDb('MealHistoryService.query', () => {
           mealType: 'dinner',
           quantity: 2.5,
           recordedAt: '2026-06-01T03:04:05Z',
+          nutritionStatus: 'estimated',
         },
       ],
       hasEstimatedValues: true,
+      hasUnknownValues: false,
     })
   })
 })
@@ -434,6 +533,7 @@ describeIfDb(
               {
                 date: '2026-06-01',
                 totals: { probe_energy_kcal: 156 * 2 },
+                hasUnknownValues: false,
               },
             ],
             entries: [
@@ -445,9 +545,11 @@ describeIfDb(
                 mealType: 'lunch',
                 quantity: 2,
                 recordedAt: '2026-06-01T03:04:05Z',
+                nutritionStatus: 'confirmed',
               },
             ],
             hasEstimatedValues: false,
+            hasUnknownValues: false,
           })
 
           throw new RollbackTestChanges('roll back test-only writes')

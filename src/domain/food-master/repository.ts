@@ -1,4 +1,4 @@
-import { err, ok, ResultAsync } from 'neverthrow'
+import { err, errAsync, ok, okAsync, ResultAsync } from 'neverthrow'
 import { z } from 'zod'
 
 import type { Sql } from '#db/index'
@@ -10,12 +10,12 @@ import { toNutritionMap } from '#domain/food-master/rows'
 import type {
   FoodMaster,
   FoodMasterId,
-  FoodSource,
   MergeFoodMasterResult,
   NutritionMap,
   RegisterFoodMasterInput,
   SimilarFoodMasterCandidate,
 } from '#domain/food-master/types'
+import { nutritionStatusFromIsEstimated } from '#domain/food-master/types'
 
 interface FoodComposition {
   readonly name: string
@@ -77,15 +77,17 @@ const similarNameRowSchema = z.object({
   score: z.number(),
 })
 
-interface FoodMasterRow {
-  readonly id: string
-  readonly name: string
-  readonly is_estimated: boolean
-  readonly source: FoodSource
-  readonly source_url: string | null
-  readonly source_composition_code: string | null
-  readonly created_at: Date
-}
+const foodMasterRowSchema = z.object({
+  id: z.string(),
+  name: z.string(),
+  is_estimated: z.boolean().nullable(),
+  source: z
+    .enum(['web_search', 'composition_table_estimate', 'user_input'])
+    .nullable(),
+  source_url: z.string().nullable(),
+  source_composition_code: z.string().nullable(),
+  created_at: z.date(),
+})
 
 export const createFoodMasterRepository = (
   sql: Sql,
@@ -99,40 +101,13 @@ export const createFoodMasterRepository = (
     id: FoodMasterId,
   ): ResultAsync<FoodMaster | null, FoodMasterDomainError> =>
     ResultAsync.fromPromise(
-      (async () => {
-        const rows = await sql<FoodMasterRow[]>`
-          SELECT fm.id, fm.name, fmn.is_estimated, fmn.source,
-                 fmn.source_url, fmn.source_composition_code, fm.created_at
-          FROM food_masters fm
-          INNER JOIN food_master_nutrition fmn ON fmn.food_master_id = fm.id
-          WHERE fm.id = ${id}
-        `
-        const row = rows[0]
-        if (row === undefined) return null
-
-        const [aliasRows, nutrientRows] = await Promise.all([
-          sql<{ alias: string }[]>`
-            SELECT alias FROM food_master_aliases WHERE food_master_id = ${id}
-          `,
-          sql<{ nutrient_code: string; value: string }[]>`
-            SELECT nutrient_code, value
-            FROM food_master_nutrients
-            WHERE food_master_id = ${id}
-          `,
-        ])
-
-        return {
-          id: row.id,
-          name: row.name,
-          aliases: aliasRows.map((r) => r.alias),
-          isEstimated: row.is_estimated,
-          source: row.source,
-          sourceUrl: row.source_url,
-          sourceCompositionCode: row.source_composition_code,
-          nutrition: toNutritionMap(nutrientRows),
-          createdAt: row.created_at,
-        }
-      })(),
+      sql<Record<string, unknown>[]>`
+        SELECT fm.id, fm.name, fmn.is_estimated, fmn.source,
+               fmn.source_url, fmn.source_composition_code, fm.created_at
+        FROM food_masters fm
+        LEFT JOIN food_master_nutrition fmn ON fmn.food_master_id = fm.id
+        WHERE fm.id = ${id}
+      `,
       (caughtErr) =>
         new FoodMasterDomainError(
           'persistence_failed',
@@ -140,7 +115,54 @@ export const createFoodMasterRepository = (
           {},
           caughtErr,
         ),
-    )
+    ).andThen((rows) => {
+      const parsed = z.array(foodMasterRowSchema).safeParse(rows)
+      if (!parsed.success) {
+        return errAsync(
+          new FoodMasterDomainError(
+            'persistence_failed',
+            `findById returned an invalid row: ${parsed.error.message}`,
+          ),
+        )
+      }
+      const row = parsed.data[0]
+      if (row === undefined) return okAsync(null)
+
+      return ResultAsync.fromPromise(
+        (async () => {
+          const [aliasRows, nutrientRows] = await Promise.all([
+            sql<{ alias: string }[]>`
+              SELECT alias FROM food_master_aliases WHERE food_master_id = ${id}
+            `,
+            sql<{ nutrient_code: string; value: string }[]>`
+              SELECT nutrient_code, value
+              FROM food_master_nutrients
+              WHERE food_master_id = ${id}
+            `,
+          ])
+
+          return {
+            id: row.id,
+            name: row.name,
+            aliases: aliasRows.map((r) => r.alias),
+            isEstimated: row.is_estimated ?? false,
+            nutritionStatus: nutritionStatusFromIsEstimated(row.is_estimated),
+            source: row.source,
+            sourceUrl: row.source_url,
+            sourceCompositionCode: row.source_composition_code,
+            nutrition: toNutritionMap(nutrientRows),
+            createdAt: row.created_at,
+          }
+        })(),
+        (caughtErr) =>
+          new FoodMasterDomainError(
+            'persistence_failed',
+            errorMessage(caughtErr),
+            {},
+            caughtErr,
+          ),
+      )
+    })
 
   const findComposition = (
     code: string,

@@ -19,12 +19,13 @@ afterEach(() => {
 
 const SAMPLE_JSON = {
   id: 'ml_1',
-  foodMasterId: 'fm_rice',
+  foodMasterId: 'fm_unknown',
   eatenDate: '2026-07-29',
   mealType: 'breakfast',
   quantity: 150,
-  nutrition: { energy_kcal: 234 },
+  nutrition: {},
   isEstimated: false,
+  nutritionStatus: 'unknown',
   createdAt: '2026-07-29T03:00:01.000Z',
 }
 
@@ -33,7 +34,7 @@ describe('postMealLog', () => {
     const fetchMock = mockFetchOk(SAMPLE_JSON)
 
     const result = await postMealLog({
-      foodMasterId: 'fm_rice',
+      foodMasterId: 'fm_unknown',
       eatenDate: '2026-07-29',
       mealType: 'breakfast',
       quantity: 150,
@@ -43,7 +44,7 @@ describe('postMealLog', () => {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({
-        foodMasterId: 'fm_rice',
+        foodMasterId: 'fm_unknown',
         eatenDate: '2026-07-29',
         mealType: 'breakfast',
         quantity: 150,

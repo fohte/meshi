@@ -32,6 +32,7 @@ const SAMPLE_RESULT: MealLogResult = {
   createdAt: new Date('2026-06-18T00:00:01.000Z'),
   nutrition: { energy_kcal: 234 },
   isEstimated: false,
+  nutritionStatus: 'confirmed',
 }
 
 const SAMPLE_JSON = {
@@ -42,6 +43,7 @@ const SAMPLE_JSON = {
   quantity: 150,
   nutrition: { energy_kcal: 234 },
   isEstimated: false,
+  nutritionStatus: 'confirmed',
   createdAt: '2026-06-18T00:00:01.000Z',
 }
 

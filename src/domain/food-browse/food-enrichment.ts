@@ -8,13 +8,18 @@ import {
   foodMasterNutrition,
   foodMasters,
 } from '#db/schema'
-import type { FoodSource } from '#domain/food-master/types'
+import {
+  type FoodSource,
+  type NutritionStatus,
+  nutritionStatusFromIsEstimated,
+} from '#domain/food-master/types'
 
 export type FoodSearchDb = ReturnType<typeof drizzle>
 export const ENERGY_KCAL_CODE = 'energy_kcal'
 
 export interface FoodMasterEnrichment {
-  readonly source: FoodSource
+  readonly source: FoodSource | null
+  readonly nutritionStatus: NutritionStatus
   readonly energyKcalPerUnit: number | null
 }
 
@@ -43,7 +48,10 @@ export const finiteNumeric = z.union([
 const enrichmentRowsSchema = z.array(
   z.object({
     id: z.string(),
-    source: z.enum(['web_search', 'composition_table_estimate', 'user_input']),
+    source: z
+      .enum(['web_search', 'composition_table_estimate', 'user_input'])
+      .nullable(),
+    isEstimated: z.boolean().nullable(),
     energyKcal: finiteNumeric.nullable(),
   }),
 )
@@ -59,10 +67,11 @@ export const loadFoodMasterEnrichment = (
           .select({
             id: foodMasters.id,
             source: foodMasterNutrition.source,
+            isEstimated: foodMasterNutrition.isEstimated,
             energyKcal: foodMasterNutrients.value,
           })
           .from(foodMasters)
-          .innerJoin(
+          .leftJoin(
             foodMasterNutrition,
             eq(foodMasterNutrition.foodMasterId, foodMasters.id),
           )
@@ -95,7 +104,13 @@ export const loadFoodMasterEnrichment = (
               (row) =>
                 [
                   row.id,
-                  { source: row.source, energyKcalPerUnit: row.energyKcal },
+                  {
+                    source: row.source,
+                    nutritionStatus: nutritionStatusFromIsEstimated(
+                      row.isEstimated,
+                    ),
+                    energyKcalPerUnit: row.energyKcal,
+                  },
                 ] as const,
             ),
           ),

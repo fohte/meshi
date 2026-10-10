@@ -28,7 +28,7 @@ export const registerMealLoggingTools = (
     'search_foods',
     {
       description:
-        '登録済み食品を複数の名前候補から検索し、食品名、kcal、推定値かどうかを返す。origin が homemade の場合のみ食品成分表の候補も返す。成分表候補は自炊の素材にだけ使い、買った商品や外食には使わない。成分表候補の energy_kcal は 100g あたり。',
+        '登録済み食品を複数の名前候補から検索し、食品名、kcal、栄養状態 (nutrition_status: confirmed / estimated / unknown) を返す。栄養値が不明な食品の kcal は null。origin が homemade の場合のみ食品成分表の候補も返す。成分表候補は自炊の素材にだけ使い、買った商品や外食には使わない。成分表候補の energy_kcal は 100g あたり。',
       inputSchema: searchFoodsInput,
       outputSchema: searchFoodsStructuredOutput,
       annotations: { readOnlyHint: true },
@@ -49,6 +49,7 @@ export const registerMealLoggingTools = (
                     ? food.energyKcalPer100g
                     : food.energyKcalPerUnit,
                 is_estimated: food.isEstimated,
+                nutrition_status: food.nutritionStatus,
               })),
             }
             logger.log(TOOL_SUCCEEDED, {
@@ -105,6 +106,7 @@ export const registerMealLoggingTools = (
                 quantity: item.quantity,
                 nutrition: item.nutrition,
                 is_estimated: item.isEstimated,
+                nutrition_status: item.nutritionStatus,
               })),
               error: null,
             }

@@ -9,10 +9,12 @@ describe('buildListCards', () => {
         {
           date: '2026-07-28',
           totals: { energy_kcal: 1800, salt_g: 6.2 },
+          hasUnknownValues: false,
         },
         {
           date: '2026-07-29',
           totals: { energy_kcal: 2500, salt_g: 8.1 },
+          hasUnknownValues: false,
         },
       ],
       new Map([
@@ -48,7 +50,13 @@ describe('buildListCards', () => {
 
   it('shows a dash for pct and never marks over-target when no energy target is set', () => {
     const cards = buildListCards(
-      [{ date: '2026-07-29', totals: { energy_kcal: 3000 } }],
+      [
+        {
+          date: '2026-07-29',
+          totals: { energy_kcal: 3000 },
+          hasUnknownValues: false,
+        },
+      ],
       new Map([['2026-07-29', ['ラーメン']]]),
       undefined,
     )
@@ -69,7 +77,13 @@ describe('buildListCards', () => {
 
   it('falls back to a no-records summary when no food names are known for a day', () => {
     const cards = buildListCards(
-      [{ date: '2026-07-29', totals: { energy_kcal: 0 } }],
+      [
+        {
+          date: '2026-07-29',
+          totals: { energy_kcal: 0 },
+          hasUnknownValues: false,
+        },
+      ],
       new Map(),
       2200,
     )
@@ -83,6 +97,60 @@ describe('buildListCards', () => {
         metaText: '0 品 · 塩分 0.0 g',
         kcalText: '0 kcal',
         pctText: '0%',
+        isOverTarget: false,
+      },
+    ])
+  })
+
+  it('shows an unknown value instead of zero for an unknown-only day', () => {
+    const cards = buildListCards(
+      [
+        {
+          date: '2026-07-29',
+          totals: {},
+          hasUnknownValues: true,
+        },
+      ],
+      new Map([['2026-07-29', ['外食メニュー']]]),
+      2200,
+    )
+
+    expect(cards).toEqual([
+      {
+        date: '2026-07-29',
+        dayText: '7/29',
+        dowText: '水',
+        summary: '外食メニュー',
+        metaText: '1 品 · 塩分 不明',
+        kcalText: '不明',
+        pctText: '—',
+        isOverTarget: false,
+      },
+    ])
+  })
+
+  it('marks known totals as lower bounds when the day also has unknown foods', () => {
+    const cards = buildListCards(
+      [
+        {
+          date: '2026-07-29',
+          totals: { energy_kcal: 900, salt_g: 2.4 },
+          hasUnknownValues: true,
+        },
+      ],
+      new Map([['2026-07-29', ['ごはん', '外食メニュー']]]),
+      2200,
+    )
+
+    expect(cards).toEqual([
+      {
+        date: '2026-07-29',
+        dayText: '7/29',
+        dowText: '水',
+        summary: 'ごはん、外食メニュー',
+        metaText: '2 品 · 塩分 2.4 g 以上',
+        kcalText: '900 kcal 以上',
+        pctText: '41% 以上',
         isOverTarget: false,
       },
     ])

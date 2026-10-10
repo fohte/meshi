@@ -88,10 +88,21 @@ const FoodDetailContent = ({
     <div>
       <h1 className={styles.heading}>
         {food.name}
-        {food.isEstimated && <span className={styles.estMark}>推定</span>}
+        {food.nutritionStatus === 'unknown' ? (
+          <span className={styles.estMark}>不明</span>
+        ) : food.isEstimated ? (
+          <span className={styles.estMark}>推定</span>
+        ) : null}
       </h1>
       <div className={styles.meta}>
-        <span className={styles.sourceBadge}>{SOURCE_LABELS[food.source]}</span>
+        {food.source !== null && (
+          <span className={styles.sourceBadge}>
+            {SOURCE_LABELS[food.source]}
+          </span>
+        )}
+        {food.nutritionStatus === 'unknown' && (
+          <span>栄養値は登録されていません</span>
+        )}
         {food.sourceUrl !== null && isHttpUrl(food.sourceUrl) && (
           <a href={food.sourceUrl} className={styles.sourceLink}>
             出典 →

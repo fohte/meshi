@@ -12,6 +12,7 @@ const entry = (overrides: Partial<DayDetailEntry>): DayDetailEntry => ({
   quantity: 150,
   kcal: 234,
   isEstimated: false,
+  nutritionStatus: 'confirmed',
   ...overrides,
 })
 
@@ -39,6 +40,7 @@ describe('buildMealTimelineGroups', () => {
             id: 'l1',
             name: '白米',
             isEstimated: false,
+            isUnknown: false,
             quantityText: '×150',
             kcalText: '234 kcal',
           },
@@ -124,6 +126,7 @@ describe('buildMealTimelineGroups', () => {
             id: 'l1',
             name: '白米',
             isEstimated: false,
+            isUnknown: false,
             quantityText: '×150',
             kcalText: '234 kcal',
           },
@@ -200,6 +203,7 @@ describe('buildMealTimelineGroups', () => {
             id: 'l1',
             name: 'ごはん',
             isEstimated: false,
+            isUnknown: false,
             quantityText: '×1.5',
             kcalText: '234 kcal',
           },
@@ -218,6 +222,64 @@ describe('buildMealTimelineGroups', () => {
         status: 'unrecorded',
         kcalText: null,
         items: [],
+      },
+      {
+        mealType: 'snack',
+        label: '間食',
+        status: 'unrecorded',
+        kcalText: null,
+        items: [],
+      },
+    ])
+  })
+
+  it('shows unknown kcal for an entry without nutrition values', () => {
+    expect(
+      buildMealTimelineGroups(
+        [
+          entry({
+            id: 'l2',
+            foodMasterId: 'unknown-food',
+            foodName: '不明なメニュー',
+            mealType: 'dinner',
+            quantity: 1,
+            kcal: null,
+            isEstimated: false,
+            nutritionStatus: 'unknown',
+          }),
+        ],
+        [],
+      ),
+    ).toEqual([
+      {
+        mealType: 'breakfast',
+        label: '朝食',
+        status: 'unrecorded',
+        kcalText: null,
+        items: [],
+      },
+      {
+        mealType: 'lunch',
+        label: '昼食',
+        status: 'unrecorded',
+        kcalText: null,
+        items: [],
+      },
+      {
+        mealType: 'dinner',
+        label: '夕食',
+        status: 'eaten',
+        kcalText: '不明',
+        items: [
+          {
+            id: 'l2',
+            name: '不明なメニュー',
+            isEstimated: false,
+            isUnknown: true,
+            quantityText: '×1',
+            kcalText: '不明',
+          },
+        ],
       },
       {
         mealType: 'snack',

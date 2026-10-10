@@ -116,6 +116,7 @@ export const DayDetailView = ({
           entries={dayDetailQuery.data.entries}
           totals={dayDetailQuery.data.totals}
           hasEstimatedValues={dayDetailQuery.data.hasEstimatedValues}
+          hasUnknownValues={dayDetailQuery.data.hasUnknownValues}
           skippedMealTypes={dayDetailQuery.data.skippedMealTypes}
           definitions={nutrientDefinitionsQuery.data}
           targets={profileQuery.data.dailyTargets}
@@ -130,6 +131,7 @@ interface DayDetailContentProps {
   readonly entries: ReadonlyArray<DayDetailEntry>
   readonly totals: Readonly<Record<string, number>>
   readonly hasEstimatedValues: boolean
+  readonly hasUnknownValues: boolean
   readonly skippedMealTypes: ReadonlyArray<MealType>
   readonly definitions: ReadonlyArray<NutrientDefinition>
   readonly targets: Readonly<Record<string, number>> | null
@@ -140,6 +142,7 @@ const DayDetailContent = ({
   entries,
   totals,
   hasEstimatedValues,
+  hasUnknownValues,
   skippedMealTypes,
   definitions,
   targets,
@@ -164,8 +167,14 @@ const DayDetailContent = ({
   return (
     <div className={styles.content}>
       <NutritionSummary
-        data={buildNutritionSummaryData(totals, definitions, targets)}
+        data={buildNutritionSummaryData(
+          totals,
+          definitions,
+          targets,
+          hasUnknownValues,
+        )}
         hasEstimatedValues={hasEstimatedValues}
+        hasUnknownValues={hasUnknownValues}
       />
       <MealTimeline
         groups={buildMealTimelineGroups(entries, skippedMealTypes)}
