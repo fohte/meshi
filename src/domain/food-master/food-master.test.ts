@@ -140,25 +140,30 @@ describeIfDb('FoodMasterService + Repository', () => {
 
   it("rejects is_estimated=true combined with source='web_search'", async () => {
     const tx = getTx()
-    const captured = await captureDomainError(
-      repository.register({
-        ...baseInput,
-        name: 'guess from web',
-        source: 'web_search',
-        isEstimated: true,
-        sourceUrl: 'https://example.com/guess',
-      }),
+    const result = await repository.register({
+      ...baseInput,
+      name: 'guess from web',
+      source: 'web_search',
+      isEstimated: true,
+      sourceUrl: 'https://example.com/guess',
+    })
+    const error = result.match(
+      () => null,
+      ({ code, details, message }) => [code, details, message],
     )
 
-    expect(captured).toEqual({
-      code: 'invalid_source_combination',
-      details: { source: 'web_search', isEstimated: true },
-    })
-
-    const rows = await tx<{ count: string }[]>`
+    const rows = tx<{ count: string }[]>`
       SELECT count(*)::text AS count FROM food_masters
     `
-    expect(rows).toEqual([{ count: '0' }])
+    const actual = await Promise.all([Promise.resolve(error), rows])
+    expect(actual).toEqual([
+      [
+        'invalid_source_combination',
+        { source: 'web_search', isEstimated: true },
+        "is_estimated=true must not be combined with source='web_search': this source asserts that a real, accessible page confirms these exact values for this specific product and size. If the evidence is uncertain, do not mark the values as non-estimated to bypass this check; confirm them with the user before registering them as source='user_input'.",
+      ],
+      [{ count: '0' }],
+    ])
   })
 
   it("rejects is_estimated=false combined with source='composition_table_estimate'", async () => {

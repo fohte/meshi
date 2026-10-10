@@ -1,6 +1,3 @@
-import type { AgentCard } from '@a2a-js/sdk'
-import type { AgentExecutor } from '@a2a-js/sdk/server'
-import { DefaultRequestHandler, InMemoryTaskStore } from '@a2a-js/sdk/server'
 import { Client, InMemoryTransport } from '@modelcontextprotocol/client'
 import { describe, expect, it } from 'vitest'
 
@@ -16,30 +13,6 @@ const fakeSql = (
   // eslint-disable-next-line @typescript-eslint/no-unsafe-type-assertion -- Sql is a callable tag; tests only exercise the SELECT 1 ping branch.
   tag as unknown as Sql
 
-const buildAgentCard = (): AgentCard => ({
-  protocolVersion: '0.3.0',
-  name: 'meshi-test-agent',
-  description: 'test fixture agent card',
-  url: 'http://localhost/a2a',
-  version: '0.0.0',
-  capabilities: { streaming: true },
-  defaultInputModes: ['text/plain'],
-  defaultOutputModes: ['text/plain'],
-  skills: [],
-})
-
-const noopExecutor: AgentExecutor = {
-  execute() {
-    return Promise.resolve()
-  },
-  cancelTask() {
-    return Promise.resolve()
-  },
-}
-
-const buildRequestHandler = (agentCard: AgentCard): DefaultRequestHandler =>
-  new DefaultRequestHandler(agentCard, new InMemoryTaskStore(), noopExecutor)
-
 describe('createApp', () => {
   it('returns ok on /health after a successful DB ping', async () => {
     const queries: string[][] = []
@@ -47,12 +20,8 @@ describe('createApp', () => {
       queries.push(Array.from(strings))
       return Promise.resolve([])
     })
-    const agentCard = buildAgentCard()
-
     const res = await createApp({
       sql,
-      agentCard,
-      requestHandler: buildRequestHandler(agentCard),
       ...createStubApiDeps(),
     }).request('/health')
     expect(res.status).toBe(200)
@@ -62,12 +31,8 @@ describe('createApp', () => {
 
   it('returns 503 on /health when the DB ping fails', async () => {
     const sql = fakeSql(() => Promise.reject(new Error('connection refused')))
-    const agentCard = buildAgentCard()
-
     const res = await createApp({
       sql,
-      agentCard,
-      requestHandler: buildRequestHandler(agentCard),
       ...createStubApiDeps(),
     }).request('/health')
     expect(res.status).toBe(503)
@@ -77,28 +42,22 @@ describe('createApp', () => {
     })
   })
 
-  it('serves the agent card via the mounted A2A routes', async () => {
+  it('does not mount the removed A2A routes', () => {
     const sql = fakeSql(() => Promise.resolve([]))
-    const agentCard = buildAgentCard()
+    const app = createApp({ sql, ...createStubApiDeps() })
 
-    const res = await createApp({
-      sql,
-      agentCard,
-      requestHandler: buildRequestHandler(agentCard),
-      ...createStubApiDeps(),
-    }).request('/.well-known/agent-card.json')
-    expect(res.status).toBe(200)
-    expect(await res.json()).toEqual(agentCard)
+    const removedRoutePaths = app.routes
+      .map((route) => route.path)
+      .filter(
+        (path) => path === '/.well-known/agent-card.json' || path === '/a2a',
+      )
+    expect(removedRoutePaths).toEqual([])
   })
 
   it('mounts the /api routes', async () => {
     const sql = fakeSql(() => Promise.resolve([]))
-    const agentCard = buildAgentCard()
-
     const res = await createApp({
       sql,
-      agentCard,
-      requestHandler: buildRequestHandler(agentCard),
       ...createStubApiDeps(),
     }).request('/api/nutrient-definitions')
     expect(res.status).toBe(200)

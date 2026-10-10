@@ -10,9 +10,7 @@ import type {
 } from '#domain/user-profile/user-profile'
 import type { UserProfileService } from '#domain/user-profile/user-profile-service'
 
-// Mirrors the validation in src/llm/domain-tools/tools/update-user-profile.ts,
-// the other UserProfilePatch producer: non-empty tags, and dailyTargets keys
-// restricted to known nutrient codes.
+// Rejects empty tags and dailyTargets keys outside the nutrient master.
 const userProfilePatchSchema = z.object({
   likes: z.array(z.string().min(1)).optional(),
   dislikes: z.array(z.string().min(1)).optional(),
@@ -61,9 +59,7 @@ export const mountProfileRoutes = (
       )
     }
 
-    // exactOptionalPropertyTypes rejects `{ likes: undefined }`, so omitted
-    // fields must be left out of the object entirely rather than set to
-    // undefined (see src/llm/domain-tools/tools/update-user-profile.ts).
+    // Keep omitted fields absent because exactOptionalPropertyTypes rejects undefined values.
     const patch: UserProfilePatch = {
       ...(parsed.data.likes === undefined ? {} : { likes: parsed.data.likes }),
       ...(parsed.data.dislikes === undefined

@@ -6,12 +6,12 @@ Meals marked as skipped for a date and meal type.
 
 ## Columns
 
-| Name       | Type                     | Default | Nullable | Children | Parents | Comment                                                         |
-| ---------- | ------------------------ | ------- | -------- | -------- | ------- | --------------------------------------------------------------- |
-| id         | text                     |         | false    |          |         | Opaque identifier exposed in API responses and LLM tool output. |
-| date       | date                     |         | false    |          |         | Asia/Tokyo calendar date for the skipped meal.                  |
-| meal_type  | meal_type                |         | false    |          |         | Meal category marked as skipped.                                |
-| created_at | timestamp with time zone | now()   | false    |          |         |                                                                 |
+| Name       | Type                     | Default | Nullable | Children | Parents | Comment                                        |
+| ---------- | ------------------------ | ------- | -------- | -------- | ------- | ---------------------------------------------- |
+| id         | text                     |         | false    |          |         | Opaque identifier exposed in API responses.    |
+| date       | date                     |         | false    |          |         | Asia/Tokyo calendar date for the skipped meal. |
+| meal_type  | meal_type                |         | false    |          |         | Meal category marked as skipped.               |
+| created_at | timestamp with time zone | now()   | false    |          |         |                                                |
 
 ## Constraints
 

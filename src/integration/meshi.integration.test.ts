@@ -20,10 +20,10 @@ import type { MealType } from '#domain/meal-log/types'
 import { createDrizzleMealSkipRepository } from '#domain/meal-skip/drizzle-meal-skip-repository'
 import { createMealSkipService } from '#domain/meal-skip/meal-skip-service'
 import { createUserProfileService } from '#domain/user-profile/user-profile-service'
-import { createNullLogger } from '#logger'
 import { createMcpServer } from '#mcp'
 import { describeIfDb, getTestSql, setupTx } from '#test/db'
 import { jstDate } from '#test/jst-date'
+import { createNullLogger } from '#test/logger'
 import {
   seedFoodMaster as seedFoodMasterRow,
   seedMealLog as seedMealLogRow,

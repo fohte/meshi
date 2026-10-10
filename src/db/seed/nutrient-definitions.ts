@@ -13,7 +13,7 @@ interface NutrientSeedInput {
 
 // The single source of truth for which nutrient codes exist: NutrientCode /
 // NUTRIENT_CODES below are derived from these two arrays, so adding an entry
-// here automatically flows through to the zod schema every LLM tool exposes
+// here automatically flows through to the zod schemas exposed by MCP tools
 // and to the DB seed.
 const major = [
   { code: 'energy_kcal', displayName: 'エネルギー', unit: 'kcal' },

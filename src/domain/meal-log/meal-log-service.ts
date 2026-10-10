@@ -34,10 +34,8 @@ import type {
 import { toJstDateString } from '#lib/jst-date'
 
 // A caller-supplied foodName is a self-consistency check, not a fuzzy search:
-// callers that pass it (the record_meal_log domain tool) already got the
-// exact string from register_food_master/search_food_master output for this
-// same food_master_id, so it should match verbatim modulo surrounding
-// whitespace and case.
+// MCP callers resolve foodMasterId through search_foods, so the name should
+// match that result modulo surrounding whitespace and case.
 const normalizeFoodName = (name: string): string => name.trim().toLowerCase()
 
 const checkFoodNameMatches = (

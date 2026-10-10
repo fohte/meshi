@@ -1,8 +1,5 @@
-import type postgres from 'postgres'
-
 import type { Sql } from '#db/index'
 import type {
-  a2aPushConfigs,
   foodCompositionNutrients,
   foodCompositions,
   foodMasterAliases,
@@ -147,17 +144,5 @@ export const seedFoodCompositionNutrient = async (
   await sql`
     INSERT INTO food_composition_nutrients (food_composition_code, nutrient_code, value)
     VALUES (${values.foodCompositionCode}, ${values.nutrientCode}, ${values.value})
-  `
-}
-
-export const seedA2aPushConfig = async (
-  sql: Sql,
-  values: Omit<typeof a2aPushConfigs.$inferInsert, 'createdAt' | 'config'> & {
-    config: postgres.JSONValue
-  },
-): Promise<void> => {
-  await sql`
-    INSERT INTO a2a_push_configs (task_id, config_id, config)
-    VALUES (${values.taskId}, ${values.configId}, ${sql.json(values.config)})
   `
 }

@@ -56,10 +56,6 @@ export const createMealHistoryService = (sql: Sql): MealHistoryService => {
       const useMajorOnly = nutrientCodes === undefined
       const emptyNutrientFilter =
         nutrientCodes !== undefined && nutrientCodes.length === 0
-      // Bound as explicit text + inline `::date` cast so the query survives
-      // a pool whose date serializer was flipped to identity pass-through
-      // by a `drizzle()` instance built on the same connection (see the
-      // comment in src/a2a/postgres-task-store.ts).
       const periodFrom = asText(input.periodFrom)
       const periodTo = asText(input.periodTo)
 

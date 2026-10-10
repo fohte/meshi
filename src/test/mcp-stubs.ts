@@ -14,8 +14,8 @@ import { MealSkipPersistenceError } from '#domain/meal-skip/errors'
 import type { MealSkipService } from '#domain/meal-skip/meal-skip-service'
 import { UserProfileRepositoryError } from '#domain/user-profile/errors'
 import type { UserProfileService } from '#domain/user-profile/user-profile-service'
-import { createNullLogger } from '#logger'
 import type { MeshiToolDeps } from '#mcp-tools'
+import { createNullLogger } from '#test/logger'
 
 const rejectingMealHistoryService: MealHistoryService = {
   query: () => errAsync(new MealHistoryQueryError('stub')),

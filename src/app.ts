@@ -1,12 +1,9 @@
 import { existsSync } from 'node:fs'
 
-import type { AgentCard } from '@a2a-js/sdk'
-import type { DefaultRequestHandler } from '@a2a-js/sdk/server'
 import { serveStatic } from '@hono/node-server/serve-static'
 import { Hono } from 'hono'
 import { ResultAsync } from 'neverthrow'
 
-import { mountA2aRoutes } from '#a2a/hono-bridge'
 import { mountApiRoutes } from '#api/index'
 import type { Sql } from '#db/index'
 import { pingDb } from '#db/index'
@@ -27,8 +24,6 @@ const WEB_DIST_ROOT = 'web/dist'
 
 export interface AppDeps {
   sql: Sql
-  agentCard: AgentCard
-  requestHandler: DefaultRequestHandler
   mealHistoryService: MealHistoryService
   dayDetailService: DayDetailService
   nutrientDefinitionRepository: NutrientDefinitionRepository
@@ -38,7 +33,6 @@ export interface AppDeps {
   mealLogService: MealLogService
   foodMasterService: FoodMasterService
   mealSkipService: MealSkipService
-  bearerToken?: string
 }
 
 const errorMessage = (err: unknown): string =>
@@ -53,14 +47,6 @@ export const createApp = (deps: AppDeps): Hono => {
       (message) => c.json({ status: 'error', error: message }, 503),
     ),
   )
-
-  mountA2aRoutes(app, {
-    agentCard: deps.agentCard,
-    requestHandler: deps.requestHandler,
-    ...(deps.bearerToken === undefined
-      ? {}
-      : { bearerToken: deps.bearerToken }),
-  })
 
   mountApiRoutes(app, {
     mealHistoryService: deps.mealHistoryService,
