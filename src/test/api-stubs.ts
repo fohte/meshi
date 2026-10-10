@@ -7,7 +7,7 @@ import { MealSkipPersistenceError } from '#domain/meal-skip/errors'
 import { DEFAULT_USER_PROFILE } from '#domain/user-profile/user-profile'
 
 // createApp's /api deps have their own dedicated route tests; callers that
-// only exercise /health or /a2a still need something satisfying ApiDeps.
+// only exercise /health still need something satisfying ApiDeps.
 export const createStubApiDeps = (): ApiDeps => ({
   mealHistoryService: {
     query: () =>

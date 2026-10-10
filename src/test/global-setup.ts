@@ -1,7 +1,6 @@
 import postgres from 'postgres'
 
 import { runMigrations } from '#db/migrations'
-import { setupMeshiCheckpointSchema } from '#llm/agent/checkpointer'
 
 export default async function setup(): Promise<void> {
   // No-op when TEST_DATABASE_URL is unset so unit-only runs don't need a DB.
@@ -13,10 +12,12 @@ export default async function setup(): Promise<void> {
   try {
     await sql.unsafe('DROP SCHEMA IF EXISTS public CASCADE')
     await sql.unsafe('DROP SCHEMA IF EXISTS drizzle CASCADE')
+    await sql.unsafe('DROP SCHEMA IF EXISTS langgraph CASCADE')
     await sql.unsafe('CREATE SCHEMA public')
+    // Models a database that still has LangGraph checkpoint state.
+    await sql.unsafe('CREATE SCHEMA langgraph')
     await runMigrations(sql)
   } finally {
     await sql.end({ timeout: 5 })
   }
-  await setupMeshiCheckpointSchema(url)
 }

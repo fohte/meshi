@@ -55,7 +55,7 @@ comments:
   - table: meal_skips
     tableComment: 'Meals marked as skipped for a date and meal type.'
     columnComments:
-      id: 'Opaque identifier exposed in API responses and LLM tool output.'
+      id: 'Opaque identifier exposed in API responses.'
       date: 'Asia/Tokyo calendar date for the skipped meal.'
       meal_type: 'Meal category marked as skipped.'
   - table: food_compositions
@@ -69,21 +69,6 @@ comments:
       food_composition_code: 'Code of the food composition entry this nutrient value belongs to.'
       nutrient_code: 'Identifier of the nutrient.'
       value: 'Nutrient value per 100 g of the food composition entry.'
-  - table: a2a_tasks
-    tableComment: 'Persisted A2A tasks used for task retrieval and lifecycle management.'
-    columnComments:
-      task_id: 'A2A task identifier.'
-      context_id: 'Context identifier from the A2A task.'
-      state: 'Current state of the A2A task.'
-      status_timestamp: 'Timestamp of the latest known task status update, used by lifecycle sweeps.'
-      protocol_version: 'Stored A2A protocol version; defaults to 0.3.'
-      task: 'Serialized A2A Task object.'
-  - table: a2a_push_configs
-    tableComment: 'Persisted A2A push notification configurations.'
-    columnComments:
-      task_id: 'A2A task identifier associated with this push notification configuration.'
-      config_id: 'Push notification configuration identifier.'
-      config: 'Serialized A2A push notification configuration.'
   - table: user_profiles
     tableComment: 'The singleton user profile for preferences and daily nutrition targets.'
     columnComments:

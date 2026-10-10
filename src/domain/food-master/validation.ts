@@ -1,11 +1,9 @@
 import type { FoodSource, NutritionMap } from '#domain/food-master/types'
 
-// Shared by registration.ts's normalizeAndValidate and the register_food_master
-// tool's zod schema so the two layers can't silently drift apart.
-
 export const isEmptyNutrition = (nutrition: NutritionMap): boolean =>
   Object.keys(nutrition).length === 0
 
+// Used by food-master registration to validate source combinations.
 export const isInvalidSourceCombination = (
   source: FoodSource,
   isEstimated: boolean,
@@ -13,14 +11,10 @@ export const isInvalidSourceCombination = (
   (source === 'web_search' && isEstimated) ||
   (source === 'composition_table_estimate' && !isEstimated)
 
-// Specific to isInvalidSourceCombination's web_search branch (its other
-// branch, composition_table_estimate + isEstimated=false, needs a different
-// message — see repository.ts's normalizeAndValidate). Shared by that
-// function and the register_food_master tool's zod refine, whose source enum
-// excludes composition_table_estimate and so only ever hits this branch, so
-// the wording can't drift between the two layers that enforce this rule.
+// Explains the web_search + isEstimated=true case; invalid composition table
+// estimates use a separate message in normalizeAndValidate.
 export const INVALID_SOURCE_COMBINATION_MESSAGE =
-  "is_estimated=true must not be combined with source='web_search': registering with source='web_search' asserts that a real, accessible page confirms these exact values for this specific product and size. If you are not confident the evidence matches, do not resend this call with is_estimated=false to get past this error — that discards the uncertainty instead of resolving it. Call request_user_input instead."
+  "is_estimated=true must not be combined with source='web_search': this source asserts that a real, accessible page confirms these exact values for this specific product and size. If the evidence is uncertain, do not mark the values as non-estimated to bypass this check; confirm them with the user before registering them as source='user_input'."
 
 export const hasDuplicateAfterTrim = (
   values: ReadonlyArray<string>,
@@ -41,11 +35,7 @@ export type SourceEvidenceViolation =
   | 'missing_composition_code'
   | 'unexpected_composition_code'
 
-// Documents the evidence rules enforced by food_master_nutrition's CHECK
-// constraints (see schema.ts). Shared by registration.ts's
-// normalizeAndValidate and the register_food_master tool's zod refine
-// (which always passes sourceCompositionCode: null, since that tool never
-// sets it) so the three layers can't silently drift apart.
+// Mirrors the evidence rules encoded by the food-master CHECK constraints in schema.ts.
 export const validateSourceEvidence = (
   input: SourceEvidenceInput,
 ): SourceEvidenceViolation | null => {

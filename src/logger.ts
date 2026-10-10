@@ -8,7 +8,3 @@ export const createJsonStdoutLogger = (): Logger => ({
     process.stdout.write(`${line}\n`)
   },
 })
-
-export const createNullLogger = (): Logger => ({
-  log() {},
-})
