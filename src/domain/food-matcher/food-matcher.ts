@@ -29,7 +29,7 @@ export interface FoodMatchCandidate {
   // (history_recent / history_frequent / fuzzy_name).
   readonly foodMasterId: string | null
   // Set when the candidate is a fallback suggestion from food_compositions
-  // (composition_table). The orchestrator turns this into a register call.
+  // (composition_table). The domain agent can use this to register a food.
   readonly compositionCode: string | null
   readonly name: string
   readonly isEstimated: boolean

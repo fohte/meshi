@@ -47,10 +47,6 @@ import {
   createMeshiDomainAgent,
 } from '#llm/agent/index'
 import { createDomainToolsRegistry } from '#llm/domain-tools/index'
-import {
-  createDomainAgentOrchestrator,
-  createTemplateReplyFormatter,
-} from '#llm/orchestrator/index'
 import { createJsonStdoutLogger } from '#logger'
 import { handleMcpRequest } from '#mcp-http'
 import type { MeshiToolDeps } from '#mcp-tools'
@@ -161,19 +157,12 @@ export const main = async (): Promise<void> => {
   })
 
   const logger = createJsonStdoutLogger()
-  const orchestrator = createDomainAgentOrchestrator({
-    model,
-    registry,
-    formatter: createTemplateReplyFormatter(),
-    logger,
-    middleware: [genAiTracingMiddleware],
-  })
   const toolDeps: MeshiToolDeps = {
-    orchestrator,
     mealHistoryService,
     profileService: userProfileService,
     foodSearchService,
     mealLogService,
+    mealSkipService,
     foodMasterService,
     logger,
   }

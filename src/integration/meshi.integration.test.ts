@@ -1,12 +1,10 @@
 import { randomUUID } from 'node:crypto'
 
 import { Client, InMemoryTransport } from '@modelcontextprotocol/client'
-import { okAsync } from 'neverthrow'
 import { beforeEach, expect, it } from 'vitest'
 import { z } from 'zod'
 
 import { createDrizzleUserProfileRepository } from '#adapters/db/drizzle-user-profile-repository'
-import type { WebSearchClient } from '#adapters/web-search/web-search-client'
 import type { Sql } from '#db/index'
 import { upsertNutrientDefinitions } from '#db/seed/nutrient-definitions'
 import { createFoodSearchService } from '#domain/food-browse/index'
@@ -22,36 +20,14 @@ import type { MealType } from '#domain/meal-log/types'
 import { createDrizzleMealSkipRepository } from '#domain/meal-skip/drizzle-meal-skip-repository'
 import { createMealSkipService } from '#domain/meal-skip/meal-skip-service'
 import { createUserProfileService } from '#domain/user-profile/user-profile-service'
-import { createDomainToolsRegistry } from '#llm/domain-tools/index'
-import {
-  createDomainAgentOrchestrator,
-  createTemplateReplyFormatter,
-} from '#llm/orchestrator/index'
 import { createNullLogger } from '#logger'
 import { createMcpServer } from '#mcp'
 import { describeIfDb, getTestSql, setupTx } from '#test/db'
 import { jstDate } from '#test/jst-date'
-import type {
-  ScriptedFinalResponse,
-  ScriptedToolCall,
-} from '#test/scripted-domain-agent-model'
-import { scriptedDomainAgentModel } from '#test/scripted-domain-agent-model'
 import {
   seedFoodMaster as seedFoodMasterRow,
   seedMealLog as seedMealLogRow,
 } from '#test/seed'
-
-interface WebSearchResult {
-  readonly snippets: ReadonlyArray<{
-    readonly title: string
-    readonly url: string
-    readonly text: string
-  }>
-}
-
-const stubWebSearchClient = (result: WebSearchResult): WebSearchClient => ({
-  search: () => okAsync(result),
-})
 
 const observation = <T extends object>(value: T): T => value
 
@@ -64,10 +40,6 @@ interface Harness {
 
 interface HarnessOptions {
   readonly tx: Sql
-  readonly toolCalls?: ReadonlyArray<ScriptedToolCall>
-  readonly final?: ScriptedFinalResponse
-  readonly webSearch?: WebSearchResult
-  readonly mealLogIds?: ReadonlyArray<string>
 }
 
 const readOptions = (sql: Sql): unknown => Reflect.get(sql, 'options')
@@ -124,27 +96,11 @@ const restoreTimestampHandlers = (
   }
 }
 
-const DEFAULT_WEB_SEARCH: WebSearchResult = {
-  snippets: [
-    {
-      title: 'placeholder',
-      url: 'https://example.com',
-      text: 'placeholder snippet',
-    },
-  ],
-}
-
 const startHarness = async (opts: HarnessOptions): Promise<Harness> => {
   const tx = prepareTxForDrizzle(opts.tx)
   const timestampSnapshot = snapshotTimestampHandlers(tx)
 
-  let foodMasterIdCursor = 0
-  const foodMasterIdGen = (prefix: string): string => {
-    foodMasterIdCursor += 1
-    return `${prefix}_test_${String(foodMasterIdCursor).padStart(4, '0')}`
-  }
   const foodMasterRepository = createFoodMasterRepository(tx, {
-    generateId: foodMasterIdGen,
     // The outer per-test transaction already provides atomicity; postgres-js
     // rejects a nested BEGIN inside it.
     wrapInTransaction: false,
@@ -154,24 +110,16 @@ const startHarness = async (opts: HarnessOptions): Promise<Harness> => {
   const mealLogRepository = createDrizzleMealLogRepository(tx, {
     wrapDeleteManyInTransaction: false,
   })
-  const mealLogIds = opts.mealLogIds ?? []
-  let mealLogIdCursor = 0
-  const idGenerator = (): string => {
-    const id = mealLogIds[mealLogIdCursor]
-    mealLogIdCursor += 1
-    return id ?? `ml_test_${String(mealLogIdCursor).padStart(4, '0')}`
-  }
   const mealLogService = createMealLogService({
     repository: mealLogRepository,
     foodMasterService,
-    idGenerator,
+    idGenerator: () => randomUUID(),
     // pin to a fixed point in time so eaten_date validation is deterministic
     now: () => new Date('2026-06-12T22:00:00+09:00'),
   })
   const mealSkipService = createMealSkipService({
     repository: createDrizzleMealSkipRepository(tx),
     idGenerator: () => randomUUID(),
-    // pin to a fixed point in time so date validation is deterministic
     now: () => new Date('2026-06-12T22:00:00+09:00'),
   })
   const foodMatcher = createDrizzleFoodMatcher(tx)
@@ -184,31 +132,12 @@ const startHarness = async (opts: HarnessOptions): Promise<Harness> => {
   // results; drizzle's constructor flips the timestamp handlers to identity,
   // so restore them.
   restoreTimestampHandlers(tx, timestampSnapshot)
-  const webSearchClient = stubWebSearchClient(
-    opts.webSearch ?? DEFAULT_WEB_SEARCH,
-  )
-
-  const registry = createDomainToolsRegistry({
-    mealLogService,
-    foodMasterService,
-    foodMatcher,
-    mealHistoryService,
-    userProfileService,
-    webSearchClient,
-    mealSkipService,
-  })
-  const orchestrator = createDomainAgentOrchestrator({
-    model: scriptedDomainAgentModel(opts.toolCalls ?? [], opts.final),
-    registry,
-    formatter: createTemplateReplyFormatter(),
-  })
-
   const server = createMcpServer({
-    orchestrator,
     mealHistoryService,
     profileService: userProfileService,
     foodSearchService,
     mealLogService,
+    mealSkipService,
     foodMasterService,
     logger: createNullLogger(),
   })
@@ -246,9 +175,7 @@ const seedFoodMaster = async (
     VALUES (${args.id}, ${args.name})
   `
   await tx`
-    INSERT INTO food_master_nutrition (
-      food_master_id, is_estimated, source
-    )
+    INSERT INTO food_master_nutrition (food_master_id, is_estimated, source)
     VALUES (${args.id}, ${args.isEstimated ?? false}, 'user_input')
   `
   const rows = Object.entries(args.nutrition).map(([code, value]) => ({
@@ -285,22 +212,6 @@ const seedMealLog = async (
   `
 }
 
-const candidateResultSchema = z.object({
-  recorded: z.array(z.unknown()),
-  candidates: z.array(
-    z.object({
-      food_master_id: z.string().nullable(),
-      composition_code: z.string().nullable(),
-      name: z.string(),
-      is_estimated: z.boolean(),
-      reason: z.string(),
-      score: z.number(),
-    }),
-  ),
-  has_estimated_values: z.boolean(),
-  error: z.null(),
-})
-
 // Loosely-typed envelope: MCP's CallTool return is a union that includes a
 // legacy `toolResult` branch without `content`, but in this codebase the
 // server always returns the `content`-bearing shape — narrow with a runtime
@@ -322,42 +233,6 @@ type NormalizedToolResult = z.infer<typeof toolResultSchema>
 
 const normalizeResult = (raw: unknown): NormalizedToolResult =>
   toolResultSchema.parse(raw)
-
-// Placeholder for the food-matcher's trigram score, which is non-
-// deterministic between runs.
-const NORMALIZED_SCORE = 0
-
-const sortTrailingLines = (text: string): string => {
-  const [header, ...rest] = text.split('\n')
-  if (header === undefined) return text
-  return [header, ...[...rest].sort()].join('\n')
-}
-
-// The trigram score (and, with it, candidate order) is non-deterministic
-// between equally-similar names — normalize the score to a fixed
-// placeholder and sort both candidates and each content line's candidate
-// list by `name`, the field the rendered text is keyed on, so the two
-// normalizations can't drift apart and the full result can still be
-// asserted with a single toEqual().
-const normalizeCandidateOrder = (
-  result: NormalizedToolResult,
-): NormalizedToolResult => {
-  const structured = candidateResultSchema.parse(result.structuredContent)
-  return {
-    ...result,
-    structuredContent: {
-      ...structured,
-      candidates: [...structured.candidates]
-        .sort((a, b) => (a.name < b.name ? -1 : 1))
-        .map((c) => ({ ...c, score: NORMALIZED_SCORE })),
-    },
-    content: result.content.map((c) =>
-      c.type === 'text' && typeof c.text === 'string'
-        ? { ...c, text: sortTrailingLines(c.text) }
-        : c,
-    ),
-  }
-}
 
 // scenarios ----------------------------------------------------------------
 
@@ -395,292 +270,6 @@ describeIfDb('meshi integration', () => {
         sortOrder: 4,
       },
     ])
-  })
-
-  it('records a meal from text — search + record_meal_log writes the log', async () => {
-    const tx = getTx()
-    await seedFoodMaster(tx, {
-      id: 'fm_rice',
-      name: '白米',
-      nutrition: { energy_kcal: 168, protein_g: 2.5, carbohydrate_g: 37 },
-    })
-
-    const harness = await startHarness({
-      tx,
-      mealLogIds: ['ml_scenario1'],
-      toolCalls: [
-        {
-          name: 'search_food_master',
-          args: {
-            user_input_item: '白米',
-            queries: ['白米'],
-            origin: 'retail',
-          },
-        },
-        {
-          name: 'record_meal_log',
-          args: {
-            food_master_id: 'fm_rice',
-            food_name: '白米',
-            date: '2026-06-12',
-            meal_type: 'lunch',
-            quantity: 2,
-          },
-        },
-      ],
-      final: { status: 'completed', message: '白米を記録しました。' },
-    })
-
-    try {
-      const result = normalizeResult(
-        await harness.client.callTool({
-          name: 'record_meal_from_text',
-          arguments: { text: '昼に白米 200g を食べました' },
-        }),
-      )
-
-      expect(result).toEqual({
-        content: [
-          {
-            type: 'text',
-            text: [
-              '記録しました (1 件)。',
-              '- fm_rice: 336 kcal / P 5g / C 74g',
-            ].join('\n'),
-          },
-        ],
-        structuredContent: {
-          recorded: [
-            {
-              meal_log_id: 'ml_scenario1',
-              food_master_id: 'fm_rice',
-              nutrition: {
-                energy_kcal: 336,
-                protein_g: 5,
-                carbohydrate_g: 74,
-              },
-              is_estimated: false,
-            },
-          ],
-          candidates: [],
-          has_estimated_values: false,
-          error: null,
-        },
-      })
-
-      const rows = await tx<
-        { id: string; food_master_id: string; quantity: string }[]
-      >`
-        SELECT id, food_master_id, quantity FROM meal_logs
-      `
-      expect(rows).toEqual([
-        {
-          id: 'ml_scenario1',
-          food_master_id: 'fm_rice',
-          quantity: '2',
-        },
-      ])
-    } finally {
-      await harness.close()
-    }
-  })
-
-  it('on-demand registration — search → web_search → register → record', async () => {
-    const tx = getTx()
-
-    const harness = await startHarness({
-      tx,
-      mealLogIds: ['ml_scenario2'],
-      webSearch: {
-        snippets: [
-          {
-            title: 'matcha latte nutrition',
-            url: 'https://example.com/matcha',
-            text: 'matcha latte ~120 kcal per serving',
-          },
-        ],
-      },
-      toolCalls: [
-        {
-          name: 'search_food_master',
-          args: {
-            user_input_item: 'カフェの抹茶ラテ',
-            queries: ['カフェの抹茶ラテ'],
-            origin: 'retail',
-          },
-        },
-        {
-          name: 'web_search',
-          args: {
-            user_input_item: 'カフェの抹茶ラテ',
-            query: 'カフェ 抹茶ラテ 栄養成分',
-          },
-        },
-        {
-          name: 'register_food_master',
-          args: {
-            name: 'カフェの抹茶ラテ',
-            nutrition_per_basis: { energy_kcal: 60, protein_g: 2 },
-            source: 'web_search',
-            is_estimated: false,
-            source_url: 'https://example.com/matcha',
-          },
-        },
-        {
-          name: 'record_meal_log',
-          args: {
-            food_master_id: 'fm_test_0001',
-            food_name: 'カフェの抹茶ラテ',
-            date: '2026-06-12',
-            meal_type: 'lunch',
-            quantity: 3.5,
-          },
-        },
-      ],
-      final: { status: 'completed', message: '抹茶ラテを記録しました。' },
-    })
-
-    try {
-      const result = normalizeResult(
-        await harness.client.callTool({
-          name: 'record_meal_from_text',
-          arguments: {
-            text: 'カフェの抹茶ラテ (350g) を飲みました',
-          },
-        }),
-      )
-
-      expect(result).toEqual({
-        structuredContent: {
-          recorded: [
-            {
-              meal_log_id: 'ml_scenario2',
-              food_master_id: 'fm_test_0001',
-              nutrition: { energy_kcal: 210, protein_g: 7 },
-              is_estimated: false,
-            },
-          ],
-          candidates: [],
-          has_estimated_values: false,
-          error: null,
-        },
-        content: [
-          {
-            type: 'text',
-            text: [
-              '記録しました (1 件)。',
-              '- fm_test_0001: 210 kcal / P 7g',
-            ].join('\n'),
-          },
-        ],
-      })
-
-      const masters = await tx<{ id: string; name: string; source: string }[]>`
-        SELECT fm.id, fm.name, nutrition.source
-        FROM food_masters fm
-        INNER JOIN food_master_nutrition nutrition
-          ON nutrition.food_master_id = fm.id
-        ORDER BY fm.id
-      `
-      expect(masters).toEqual([
-        {
-          id: 'fm_test_0001',
-          name: 'カフェの抹茶ラテ',
-          source: 'web_search',
-        },
-      ])
-      const mealLogCount = await tx<
-        { count: string }[]
-      >`SELECT COUNT(*)::text AS count FROM meal_logs`
-      expect(mealLogCount).toEqual([{ count: '1' }])
-    } finally {
-      await harness.close()
-    }
-  })
-
-  it('candidates without confirmation — recorded empty, candidates returned', async () => {
-    const tx = getTx()
-    // Two ambiguous candidates: matcher finds both via trigram on '茶'.
-    await seedFoodMaster(tx, {
-      id: 'fm_salmon_teriyaki',
-      name: 'salmon teriyaki',
-      nutrition: { energy_kcal: 200 },
-    })
-    await seedFoodMaster(tx, {
-      id: 'fm_salmon_sushi',
-      name: 'salmon sushi',
-      nutrition: { energy_kcal: 150 },
-    })
-
-    const harness = await startHarness({
-      tx,
-      toolCalls: [
-        {
-          name: 'search_food_master',
-          args: {
-            user_input_item: 'salmon',
-            queries: ['salmon'],
-            origin: 'retail',
-          },
-        },
-      ],
-      final: {
-        status: 'input_required',
-        message: 'どの salmon メニューか特定できませんでした。',
-      },
-    })
-
-    try {
-      const result = normalizeResult(
-        await harness.client.callTool({
-          name: 'record_meal_from_text',
-          arguments: { text: 'salmon を食べた' },
-        }),
-      )
-
-      expect(normalizeCandidateOrder(result)).toEqual({
-        structuredContent: {
-          recorded: [],
-          has_estimated_values: false,
-          error: null,
-          candidates: [
-            {
-              food_master_id: 'fm_salmon_sushi',
-              composition_code: null,
-              name: 'salmon sushi',
-              is_estimated: false,
-              score: NORMALIZED_SCORE,
-              reason: 'fuzzy_name',
-            },
-            {
-              food_master_id: 'fm_salmon_teriyaki',
-              composition_code: null,
-              name: 'salmon teriyaki',
-              is_estimated: false,
-              score: NORMALIZED_SCORE,
-              reason: 'fuzzy_name',
-            },
-          ],
-        },
-        content: [
-          {
-            type: 'text',
-            text: [
-              '食品を一意に特定できませんでした。次の候補から選んで、もう一度入力してください。',
-              '- salmon sushi: fuzzy_name',
-              '- salmon teriyaki: fuzzy_name',
-            ].join('\n'),
-          },
-        ],
-      })
-
-      const rows = await tx<
-        { count: string }[]
-      >`SELECT COUNT(*)::text AS count FROM meal_logs`
-      expect(rows).toEqual([{ count: '0' }])
-    } finally {
-      await harness.close()
-    }
   })
 
   it('queries meal history over a period', async () => {
@@ -869,100 +458,6 @@ describeIfDb('meshi integration', () => {
           },
         },
       })
-    } finally {
-      await harness.close()
-    }
-  })
-
-  it('records a meal from an image (vision agent)', async () => {
-    const tx = getTx()
-    await seedFoodMaster(tx, {
-      id: 'fm_rice',
-      name: '白米',
-      nutrition: { energy_kcal: 168, protein_g: 2.5, carbohydrate_g: 37 },
-    })
-
-    // 1x1 transparent PNG
-    const TINY_PNG_BASE64 =
-      'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR4nGNgAAIAAAUAAeImBZsAAAAASUVORK5CYII='
-
-    const harness = await startHarness({
-      tx,
-      mealLogIds: ['ml_image_1'],
-      toolCalls: [
-        {
-          name: 'search_food_master',
-          args: {
-            user_input_item: '白米',
-            queries: ['白米'],
-            origin: 'retail',
-          },
-        },
-        {
-          name: 'record_meal_log',
-          args: {
-            food_master_id: 'fm_rice',
-            food_name: '白米',
-            date: '2026-06-12',
-            meal_type: 'dinner',
-            quantity: 1.5,
-          },
-        },
-      ],
-      final: {
-        status: 'completed',
-        message: '写真から白米を記録しました。',
-      },
-    })
-
-    try {
-      const result = normalizeResult(
-        await harness.client.callTool({
-          name: 'record_meal_from_image',
-          arguments: {
-            image: {
-              type: 'image',
-              mimeType: 'image/png',
-              data: TINY_PNG_BASE64,
-            },
-            hint_text: '夕食',
-          },
-        }),
-      )
-
-      expect(result).toEqual({
-        structuredContent: {
-          recorded: [
-            {
-              meal_log_id: 'ml_image_1',
-              food_master_id: 'fm_rice',
-              nutrition: {
-                energy_kcal: 252,
-                protein_g: 3.75,
-                carbohydrate_g: 55.5,
-              },
-              is_estimated: false,
-            },
-          ],
-          candidates: [],
-          has_estimated_values: false,
-          error: null,
-        },
-        content: [
-          {
-            type: 'text',
-            text: [
-              '記録しました (1 件)。',
-              '- fm_rice: 252 kcal / P 3.8g / C 55.5g',
-            ].join('\n'),
-          },
-        ],
-      })
-
-      const logs = await tx<
-        { id: string; quantity: string }[]
-      >`SELECT id, quantity FROM meal_logs`
-      expect(logs).toEqual([{ id: 'ml_image_1', quantity: '1.5' }])
     } finally {
       await harness.close()
     }
