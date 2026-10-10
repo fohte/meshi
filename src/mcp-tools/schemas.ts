@@ -218,16 +218,10 @@ export const registerFoodInput = z.object({
     .describe('別物だと確認した類似食品の food_master_id'),
 })
 
-export const registerFoodWithoutNutritionInput = z.object({
-  name: z.string().trim().min(1).describe('登録する食品名'),
-  aliases: z
-    .array(z.string().trim().min(1))
-    .optional()
-    .describe('食品名の別名'),
-  confirmed_distinct_from_master_ids: z
-    .array(z.string().trim().min(1))
-    .optional()
-    .describe('別物だと確認した類似食品の food_master_id'),
+export const registerFoodWithoutNutritionInput = registerFoodInput.pick({
+  name: true,
+  aliases: true,
+  confirmed_distinct_from_master_ids: true,
 })
 
 export const similarFoodMasterCandidateOutput = z.object({

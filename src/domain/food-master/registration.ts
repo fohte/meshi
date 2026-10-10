@@ -49,15 +49,48 @@ const SOURCE_EVIDENCE_VIOLATION_MESSAGE: Record<
     "sourceCompositionCode must not be set unless source='composition_table_estimate'",
 }
 
-const normalizeAndValidate = (
-  input: RegisterFoodMasterInput,
-): Result<NormalizedInput, FoodMasterDomainError> => {
-  const name = input.name.trim()
+const normalizeFoodMasterName = (
+  rawName: string,
+): Result<string, FoodMasterDomainError> => {
+  const name = rawName.trim()
   if (name === '') {
     return err(
       new FoodMasterDomainError('empty_name', 'name must not be empty'),
     )
   }
+  return ok(name)
+}
+
+const normalizeFoodMasterAliases = (
+  rawAliases: ReadonlyArray<string> | undefined,
+): Result<ReadonlyArray<string>, FoodMasterDomainError> => {
+  const aliases = (rawAliases ?? []).map((alias) => alias.trim())
+  if (aliases.some((alias) => alias === '')) {
+    return err(
+      new FoodMasterDomainError(
+        'empty_alias',
+        'alias must not be empty string',
+      ),
+    )
+  }
+  if (hasDuplicateAfterTrim(aliases)) {
+    return err(
+      new FoodMasterDomainError(
+        'duplicate_alias_in_input',
+        'aliases must not contain duplicates within the same input',
+        { aliases },
+      ),
+    )
+  }
+  return ok(aliases)
+}
+
+const normalizeAndValidate = (
+  input: RegisterFoodMasterInput,
+): Result<NormalizedInput, FoodMasterDomainError> => {
+  const normalizedName = normalizeFoodMasterName(input.name)
+  if (normalizedName.isErr()) return err(normalizedName.error)
+  const name = normalizedName.value
   if (isInvalidSourceCombination(input.source, input.isEstimated)) {
     return err(
       new FoodMasterDomainError(
@@ -107,24 +140,9 @@ const normalizeAndValidate = (
       )
     }
   }
-  const aliases = (input.aliases ?? []).map((a) => a.trim())
-  if (aliases.some((a) => a === '')) {
-    return err(
-      new FoodMasterDomainError(
-        'empty_alias',
-        'alias must not be empty string',
-      ),
-    )
-  }
-  if (hasDuplicateAfterTrim(aliases)) {
-    return err(
-      new FoodMasterDomainError(
-        'duplicate_alias_in_input',
-        'aliases must not contain duplicates within the same input',
-        { aliases },
-      ),
-    )
-  }
+  const normalizedAliases = normalizeFoodMasterAliases(input.aliases)
+  if (normalizedAliases.isErr()) return err(normalizedAliases.error)
+  const aliases = normalizedAliases.value
   return ok({
     name,
     aliases,
@@ -140,33 +158,13 @@ const normalizeAndValidate = (
 const normalizeWithoutNutrition = (
   input: RegisterFoodMasterWithoutNutritionInput,
 ): Result<NormalizedInput, FoodMasterDomainError> => {
-  const name = input.name.trim()
-  if (name === '') {
-    return err(
-      new FoodMasterDomainError('empty_name', 'name must not be empty'),
-    )
-  }
-  const aliases = (input.aliases ?? []).map((alias) => alias.trim())
-  if (aliases.some((alias) => alias === '')) {
-    return err(
-      new FoodMasterDomainError(
-        'empty_alias',
-        'alias must not be empty string',
-      ),
-    )
-  }
-  if (hasDuplicateAfterTrim(aliases)) {
-    return err(
-      new FoodMasterDomainError(
-        'duplicate_alias_in_input',
-        'aliases must not contain duplicates within the same input',
-        { aliases },
-      ),
-    )
-  }
+  const normalizedName = normalizeFoodMasterName(input.name)
+  if (normalizedName.isErr()) return err(normalizedName.error)
+  const normalizedAliases = normalizeFoodMasterAliases(input.aliases)
+  if (normalizedAliases.isErr()) return err(normalizedAliases.error)
   return ok({
-    name,
-    aliases,
+    name: normalizedName.value,
+    aliases: normalizedAliases.value,
     nutrition: {},
     source: null,
     isEstimated: false,

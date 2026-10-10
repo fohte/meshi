@@ -607,6 +607,31 @@ describeIfDb('FoodMasterService + Repository', () => {
     })
   })
 
+  it('rejects duplicate aliases after trimming when registering without nutrition', async () => {
+    const tx = getTx()
+    const error = await captureDomainError(
+      service.registerWithoutNutritionWithSimilarNameCheck({
+        name: 'Example Bistro tasting plate',
+        aliases: ['Example Bistro sampler', ' Example Bistro sampler '],
+      }),
+    )
+    const rows = await tx<{ food_master_count: string; alias_count: string }[]>`
+      SELECT
+        (SELECT count(*)::text FROM food_masters) AS food_master_count,
+        (SELECT count(*)::text FROM food_master_aliases) AS alias_count
+    `
+
+    expect(observation({ error, rows })).toEqual({
+      error: {
+        code: 'duplicate_alias_in_input',
+        details: {
+          aliases: ['Example Bistro sampler', 'Example Bistro sampler'],
+        },
+      },
+      rows: [{ food_master_count: '0', alias_count: '0' }],
+    })
+  })
+
   it('blocks a food without nutrition when a similar name is unconfirmed', async () => {
     const tx = getTx()
     const existing = (
