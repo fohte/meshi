@@ -242,8 +242,14 @@ const seedFoodMaster = async (
   },
 ): Promise<void> => {
   await tx`
-    INSERT INTO food_masters (id, name, is_estimated, source)
-    VALUES (${args.id}, ${args.name}, ${args.isEstimated ?? false}, 'user_input')
+    INSERT INTO food_masters (id, name)
+    VALUES (${args.id}, ${args.name})
+  `
+  await tx`
+    INSERT INTO food_master_nutrition (
+      food_master_id, is_estimated, source
+    )
+    VALUES (${args.id}, ${args.isEstimated ?? false}, 'user_input')
   `
   const rows = Object.entries(args.nutrition).map(([code, value]) => ({
     food_master_id: args.id,
@@ -570,7 +576,11 @@ describeIfDb('meshi integration', () => {
       })
 
       const masters = await tx<{ id: string; name: string; source: string }[]>`
-        SELECT id, name, source FROM food_masters ORDER BY id
+        SELECT fm.id, fm.name, nutrition.source
+        FROM food_masters fm
+        INNER JOIN food_master_nutrition nutrition
+          ON nutrition.food_master_id = fm.id
+        ORDER BY fm.id
       `
       expect(masters).toEqual([
         {

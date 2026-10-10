@@ -60,48 +60,65 @@ export const foodMasters = pgTable(
   {
     id: text('id').primaryKey(),
     name: text('name').notNull(),
-    isEstimated: boolean('is_estimated').notNull().default(false),
-    source: foodSourceEnum('source').notNull(),
-    sourceUrl: text('source_url'),
-    sourceCompositionCode: text('source_composition_code'),
     createdAt: timestamp('created_at', { withTimezone: true, mode: 'date' })
       .notNull()
       .default(sql`now()`),
   },
   (table) => [
     uniqueIndex('food_masters_name_key').on(table.name),
-    index('food_masters_is_estimated_idx')
-      .on(table.isEstimated)
-      .where(sql`${table.isEstimated} = true`),
     index('food_masters_name_trgm_idx').using(
       'gin',
       sql`${table.name} gin_trgm_ops`,
     ),
+  ],
+)
+
+export const foodMasterNutrition = pgTable(
+  'food_master_nutrition',
+  {
+    foodMasterId: text('food_master_id').notNull(),
+    isEstimated: boolean('is_estimated').notNull().default(false),
+    source: foodSourceEnum('source').notNull(),
+    sourceUrl: text('source_url'),
+    sourceCompositionCode: text('source_composition_code'),
+  },
+  (table) => [
+    primaryKey({
+      name: 'food_master_nutrition_pkey',
+      columns: [table.foodMasterId],
+    }),
     foreignKey({
-      name: 'food_masters_source_composition_code_fk',
+      name: 'food_master_nutrition_food_master_id_fk',
+      columns: [table.foodMasterId],
+      foreignColumns: [foodMasters.id],
+    })
+      .onUpdate('cascade')
+      .onDelete('cascade'),
+    foreignKey({
+      name: 'food_master_nutrition_source_composition_code_fk',
       columns: [table.sourceCompositionCode],
       foreignColumns: [foodCompositions.code],
     })
       .onUpdate('cascade')
       .onDelete('restrict'),
-    index('food_masters_source_composition_code_idx').on(
+    index('food_master_nutrition_is_estimated_idx')
+      .on(table.isEstimated)
+      .where(sql`${table.isEstimated} = true`),
+    index('food_master_nutrition_source_composition_code_idx').on(
       table.sourceCompositionCode,
     ),
-    // NOT VALID (hand-edited — drizzle's check() builder can't express NOT
-    // VALID itself): production already has food_masters rows that predate
-    // the evidence requirement (e.g. web_search rows with no source_url).
-    // The migration never runs VALIDATE CONSTRAINT, so only new/updated
-    // rows are checked — existing violating rows stay unvalidated.
+    // Migrations leave these checks NOT VALID because existing nutrition
+    // metadata includes rows that predate the evidence requirement.
     check(
-      'food_masters_web_search_evidence',
+      'food_master_nutrition_web_search_evidence',
       sql`${table.source} <> 'web_search' OR (${table.isEstimated} = false AND ${table.sourceUrl} IS NOT NULL AND ${table.sourceCompositionCode} IS NULL)`,
     ),
     check(
-      'food_masters_composition_evidence',
+      'food_master_nutrition_composition_evidence',
       sql`${table.source} <> 'composition_table_estimate' OR (${table.isEstimated} = true AND ${table.sourceUrl} IS NULL AND ${table.sourceCompositionCode} IS NOT NULL)`,
     ),
     check(
-      'food_masters_user_input_evidence',
+      'food_master_nutrition_user_input_evidence',
       sql`${table.source} <> 'user_input' OR (${table.sourceUrl} IS NULL AND ${table.sourceCompositionCode} IS NULL)`,
     ),
   ],
@@ -146,7 +163,7 @@ export const foodMasterNutrients = pgTable(
     foreignKey({
       name: 'food_master_nutrients_food_master_id_fk',
       columns: [table.foodMasterId],
-      foreignColumns: [foodMasters.id],
+      foreignColumns: [foodMasterNutrition.foodMasterId],
     })
       .onUpdate('cascade')
       .onDelete('cascade'),

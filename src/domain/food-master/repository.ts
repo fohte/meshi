@@ -211,6 +211,12 @@ interface FoodMasterRow {
   readonly created_at: Date
 }
 
+interface FoodMasterInsertRow {
+  readonly id: string
+  readonly name: string
+  readonly created_at: Date
+}
+
 const toRegisterError = (
   caughtErr: unknown,
   normalized: NormalizedInput,
@@ -273,10 +279,10 @@ export const createFoodMasterRepository = (
       }
     }
 
-    const [inserted] = await tx<FoodMasterRow[]>`
-      INSERT INTO food_masters (id, name, is_estimated, source, source_url, source_composition_code)
-      VALUES (${id}, ${normalized.name}, ${normalized.isEstimated}, ${normalized.source}, ${normalized.sourceUrl}, ${normalized.sourceCompositionCode})
-      RETURNING id, name, is_estimated, source, source_url, source_composition_code, created_at
+    const [inserted] = await tx<FoodMasterInsertRow[]>`
+      INSERT INTO food_masters (id, name)
+      VALUES (${id}, ${normalized.name})
+      RETURNING id, name, created_at
     `
     if (inserted === undefined) {
       return err(
@@ -286,6 +292,19 @@ export const createFoodMasterRepository = (
         ),
       )
     }
+
+    await tx`
+      INSERT INTO food_master_nutrition (
+        food_master_id, is_estimated, source, source_url, source_composition_code
+      )
+      VALUES (
+        ${id},
+        ${normalized.isEstimated},
+        ${normalized.source},
+        ${normalized.sourceUrl},
+        ${normalized.sourceCompositionCode}
+      )
+    `
 
     if (normalized.aliases.length > 0) {
       const aliasRows = normalized.aliases.map((alias) => ({
@@ -309,10 +328,10 @@ export const createFoodMasterRepository = (
       id: inserted.id,
       name: inserted.name,
       aliases: normalized.aliases,
-      isEstimated: inserted.is_estimated,
-      source: inserted.source,
-      sourceUrl: inserted.source_url,
-      sourceCompositionCode: inserted.source_composition_code,
+      isEstimated: normalized.isEstimated,
+      source: normalized.source,
+      sourceUrl: normalized.sourceUrl,
+      sourceCompositionCode: normalized.sourceCompositionCode,
       nutrition: normalized.nutrition,
       createdAt: inserted.created_at,
     })
@@ -345,9 +364,11 @@ export const createFoodMasterRepository = (
     ResultAsync.fromPromise(
       (async () => {
         const rows = await sql<FoodMasterRow[]>`
-          SELECT id, name, is_estimated, source, source_url, source_composition_code, created_at
-          FROM food_masters
-          WHERE id = ${id}
+          SELECT fm.id, fm.name, fmn.is_estimated, fmn.source,
+                 fmn.source_url, fmn.source_composition_code, fm.created_at
+          FROM food_masters fm
+          INNER JOIN food_master_nutrition fmn ON fmn.food_master_id = fm.id
+          WHERE fm.id = ${id}
         `
         const row = rows[0]
         if (row === undefined) return null
