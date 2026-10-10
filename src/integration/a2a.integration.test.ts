@@ -418,7 +418,13 @@ describeIfDb('A2A integration', () => {
           source: string
           source_url: string | null
         }[]
-      >`SELECT id, name, source, source_url FROM food_masters ORDER BY id`
+      >`
+        SELECT fm.id, fm.name, nutrition.source, nutrition.source_url
+        FROM food_masters fm
+        INNER JOIN food_master_nutrition nutrition
+          ON nutrition.food_master_id = fm.id
+        ORDER BY fm.id
+      `
       const mealLogs = await domainTx<
         { id: string; food_master_id: string; quantity: string }[]
       >`SELECT id, food_master_id, quantity FROM meal_logs`
