@@ -9,6 +9,7 @@ import {
 } from '#domain/food-browse/food-enrichment'
 import type { FoodBrowseService, FoodListItem } from '#domain/food-browse/types'
 import { FoodBrowseQueryError } from '#domain/food-browse/types'
+import { nutritionStatusFromIsEstimated } from '#domain/food-master/types'
 import type { FoodMatcher } from '#domain/food-matcher/food-matcher'
 
 // Rows shared by the recent/frequent raw queries below: both join
@@ -38,12 +39,7 @@ const toListItem = (
   compositionCode: null,
   name: row.name,
   isEstimated: row.is_estimated ?? false,
-  nutritionStatus:
-    row.is_estimated === null
-      ? 'unknown'
-      : row.is_estimated
-        ? 'estimated'
-        : 'confirmed',
+  nutritionStatus: nutritionStatusFromIsEstimated(row.is_estimated),
   reason,
   source: row.source,
   energyKcalPerUnit: row.energy_kcal,

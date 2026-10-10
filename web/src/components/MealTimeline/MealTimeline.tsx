@@ -75,7 +75,7 @@ export const MealTimeline = ({
                 <div className={styles.itemMain}>
                   <div className={styles.itemNameLine}>
                     <span>{item.name}</span>
-                    {item.isUnknown === true ? (
+                    {item.isUnknown ? (
                       <span className={styles.itemEstimateMark}> 不明</span>
                     ) : item.isEstimated ? (
                       <span className={styles.itemEstimateMark}> ~</span>

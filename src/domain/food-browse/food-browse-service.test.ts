@@ -290,5 +290,43 @@ describeIfDb('createFoodBrowseService', () => {
         },
       ])
     })
+
+    it('includes a frequently eaten food without nutrition metadata', async () => {
+      const tx = getTx()
+      await seedFoodMasterWithoutNutrition(tx, {
+        id: 'fm_frequent_unknown',
+        name: 'frequent unknown item',
+      })
+      await seedMealLog(tx, {
+        id: 'ml_frequent_unknown_1',
+        foodMasterId: 'fm_frequent_unknown',
+        eatenDate: toJstDateString(daysAgo(1)),
+        mealType: 'dinner',
+        quantity: 1,
+      })
+      await seedMealLog(tx, {
+        id: 'ml_frequent_unknown_2',
+        foodMasterId: 'fm_frequent_unknown',
+        eatenDate: toJstDateString(daysAgo(2)),
+        mealType: 'dinner',
+        quantity: 1,
+      })
+      const service = createFoodBrowseService(tx, createDrizzleFoodMatcher(tx))
+
+      const result = (await service.listFrequent(5))._unsafeUnwrap()
+
+      expect(result).toEqual([
+        {
+          foodMasterId: 'fm_frequent_unknown',
+          compositionCode: null,
+          name: 'frequent unknown item',
+          isEstimated: false,
+          nutritionStatus: 'unknown',
+          reason: 'history_frequent',
+          source: null,
+          energyKcalPerUnit: null,
+        },
+      ])
+    })
   })
 })

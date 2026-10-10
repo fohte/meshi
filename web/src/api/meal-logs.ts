@@ -3,6 +3,7 @@ import { z } from 'zod'
 
 import { MEAL_TYPES, type MealType } from '#api/day-detail'
 import { ApiRequestError } from '#api/errors'
+import { nutritionStatusSchema } from '#api/nutrition-status'
 import { requestJson } from '#api/request'
 
 const mealLogResultSchema = z.object({
@@ -13,7 +14,7 @@ const mealLogResultSchema = z.object({
   quantity: z.number(),
   nutrition: z.record(z.string(), z.number()),
   isEstimated: z.boolean(),
-  nutritionStatus: z.enum(['confirmed', 'estimated', 'unknown']),
+  nutritionStatus: nutritionStatusSchema,
   createdAt: z.iso.datetime(),
 })
 

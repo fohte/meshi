@@ -16,6 +16,7 @@ import {
   foodMasters,
   mealLogs,
 } from '#db/schema'
+import { nutritionStatusFromIsEstimated } from '#domain/food-master/types'
 import {
   DomainError,
   FoodMasterNotFoundError,
@@ -93,12 +94,7 @@ const loadFoodMaster = (
         id: master.id,
         name: master.name,
         isEstimated: master.isEstimated ?? false,
-        nutritionStatus:
-          master.isEstimated === null
-            ? 'unknown'
-            : master.isEstimated
-              ? 'estimated'
-              : 'confirmed',
+        nutritionStatus: nutritionStatusFromIsEstimated(master.isEstimated),
         nutritionPerUnit,
       })
     })(),
@@ -343,12 +339,9 @@ export const createDrizzleMealLogRepository = (
             food: {
               ...row.food,
               isEstimated: row.food.isEstimated ?? false,
-              nutritionStatus:
-                row.food.isEstimated === null
-                  ? 'unknown'
-                  : row.food.isEstimated
-                    ? 'estimated'
-                    : 'confirmed',
+              nutritionStatus: nutritionStatusFromIsEstimated(
+                row.food.isEstimated,
+              ),
               nutritionPerUnit,
             },
           }

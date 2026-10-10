@@ -8,7 +8,11 @@ import {
   foodMasterNutrition,
   foodMasters,
 } from '#db/schema'
-import type { FoodSource, NutritionStatus } from '#domain/food-master/types'
+import {
+  type FoodSource,
+  type NutritionStatus,
+  nutritionStatusFromIsEstimated,
+} from '#domain/food-master/types'
 
 export type FoodSearchDb = ReturnType<typeof drizzle>
 export const ENERGY_KCAL_CODE = 'energy_kcal'
@@ -102,12 +106,9 @@ export const loadFoodMasterEnrichment = (
                   row.id,
                   {
                     source: row.source,
-                    nutritionStatus:
-                      row.isEstimated === null
-                        ? 'unknown'
-                        : row.isEstimated
-                          ? 'estimated'
-                          : 'confirmed',
+                    nutritionStatus: nutritionStatusFromIsEstimated(
+                      row.isEstimated,
+                    ),
                     energyKcalPerUnit: row.energyKcal,
                   },
                 ] as const,

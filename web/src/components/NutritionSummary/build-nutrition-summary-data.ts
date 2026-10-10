@@ -22,7 +22,7 @@ export interface NutrientRow {
   readonly label: string
   readonly unit: string
   readonly value: number
-  readonly isUnknown?: true
+  readonly isUnknown: boolean
   readonly target: number | null
   readonly pct: number
   readonly over: boolean
@@ -38,7 +38,7 @@ interface PfcSegment {
 export interface NutritionSummaryData {
   readonly energy: {
     readonly value: number
-    readonly isUnknown?: true
+    readonly isUnknown: boolean
     readonly target: number | null
     readonly pct: number | null
     readonly over: boolean
@@ -76,9 +76,7 @@ export const buildNutritionSummaryData = (
       label: def.displayName,
       unit: def.unit,
       value,
-      ...(hasUnknownValues && totals[def.code] === undefined
-        ? { isUnknown: true as const }
-        : {}),
+      isUnknown: hasUnknownValues && totals[def.code] === undefined,
       target,
       pct,
       over: usableTarget && pct > OVER_TARGET_PCT,
@@ -96,14 +94,12 @@ export const buildNutritionSummaryData = (
   const energyPct = energyUsableTarget
     ? (energyValue / energyTarget) * 100
     : null
+  const energyUnknown = hasUnknownValues && totals[ENERGY_CODE] === undefined
   const energy = {
     value: energyValue,
-    ...(hasUnknownValues && totals[ENERGY_CODE] === undefined
-      ? { isUnknown: true as const }
-      : {}),
+    isUnknown: energyUnknown,
     target: energyTarget,
-    pct:
-      hasUnknownValues && totals[ENERGY_CODE] === undefined ? null : energyPct,
+    pct: energyUnknown ? null : energyPct,
     over: energyPct !== null && energyPct > OVER_TARGET_PCT,
   }
 

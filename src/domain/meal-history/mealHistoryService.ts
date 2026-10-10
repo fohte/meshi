@@ -2,6 +2,7 @@ import { err, ok, ResultAsync } from 'neverthrow'
 import { z } from 'zod'
 
 import { createAsText, type Sql } from '#db/index'
+import { nutritionStatusFromIsEstimated } from '#domain/food-master/types'
 import type {
   MealHistoryDayTotals,
   MealHistoryService,
@@ -148,7 +149,11 @@ export const createMealHistoryService = (sql: Sql): MealHistoryService => {
           entryParsed.data.map((row) => row.eaten_date),
           new Set(
             entryParsed.data
-              .filter((row) => row.is_estimated === null)
+              .filter(
+                (row) =>
+                  nutritionStatusFromIsEstimated(row.is_estimated) ===
+                  'unknown',
+              )
               .map((row) => row.eaten_date),
           ),
         )
@@ -161,18 +166,15 @@ export const createMealHistoryService = (sql: Sql): MealHistoryService => {
           mealType: row.meal_type,
           quantity: row.quantity,
           recordedAt: row.recorded_at,
-          nutritionStatus:
-            row.is_estimated === null
-              ? 'unknown'
-              : row.is_estimated
-                ? 'estimated'
-                : 'confirmed',
+          nutritionStatus: nutritionStatusFromIsEstimated(row.is_estimated),
         }))
         const hasEstimatedValues = entryParsed.data.some(
-          (row) => row.is_estimated === true,
+          (row) =>
+            nutritionStatusFromIsEstimated(row.is_estimated) === 'estimated',
         )
         const hasUnknownValues = entryParsed.data.some(
-          (row) => row.is_estimated === null,
+          (row) =>
+            nutritionStatusFromIsEstimated(row.is_estimated) === 'unknown',
         )
 
         return ok({

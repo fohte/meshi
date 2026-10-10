@@ -1,6 +1,7 @@
 import { z } from 'zod'
 
 import { NUTRIENT_CODES } from '#db/seed/nutrient-definitions'
+import { NUTRITION_STATUSES } from '#domain/food-master/types'
 import { toMealHistoryPayload } from '#domain/meal-history/mealHistoryPayload'
 import type { MealHistoryService } from '#domain/meal-history/types'
 import { MEAL_TYPES, type MealType } from '#domain/meal-log/types'
@@ -29,7 +30,7 @@ const queryMealHistoryEntrySchema = z.object({
   eaten_date: z.string(),
   meal_type: z.enum(MEAL_TYPES),
   quantity: z.number(),
-  nutrition_status: z.enum(['confirmed', 'estimated', 'unknown']),
+  nutrition_status: z.enum(NUTRITION_STATUSES),
 })
 
 // Exported so callers reading this tool's result back out of a serialized

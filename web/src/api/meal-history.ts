@@ -3,6 +3,7 @@ import { z } from 'zod'
 
 import { MEAL_TYPES } from '#api/day-detail'
 import type { ApiRequestError } from '#api/errors'
+import { nutritionStatusSchema } from '#api/nutrition-status'
 import { requestJson } from '#api/request'
 
 const mealHistoryEntrySchema = z.object({
@@ -12,7 +13,7 @@ const mealHistoryEntrySchema = z.object({
   eatenDate: z.string(),
   mealType: z.enum(MEAL_TYPES),
   quantity: z.number(),
-  nutritionStatus: z.enum(['confirmed', 'estimated', 'unknown']),
+  nutritionStatus: nutritionStatusSchema,
 })
 
 export type MealHistoryEntry = z.infer<typeof mealHistoryEntrySchema>

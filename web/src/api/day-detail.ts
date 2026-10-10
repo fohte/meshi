@@ -2,6 +2,7 @@ import type { ResultAsync } from 'neverthrow'
 import { z } from 'zod'
 
 import type { ApiRequestError } from '#api/errors'
+import { nutritionStatusSchema } from '#api/nutrition-status'
 import { requestJson } from '#api/request'
 
 export const MEAL_TYPES = ['breakfast', 'lunch', 'dinner', 'snack'] as const
@@ -16,7 +17,7 @@ const dayDetailEntrySchema = z.object({
   quantity: z.number(),
   kcal: z.number().nullable(),
   isEstimated: z.boolean(),
-  nutritionStatus: z.enum(['confirmed', 'estimated', 'unknown']),
+  nutritionStatus: nutritionStatusSchema,
 })
 
 export type DayDetailEntry = z.infer<typeof dayDetailEntrySchema>

@@ -1,5 +1,6 @@
 import { z } from 'zod'
 
+import type { NutritionStatus } from '#domain/food-master/types'
 import type { MealLogService } from '#domain/meal-log/meal-log-service'
 import { MEAL_TYPES } from '#domain/meal-log/types'
 import { jstDateSchema } from '#lib/jst-date'
@@ -25,7 +26,7 @@ export interface RecordMealLogOutput {
   readonly meal_log_id: string
   readonly nutrition: Readonly<Record<string, number>>
   readonly is_estimated: boolean
-  readonly nutrition_status: 'confirmed' | 'estimated' | 'unknown'
+  readonly nutrition_status: NutritionStatus
 }
 
 export const createRecordMealLogTool = (

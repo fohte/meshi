@@ -44,7 +44,10 @@ export const HistoryReportView = ({
   })
 
   const perDayTotals = new Map(
-    (query.data?.perDay ?? []).map((d) => [d.date, d.totals]),
+    (query.data?.perDay ?? []).map((day) => [
+      day.date,
+      { totals: day.totals, hasUnknownValues: day.hasUnknownValues },
+    ]),
   )
   const report = buildReportData(
     periodDates,
@@ -134,18 +137,31 @@ export const HistoryReportView = ({
                 />
               )}
               {report.days.map((day) => (
-                <div key={day.date} className={styles.barColumn}>
+                <div
+                  key={day.date}
+                  className={styles.barColumn}
+                  title={
+                    day.hasUnknownValues
+                      ? '栄養値不明の食事を含み、表示値は下限です'
+                      : undefined
+                  }
+                >
                   <div
                     className={styles.barFill}
                     data-state={
-                      day.isOverTarget
-                        ? 'over'
-                        : day.hasData
-                          ? 'filled'
-                          : 'empty'
+                      day.hasUnknownValues
+                        ? 'unknown'
+                        : day.isOverTarget
+                          ? 'over'
+                          : day.hasData
+                            ? 'filled'
+                            : 'empty'
                     }
                     style={{ height: `${String(day.heightPct)}%` }}
                   />
+                  {day.hasUnknownValues && (
+                    <span className={styles.unknownMark}>?</span>
+                  )}
                 </div>
               ))}
             </div>
@@ -169,6 +185,8 @@ export const HistoryReportView = ({
               <span className={styles.blockTitle}>主要栄養素の 1 日平均</span>
               <span className={styles.blockNote}>
                 {report.daysWithDataCount} 日分
+                {report.daysWithUnknownValuesCount > 0 &&
+                  ` · 不明を含む ${String(report.daysWithUnknownValuesCount)} 日は除外`}
               </span>
             </div>
             <div className={styles.avgRows}>
@@ -177,7 +195,9 @@ export const HistoryReportView = ({
                   <div className={styles.avgRowHead}>
                     <span className={styles.avgRowLabel}>{row.label}</span>
                     <span className={styles.avgRowValue}>
-                      {formatNutrientValue(row.value, row.unit)}
+                      {row.isUnknown
+                        ? '不明'
+                        : formatNutrientValue(row.value, row.unit)}
                     </span>
                     <span className={styles.avgRowTarget}>
                       {row.target === null
@@ -216,16 +236,22 @@ export const HistoryReportView = ({
                 {report.tableRows.map((row) => (
                   <tr key={row.code}>
                     <td>{row.label}</td>
-                    <td>{formatNutrientValue(row.value, row.unit)}</td>
+                    <td>
+                      {row.isUnknown
+                        ? '不明'
+                        : formatNutrientValue(row.value, row.unit)}
+                    </td>
                     <td>
                       {row.target === null
                         ? '—'
                         : formatNutrientValue(row.target, row.unit)}
                     </td>
                     <td data-over={row.over ? '' : undefined}>
-                      {row.target === null
-                        ? '—'
-                        : `${String(Math.round(row.pct))}%`}
+                      {row.isUnknown
+                        ? '不明'
+                        : row.target === null
+                          ? '—'
+                          : `${String(Math.round(row.pct))}%`}
                     </td>
                   </tr>
                 ))}

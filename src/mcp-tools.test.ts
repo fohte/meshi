@@ -836,7 +836,7 @@ describe('MeshiMcpServer tools/list', () => {
       )
       expect(descriptions).toEqual({
         search_foods:
-          '登録済み食品を複数の名前候補から検索し、食品名、kcal、推定値かどうかを返す。origin が homemade の場合のみ食品成分表の候補も返す。成分表候補は自炊の素材にだけ使い、買った商品や外食には使わない。成分表候補の energy_kcal は 100g あたり。',
+          '登録済み食品を複数の名前候補から検索し、食品名、kcal、栄養状態 (nutrition_status: confirmed / estimated / unknown) を返す。栄養値が不明な食品の kcal は null。origin が homemade の場合のみ食品成分表の候補も返す。成分表候補は自炊の素材にだけ使い、買った商品や外食には使わない。成分表候補の energy_kcal は 100g あたり。',
         register_food_from_composition:
           '食品成分表の composition_code から食品マスタを登録する。成分表候補は自炊の素材にだけ使い、買った商品や外食には使わない。栄養値は食品成分表から 100g あたりの値をコピーするため、入力では指定できない。',
       })

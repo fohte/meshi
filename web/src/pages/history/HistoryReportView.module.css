@@ -102,6 +102,7 @@
 
 .barColumn {
   flex: 1;
+  position: relative;
   display: flex;
   flex-direction: column;
   justify-content: flex-end;
@@ -118,6 +119,28 @@
 
 .barFill[data-state='empty'] {
   background: var(--color-track);
+}
+
+.barFill[data-state='unknown'] {
+  background: repeating-linear-gradient(
+    135deg,
+    var(--color-muted-2),
+    var(--color-muted-2) 2px,
+    transparent 2px,
+    transparent 4px
+  );
+}
+
+.unknownMark {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  color: var(--color-muted);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  text-align: center;
+  pointer-events: none;
 }
 
 .chartLabels {

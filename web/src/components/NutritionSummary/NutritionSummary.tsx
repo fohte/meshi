@@ -37,7 +37,7 @@ export const NutritionSummary = ({
 
       <div className={styles.energyRow}>
         <span className={styles.energyValue}>
-          {energy.isUnknown === true ? '不明' : Math.round(energy.value)}
+          {energy.isUnknown ? '不明' : Math.round(energy.value)}
         </span>
         <span className={styles.energyTarget}>
           / {energy.target === null ? '—' : Math.round(energy.target)} kcal
@@ -105,7 +105,7 @@ export const NutritionSummary = ({
             <div className={styles.majorRowHead}>
               <span className={styles.majorRowLabel}>{row.label}</span>
               <span className={styles.majorRowValue}>
-                {row.isUnknown === true
+                {row.isUnknown
                   ? '不明'
                   : formatNutrientValue(row.value, row.unit)}
               </span>
@@ -121,7 +121,7 @@ export const NutritionSummary = ({
                 data-over={row.over ? '' : undefined}
                 style={{
                   width: `${String(
-                    Math.min(100, row.isUnknown === true ? 0 : row.pct),
+                    Math.min(100, row.isUnknown ? 0 : row.pct),
                   )}%`,
                 }}
               />
@@ -160,7 +160,7 @@ export const NutritionSummary = ({
               <tr key={row.code}>
                 <td>{row.label}</td>
                 <td>
-                  {row.isUnknown === true
+                  {row.isUnknown
                     ? '不明'
                     : formatNutrientValue(row.value, row.unit)}
                 </td>

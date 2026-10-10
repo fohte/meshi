@@ -19,6 +19,7 @@ export interface HistoryListCard {
 export interface HistoryListDayTotals {
   readonly date: string
   readonly totals: Readonly<Record<string, number>>
+  readonly hasUnknownValues: boolean
 }
 
 const formatMonthSlashDay = (date: string): string =>
@@ -45,6 +46,10 @@ export const buildListCards = (
       const foodNames = foodNamesByDate.get(day.date) ?? []
       const kcal = Math.round(day.totals[ENERGY_CODE] ?? 0)
       const salt = day.totals[SALT_CODE] ?? 0
+      const energyIsUnknown =
+        day.hasUnknownValues && day.totals[ENERGY_CODE] === undefined
+      const saltIsUnknown =
+        day.hasUnknownValues && day.totals[SALT_CODE] === undefined
       const pct =
         energyTarget !== undefined && energyTarget > 0
           ? (kcal / energyTarget) * 100
@@ -55,9 +60,18 @@ export const buildListCards = (
         dayText: formatMonthSlashDay(day.date),
         dowText: weekdayLabelJa(day.date),
         summary: buildSummary(foodNames),
-        metaText: `${String(foodNames.length)} 品 · 塩分 ${salt.toFixed(1)} g`,
-        kcalText: `${String(kcal)} kcal`,
-        pctText: pct === null ? '—' : `${String(Math.round(pct))}%`,
+        metaText: `${String(foodNames.length)} 品 · 塩分 ${
+          saltIsUnknown
+            ? '不明'
+            : `${salt.toFixed(1)} g${day.hasUnknownValues ? ' 以上' : ''}`
+        }`,
+        kcalText: energyIsUnknown
+          ? '不明'
+          : `${String(kcal)} kcal${day.hasUnknownValues ? ' 以上' : ''}`,
+        pctText:
+          pct === null || energyIsUnknown
+            ? '—'
+            : `${String(Math.round(pct))}%${day.hasUnknownValues ? ' 以上' : ''}`,
         isOverTarget: pct !== null && pct > OVER_TARGET_PCT,
       }
     })

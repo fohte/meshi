@@ -2,6 +2,7 @@ import { errAsync, ok, ResultAsync } from 'neverthrow'
 import { z } from 'zod'
 
 import { ApiRequestError } from '#api/errors'
+import { nutritionStatusSchema } from '#api/nutrition-status'
 import { requestJson } from '#api/request'
 import { BoundaryError } from '#errors'
 
@@ -11,7 +12,6 @@ export const foodSourceSchema = z.enum([
   'user_input',
 ])
 export type FoodSource = z.infer<typeof foodSourceSchema>
-const nutritionStatusSchema = z.enum(['confirmed', 'estimated', 'unknown'])
 
 export const SOURCE_LABELS: Record<FoodSource, string> = {
   web_search: 'Web検索',

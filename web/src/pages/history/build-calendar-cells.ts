@@ -6,9 +6,15 @@ export interface CalendarCell {
   readonly date: string | null
   readonly day: number | null
   readonly kcal: number | null
+  readonly hasUnknownValues: boolean
   readonly isToday: boolean
   readonly isFuture: boolean
   readonly achievement: CalendarAchievement
+}
+
+export interface CalendarDayEnergy {
+  readonly kcal: number | undefined
+  readonly hasUnknownValues: boolean
 }
 
 const OVER_TARGET_RATIO = 1.1
@@ -26,11 +32,11 @@ const achievementFor = (
 }
 
 // monthStart must be a month's first day (e.g. from startOfJstMonth).
-// kcalByDate holds each JST calendar day's total energy_kcal.
+// energyByDate holds each JST calendar day's known energy and unknown status.
 export const buildCalendarCells = (
   monthStart: string,
   today: string,
-  kcalByDate: ReadonlyMap<string, number>,
+  energyByDate: ReadonlyMap<string, CalendarDayEnergy>,
   energyTarget: number | undefined,
 ): readonly CalendarCell[] => {
   const leadingBlanks: CalendarCell[] = Array.from(
@@ -39,6 +45,7 @@ export const buildCalendarCells = (
       date: null,
       day: null,
       kcal: null,
+      hasUnknownValues: false,
       isToday: false,
       isFuture: false,
       achievement: 'none',
@@ -50,14 +57,22 @@ export const buildCalendarCells = (
     daysInJstMonth(monthStart),
   ).map((date, i) => {
     const isFuture = date > today
-    const kcal = isFuture ? 0 : Math.round(kcalByDate.get(date) ?? 0)
+    const dayEnergy = energyByDate.get(date)
+    const hasUnknownValues = !isFuture && (dayEnergy?.hasUnknownValues ?? false)
+    const knownKcal = dayEnergy?.kcal
+    const kcal = isFuture ? null : Math.round(knownKcal ?? 0)
     return {
       date,
       day: i + 1,
-      kcal: isFuture ? null : kcal,
+      kcal:
+        isFuture || (hasUnknownValues && knownKcal === undefined) ? null : kcal,
+      hasUnknownValues,
       isToday: date === today,
       isFuture,
-      achievement: achievementFor(kcal, energyTarget),
+      achievement:
+        isFuture || hasUnknownValues
+          ? 'none'
+          : achievementFor(kcal ?? 0, energyTarget),
     }
   })
 

@@ -1,7 +1,14 @@
 export type FoodSource =
   'web_search' | 'composition_table_estimate' | 'user_input'
 
-export type NutritionStatus = 'confirmed' | 'estimated' | 'unknown'
+export const NUTRITION_STATUSES = ['confirmed', 'estimated', 'unknown'] as const
+
+export type NutritionStatus = (typeof NUTRITION_STATUSES)[number]
+
+export const nutritionStatusFromIsEstimated = (
+  isEstimated: boolean | null,
+): NutritionStatus =>
+  isEstimated === null ? 'unknown' : isEstimated ? 'estimated' : 'confirmed'
 
 type NutrientCode = string
 
