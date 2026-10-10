@@ -11,14 +11,8 @@ const stringify = Result.fromThrowable((value: unknown): string =>
 const safeStringify = (value: unknown): string | null =>
   stringify(value).unwrapOr(null)
 
-// Same envelope as createDomainToolsRegistry's executeToolUse (registry.ts)
-// and the orchestrator's encodeOk/encodeToolError (orchestrator.ts): each
-// LLM integration surface in this repo encodes DomainTool results as plain
-// JSON tool-message content rather than relying on a framework-specific
-// error channel, so the wire format stays uniform across MCP and agent
-// tool calls. Left as a third copy rather than extracted to a shared
-// helper: doing so would mean editing registry.ts/orchestrator.ts, which
-// are explicitly out of scope for this change.
+// Keep the tool-result JSON envelope consistent with
+// createDomainToolsRegistry.executeToolUse for callers using either path.
 const encodeOk = (value: unknown): string =>
   safeStringify(value) ??
   JSON.stringify({

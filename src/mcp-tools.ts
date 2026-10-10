@@ -7,7 +7,6 @@ import type { MealHistoryService } from '#domain/meal-history/types'
 import type { MealLogService } from '#domain/meal-log/meal-log-service'
 import type { MealSkipService } from '#domain/meal-skip/meal-skip-service'
 import type { UserProfileService } from '#domain/user-profile/user-profile-service'
-import type { ConversationOrchestrator } from '#llm/orchestrator/index'
 import type { Logger } from '#logger'
 import { registerDeleteMealLogTool } from '#mcp-tools/delete-meal-log'
 import { registerFoodFromCompositionTool } from '#mcp-tools/food-composition'
@@ -15,28 +14,18 @@ import { registerMealLoggingTools } from '#mcp-tools/meal-logging'
 import { registerMealSkipTools } from '#mcp-tools/meal-skip'
 import { registerMergeFoodMasterTool } from '#mcp-tools/merge-food-master'
 import {
-  buildMealRecordPayload,
   buildProfilePayload,
   errorResult,
-  logOrchestratorOutcome,
-  orchestratorCallToolResult,
   TOOL_CALLED,
   TOOL_SUCCEEDED,
 } from '#mcp-tools/payloads'
 import { registerQueryMealsTool } from '#mcp-tools/query-meals'
 import { registerRecommendationContextTool } from '#mcp-tools/recommendation'
 import { registerFoodTool } from '#mcp-tools/register-food'
-import {
-  mealRecordStructuredOutput,
-  profileStructuredOutput,
-  recordFromImageInput,
-  recordFromTextInput,
-  updateProfileInput,
-} from '#mcp-tools/schemas'
+import { profileStructuredOutput, updateProfileInput } from '#mcp-tools/schemas'
 import { registerUpdateMealLogTool } from '#mcp-tools/update-meal-log'
 
 export interface MeshiToolDeps {
-  readonly orchestrator: ConversationOrchestrator
   readonly mealHistoryService: MealHistoryService
   readonly profileService: UserProfileService
   readonly foodSearchService: FoodSearchService
@@ -51,7 +40,6 @@ export const registerMeshiTools = (
   deps: MeshiToolDeps,
 ): void => {
   const {
-    orchestrator,
     mealHistoryService,
     profileService,
     foodSearchService,
@@ -71,75 +59,6 @@ export const registerMeshiTools = (
 
   registerFoodTool(server, { foodMasterService, logger })
   registerMergeFoodMasterTool(server, { foodMasterService, logger })
-
-  server.registerTool(
-    'record_meal_from_text',
-    {
-      description:
-        'テキスト発話から食事ログを作成する。利用者の発話 + 任意の occurred_at / timezone を受け取り、内部 LLM 経由で食事ログを作成する。',
-      inputSchema: recordFromTextInput,
-      outputSchema: mealRecordStructuredOutput,
-    },
-    async (args) => {
-      logger.log(TOOL_CALLED, { tool: 'record_meal_from_text' })
-      // eslint-disable-next-line no-restricted-syntax -- orchestrator.recordFromText() already converts its own failures into result.error rather than rejecting; this guards against a genuinely unexpected throw so it gets structured TOOL_FAILED logging via errorResult() instead of the MCP SDK's own generic isError fallback
-      try {
-        const result = await orchestrator.recordFromText({
-          text: args.text,
-          ...(args.occurred_at === undefined
-            ? {}
-            : { occurredAt: new Date(args.occurred_at) }),
-          ...(args.timezone === undefined ? {} : { timezone: args.timezone }),
-        })
-        logOrchestratorOutcome(logger, 'record_meal_from_text', result.error, {
-          recorded: result.recorded.length,
-          candidates: result.candidates.length,
-        })
-        return orchestratorCallToolResult(
-          result.summaryText,
-          buildMealRecordPayload(result),
-          result.error,
-        )
-      } catch (err) {
-        return errorResult(logger, 'record_meal_from_text', err)
-      }
-    },
-  )
-
-  server.registerTool(
-    'record_meal_from_image',
-    {
-      description:
-        '画像 (MCP image content) + 任意の補助テキストから食事ログを作成する。外部 URL は受け取らず、常に MCP image content (base64) のみを受領する。',
-      inputSchema: recordFromImageInput,
-      outputSchema: mealRecordStructuredOutput,
-    },
-    async (args) => {
-      logger.log(TOOL_CALLED, { tool: 'record_meal_from_image' })
-      // eslint-disable-next-line no-restricted-syntax -- orchestrator.recordFromImage() already converts its own failures into result.error rather than rejecting; this guards against a genuinely unexpected throw so it gets structured TOOL_FAILED logging via errorResult() instead of the MCP SDK's own generic isError fallback
-      try {
-        const result = await orchestrator.recordFromImage({
-          image: { mimeType: args.image.mimeType, base64: args.image.data },
-          ...(args.hint_text === undefined ? {} : { hintText: args.hint_text }),
-          ...(args.occurred_at === undefined
-            ? {}
-            : { occurredAt: new Date(args.occurred_at) }),
-          ...(args.timezone === undefined ? {} : { timezone: args.timezone }),
-        })
-        logOrchestratorOutcome(logger, 'record_meal_from_image', result.error, {
-          recorded: result.recorded.length,
-          candidates: result.candidates.length,
-        })
-        return orchestratorCallToolResult(
-          result.summaryText,
-          buildMealRecordPayload(result),
-          result.error,
-        )
-      } catch (err) {
-        return errorResult(logger, 'record_meal_from_image', err)
-      }
-    },
-  )
 
   registerQueryMealsTool(server, { mealHistoryService, logger })
   registerDeleteMealLogTool(server, { mealLogService, logger })

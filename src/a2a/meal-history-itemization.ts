@@ -1,3 +1,4 @@
+import type { MealType } from '#domain/meal-log/types'
 import { parseJson } from '#lib/json'
 import {
   type AgentInvokeMessage,
@@ -8,9 +9,34 @@ import {
   queryMealHistoryOutputSchema,
   toMealHistoryEntryFields,
 } from '#llm/domain-tools/tools/query-meal-history'
-import { formatMealHistoryEntries } from '#llm/orchestrator/reply-formatter'
 
 const QUERY_MEAL_HISTORY_TOOL_NAME = 'query_meal_history'
+
+const MEAL_TYPE_LABEL: Readonly<Record<MealType, string>> = {
+  breakfast: '朝食',
+  lunch: '昼食',
+  dinner: '夕食',
+  snack: '間食',
+}
+
+const formatNumber = (value: number): string => {
+  if (!Number.isFinite(value)) return String(value)
+  if (Number.isInteger(value)) return String(value)
+  return value.toFixed(1)
+}
+
+const formatMealHistoryEntries = (
+  entries: ReadonlyArray<ReturnType<typeof toMealHistoryEntryFields>>,
+): string => {
+  const lines = [`明細 (${String(entries.length)} 件):`]
+  for (const entry of entries) {
+    const quantity = formatNumber(entry.quantity)
+    lines.push(
+      `- ${entry.eatenDate} ${MEAL_TYPE_LABEL[entry.mealType]} ${entry.foodName} × ${quantity}`,
+    )
+  }
+  return lines.join('\n')
+}
 
 // Finds the most recent query_meal_history tool result produced after the
 // turn's own human message — not just anywhere in the thread — so a history

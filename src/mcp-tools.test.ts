@@ -44,15 +44,6 @@ import type {
   UserProfilePatch,
 } from '#domain/user-profile/user-profile'
 import type { UserProfileService } from '#domain/user-profile/user-profile-service'
-import type {
-  ConversationOrchestrator,
-  MealRecordResult,
-  OrchestratorError,
-} from '#llm/orchestrator/index'
-import type {
-  RecordFromImageInput,
-  RecordFromTextInput,
-} from '#llm/orchestrator/types'
 import type { Logger } from '#logger'
 import { createMcpServer } from '#mcp'
 import { jstDate } from '#test/jst-date'
@@ -89,49 +80,6 @@ const makeLogger = (sink: LogEntry[]): Logger => ({
     sink.push({ event, payload: payload ?? {} })
   },
 })
-
-const successMealRecord: MealRecordResult = {
-  recorded: [
-    {
-      mealLogId: 'log-1',
-      foodMasterId: 'food-1',
-      nutrition: { energy_kcal: 312 },
-      isEstimated: false,
-    },
-  ],
-  candidates: [],
-  hasEstimatedValues: false,
-  summaryText: '白米 200g を記録しました。',
-  error: null,
-}
-
-const candidateMealRecord: MealRecordResult = {
-  recorded: [],
-  candidates: [
-    {
-      foodMasterId: 'food-9',
-      compositionCode: null,
-      name: '白米',
-      isEstimated: false,
-      score: 0.5,
-      reason: 'history_recent',
-    },
-  ],
-  hasEstimatedValues: false,
-  summaryText: '食品を一意に特定できませんでした。',
-  error: null,
-}
-
-const erroredMealRecord: MealRecordResult = {
-  recorded: [],
-  candidates: [],
-  hasEstimatedValues: false,
-  summaryText: '処理が長くなったため中断しました。',
-  error: {
-    kind: 'max_turns_exceeded',
-    message: 'max turns',
-  } satisfies OrchestratorError,
-}
 
 const successMealHistory: MealHistoryAggregate = {
   totals: { energy_kcal: 1850 },
@@ -173,38 +121,6 @@ const recordedMealLogItems: ReadonlyArray<RecordMealLogItemResult> = [
     isEstimated: false,
   },
 ]
-
-interface OrchestratorCalls {
-  recordFromText: RecordFromTextInput[]
-  recordFromImage: RecordFromImageInput[]
-}
-
-interface OrchestratorOverrides {
-  recordFromText?: MealRecordResult | Error
-  recordFromImage?: MealRecordResult | Error
-}
-
-const makeOrchestrator = (
-  overrides: OrchestratorOverrides = {},
-): { orchestrator: ConversationOrchestrator; calls: OrchestratorCalls } => {
-  const calls: OrchestratorCalls = {
-    recordFromText: [],
-    recordFromImage: [],
-  }
-  const resolve = <T>(value: T | Error): Promise<T> =>
-    value instanceof Error ? Promise.reject(value) : Promise.resolve(value)
-  const orchestrator: ConversationOrchestrator = {
-    recordFromText(input) {
-      calls.recordFromText.push(input)
-      return resolve(overrides.recordFromText ?? successMealRecord)
-    },
-    recordFromImage(input) {
-      calls.recordFromImage.push(input)
-      return resolve(overrides.recordFromImage ?? successMealRecord)
-    },
-  }
-  return { orchestrator, calls }
-}
 
 interface MealHistoryCalls {
   query: { periodFrom: string; periodTo: string }[]
@@ -562,7 +478,6 @@ const makeMealSkipService = (
 interface Harness {
   client: Client
   logs: LogEntry[]
-  calls: OrchestratorCalls
   mealHistoryCalls: MealHistoryCalls
   mealLogCalls: MealLogCalls
   mealSkipCalls: MealSkipCalls
@@ -573,7 +488,6 @@ interface Harness {
 }
 
 interface HarnessConfig {
-  orchestratorOverrides?: OrchestratorOverrides
   mealHistoryOverrides?: {
     query?: MealHistoryAggregate | MealHistoryQueryError | (() => never)
   }
@@ -599,9 +513,6 @@ interface HarnessConfig {
 const start = async (config: HarnessConfig = {}): Promise<Harness> => {
   const logs: LogEntry[] = []
   const logger = makeLogger(logs)
-  const { orchestrator, calls } = makeOrchestrator(
-    config.orchestratorOverrides ?? {},
-  )
   const { service: mealHistoryService, calls: mealHistoryCalls } =
     makeMealHistoryService(config.mealHistoryOverrides ?? {})
   const foodMasterCalls: FoodMasterCalls = {
@@ -641,7 +552,6 @@ const start = async (config: HarnessConfig = {}): Promise<Harness> => {
     },
   }
   const server = createMcpServer({
-    orchestrator,
     foodMasterService,
     mealHistoryService,
     mealLogService,
@@ -658,7 +568,6 @@ const start = async (config: HarnessConfig = {}): Promise<Harness> => {
   return {
     client,
     logs,
-    calls,
     mealHistoryCalls,
     mealLogCalls,
     mealSkipCalls,
@@ -673,7 +582,7 @@ const start = async (config: HarnessConfig = {}): Promise<Harness> => {
 }
 
 describe('MeshiMcpServer tools/list', () => {
-  it('exposes the fifteen public tools with stable names', async () => {
+  it('exposes the thirteen public tools with stable names', async () => {
     const h = await start()
     try {
       const result = await h.client.listTools()
@@ -685,8 +594,6 @@ describe('MeshiMcpServer tools/list', () => {
         'get_recommendation_context',
         'merge_food_master',
         'query_meals',
-        'record_meal_from_image',
-        'record_meal_from_text',
         'record_meal_log',
         'record_meal_skip',
         'register_food',
@@ -777,13 +684,6 @@ describe('MeshiMcpServer tools/list', () => {
         query_meals: ['period_from', 'period_to'],
         record_meal_log: ['date', 'items', 'meal_type'],
         record_meal_skip: ['date', 'meal_type'],
-        record_meal_from_image: [
-          'hint_text',
-          'image',
-          'occurred_at',
-          'timezone',
-        ],
-        record_meal_from_text: ['occurred_at', 'text', 'timezone'],
         register_food_from_composition: ['aliases', 'composition_code', 'name'],
         search_foods: ['limit', 'origin', 'queries'],
         register_food: [
@@ -1139,234 +1039,6 @@ describe('merge_food_master', () => {
   })
 })
 
-describe('record_meal_from_text', () => {
-  it('returns structuredContent + content[].text and logs tool_called/tool_succeeded', async () => {
-    const h = await start()
-    try {
-      const result = await h.client.callTool({
-        name: 'record_meal_from_text',
-        arguments: {
-          text: '白米 200g',
-          occurred_at: '2026-06-12T12:30:00+09:00',
-          timezone: 'Asia/Tokyo',
-        },
-      })
-      expect(result).toEqual({
-        content: [{ type: 'text', text: '白米 200g を記録しました。' }],
-        structuredContent: {
-          recorded: [
-            {
-              meal_log_id: 'log-1',
-              food_master_id: 'food-1',
-              nutrition: { energy_kcal: 312 },
-              is_estimated: false,
-            },
-          ],
-          candidates: [],
-          has_estimated_values: false,
-          error: null,
-        },
-      })
-      expect(h.calls.recordFromText).toEqual([
-        {
-          text: '白米 200g',
-          occurredAt: new Date('2026-06-12T12:30:00+09:00'),
-          timezone: 'Asia/Tokyo',
-        },
-      ])
-      expect(h.logs.map((l) => l.event)).toEqual([
-        'meshi.tool_called',
-        'meshi.tool_succeeded',
-      ])
-    } finally {
-      await h.close()
-    }
-  })
-
-  it('rejects calls missing the required text field without invoking the orchestrator', async () => {
-    const h = await start()
-    try {
-      const result = await h.client.callTool({
-        name: 'record_meal_from_text',
-        arguments: {},
-      })
-      expect(normalizeValidationError(result)).toEqual({
-        content: [{ type: 'text', text: VALIDATION_ERROR_TEXT }],
-        isError: true,
-      })
-      expect(h.calls.recordFromText).toEqual([])
-      // Schema validation fails before the handler runs, so neither
-      // tool_called nor tool_failed fires.
-      expect(h.logs.map((l) => l.event)).toEqual([])
-    } finally {
-      await h.close()
-    }
-  })
-
-  it('marks the result as isError when the orchestrator surfaces an error', async () => {
-    const h = await start({
-      orchestratorOverrides: { recordFromText: erroredMealRecord },
-    })
-    try {
-      const result = await h.client.callTool({
-        name: 'record_meal_from_text',
-        arguments: { text: 'foo' },
-      })
-      expect(result).toEqual({
-        content: [{ type: 'text', text: '処理が長くなったため中断しました。' }],
-        structuredContent: {
-          recorded: [],
-          candidates: [],
-          has_estimated_values: false,
-          error: { kind: 'max_turns_exceeded', message: 'max turns' },
-        },
-        isError: true,
-      })
-      expect(h.logs.map((l) => l.event)).toEqual([
-        'meshi.tool_called',
-        'meshi.tool_failed',
-      ])
-    } finally {
-      await h.close()
-    }
-  })
-
-  it('returns isError, omits structuredContent, and emits tool_failed on orchestrator throw', async () => {
-    const h = await start({
-      orchestratorOverrides: { recordFromText: new Error('boom') },
-    })
-    try {
-      const result = await h.client.callTool({
-        name: 'record_meal_from_text',
-        arguments: { text: 'foo' },
-      })
-      expect(result).toEqual({
-        content: [{ type: 'text', text: 'boom' }],
-        isError: true,
-      })
-      expect(h.logs.map((l) => l.event)).toEqual([
-        'meshi.tool_called',
-        'meshi.tool_failed',
-      ])
-    } finally {
-      await h.close()
-    }
-  })
-
-  it('passes candidates through structuredContent when nothing was recorded', async () => {
-    const h = await start({
-      orchestratorOverrides: { recordFromText: candidateMealRecord },
-    })
-    try {
-      const result = await h.client.callTool({
-        name: 'record_meal_from_text',
-        arguments: { text: 'rice' },
-      })
-      expect(result).toEqual({
-        content: [{ type: 'text', text: '食品を一意に特定できませんでした。' }],
-        structuredContent: {
-          recorded: [],
-          candidates: [
-            {
-              food_master_id: 'food-9',
-              composition_code: null,
-              name: '白米',
-              is_estimated: false,
-              score: 0.5,
-              reason: 'history_recent',
-            },
-          ],
-          has_estimated_values: false,
-          error: null,
-        },
-      })
-    } finally {
-      await h.close()
-    }
-  })
-})
-
-describe('record_meal_from_image', () => {
-  const base64 = Buffer.from('hello').toString('base64')
-
-  it('accepts MCP image content and bridges it to the orchestrator', async () => {
-    const h = await start()
-    try {
-      const result = await h.client.callTool({
-        name: 'record_meal_from_image',
-        arguments: {
-          image: { type: 'image', mimeType: 'image/png', data: base64 },
-          hint_text: 'ラーメン',
-        },
-      })
-      expect(result).toEqual({
-        content: [{ type: 'text', text: '白米 200g を記録しました。' }],
-        structuredContent: {
-          recorded: [
-            {
-              meal_log_id: 'log-1',
-              food_master_id: 'food-1',
-              nutrition: { energy_kcal: 312 },
-              is_estimated: false,
-            },
-          ],
-          candidates: [],
-          has_estimated_values: false,
-          error: null,
-        },
-      })
-      expect(h.calls.recordFromImage).toEqual([
-        {
-          image: { mimeType: 'image/png', base64 },
-          hintText: 'ラーメン',
-        },
-      ])
-    } finally {
-      await h.close()
-    }
-  })
-
-  it.each([
-    {
-      label: 'external https URL',
-      data: 'https://example.com/photo.png',
-      mimeType: 'image/png' as const,
-    },
-    {
-      label: 'data: URL prefix',
-      data: `data:image/png;base64,${base64}`,
-      mimeType: 'image/png' as const,
-    },
-    {
-      label: 'unsupported mime type',
-      data: base64,
-      // eslint-disable-next-line @typescript-eslint/no-unsafe-type-assertion -- intentionally probing an unsupported value to verify the enum constraint.
-      mimeType: 'image/heic' as 'image/png',
-    },
-  ])(
-    'rejects $label without invoking the orchestrator',
-    async ({ data, mimeType }) => {
-      const h = await start()
-      try {
-        const result = await h.client.callTool({
-          name: 'record_meal_from_image',
-          arguments: {
-            image: { type: 'image', mimeType, data },
-          },
-        })
-        expect(normalizeValidationError(result)).toEqual({
-          content: [{ type: 'text', text: VALIDATION_ERROR_TEXT }],
-          isError: true,
-        })
-        expect(h.calls.recordFromImage).toEqual([])
-        expect(h.logs.map((l) => l.event)).toEqual([])
-      } finally {
-        await h.close()
-      }
-    },
-  )
-})
-
 describe('query_meals', () => {
   it('returns the selected period aggregate with actionable meal entries', async () => {
     const h = await start()
@@ -1415,25 +1087,6 @@ describe('query_meals', () => {
       expect(h.mealHistoryCalls.query).toEqual([
         { periodFrom: '2026-06-08', periodTo: '2026-06-15' },
       ])
-    } finally {
-      await h.close()
-    }
-  })
-
-  it('does not invoke the LLM orchestrator', async () => {
-    const h = await start()
-    try {
-      await h.client.callTool({
-        name: 'query_meals',
-        arguments: {
-          period_from: '2026-06-08',
-          period_to: '2026-06-15',
-        },
-      })
-      expect(h.calls).toEqual({
-        recordFromText: [],
-        recordFromImage: [],
-      })
     } finally {
       await h.close()
     }
@@ -1591,7 +1244,6 @@ describe('delete_meal_log', () => {
         observation({
           result,
           mealLogCalls: h.mealLogCalls,
-          orchestratorCalls: h.calls,
           logs: h.logs,
         }),
       ).toEqual({
@@ -1623,10 +1275,6 @@ describe('delete_meal_log', () => {
           update: [],
           delete: [],
           deleteMany: [['mcp_fixture_meal_alpha', 'mcp_fixture_meal_beta']],
-        },
-        orchestratorCalls: {
-          recordFromText: [],
-          recordFromImage: [],
         },
         logs: [
           {
@@ -1779,7 +1427,6 @@ describe('record_meal_skip', () => {
         observation({
           result,
           mealSkipCalls: h.mealSkipCalls,
-          orchestratorCalls: h.calls,
           logs: h.logs,
         }),
       ).toEqual({
@@ -1795,7 +1442,6 @@ describe('record_meal_skip', () => {
           record: [{ date: '2026-04-17', mealType: 'breakfast' }],
           cancel: [],
         },
-        orchestratorCalls: { recordFromText: [], recordFromImage: [] },
         logs: [
           {
             event: 'meshi.tool_called',
@@ -1895,7 +1541,6 @@ describe('cancel_meal_skip', () => {
         observation({
           result,
           mealSkipCalls: h.mealSkipCalls,
-          orchestratorCalls: h.calls,
           logs: h.logs,
         }),
       ).toEqual({
@@ -1910,7 +1555,6 @@ describe('cancel_meal_skip', () => {
           record: [],
           cancel: [{ date: '2026-04-17', mealType: 'breakfast' }],
         },
-        orchestratorCalls: { recordFromText: [], recordFromImage: [] },
         logs: [
           {
             event: 'meshi.tool_called',
@@ -1987,7 +1631,6 @@ describe('update_meal_log', () => {
         observation({
           result,
           mealLogCalls: h.mealLogCalls,
-          orchestratorCalls: h.calls,
         }),
       ).toEqual({
         result: {
@@ -2016,10 +1659,6 @@ describe('update_meal_log', () => {
           ],
           delete: [],
           deleteMany: [],
-        },
-        orchestratorCalls: {
-          recordFromText: [],
-          recordFromImage: [],
         },
       })
     } finally {
@@ -2238,22 +1877,6 @@ describe('get_recommendation_context', () => {
     }
   })
 
-  it('does not invoke the LLM orchestrator', async () => {
-    const h = await start()
-    try {
-      await h.client.callTool({
-        name: 'get_recommendation_context',
-        arguments: recommendationPeriod,
-      })
-      expect(h.calls).toEqual({
-        recordFromText: [],
-        recordFromImage: [],
-      })
-    } finally {
-      await h.close()
-    }
-  })
-
   it('returns an error without context when profile retrieval fails', async () => {
     const h = await start({
       profileOverrides: {
@@ -2432,7 +2055,7 @@ describe('get_profile / update_profile', () => {
 })
 
 describe('search_foods', () => {
-  it('passes multiple search terms to the food service without calling the orchestrator', async () => {
+  it('passes multiple search terms to the food service', async () => {
     const h = await start()
     try {
       const result = await h.client.callTool({
@@ -2447,7 +2070,6 @@ describe('search_foods', () => {
         observation({
           result,
           searchCalls: h.directMealToolCalls.foodSearch,
-          orchestratorCalls: h.calls,
         }),
       ).toEqual({
         result: {
@@ -2473,10 +2095,6 @@ describe('search_foods', () => {
             origin: 'retail',
           },
         ],
-        orchestratorCalls: {
-          recordFromText: [],
-          recordFromImage: [],
-        },
       })
     } finally {
       await h.close()
@@ -2552,7 +2170,6 @@ describe('search_foods', () => {
         observation({
           result,
           searchCalls: h.directMealToolCalls.foodSearch,
-          orchestratorCalls: h.calls,
         }),
       ).toEqual({
         result: {
@@ -2583,10 +2200,6 @@ describe('search_foods', () => {
             origin: 'homemade',
           },
         ],
-        orchestratorCalls: {
-          recordFromText: [],
-          recordFromImage: [],
-        },
       })
     } finally {
       await h.close()
@@ -2595,7 +2208,7 @@ describe('search_foods', () => {
 })
 
 describe('register_food_from_composition', () => {
-  it('registers a composition-backed food without calling the orchestrator', async () => {
+  it('registers a composition-backed food', async () => {
     const foodMaster: FoodMaster = {
       id: 'fm_composition_tool_alpha',
       name: 'composition_tool_alpha',
@@ -2627,7 +2240,6 @@ describe('register_food_from_composition', () => {
         observation({
           result,
           foodMasterCalls: h.foodMasterCalls,
-          orchestratorCalls: h.calls,
           logs: h.logs,
         }),
       ).toEqual({
@@ -2649,10 +2261,6 @@ describe('register_food_from_composition', () => {
             },
           ],
           merge: [],
-        },
-        orchestratorCalls: {
-          recordFromText: [],
-          recordFromImage: [],
         },
         logs: [
           {
@@ -2718,7 +2326,7 @@ describe('register_food_from_composition', () => {
 })
 
 describe('register_food', () => {
-  it('registers the supplied one-unit nutrition through FoodMasterService without calling the orchestrator', async () => {
+  it('registers the supplied one-unit nutrition through FoodMasterService', async () => {
     const calls: Array<{
       input: RegisterFoodMasterInput
       confirmedDistinctFromMasterIds?: ReadonlyArray<string>
@@ -2764,9 +2372,7 @@ describe('register_food', () => {
         },
       })
 
-      expect(
-        observation({ result, calls, orchestratorCalls: h.calls }),
-      ).toEqual({
+      expect(observation({ result, calls })).toEqual({
         result: {
           content: [{ type: 'text', text: '食品を登録しました。' }],
           structuredContent: {
@@ -2787,7 +2393,6 @@ describe('register_food', () => {
             confirmedDistinctFromMasterIds: ['fm_candidate_alpha'],
           },
         ],
-        orchestratorCalls: { recordFromText: [], recordFromImage: [] },
       })
     } finally {
       await h.close()
@@ -2831,7 +2436,7 @@ describe('register_food', () => {
     }
   })
 
-  it('returns similar-name candidates in the structured error and does not call the orchestrator', async () => {
+  it('returns similar-name candidates in the structured error', async () => {
     const calls: Array<{
       input: RegisterFoodMasterInput
       confirmedDistinctFromMasterIds?: ReadonlyArray<string>
@@ -2875,9 +2480,7 @@ describe('register_food', () => {
         },
       })
 
-      expect(
-        observation({ result, calls, orchestratorCalls: h.calls }),
-      ).toEqual({
+      expect(observation({ result, calls })).toEqual({
         result: {
           isError: true,
           content: [{ type: 'text', text: message }],
@@ -2905,7 +2508,6 @@ describe('register_food', () => {
             },
           },
         ],
-        orchestratorCalls: { recordFromText: [], recordFromImage: [] },
       })
     } finally {
       await h.close()
@@ -2914,7 +2516,7 @@ describe('register_food', () => {
 })
 
 describe('record_meal_log', () => {
-  it('records resolved food IDs directly without calling the orchestrator', async () => {
+  it('records resolved food IDs directly', async () => {
     const h = await start()
     try {
       const result = await h.client.callTool({
@@ -2936,7 +2538,6 @@ describe('record_meal_log', () => {
         observation({
           result,
           recordCalls: h.directMealToolCalls.recordMealLogs,
-          orchestratorCalls: h.calls,
         }),
       ).toEqual({
         result: {
@@ -2968,10 +2569,6 @@ describe('record_meal_log', () => {
             ],
           },
         ],
-        orchestratorCalls: {
-          recordFromText: [],
-          recordFromImage: [],
-        },
       })
     } finally {
       await h.close()
@@ -2994,7 +2591,6 @@ describe('record_meal_log', () => {
         observation({
           result: normalizeValidationError(result),
           recordCalls: h.directMealToolCalls.recordMealLogs,
-          orchestratorCalls: h.calls,
           logs: h.logs,
         }),
       ).toEqual({
@@ -3003,10 +2599,6 @@ describe('record_meal_log', () => {
           isError: true,
         },
         recordCalls: [],
-        orchestratorCalls: {
-          recordFromText: [],
-          recordFromImage: [],
-        },
         logs: [],
       })
     } finally {

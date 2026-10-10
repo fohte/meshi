@@ -14,14 +14,8 @@ import { MealSkipPersistenceError } from '#domain/meal-skip/errors'
 import type { MealSkipService } from '#domain/meal-skip/meal-skip-service'
 import { UserProfileRepositoryError } from '#domain/user-profile/errors'
 import type { UserProfileService } from '#domain/user-profile/user-profile-service'
-import type { ConversationOrchestrator } from '#llm/orchestrator/index'
 import { createNullLogger } from '#logger'
 import type { MeshiToolDeps } from '#mcp-tools'
-
-const rejectingOrchestrator: ConversationOrchestrator = {
-  recordFromText: () => Promise.reject(new Error('stub')),
-  recordFromImage: () => Promise.reject(new Error('stub')),
-}
 
 const rejectingMealHistoryService: MealHistoryService = {
   query: () => errAsync(new MealHistoryQueryError('stub')),
@@ -69,7 +63,6 @@ const rejectingMealSkipService: MealSkipService = {
 }
 
 export const createStubMcpDeps = (): MeshiToolDeps => ({
-  orchestrator: rejectingOrchestrator,
   mealHistoryService: rejectingMealHistoryService,
   profileService: rejectingProfileService,
   mealLogService: rejectingMealLogService,

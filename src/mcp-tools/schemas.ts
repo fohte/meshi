@@ -1,49 +1,12 @@
 import { z } from 'zod'
 
-import { SUPPORTED_IMAGE_MIME_TYPES } from '#adapters/image/image-types'
 import { hasDuplicateAfterTrim } from '#domain/food-master/validation'
 import { MEAL_TYPES } from '#domain/meal-log/types'
 import { jstDateSchema } from '#lib/jst-date'
 
-const isoDatetime = z.iso.datetime({ offset: true })
 // z.number() rejects NaN and Infinity by default in zod v4, so it is safe to
 // reuse this schema on the MCP input boundary (update_profile.daily_targets).
 const nutritionMap = z.record(z.string().min(1), z.number())
-
-const recordedMealOutput = z.object({
-  meal_log_id: z.string(),
-  food_master_id: z.string(),
-  nutrition: nutritionMap,
-  is_estimated: z.boolean(),
-})
-
-const foodCandidateOutput = z.object({
-  food_master_id: z.string().nullable(),
-  composition_code: z.string().nullable(),
-  name: z.string(),
-  is_estimated: z.boolean(),
-  score: z.number(),
-  reason: z.string(),
-})
-
-const orchestratorErrorOutput = z
-  .object({
-    kind: z.enum([
-      'max_turns_exceeded',
-      'divergence_detected',
-      'interpretation_failed',
-      'item_conversation_failed',
-    ]),
-    message: z.string(),
-  })
-  .nullable()
-
-export const mealRecordStructuredOutput = z.object({
-  recorded: z.array(recordedMealOutput),
-  candidates: z.array(foodCandidateOutput),
-  has_estimated_values: z.boolean(),
-  error: orchestratorErrorOutput,
-})
 
 export const mealHistoryStructuredOutput = z.object({
   totals: nutritionMap,
@@ -84,46 +47,6 @@ export const profileStructuredOutput = z.object({
 export const recommendationContextStructuredOutput = z.object({
   profile: profileStructuredOutput,
   history: mealHistoryStructuredOutput,
-})
-
-export const recordFromTextInput = z.object({
-  text: z.string().min(1).describe('利用者の自然言語発話'),
-  occurred_at: isoDatetime
-    .optional()
-    .describe('発話時刻 (未指定なら meshi が現在時刻を使う)'),
-  timezone: z
-    .string()
-    .min(1)
-    .optional()
-    .describe('IANA timezone (例: Asia/Tokyo)'),
-})
-
-const base64Data = z
-  .string()
-  .min(1)
-  .regex(
-    /^[A-Za-z0-9+/]+={0,2}$/,
-    'image.data must be raw base64 (no data: URL prefix, no http(s):// URL, no whitespace)',
-  )
-  .describe('base64 (no data: prefix, no URL)')
-
-const imageContentInput = z
-  .object({
-    type: z.literal('image'),
-    mimeType: z.enum([...SUPPORTED_IMAGE_MIME_TYPES]),
-    data: base64Data,
-  })
-  .describe('MCP image content. 外部 URL は受け取らない。')
-
-export const recordFromImageInput = z.object({
-  image: imageContentInput,
-  hint_text: z
-    .string()
-    .min(1)
-    .optional()
-    .describe('画像と一緒に渡される補助発話 (任意)'),
-  occurred_at: isoDatetime.optional(),
-  timezone: z.string().min(1).optional(),
 })
 
 export const queryMealsInput = z.object({

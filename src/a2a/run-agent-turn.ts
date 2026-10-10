@@ -66,10 +66,8 @@ export interface MeshiDomainAgentLike {
 const USAGE_LIMIT_ERROR_KIND = 'usage_limit'
 const NO_USABLE_REPLY_FINGERPRINT = 'a2a.agent-executor.no-usable-reply'
 
-// meshi is @fohte's personal meal management service (see README) — a
-// single user in a single timezone — and the A2A transport (unlike the MCP
-// tool inputs in domain-agent-orchestrator.ts) carries no per-request
-// timezone signal to read instead.
+// The A2A transport carries no per-request timezone signal, so the agent
+// uses the service's single-user timezone.
 const AGENT_TIMEZONE = 'Asia/Tokyo'
 
 // Grounds the LLM in the actual current date/time so it can resolve a
