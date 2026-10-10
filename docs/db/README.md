@@ -12,8 +12,6 @@
 | [public.meal_logs](public.meal_logs.md)                                   | 6       | Recorded food consumption entries.                                               | BASE TABLE |
 | [public.nutrient_definitions](public.nutrient_definitions.md)             | 5       | Catalog of nutrient codes, names, units, and display ordering.                   | BASE TABLE |
 | [public.user_profiles](public.user_profiles.md)                           | 7       | The singleton user profile for preferences and daily nutrition targets.          | BASE TABLE |
-| [public.a2a_push_configs](public.a2a_push_configs.md)                     | 4       | Persisted A2A push notification configurations.                                  | BASE TABLE |
-| [public.a2a_tasks](public.a2a_tasks.md)                                   | 7       | Persisted A2A tasks used for task retrieval and lifecycle management.            | BASE TABLE |
 | [public.meal_skips](public.meal_skips.md)                                 | 4       | Meals marked as skipped for a date and meal type.                                | BASE TABLE |
 
 ## Stored procedures and functions
@@ -54,12 +52,11 @@
 
 ## Enums
 
-| Name                  | Values                                                                                            |
-| --------------------- | ------------------------------------------------------------------------------------------------- |
-| public.a2a_task_state | auth-required, canceled, completed, failed, input-required, rejected, submitted, unknown, working |
-| public.food_source    | composition_table_estimate, user_input, web_search                                                |
-| public.meal_type      | breakfast, dinner, lunch, snack                                                                   |
-| public.nutrient_unit  | g, kcal, mg, µg                                                                                   |
+| Name                 | Values                                             |
+| -------------------- | -------------------------------------------------- |
+| public.food_source   | composition_table_estimate, user_input, web_search |
+| public.meal_type     | breakfast, dinner, lunch, snack                    |
+| public.nutrient_unit | g, kcal, mg, µg                                    |
 
 ## Relations
 
@@ -125,21 +122,6 @@ erDiagram
   text__ constraints
   jsonb daily_targets
   timestamp_with_time_zone updated_at
-}
-"public.a2a_push_configs" {
-  text task_id
-  text config_id
-  jsonb config
-  timestamp_with_time_zone created_at
-}
-"public.a2a_tasks" {
-  text task_id
-  text context_id
-  a2a_task_state state
-  timestamp_with_time_zone status_timestamp
-  text protocol_version
-  jsonb task
-  timestamp_with_time_zone created_at
 }
 "public.meal_skips" {
   text id

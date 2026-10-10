@@ -1,7 +1,6 @@
 import postgres from 'postgres'
 
 import { runMigrations } from '#db/migrations'
-import { setupMeshiCheckpointSchema } from '#llm/agent/checkpointer'
 
 export default async function setup(): Promise<void> {
   // No-op when TEST_DATABASE_URL is unset so unit-only runs don't need a DB.
@@ -18,5 +17,4 @@ export default async function setup(): Promise<void> {
   } finally {
     await sql.end({ timeout: 5 })
   }
-  await setupMeshiCheckpointSchema(url)
 }

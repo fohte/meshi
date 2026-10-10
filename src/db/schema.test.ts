@@ -12,8 +12,6 @@ describeIfDb('schema migrations', () => {
       ORDER BY table_name
     `
     expect(rows.map((r) => r.table_name)).toEqual([
-      'a2a_push_configs',
-      'a2a_tasks',
       'food_composition_nutrients',
       'food_compositions',
       'food_master_aliases',
@@ -33,7 +31,7 @@ describeIfDb('schema migrations', () => {
              array_agg(e.enumlabel ORDER BY e.enumsortorder) AS labels
       FROM pg_type t
       JOIN pg_enum e ON e.enumtypid = t.oid
-      WHERE t.typname IN ('food_source', 'nutrient_unit', 'meal_type')
+      WHERE t.typname IN ('a2a_task_state', 'food_source', 'nutrient_unit', 'meal_type')
       GROUP BY t.typname
       ORDER BY t.typname
     `
@@ -48,6 +46,16 @@ describeIfDb('schema migrations', () => {
       },
       { typname: 'nutrient_unit', labels: ['kcal', 'g', 'mg', 'µg'] },
     ])
+  })
+
+  it('removes the LangGraph checkpoint schema', async () => {
+    const sql = getTestSql()
+    const rows = await sql<{ schema_name: string }[]>`
+      SELECT schema_name
+      FROM information_schema.schemata
+      WHERE schema_name = 'langgraph'
+    `
+    expect(rows).toEqual([])
   })
 
   it('installs the pg_trgm extension', async () => {
@@ -227,14 +235,6 @@ describeIfDb('schema migrations', () => {
       ORDER BY c.conname
     `
     expect(rows).toEqual([
-      {
-        conname: 'a2a_push_configs_config_object',
-        table_name: 'a2a_push_configs',
-      },
-      {
-        conname: 'a2a_tasks_task_object',
-        table_name: 'a2a_tasks',
-      },
       {
         conname: 'food_composition_nutrients_value_nonneg',
         table_name: 'food_composition_nutrients',

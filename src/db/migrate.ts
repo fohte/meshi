@@ -1,7 +1,6 @@
 import { createSql } from '#db/index'
 import { runMigrations } from '#db/migrations'
 import { EnvError, requireDatabaseUrl } from '#env'
-import { setupMeshiCheckpointSchema } from '#llm/agent/checkpointer'
 
 // infra runs this as `node dist/db/migrate.js` in an init container.
 const main = async (): Promise<void> => {
@@ -10,7 +9,6 @@ const main = async (): Promise<void> => {
   // eslint-disable-next-line no-restricted-syntax -- standalone init-container script; try/finally only guarantees sql.end() runs, main().catch() below is the top-level failure boundary
   try {
     await runMigrations(sql)
-    await setupMeshiCheckpointSchema(databaseUrl)
     console.log('migrations applied')
   } finally {
     await sql.end({ timeout: 5 })
