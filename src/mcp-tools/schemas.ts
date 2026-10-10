@@ -149,6 +149,22 @@ export const registerFoodFromCompositionStructuredOutput = z.object({
   name: z.string(),
 })
 
+export const mergeFoodMasterInput = z.object({
+  survivor_food_master_id: z.string().min(1),
+  loser_food_master_id: z.string().min(1),
+  dry_run: z.boolean().optional().default(true),
+})
+
+export const mergeFoodMasterStructuredOutput = z.object({
+  survivor_food_master_id: z.string(),
+  loser_food_master_id: z.string(),
+  applied: z.boolean(),
+  moved_aliases: z.array(z.string()),
+  name_moved_as_alias: z.string().nullable(),
+  discarded_nutrition: nutritionMap,
+  moved_meal_log_count: z.number().int().nonnegative(),
+})
+
 const registerFoodNutrition = z
   .object({ energy_kcal: z.number().nonnegative() })
   .catchall(z.number().nonnegative())
