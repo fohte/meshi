@@ -11,6 +11,7 @@ import type { Logger } from '#logger'
 import { registerDeleteMealLogTool } from '#mcp-tools/delete-meal-log'
 import { registerFoodFromCompositionTool } from '#mcp-tools/food-composition'
 import { registerMealLoggingTools } from '#mcp-tools/meal-logging'
+import { registerMergeFoodMasterTool } from '#mcp-tools/merge-food-master'
 import {
   buildMealRecordPayload,
   buildProfilePayload,
@@ -64,6 +65,7 @@ export const registerMeshiTools = (
   registerFoodFromCompositionTool(server, { foodMasterService, logger })
 
   registerFoodTool(server, { foodMasterService, logger })
+  registerMergeFoodMasterTool(server, { foodMasterService, logger })
 
   server.registerTool(
     'record_meal_from_text',
