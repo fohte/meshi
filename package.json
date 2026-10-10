@@ -29,7 +29,7 @@
   "devDependencies": {
     "@commitlint/cli": "21.2.3",
     "@fohte/eslint-config": "0.5.1",
-    "@modelcontextprotocol/client": "2.0.0",
+    "@modelcontextprotocol/client": "2.2.0",
     "@ninoseki/eslint-plugin-neverthrow": "0.3.2",
     "@opentelemetry/sdk-trace-base": "2.11.0",
     "@tsconfig/node-lts": "24.0.1",
