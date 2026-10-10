@@ -55,8 +55,6 @@ export const createMealHistoryService = (sql: Sql): MealHistoryService => {
       const useMajorOnly = nutrientCodes === undefined
       const emptyNutrientFilter =
         nutrientCodes !== undefined && nutrientCodes.length === 0
-      // Explicit text parameters survive the serializer override from a
-      // drizzle() instance built on the same connection pool.
       const periodFrom = asText(input.periodFrom)
       const periodTo = asText(input.periodTo)
 

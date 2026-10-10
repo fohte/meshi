@@ -1,8 +1,8 @@
 # meshi
 
-@fohte's personal meal management chat service.
+@fohte's personal meal management service, with an MCP server and a REST API for its web frontend.
 
-`meshi` exposes meal-record / query / recommend / profile capabilities over MCP and REST. Both interfaces call domain services for meal-history queries, profile management, origin-aware food search, food registration, food registration from the composition table, food master merging, resolved meal logging, meal-log updates and deletions, meal-skip recording and cancellation, and recommendation context.
+The MCP server exposes meal-history queries, profile management, origin-aware food search, food registration, food registration from the composition table, food master merging, resolved meal logging, meal-log updates and deletions, meal-skip recording and cancellation, and recommendation context. The REST API under `/api` serves the web frontend; its endpoints are listed below.
 
 ## Development
 

@@ -12,8 +12,7 @@ export const pingDb = async (sql: Sql): Promise<void> => {
 // The `text` type's OID.
 const TEXT_OID = 25
 
-// Drizzle changes the date serializer on postgres.js's shared options object,
-// so raw SQL must carry the intended wire type explicitly.
+// Binds string parameters as explicit text (OID 25) for raw SQL queries.
 export const createAsText =
   (sql: Sql) =>
   (value: string): postgres.Parameter<string> =>

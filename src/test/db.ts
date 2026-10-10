@@ -119,14 +119,7 @@ export const setupDrizzleTx = (): (() => postgres.Sql) => {
   }
 }
 
-// A no-DB fake of `Sql`'s tagged-template call (plus `.typed()`), for
-// tests that assert on constructed SQL and bound parameters without a
-// database round trip.
-// A non-tagged call (e.g. `sql(SOME_ARRAY)` for an `IN (...)` list) is
-// passed through unchanged rather than captured. `.typed(value, oid)`
-// returns `value` unwrapped rather than a real `Parameter` — this fake
-// only needs to capture what value a store bound, not replicate
-// postgres.js's own wire-level OID handling.
+// A no-DB fake of Sql tagged-template calls and .typed() to capture queries and bound parameters.
 const createSqlCapture = (): {
   sql: Sql
   params: unknown[]
