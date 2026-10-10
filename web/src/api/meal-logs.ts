@@ -13,6 +13,7 @@ const mealLogResultSchema = z.object({
   quantity: z.number(),
   nutrition: z.record(z.string(), z.number()),
   isEstimated: z.boolean(),
+  nutritionStatus: z.enum(['confirmed', 'estimated', 'unknown']),
   createdAt: z.iso.datetime(),
 })
 

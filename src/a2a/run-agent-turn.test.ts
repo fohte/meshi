@@ -871,7 +871,13 @@ describe('runAgentTurn progress callbacks', () => {
 
 const QUERY_MEAL_HISTORY_OUTPUT = {
   totals: { energy_kcal: 300 },
-  per_day: [{ date: '2026-06-12', totals: { energy_kcal: 300 } }],
+  per_day: [
+    {
+      date: '2026-06-12',
+      totals: { energy_kcal: 300 },
+      has_unknown_values: false,
+    },
+  ],
   entries: [
     {
       meal_log_id: 'ml_1',
@@ -880,9 +886,11 @@ const QUERY_MEAL_HISTORY_OUTPUT = {
       eaten_date: '2026-06-12',
       meal_type: 'lunch',
       quantity: 200,
+      nutrition_status: 'confirmed',
     },
   ],
   has_estimated_values: false,
+  has_unknown_values: false,
 }
 
 describe('runAgentTurn meal history itemization', () => {

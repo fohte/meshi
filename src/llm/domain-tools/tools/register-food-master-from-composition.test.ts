@@ -20,6 +20,7 @@ const sampleFoodMaster = (
   name: input.name ?? compositionName,
   aliases: input.aliases ?? [],
   isEstimated: true,
+  nutritionStatus: 'estimated',
   source: 'composition_table_estimate',
   sourceUrl: null,
   sourceCompositionCode: input.compositionCode,

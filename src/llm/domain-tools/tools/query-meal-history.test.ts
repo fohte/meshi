@@ -14,7 +14,13 @@ type QueryMealHistoryInput = Parameters<MealHistoryService['query']>[0]
 
 const AGGREGATE: MealHistoryAggregate = {
   totals: { energy_kcal: 1850 },
-  perDay: [{ date: jstDate('2026-05-19'), totals: { energy_kcal: 1850 } }],
+  perDay: [
+    {
+      date: jstDate('2026-05-19'),
+      totals: { energy_kcal: 1850 },
+      hasUnknownValues: false,
+    },
+  ],
   entries: [
     {
       id: 'ml_1',
@@ -24,9 +30,11 @@ const AGGREGATE: MealHistoryAggregate = {
       mealType: 'lunch',
       quantity: 1,
       recordedAt: '2026-05-19T03:00:00Z',
+      nutritionStatus: 'estimated',
     },
   ],
   hasEstimatedValues: true,
+  hasUnknownValues: false,
 }
 
 const setup = (): {
@@ -84,7 +92,13 @@ describe('query_meal_history tool', () => {
       ok: true,
       value: {
         totals: { energy_kcal: 1850 },
-        per_day: [{ date: '2026-05-19', totals: { energy_kcal: 1850 } }],
+        per_day: [
+          {
+            date: '2026-05-19',
+            totals: { energy_kcal: 1850 },
+            has_unknown_values: false,
+          },
+        ],
         entries: [
           {
             meal_log_id: 'ml_1',
@@ -93,9 +107,11 @@ describe('query_meal_history tool', () => {
             eaten_date: '2026-05-19',
             meal_type: 'lunch',
             quantity: 1,
+            nutrition_status: 'estimated',
           },
         ],
         has_estimated_values: true,
+        has_unknown_values: false,
       },
     })
     expect(calls).toEqual([

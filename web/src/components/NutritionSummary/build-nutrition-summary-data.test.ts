@@ -553,4 +553,55 @@ describe('buildNutritionSummaryData', () => {
       hasAnyTarget: true,
     })
   })
+
+  it('marks missing nutrient totals as unknown when the day includes unknown foods', () => {
+    expect(
+      buildNutritionSummaryData({}, DEFINITIONS.slice(0, 1), null, true),
+    ).toEqual({
+      energy: {
+        value: 0,
+        isUnknown: true,
+        target: null,
+        pct: null,
+        over: false,
+      },
+      pfc: {
+        segments: [
+          {
+            label: 'たんぱく質',
+            color: 'var(--color-text)',
+            pct: 0,
+            targetPct: 20,
+          },
+          {
+            label: '脂質',
+            color: 'var(--color-muted)',
+            pct: 0,
+            targetPct: 25,
+          },
+          {
+            label: '炭水化物',
+            color: '#3f3f46',
+            pct: 0,
+            targetPct: 55,
+          },
+        ],
+        targetMarks: [20, 45],
+      },
+      majorRows: [],
+      allRows: [
+        {
+          code: 'energy_kcal',
+          label: 'エネルギー',
+          unit: 'kcal',
+          value: 0,
+          isUnknown: true,
+          target: null,
+          pct: 0,
+          over: false,
+        },
+      ],
+      hasAnyTarget: false,
+    })
+  })
 })

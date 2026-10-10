@@ -1,3 +1,4 @@
+import type { NutritionStatus } from '#domain/food-master/types'
 import type { JstDate } from '#lib/jst-date'
 
 export type NutritionMap = Readonly<Record<string, number>>
@@ -10,6 +11,7 @@ export interface FoodMasterRef {
   readonly id: string
   readonly name: string
   readonly isEstimated: boolean
+  readonly nutritionStatus: NutritionStatus
   // Nutrition per one of this food_master — see scaleNutrition.
   readonly nutritionPerUnit: NutritionMap
 }
@@ -59,6 +61,7 @@ export interface UpdateMealLogInput {
 export interface MealLogResult extends MealLogRow {
   readonly nutrition: NutritionMap
   readonly isEstimated: boolean
+  readonly nutritionStatus: NutritionStatus
 }
 
 export interface MealLogDeletionResult {

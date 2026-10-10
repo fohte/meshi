@@ -251,6 +251,7 @@ export const createFoodMasterRegistrar = (
       name: inserted.name,
       aliases: normalized.aliases,
       isEstimated: normalized.isEstimated,
+      nutritionStatus: normalized.isEstimated ? 'estimated' : 'confirmed',
       source: normalized.source,
       sourceUrl: normalized.sourceUrl,
       sourceCompositionCode: normalized.sourceCompositionCode,

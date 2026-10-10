@@ -123,6 +123,7 @@ const stubDeps = (override: Partial<DomainToolsDeps> = {}): DomainToolsDeps => {
         perDay: [],
         entries: [],
         hasEstimatedValues: false,
+        hasUnknownValues: false,
       }),
   }
   const userProfileService: UserProfileService = {

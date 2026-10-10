@@ -29,6 +29,7 @@ const ENTRY: DayDetailEntry = {
   quantity: 150,
   kcal: 234,
   isEstimated: false,
+  nutritionStatus: 'confirmed',
 }
 
 describe('buildCreateState', () => {

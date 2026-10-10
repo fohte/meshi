@@ -1,6 +1,6 @@
 import type { ResultAsync } from 'neverthrow'
 
-import type { FoodSource } from '#domain/food-master/types'
+import type { FoodSource, NutritionStatus } from '#domain/food-master/types'
 import type {
   FoodMatcherError,
   FoodMatchReason,
@@ -11,6 +11,7 @@ export interface FoodListItem {
   readonly compositionCode: string | null
   readonly name: string
   readonly isEstimated: boolean
+  readonly nutritionStatus: NutritionStatus
   readonly reason: FoodMatchReason
   // Set only when foodMasterId references an existing food_masters row;
   // composition_table candidates aren't registered yet, so neither is known.

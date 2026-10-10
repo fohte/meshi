@@ -5,6 +5,7 @@ import type {
   FoodMasterId,
   FoodSource,
   NutritionMap,
+  NutritionStatus,
 } from '#domain/food-master/types'
 import type { MealType } from '#domain/meal-log/types'
 import type { JstDate } from '#lib/jst-date'
@@ -20,7 +21,8 @@ export interface FoodDetail {
   readonly id: FoodMasterId
   readonly name: string
   readonly isEstimated: boolean
-  readonly source: FoodSource
+  readonly nutritionStatus: NutritionStatus
+  readonly source: FoodSource | null
   readonly sourceUrl: string | null
   readonly aliases: ReadonlyArray<string>
   readonly nutrition: NutritionMap

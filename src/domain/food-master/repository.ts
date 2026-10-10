@@ -80,8 +80,8 @@ const similarNameRowSchema = z.object({
 interface FoodMasterRow {
   readonly id: string
   readonly name: string
-  readonly is_estimated: boolean
-  readonly source: FoodSource
+  readonly is_estimated: boolean | null
+  readonly source: FoodSource | null
   readonly source_url: string | null
   readonly source_composition_code: string | null
   readonly created_at: Date
@@ -104,7 +104,7 @@ export const createFoodMasterRepository = (
           SELECT fm.id, fm.name, fmn.is_estimated, fmn.source,
                  fmn.source_url, fmn.source_composition_code, fm.created_at
           FROM food_masters fm
-          INNER JOIN food_master_nutrition fmn ON fmn.food_master_id = fm.id
+          LEFT JOIN food_master_nutrition fmn ON fmn.food_master_id = fm.id
           WHERE fm.id = ${id}
         `
         const row = rows[0]
@@ -125,7 +125,13 @@ export const createFoodMasterRepository = (
           id: row.id,
           name: row.name,
           aliases: aliasRows.map((r) => r.alias),
-          isEstimated: row.is_estimated,
+          isEstimated: row.is_estimated ?? false,
+          nutritionStatus:
+            row.is_estimated === null
+              ? 'unknown'
+              : row.is_estimated
+                ? 'estimated'
+                : 'confirmed',
           source: row.source,
           sourceUrl: row.source_url,
           sourceCompositionCode: row.source_composition_code,

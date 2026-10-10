@@ -316,6 +316,7 @@ describeIfDb('meshi integration', () => {
                 protein_g: 5,
                 carbohydrate_g: 74,
               },
+              has_unknown_values: false,
             },
           ],
           entries: [
@@ -327,9 +328,11 @@ describeIfDb('meshi integration', () => {
               meal_type: 'lunch',
               quantity: 2,
               recorded_at: '2026-06-12T03:30:45Z',
+              nutrition_status: 'confirmed',
             },
           ],
           has_estimated_values: false,
+          has_unknown_values: false,
         },
         content: [
           {
@@ -441,6 +444,7 @@ describeIfDb('meshi integration', () => {
               {
                 date: '2026-04-17',
                 totals: { energy_kcal: 411, protein_g: 15 },
+                has_unknown_values: false,
               },
             ],
             entries: [
@@ -452,9 +456,11 @@ describeIfDb('meshi integration', () => {
                 meal_type: 'dinner',
                 quantity: 3,
                 recorded_at: '2026-04-17T03:30:00Z',
+                nutrition_status: 'confirmed',
               },
             ],
             has_estimated_values: false,
+            has_unknown_values: false,
           },
         },
       })

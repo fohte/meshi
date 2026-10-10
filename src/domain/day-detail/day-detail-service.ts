@@ -3,11 +3,7 @@ import { drizzle } from 'drizzle-orm/postgres-js'
 import { okAsync, ResultAsync } from 'neverthrow'
 
 import type { Sql } from '#db/index'
-import {
-  foodMasterNutrients,
-  foodMasterNutrition,
-  foodMasters,
-} from '#db/schema'
+import { foodMasterNutrients, foodMasters } from '#db/schema'
 import { NUTRIENT_CODES } from '#db/seed/nutrient-definitions'
 import type {
   DayDetail,
@@ -29,8 +25,7 @@ const ENERGY_KCAL_CODE = 'energy_kcal'
 type Db = ReturnType<typeof drizzle>
 
 // Composes on MealHistoryService for the day-boundary aggregation and adds a
-// batched lookup for the fields the day view needs per item — food
-// name/estimated flag and per-unit kcal — so rendering the timeline never
+// batched lookup for the food name and per-unit kcal, so the timeline never
 // issues a query per entry. Each entry's kcal is kcalPerUnit * quantity, the
 // same multiplier MealHistoryService's own totals use.
 //
@@ -97,6 +92,7 @@ const enrichEntries = (
     return okAsync({
       totals: aggregate.totals,
       hasEstimatedValues: aggregate.hasEstimatedValues,
+      hasUnknownValues: aggregate.hasUnknownValues,
       entries: [],
       skippedMealTypes,
     })
@@ -107,14 +103,9 @@ const enrichEntries = (
       .select({
         id: foodMasters.id,
         name: foodMasters.name,
-        isEstimated: foodMasterNutrition.isEstimated,
         kcalPerUnit: foodMasterNutrients.value,
       })
       .from(foodMasters)
-      .innerJoin(
-        foodMasterNutrition,
-        eq(foodMasterNutrition.foodMasterId, foodMasters.id),
-      )
       .leftJoin(
         foodMasterNutrients,
         and(
@@ -126,13 +117,19 @@ const enrichEntries = (
     (caughtErr) =>
       new DayDetailQueryError('day detail enrichment lookup failed', caughtErr),
   ).map((foodRows) => {
-    const foodById = new Map(
+    const foodById = new Map<
+      string,
+      {
+        name: string
+        kcalPerUnit: number | null
+      }
+    >(
       foodRows.map((row) => [
         row.id,
         {
           name: row.name,
-          isEstimated: row.isEstimated,
-          kcalPerUnit: row.kcalPerUnit === null ? 0 : Number(row.kcalPerUnit),
+          kcalPerUnit:
+            row.kcalPerUnit === null ? null : Number(row.kcalPerUnit),
         },
       ]),
     )
@@ -146,14 +143,19 @@ const enrichEntries = (
         eatenDate: entry.eatenDate,
         mealType: entry.mealType,
         quantity: entry.quantity,
-        kcal: (food?.kcalPerUnit ?? 0) * entry.quantity,
-        isEstimated: food?.isEstimated ?? false,
+        kcal:
+          food === undefined || entry.nutritionStatus === 'unknown'
+            ? null
+            : (food.kcalPerUnit ?? 0) * entry.quantity,
+        isEstimated: entry.nutritionStatus === 'estimated',
+        nutritionStatus: entry.nutritionStatus,
       }
     })
 
     return {
       totals: aggregate.totals,
       hasEstimatedValues: aggregate.hasEstimatedValues,
+      hasUnknownValues: aggregate.hasUnknownValues,
       entries,
       skippedMealTypes,
     }

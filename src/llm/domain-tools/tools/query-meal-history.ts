@@ -29,6 +29,7 @@ const queryMealHistoryEntrySchema = z.object({
   eaten_date: z.string(),
   meal_type: z.enum(MEAL_TYPES),
   quantity: z.number(),
+  nutrition_status: z.enum(['confirmed', 'estimated', 'unknown']),
 })
 
 // Exported so callers reading this tool's result back out of a serialized
@@ -37,10 +38,15 @@ const queryMealHistoryEntrySchema = z.object({
 export const queryMealHistoryOutputSchema = z.object({
   totals: z.record(z.string(), z.number()),
   per_day: z.array(
-    z.object({ date: z.string(), totals: z.record(z.string(), z.number()) }),
+    z.object({
+      date: z.string(),
+      totals: z.record(z.string(), z.number()),
+      has_unknown_values: z.boolean(),
+    }),
   ),
   entries: z.array(queryMealHistoryEntrySchema),
   has_estimated_values: z.boolean(),
+  has_unknown_values: z.boolean(),
 })
 
 export type QueryMealHistoryEntry = z.infer<typeof queryMealHistoryEntrySchema>

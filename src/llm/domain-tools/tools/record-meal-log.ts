@@ -25,6 +25,7 @@ export interface RecordMealLogOutput {
   readonly meal_log_id: string
   readonly nutrition: Readonly<Record<string, number>>
   readonly is_estimated: boolean
+  readonly nutrition_status: 'confirmed' | 'estimated' | 'unknown'
 }
 
 export const createRecordMealLogTool = (
@@ -53,6 +54,7 @@ export const createRecordMealLogTool = (
       meal_log_id: result.value.id,
       nutrition: result.value.nutrition,
       is_estimated: result.value.isEstimated,
+      nutrition_status: result.value.nutritionStatus,
     })
   },
 })

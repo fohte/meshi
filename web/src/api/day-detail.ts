@@ -14,8 +14,9 @@ const dayDetailEntrySchema = z.object({
   eatenDate: z.string(),
   mealType: z.enum(MEAL_TYPES),
   quantity: z.number(),
-  kcal: z.number(),
+  kcal: z.number().nullable(),
   isEstimated: z.boolean(),
+  nutritionStatus: z.enum(['confirmed', 'estimated', 'unknown']),
 })
 
 export type DayDetailEntry = z.infer<typeof dayDetailEntrySchema>
@@ -24,6 +25,7 @@ const dayDetailSchema = z.object({
   date: z.string(),
   totals: z.record(z.string(), z.number()),
   hasEstimatedValues: z.boolean(),
+  hasUnknownValues: z.boolean(),
   entries: z.array(dayDetailEntrySchema),
   skippedMealTypes: z.array(z.enum(MEAL_TYPES)),
 })

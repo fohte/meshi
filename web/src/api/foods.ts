@@ -11,6 +11,7 @@ export const foodSourceSchema = z.enum([
   'user_input',
 ])
 export type FoodSource = z.infer<typeof foodSourceSchema>
+const nutritionStatusSchema = z.enum(['confirmed', 'estimated', 'unknown'])
 
 export const SOURCE_LABELS: Record<FoodSource, string> = {
   web_search: 'Web検索',
@@ -33,6 +34,7 @@ const foodListItemSchema = z.object({
   compositionCode: z.string().nullable(),
   name: z.string(),
   isEstimated: z.boolean(),
+  nutritionStatus: nutritionStatusSchema,
   reason: foodMatchReasonSchema,
   source: foodSourceSchema.nullable(),
   energyKcalPerUnit: z.number().nullable(),
@@ -65,7 +67,8 @@ const foodDetailSchema = z.object({
   id: z.string(),
   name: z.string(),
   isEstimated: z.boolean(),
-  source: foodSourceSchema,
+  nutritionStatus: nutritionStatusSchema,
+  source: foodSourceSchema.nullable(),
   sourceUrl: z.string().nullable(),
   aliases: z.array(z.string()),
   nutrition: z.record(z.string(), z.number()),

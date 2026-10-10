@@ -4,7 +4,12 @@ import { createFoodBrowseService } from '#domain/food-browse/food-browse-service
 import { createDrizzleFoodMatcher } from '#domain/food-matcher/index'
 import { toJstDateString } from '#lib/jst-date'
 import { describeIfDb, setupDrizzleTx } from '#test/db'
-import { seedFoodComposition, seedFoodMaster, seedMealLog } from '#test/seed'
+import {
+  seedFoodComposition,
+  seedFoodMaster,
+  seedFoodMasterWithoutNutrition,
+  seedMealLog,
+} from '#test/seed'
 
 const MS_PER_DAY = 24 * 60 * 60 * 1000
 const daysAgo = (n: number): Date => new Date(Date.now() - n * MS_PER_DAY)
@@ -31,6 +36,7 @@ describeIfDb('createFoodBrowseService', () => {
           compositionCode: null,
           name: 'apple_x',
           isEstimated: false,
+          nutritionStatus: 'confirmed',
           reason: 'fuzzy_name',
           source: 'user_input',
           energyKcalPerUnit: 52,
@@ -56,6 +62,7 @@ describeIfDb('createFoodBrowseService', () => {
           compositionCode: null,
           name: 'apricot_y',
           isEstimated: false,
+          nutritionStatus: 'confirmed',
           reason: 'fuzzy_name',
           source: 'web_search',
           energyKcalPerUnit: null,
@@ -76,6 +83,7 @@ describeIfDb('createFoodBrowseService', () => {
           compositionCode: 'comp_noodle',
           name: 'noodle',
           isEstimated: true,
+          nutritionStatus: 'estimated',
           reason: 'composition_table',
           source: null,
           energyKcalPerUnit: null,
@@ -131,6 +139,7 @@ describeIfDb('createFoodBrowseService', () => {
           compositionCode: null,
           name: 'newer food',
           isEstimated: false,
+          nutritionStatus: 'confirmed',
           reason: 'history_recent',
           source: 'user_input',
           energyKcalPerUnit: null,
@@ -140,6 +149,7 @@ describeIfDb('createFoodBrowseService', () => {
           compositionCode: null,
           name: 'older food',
           isEstimated: false,
+          nutritionStatus: 'confirmed',
           reason: 'history_recent',
           source: 'user_input',
           energyKcalPerUnit: 10,
@@ -183,8 +193,40 @@ describeIfDb('createFoodBrowseService', () => {
           compositionCode: null,
           name: 'food a',
           isEstimated: false,
+          nutritionStatus: 'confirmed',
           reason: 'history_recent',
           source: 'user_input',
+          energyKcalPerUnit: null,
+        },
+      ])
+    })
+
+    it('keeps an unknown food in the recent list without a nutrition source', async () => {
+      const tx = getTx()
+      await seedFoodMasterWithoutNutrition(tx, {
+        id: 'fm_unknown',
+        name: 'unknown item',
+      })
+      await seedMealLog(tx, {
+        id: 'ml_unknown',
+        foodMasterId: 'fm_unknown',
+        eatenDate: toJstDateString(daysAgo(1)),
+        mealType: 'dinner',
+        quantity: 1,
+      })
+      const service = createFoodBrowseService(tx, createDrizzleFoodMatcher(tx))
+
+      const result = (await service.listRecent(5))._unsafeUnwrap()
+
+      expect(result).toEqual([
+        {
+          foodMasterId: 'fm_unknown',
+          compositionCode: null,
+          name: 'unknown item',
+          isEstimated: false,
+          nutritionStatus: 'unknown',
+          reason: 'history_recent',
+          source: null,
           energyKcalPerUnit: null,
         },
       ])
@@ -231,6 +273,7 @@ describeIfDb('createFoodBrowseService', () => {
           compositionCode: null,
           name: 'frequent food',
           isEstimated: false,
+          nutritionStatus: 'confirmed',
           reason: 'history_frequent',
           source: 'user_input',
           energyKcalPerUnit: 20,
@@ -240,6 +283,7 @@ describeIfDb('createFoodBrowseService', () => {
           compositionCode: null,
           name: 'rare food',
           isEstimated: false,
+          nutritionStatus: 'confirmed',
           reason: 'history_frequent',
           source: 'user_input',
           energyKcalPerUnit: null,

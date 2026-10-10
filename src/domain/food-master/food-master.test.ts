@@ -14,7 +14,7 @@ import { similarFoodMasterCandidateOutput } from '#mcp-tools/schemas'
 import { captureDomainError } from '#test/capture-domain-error'
 import { describeIfDb, setupTx } from '#test/db'
 import { createCountingIdGenerator, type IdCounter } from '#test/id-counter'
-import { seedFoodComposition } from '#test/seed'
+import { seedFoodComposition, seedFoodMasterWithoutNutrition } from '#test/seed'
 
 const baseInput: RegisterFoodMasterInput = {
   name: 'rice',
@@ -124,6 +124,7 @@ describeIfDb('FoodMasterService + Repository', () => {
       name: 'rice',
       aliases: ['ご飯', 'cooked rice'],
       isEstimated: false,
+      nutritionStatus: 'confirmed',
       source: 'web_search',
       sourceUrl: 'https://example.com/rice',
       sourceCompositionCode: null,
@@ -225,6 +226,7 @@ describeIfDb('FoodMasterService + Repository', () => {
       name: 'milk',
       aliases: [],
       isEstimated: false,
+      nutritionStatus: 'confirmed',
       source: 'web_search',
       sourceUrl: 'https://example.com/milk',
       sourceCompositionCode: null,
@@ -359,6 +361,7 @@ describeIfDb('FoodMasterService + Repository', () => {
       name: 'homemade curry',
       aliases: [],
       isEstimated: true,
+      nutritionStatus: 'estimated',
       source: 'composition_table_estimate',
       sourceUrl: null,
       sourceCompositionCode: '18008',
@@ -527,6 +530,28 @@ describeIfDb('FoodMasterService + Repository', () => {
     ).toEqual(null)
   })
 
+  it('returns a food without nutrition metadata with unknown status', async () => {
+    await seedFoodMasterWithoutNutrition(getTx(), {
+      id: 'fm_unknown',
+      name: 'unknown food',
+    })
+
+    const result = (await service.getById('fm_unknown'))._unsafeUnwrap()
+
+    expect(result === null ? null : normalize(result)).toEqual({
+      id: 'fm_unknown',
+      name: 'unknown food',
+      aliases: [],
+      isEstimated: false,
+      nutritionStatus: 'unknown',
+      source: null,
+      sourceUrl: null,
+      sourceCompositionCode: null,
+      nutrition: {},
+      createdAt: '<date>',
+    })
+  })
+
   it('registers a food_master from a food_compositions row', async () => {
     const tx = getTx()
     await seedFoodComposition(tx, { code: '01088', name: 'そば ゆで' })
@@ -545,6 +570,7 @@ describeIfDb('FoodMasterService + Repository', () => {
         name: 'そば ゆで',
         aliases: [],
         isEstimated: true,
+        nutritionStatus: 'estimated',
         source: 'composition_table_estimate',
         sourceUrl: null,
         sourceCompositionCode: '01088',
@@ -582,6 +608,7 @@ describeIfDb('FoodMasterService + Repository', () => {
         name: 'カスタム名',
         aliases: ['そば'],
         isEstimated: true,
+        nutritionStatus: 'estimated',
         source: 'composition_table_estimate',
         sourceUrl: null,
         sourceCompositionCode: '01088',
@@ -691,6 +718,7 @@ describeIfDb('FoodMasterService + Repository', () => {
         name: 'ごろごろ野菜カレー 中辛 レトルト',
         aliases: [],
         isEstimated: false,
+        nutritionStatus: 'confirmed',
         source: 'user_input',
         sourceUrl: null,
         sourceCompositionCode: null,
@@ -823,6 +851,7 @@ describeIfDb('FoodMasterService + Repository', () => {
       name: 'rice',
       aliases: ['ご飯'],
       isEstimated: false,
+      nutritionStatus: 'confirmed',
       source: 'user_input',
       sourceUrl: null,
       sourceCompositionCode: null,
@@ -853,6 +882,7 @@ describeIfDb('FoodMasterService + Repository', () => {
       name: 'rice',
       aliases: ['ご飯'],
       isEstimated: false,
+      nutritionStatus: 'confirmed',
       source: 'user_input',
       sourceUrl: null,
       sourceCompositionCode: null,
@@ -864,6 +894,7 @@ describeIfDb('FoodMasterService + Repository', () => {
       name: 'fried rice',
       aliases: [],
       isEstimated: false,
+      nutritionStatus: 'confirmed',
       source: 'user_input',
       sourceUrl: null,
       sourceCompositionCode: null,

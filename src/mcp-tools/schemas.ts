@@ -14,6 +14,7 @@ export const mealHistoryStructuredOutput = z.object({
     z.object({
       date: jstDateSchema,
       totals: nutritionMap,
+      has_unknown_values: z.boolean(),
     }),
   ),
   entries: z.array(
@@ -26,6 +27,7 @@ export const mealHistoryStructuredOutput = z.object({
       eaten_date: jstDateSchema,
       meal_type: z.enum(MEAL_TYPES),
       quantity: z.number(),
+      nutrition_status: z.enum(['confirmed', 'estimated', 'unknown']),
       recorded_at: z.iso
         .datetime({ offset: true })
         .describe(
@@ -34,6 +36,7 @@ export const mealHistoryStructuredOutput = z.object({
     }),
   ),
   has_estimated_values: z.boolean(),
+  has_unknown_values: z.boolean(),
 })
 
 export const profileStructuredOutput = z.object({
@@ -141,6 +144,7 @@ export const searchFoodsStructuredOutput = z.object({
           'food_master は 1 つ分、食品成分表候補は 100g あたり。該当する kcal がなければ null',
         ),
       is_estimated: z.boolean(),
+      nutrition_status: z.enum(['confirmed', 'estimated', 'unknown']),
     }),
   ),
 })
@@ -260,6 +264,7 @@ export const recordMealLogStructuredOutput = z.object({
       quantity: z.number(),
       nutrition: nutritionMap,
       is_estimated: z.boolean(),
+      nutrition_status: z.enum(['confirmed', 'estimated', 'unknown']),
     }),
   ),
   error: z

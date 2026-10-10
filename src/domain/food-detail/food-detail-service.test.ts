@@ -7,7 +7,13 @@ import {
 } from '#domain/food-master/index'
 import { toJstDateString } from '#lib/jst-date'
 import { describeIfDb, setupDrizzleTx } from '#test/db'
-import { seedFoodMaster, seedFoodMasterAlias, seedMealLog } from '#test/seed'
+import { jstDate } from '#test/jst-date'
+import {
+  seedFoodMaster,
+  seedFoodMasterAlias,
+  seedFoodMasterWithoutNutrition,
+  seedMealLog,
+} from '#test/seed'
 
 const MS_PER_DAY = 24 * 60 * 60 * 1000
 const daysAgo = (n: number): Date => new Date(Date.now() - n * MS_PER_DAY)
@@ -51,6 +57,7 @@ describeIfDb('createFoodDetailService', () => {
       id: 'fm_rice',
       name: 'rice',
       isEstimated: false,
+      nutritionStatus: 'confirmed',
       source: 'user_input',
       sourceUrl: null,
       aliases: ['ご飯'],
@@ -95,6 +102,7 @@ describeIfDb('createFoodDetailService', () => {
       id: 'fm_bread',
       name: 'bread',
       isEstimated: false,
+      nutritionStatus: 'confirmed',
       source: 'web_search',
       sourceUrl: 'https://example.com/bread',
       aliases: [],
@@ -114,6 +122,47 @@ describeIfDb('createFoodDetailService', () => {
         },
       ],
       totalEatenCount: 2,
+    })
+  })
+
+  it('returns an unknown food and its meal log in the detail', async () => {
+    const tx = getTx()
+    await seedFoodMasterWithoutNutrition(tx, {
+      id: 'fm_unknown',
+      name: 'unknown food',
+    })
+    await seedMealLog(tx, {
+      id: 'ml_unknown',
+      foodMasterId: 'fm_unknown',
+      eatenDate: jstDate('2026-06-15'),
+      mealType: 'dinner',
+      quantity: 1,
+    })
+    const foodMasterService = createFoodMasterService(
+      createFoodMasterRepository(tx),
+    )
+    const service = createFoodDetailService(tx, foodMasterService)
+
+    const result = (await service.getById('fm_unknown'))._unsafeUnwrap()
+
+    expect(result).toEqual({
+      id: 'fm_unknown',
+      name: 'unknown food',
+      isEstimated: false,
+      nutritionStatus: 'unknown',
+      source: null,
+      sourceUrl: null,
+      aliases: [],
+      nutrition: {},
+      history: [
+        {
+          id: 'ml_unknown',
+          eatenDate: '2026-06-15',
+          mealType: 'dinner',
+          quantity: 1,
+        },
+      ],
+      totalEatenCount: 1,
     })
   })
 })

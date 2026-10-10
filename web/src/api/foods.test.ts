@@ -35,13 +35,14 @@ describe('fetchFoodSearch', () => {
 
   it('resolves with the response items', async () => {
     const item = {
-      foodMasterId: 'fm_1',
+      foodMasterId: 'fm_unknown',
       compositionCode: null,
-      name: 'rice',
+      name: 'unknown food',
       isEstimated: false,
+      nutritionStatus: 'unknown',
       reason: 'fuzzy_name',
-      source: 'user_input',
-      energyKcalPerUnit: 168,
+      source: null,
+      energyKcalPerUnit: null,
     }
     mockFetchOk({ items: [item] })
 
@@ -67,13 +68,14 @@ describe('fetchFoodSuggestions', () => {
 describe('fetchFoodDetail', () => {
   it('resolves with the parsed detail', async () => {
     mockFetchOk({
-      id: 'fm_1',
-      name: 'rice',
+      id: 'fm_unknown',
+      name: 'unknown food',
       isEstimated: false,
-      source: 'user_input',
+      nutritionStatus: 'unknown',
+      source: null,
       sourceUrl: null,
       aliases: [],
-      nutrition: { energy_kcal: 168 },
+      nutrition: {},
       totalEatenCount: 1,
       history: [
         {
@@ -85,16 +87,17 @@ describe('fetchFoodDetail', () => {
       ],
     })
 
-    const result = await fetchFoodDetail('fm_1')
+    const result = await fetchFoodDetail('fm_unknown')
 
     expect(result._unsafeUnwrap()).toEqual({
-      id: 'fm_1',
-      name: 'rice',
+      id: 'fm_unknown',
+      name: 'unknown food',
       isEstimated: false,
-      source: 'user_input',
+      nutritionStatus: 'unknown',
+      source: null,
       sourceUrl: null,
       aliases: [],
-      nutrition: { energy_kcal: 168 },
+      nutrition: {},
       totalEatenCount: 1,
       history: [
         {

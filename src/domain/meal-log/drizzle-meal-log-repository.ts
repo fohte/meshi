@@ -76,7 +76,7 @@ const loadFoodMaster = (
           isEstimated: foodMasterNutrition.isEstimated,
         })
         .from(foodMasters)
-        .innerJoin(
+        .leftJoin(
           foodMasterNutrition,
           eq(foodMasterNutrition.foodMasterId, foodMasters.id),
         )
@@ -92,7 +92,13 @@ const loadFoodMaster = (
       return ok({
         id: master.id,
         name: master.name,
-        isEstimated: master.isEstimated,
+        isEstimated: master.isEstimated ?? false,
+        nutritionStatus:
+          master.isEstimated === null
+            ? 'unknown'
+            : master.isEstimated
+              ? 'estimated'
+              : 'confirmed',
         nutritionPerUnit,
       })
     })(),
@@ -320,15 +326,14 @@ export const createDrizzleMealLogRepository = (
             })
             .from(mealLogs)
             .innerJoin(foodMasters, eq(mealLogs.foodMasterId, foodMasters.id))
-            .innerJoin(
+            .leftJoin(
               foodMasterNutrition,
               eq(foodMasterNutrition.foodMasterId, foodMasters.id),
             )
             .where(eq(mealLogs.id, id))
             .limit(1)
           // The FK on meal_logs.food_master_id is ON DELETE RESTRICT, so an existing
-          // meal_log always has its food_master. The nutrition join also requires a
-          // metadata row, so an empty result can mean either row is missing.
+          // meal_log always has its food_master.
           const row = rows[0]
           if (row === undefined) return null
 
@@ -337,6 +342,13 @@ export const createDrizzleMealLogRepository = (
             log: toRow(row.log),
             food: {
               ...row.food,
+              isEstimated: row.food.isEstimated ?? false,
+              nutritionStatus:
+                row.food.isEstimated === null
+                  ? 'unknown'
+                  : row.food.isEstimated
+                    ? 'estimated'
+                    : 'confirmed',
               nutritionPerUnit,
             },
           }

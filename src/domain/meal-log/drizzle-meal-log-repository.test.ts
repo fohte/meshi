@@ -6,10 +6,11 @@ import {
   MealLogNotFoundError,
   MealLogPersistenceError,
 } from '#domain/meal-log/errors'
-import type { MealLogRow } from '#domain/meal-log/types'
+import type { FoundMealLog } from '#domain/meal-log/meal-log-repository'
+import type { FoodMasterRef, MealLogRow } from '#domain/meal-log/types'
 import { describeIfDb, setupDrizzleTx } from '#test/db'
 import { jstDate } from '#test/jst-date'
-import { seedFoodMaster } from '#test/seed'
+import { seedFoodMaster, seedFoodMasterWithoutNutrition } from '#test/seed'
 
 const CREATED_AT_PLACEHOLDER = new Date('2000-01-01T00:00:00.000Z')
 
@@ -18,6 +19,17 @@ const observation = <T extends object>(value: T): T => value
 const normalizeRow = (row: MealLogRow): MealLogRow => ({
   ...row,
   createdAt: CREATED_AT_PLACEHOLDER,
+})
+
+const normalizeFoodAndMealLog = (
+  food: FoodMasterRef,
+  fetched: FoundMealLog | null,
+) => ({
+  food,
+  mealLog:
+    fetched === null
+      ? null
+      : { log: normalizeRow(fetched.log), food: fetched.food },
 })
 
 describeIfDb('createDrizzleMealLogRepository', () => {
@@ -77,9 +89,55 @@ describeIfDb('createDrizzleMealLogRepository', () => {
         id: 'fm_rice',
         name: '白米',
         isEstimated: false,
+        nutritionStatus: 'confirmed',
         nutritionPerUnit: {
           protein_g: 2.5,
           carb_g: 37.1,
+        },
+      },
+    })
+  })
+
+  it('finds and returns a meal log for a food without nutrition metadata', async () => {
+    const tx = getTx()
+    await seedFoodMasterWithoutNutrition(tx, {
+      id: 'fm_unknown',
+      name: 'unknown menu item',
+    })
+    const repo = createDrizzleMealLogRepository(tx)
+    await repo.insertMealLog({
+      id: 'ml_unknown',
+      foodMasterId: 'fm_unknown',
+      eatenDate: jstDate('2026-06-15'),
+      mealType: 'dinner',
+      quantity: 1,
+    })
+    const food = (await repo.findFoodMaster('fm_unknown'))._unsafeUnwrap()
+    const fetched = (await repo.findMealLogById('ml_unknown'))._unsafeUnwrap()
+
+    expect(normalizeFoodAndMealLog(food, fetched)).toEqual({
+      food: {
+        id: 'fm_unknown',
+        name: 'unknown menu item',
+        isEstimated: false,
+        nutritionStatus: 'unknown',
+        nutritionPerUnit: {},
+      },
+      mealLog: {
+        log: {
+          id: 'ml_unknown',
+          foodMasterId: 'fm_unknown',
+          eatenDate: jstDate('2026-06-15'),
+          mealType: 'dinner',
+          quantity: 1,
+          createdAt: CREATED_AT_PLACEHOLDER,
+        },
+        food: {
+          id: 'fm_unknown',
+          name: 'unknown menu item',
+          isEstimated: false,
+          nutritionStatus: 'unknown',
+          nutritionPerUnit: {},
         },
       },
     })
@@ -231,6 +289,7 @@ describeIfDb('createDrizzleMealLogRepository', () => {
         id: 'fm_karaage',
         name: '唐揚げ',
         isEstimated: true,
+        nutritionStatus: 'estimated',
         nutritionPerUnit: {
           protein_g: 24.2,
           carb_g: 7.9,

@@ -55,6 +55,7 @@ const toMealLogJson = (result: MealLogResult) => ({
   quantity: result.quantity,
   nutrition: result.nutrition,
   isEstimated: result.isEstimated,
+  nutritionStatus: result.nutritionStatus,
   createdAt: result.createdAt.toISOString(),
 })
 

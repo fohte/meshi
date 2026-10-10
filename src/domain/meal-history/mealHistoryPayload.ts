@@ -1,3 +1,4 @@
+import type { NutritionStatus } from '#domain/food-master/types'
 import type { MealHistoryAggregate } from '#domain/meal-history/types'
 import type { MealType } from '#domain/meal-log/types'
 
@@ -8,6 +9,7 @@ interface MealHistoryPayloadEntry {
   readonly eaten_date: string
   readonly meal_type: MealType
   readonly quantity: number
+  readonly nutrition_status: NutritionStatus
 }
 
 interface MealHistoryPayloadBase {
@@ -15,9 +17,11 @@ interface MealHistoryPayloadBase {
   readonly per_day: Array<{
     readonly date: string
     readonly totals: Record<string, number>
+    readonly has_unknown_values: boolean
   }>
   readonly entries: Array<MealHistoryPayloadEntry>
   readonly has_estimated_values: boolean
+  readonly has_unknown_values: boolean
 }
 
 interface MealHistoryPayloadWithRecordedAt extends Omit<
@@ -47,6 +51,7 @@ export function toMealHistoryPayload(
     per_day: aggregate.perDay.map((day) => ({
       date: day.date,
       totals: { ...day.totals },
+      has_unknown_values: day.hasUnknownValues,
     })),
     entries: aggregate.entries.map((entry) => ({
       meal_log_id: entry.id,
@@ -55,8 +60,10 @@ export function toMealHistoryPayload(
       eaten_date: entry.eatenDate,
       meal_type: entry.mealType,
       quantity: entry.quantity,
+      nutrition_status: entry.nutritionStatus,
       ...(options.includeRecordedAt ? { recorded_at: entry.recordedAt } : {}),
     })),
     has_estimated_values: aggregate.hasEstimatedValues,
+    has_unknown_values: aggregate.hasUnknownValues,
   }
 }

@@ -18,6 +18,7 @@ const stubEmptyDetail: DayDetailService = {
     okAsync({
       totals: {},
       hasEstimatedValues: false,
+      hasUnknownValues: false,
       entries: [],
       skippedMealTypes: [],
     }),
@@ -40,6 +41,7 @@ describe('GET /api/days/:date', () => {
         return okAsync({
           totals: {},
           hasEstimatedValues: false,
+          hasUnknownValues: false,
           entries: [],
           skippedMealTypes: [],
         })
@@ -58,6 +60,7 @@ describe('GET /api/days/:date', () => {
         okAsync({
           totals: { energy_kcal: 312, protein_g: 5 },
           hasEstimatedValues: true,
+          hasUnknownValues: false,
           entries: [
             {
               id: 'log-1',
@@ -68,6 +71,7 @@ describe('GET /api/days/:date', () => {
               quantity: 200,
               kcal: 312,
               isEstimated: false,
+              nutritionStatus: 'confirmed',
             },
           ],
           skippedMealTypes: ['lunch'],
@@ -82,6 +86,7 @@ describe('GET /api/days/:date', () => {
       date: '2026-07-29',
       totals: { energy_kcal: 312, protein_g: 5 },
       hasEstimatedValues: true,
+      hasUnknownValues: false,
       skippedMealTypes: ['lunch'],
       entries: [
         {
@@ -93,6 +98,7 @@ describe('GET /api/days/:date', () => {
           quantity: 200,
           kcal: 312,
           isEstimated: false,
+          nutritionStatus: 'confirmed',
         },
       ],
     })

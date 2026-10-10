@@ -26,6 +26,7 @@ export const mountDayDetailRoutes = (
           date: dateParam,
           totals: detail.totals,
           hasEstimatedValues: detail.hasEstimatedValues,
+          hasUnknownValues: detail.hasUnknownValues,
           skippedMealTypes: detail.skippedMealTypes,
           entries: detail.entries.map((entry) => ({
             id: entry.id,
@@ -36,6 +37,7 @@ export const mountDayDetailRoutes = (
             quantity: entry.quantity,
             kcal: entry.kcal,
             isEstimated: entry.isEstimated,
+            nutritionStatus: entry.nutritionStatus,
           })),
         }),
       (queryError) => jsonServerError(c, queryError),

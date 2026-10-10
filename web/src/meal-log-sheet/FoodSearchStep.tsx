@@ -105,7 +105,11 @@ const FoodRow = ({ item, onSelect }: FoodRowProps): React.JSX.Element => (
   <button type="button" className={styles.row} onClick={onSelect}>
     <span className={styles.rowMain}>
       <span className={styles.rowName}>{item.name}</span>
-      {item.isEstimated && <span className={styles.rowEstMark}> ~</span>}
+      {item.nutritionStatus === 'unknown' ? (
+        <span className={styles.rowEstMark}> 不明</span>
+      ) : item.isEstimated ? (
+        <span className={styles.rowEstMark}> ~</span>
+      ) : null}
       {item.source !== null && (
         <span className={styles.rowMeta}>{SOURCE_LABELS[item.source]}</span>
       )}

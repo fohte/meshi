@@ -21,6 +21,7 @@ const SAMPLE_FOOD_MASTER: FoodMaster = {
   name: 'そば ゆで',
   aliases: [],
   isEstimated: true,
+  nutritionStatus: 'estimated',
   source: 'composition_table_estimate',
   sourceUrl: null,
   sourceCompositionCode: '01088',

@@ -1,6 +1,8 @@
 export type FoodSource =
   'web_search' | 'composition_table_estimate' | 'user_input'
 
+export type NutritionStatus = 'confirmed' | 'estimated' | 'unknown'
+
 type NutrientCode = string
 
 export type NutritionMap = Readonly<Record<NutrientCode, number>>
@@ -12,7 +14,8 @@ export interface FoodMaster {
   readonly name: string
   readonly aliases: ReadonlyArray<string>
   readonly isEstimated: boolean
-  readonly source: FoodSource
+  readonly nutritionStatus: NutritionStatus
+  readonly source: FoodSource | null
   readonly sourceUrl: string | null
   readonly sourceCompositionCode: string | null
   // Nutrition per one of this food_master — meal_logs.quantity is a bare

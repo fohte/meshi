@@ -17,8 +17,10 @@ import type { FoodMatcher } from '#domain/food-matcher/food-matcher'
 const rawRowSchema = z.object({
   id: z.string(),
   name: z.string(),
-  is_estimated: z.boolean(),
-  source: z.enum(['web_search', 'composition_table_estimate', 'user_input']),
+  is_estimated: z.boolean().nullable(),
+  source: z
+    .enum(['web_search', 'composition_table_estimate', 'user_input'])
+    .nullable(),
   energy_kcal: z
     .union([z.number(), z.string()])
     .transform(Number)
@@ -35,7 +37,13 @@ const toListItem = (
   foodMasterId: row.id,
   compositionCode: null,
   name: row.name,
-  isEstimated: row.is_estimated,
+  isEstimated: row.is_estimated ?? false,
+  nutritionStatus:
+    row.is_estimated === null
+      ? 'unknown'
+      : row.is_estimated
+        ? 'estimated'
+        : 'confirmed',
   reason,
   source: row.source,
   energyKcalPerUnit: row.energy_kcal,
@@ -94,6 +102,10 @@ export const createFoodBrowseService = (
                   compositionCode: candidate.compositionCode,
                   name: candidate.name,
                   isEstimated: candidate.isEstimated,
+                  nutritionStatus:
+                    candidate.foodMasterId === null
+                      ? 'estimated'
+                      : (enriched?.nutritionStatus ?? 'unknown'),
                   reason: candidate.reason,
                   source: enriched?.source ?? null,
                   energyKcalPerUnit: enriched?.energyKcalPerUnit ?? null,
@@ -119,7 +131,7 @@ export const createFoodBrowseService = (
             LIMIT ${limit}
           ) recent
           JOIN food_masters fm ON fm.id = recent.food_master_id
-          JOIN food_master_nutrition nutrition ON nutrition.food_master_id = fm.id
+          LEFT JOIN food_master_nutrition nutrition ON nutrition.food_master_id = fm.id
           LEFT JOIN food_master_nutrients nutrients
             ON nutrients.food_master_id = fm.id
             AND nutrients.nutrient_code = ${ENERGY_KCAL_CODE}
@@ -148,7 +160,7 @@ export const createFoodBrowseService = (
             LIMIT ${limit}
           ) freq
           JOIN food_masters fm ON fm.id = freq.food_master_id
-          JOIN food_master_nutrition nutrition ON nutrition.food_master_id = fm.id
+          LEFT JOIN food_master_nutrition nutrition ON nutrition.food_master_id = fm.id
           LEFT JOIN food_master_nutrients nutrients
             ON nutrients.food_master_id = fm.id
             AND nutrients.nutrient_code = ${ENERGY_KCAL_CODE}

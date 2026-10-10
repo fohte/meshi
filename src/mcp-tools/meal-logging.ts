@@ -49,6 +49,7 @@ export const registerMealLoggingTools = (
                     ? food.energyKcalPer100g
                     : food.energyKcalPerUnit,
                 is_estimated: food.isEstimated,
+                nutrition_status: food.nutritionStatus,
               })),
             }
             logger.log(TOOL_SUCCEEDED, {
@@ -105,6 +106,7 @@ export const registerMealLoggingTools = (
                 quantity: item.quantity,
                 nutrition: item.nutrition,
                 is_estimated: item.isEstimated,
+                nutrition_status: item.nutritionStatus,
               })),
               error: null,
             }

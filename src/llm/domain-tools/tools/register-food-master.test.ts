@@ -21,6 +21,7 @@ const sampleMaster = (
   name: input.name,
   aliases: input.aliases ?? [],
   isEstimated: input.isEstimated,
+  nutritionStatus: input.isEstimated ? 'estimated' : 'confirmed',
   source: input.source,
   sourceUrl: input.sourceUrl ?? null,
   sourceCompositionCode: input.sourceCompositionCode ?? null,

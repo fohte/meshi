@@ -4,6 +4,7 @@ import { ResultAsync } from 'neverthrow'
 import type { Sql } from '#db/index'
 import { loadFoodCompositionEnergy } from '#domain/food-browse/food-composition-enrichment'
 import { loadFoodMasterEnrichment } from '#domain/food-browse/food-enrichment'
+import type { NutritionStatus } from '#domain/food-master/types'
 import type {
   FoodMatchCandidate,
   FoodMatcher,
@@ -17,6 +18,7 @@ type FoodSearchResult =
       readonly compositionCode: null
       readonly name: string
       readonly isEstimated: boolean
+      readonly nutritionStatus: NutritionStatus
       readonly energyKcalPerUnit: number | null
     }
   | {
@@ -24,6 +26,7 @@ type FoodSearchResult =
       readonly compositionCode: string
       readonly name: string
       readonly isEstimated: boolean
+      readonly nutritionStatus: NutritionStatus
       readonly energyKcalPer100g: number | null
     }
 
@@ -121,6 +124,9 @@ export const createFoodSearchService = (
                 compositionCode: null,
                 name: match.candidate.name,
                 isEstimated: match.candidate.isEstimated,
+                nutritionStatus:
+                  masterEnrichment.get(match.candidate.foodMasterId)
+                    ?.nutritionStatus ?? 'unknown',
                 energyKcalPerUnit:
                   masterEnrichment.get(match.candidate.foodMasterId)
                     ?.energyKcalPerUnit ?? null,
@@ -131,6 +137,7 @@ export const createFoodSearchService = (
               compositionCode: match.candidate.compositionCode,
               name: match.candidate.name,
               isEstimated: match.candidate.isEstimated,
+              nutritionStatus: 'estimated',
               energyKcalPer100g:
                 compositionEnrichment.get(match.candidate.compositionCode) ??
                 null,

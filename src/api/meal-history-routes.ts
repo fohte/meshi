@@ -41,8 +41,10 @@ export const mountMealHistoryRoutes = (
             eatenDate: entry.eatenDate,
             mealType: entry.mealType,
             quantity: entry.quantity,
+            nutritionStatus: entry.nutritionStatus,
           })),
           hasEstimatedValues: aggregate.hasEstimatedValues,
+          hasUnknownValues: aggregate.hasUnknownValues,
         }),
       (queryError) => jsonServerError(c, queryError),
     )

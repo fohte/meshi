@@ -33,6 +33,7 @@ const setup = (
         createdAt: new Date('2026-06-18T00:00:00.000Z'),
         nutrition: { energy_kcal: 252 },
         isEstimated: false,
+        nutritionStatus: 'confirmed',
       }
       return okAsync(result)
     },
@@ -88,6 +89,7 @@ describe('record_meal_log tool', () => {
         meal_log_id: 'ml_1',
         nutrition: { energy_kcal: 252 },
         is_estimated: false,
+        nutrition_status: 'confirmed',
       },
     })
     expect(calls).toEqual({

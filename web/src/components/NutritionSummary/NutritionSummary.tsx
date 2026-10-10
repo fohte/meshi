@@ -8,11 +8,13 @@ import styles from '#components/NutritionSummary/NutritionSummary.module.css'
 export interface NutritionSummaryProps {
   readonly data: NutritionSummaryData
   readonly hasEstimatedValues: boolean
+  readonly hasUnknownValues: boolean
 }
 
 export const NutritionSummary = ({
   data,
   hasEstimatedValues,
+  hasUnknownValues,
 }: NutritionSummaryProps): React.JSX.Element => {
   const [allOpen, setAllOpen] = useState(false)
   const { energy, pfc, majorRows, allRows, hasAnyTarget } = data
@@ -26,10 +28,17 @@ export const NutritionSummary = ({
             推定値<span className={styles.estimateMark}> ~ </span>を含む
           </span>
         )}
+        {hasUnknownValues && (
+          <span className={styles.unknownNote}>
+            栄養値不明の食事を含む (合計は下限)
+          </span>
+        )}
       </div>
 
       <div className={styles.energyRow}>
-        <span className={styles.energyValue}>{Math.round(energy.value)}</span>
+        <span className={styles.energyValue}>
+          {energy.isUnknown === true ? '不明' : Math.round(energy.value)}
+        </span>
         <span className={styles.energyTarget}>
           / {energy.target === null ? '—' : Math.round(energy.target)} kcal
         </span>
@@ -96,7 +105,9 @@ export const NutritionSummary = ({
             <div className={styles.majorRowHead}>
               <span className={styles.majorRowLabel}>{row.label}</span>
               <span className={styles.majorRowValue}>
-                {formatNutrientValue(row.value, row.unit)}
+                {row.isUnknown === true
+                  ? '不明'
+                  : formatNutrientValue(row.value, row.unit)}
               </span>
               <span className={styles.majorRowTarget}>
                 {row.target === null
@@ -108,7 +119,11 @@ export const NutritionSummary = ({
               <div
                 className={styles.bar}
                 data-over={row.over ? '' : undefined}
-                style={{ width: `${String(Math.min(100, row.pct))}%` }}
+                style={{
+                  width: `${String(
+                    Math.min(100, row.isUnknown === true ? 0 : row.pct),
+                  )}%`,
+                }}
               />
             </div>
           </div>
@@ -144,7 +159,11 @@ export const NutritionSummary = ({
             {allRows.map((row) => (
               <tr key={row.code}>
                 <td>{row.label}</td>
-                <td>{formatNutrientValue(row.value, row.unit)}</td>
+                <td>
+                  {row.isUnknown === true
+                    ? '不明'
+                    : formatNutrientValue(row.value, row.unit)}
+                </td>
                 <td>
                   {row.target === null
                     ? '—'

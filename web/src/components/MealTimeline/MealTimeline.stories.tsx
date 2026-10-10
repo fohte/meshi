@@ -14,6 +14,7 @@ const ENTRIES: ReadonlyArray<DayDetailEntry> = [
     quantity: 150,
     kcal: 234,
     isEstimated: false,
+    nutritionStatus: 'confirmed',
   },
   {
     id: 'l2',
@@ -24,6 +25,7 @@ const ENTRIES: ReadonlyArray<DayDetailEntry> = [
     quantity: 1,
     kcal: 300,
     isEstimated: false,
+    nutritionStatus: 'confirmed',
   },
   {
     id: 'l3',
@@ -34,8 +36,21 @@ const ENTRIES: ReadonlyArray<DayDetailEntry> = [
     quantity: 1,
     kcal: 480,
     isEstimated: true,
+    nutritionStatus: 'estimated',
   },
 ]
+
+const UNKNOWN_ENTRY: DayDetailEntry = {
+  id: 'l4',
+  foodMasterId: 'unknown-food',
+  foodName: '不明なメニュー',
+  eatenDate: '2026-07-29',
+  mealType: 'dinner',
+  quantity: 1,
+  kcal: null,
+  isEstimated: false,
+  nutritionStatus: 'unknown',
+}
 
 const meta: Meta<typeof MealTimeline> = {
   title: 'components/MealTimeline',
@@ -61,4 +76,9 @@ export const WithSkipsAndUnrecorded: Story = {
       ['lunch'],
     ),
   },
+}
+
+export const WithUnknownNutrition: Story = {
+  name: '夕食に栄養値不明の食品が含まれています',
+  args: { groups: buildMealTimelineGroups([...ENTRIES, UNKNOWN_ENTRY], []) },
 }
