@@ -8,6 +8,7 @@ import type {
   MergeFoodMasterResult,
   RegisteredFromComposition,
   RegisterFoodMasterInput,
+  RegisterFoodMasterWithoutNutritionInput,
   RegisterFromCompositionInput,
   SimilarFoodMasterCandidate,
 } from '#domain/food-master/types'
@@ -15,6 +16,10 @@ import type {
 export interface FoodMasterService {
   registerWithSimilarNameCheck(
     input: RegisterFoodMasterInput,
+    confirmedDistinctFromMasterIds?: ReadonlyArray<FoodMasterId>,
+  ): ResultAsync<FoodMaster, FoodMasterDomainError>
+  registerWithoutNutritionWithSimilarNameCheck(
+    input: RegisterFoodMasterWithoutNutritionInput,
     confirmedDistinctFromMasterIds?: ReadonlyArray<FoodMasterId>,
   ): ResultAsync<FoodMaster, FoodMasterDomainError>
   getById(
@@ -48,35 +53,55 @@ export interface FoodMasterService {
 export const createFoodMasterService = (
   repo: FoodMasterRepository,
 ): FoodMasterService => {
+  const registerIfNameIsDistinct = <Input extends { readonly name: string }>(
+    input: Input,
+    confirmedDistinctFromMasterIds: ReadonlyArray<FoodMasterId>,
+    register: (input: Input) => ResultAsync<FoodMaster, FoodMasterDomainError>,
+  ): ResultAsync<FoodMaster, FoodMasterDomainError> => {
+    const acknowledged = new Set(confirmedDistinctFromMasterIds)
+    return repo.findSimilarNames(input.name).andThen((candidates) => {
+      const blocking = candidates.filter(
+        (candidate) => !acknowledged.has(candidate.foodMasterId),
+      )
+      if (blocking.length > 0) {
+        return errAsync(
+          new FoodMasterDomainError(
+            'similar_name_exists',
+            'existing food_master(s) with a similar name were found; reuse one of them if it is the same product, gather stronger evidence and retry if unsure, ask the user to disambiguate, or retry with confirmed_distinct_from_master_ids listing exactly these food_master_id values once you have verified this is a different product',
+            {
+              candidates: blocking.map((candidate) => ({
+                food_master_id: candidate.foodMasterId,
+                name: candidate.name,
+                score: candidate.score,
+              })),
+            },
+          ),
+        )
+      }
+
+      return register(input)
+    })
+  }
+
   const registerWithSimilarNameCheck: FoodMasterService['registerWithSimilarNameCheck'] =
     (input, confirmedDistinctFromMasterIds = []) => {
-      const acknowledged = new Set(confirmedDistinctFromMasterIds)
-      return repo.findSimilarNames(input.name).andThen((candidates) => {
-        const blocking = candidates.filter(
-          (candidate) => !acknowledged.has(candidate.foodMasterId),
-        )
-        if (blocking.length > 0) {
-          return errAsync(
-            new FoodMasterDomainError(
-              'similar_name_exists',
-              'existing food_master(s) with a similar name were found; reuse one of them if it is the same product, gather stronger evidence and retry if unsure, ask the user to disambiguate, or retry with confirmed_distinct_from_master_ids listing exactly these food_master_id values once you have verified this is a different product',
-              {
-                candidates: blocking.map((candidate) => ({
-                  food_master_id: candidate.foodMasterId,
-                  name: candidate.name,
-                  score: candidate.score,
-                })),
-              },
-            ),
-          )
-        }
-
-        return repo.register(input)
-      })
+      return registerIfNameIsDistinct(
+        input,
+        confirmedDistinctFromMasterIds,
+        (registrationInput) => repo.register(registrationInput),
+      )
     }
+  const registerWithoutNutritionWithSimilarNameCheck: FoodMasterService['registerWithoutNutritionWithSimilarNameCheck'] =
+    (input, confirmedDistinctFromMasterIds = []) =>
+      registerIfNameIsDistinct(
+        input,
+        confirmedDistinctFromMasterIds,
+        (registrationInput) => repo.registerWithoutNutrition(registrationInput),
+      )
 
   return {
     registerWithSimilarNameCheck,
+    registerWithoutNutritionWithSimilarNameCheck,
     getById: (id) => repo.findById(id),
     findSimilarNames: (name) => repo.findSimilarNames(name),
     addAlias: (id, alias) => repo.addAlias(id, alias),

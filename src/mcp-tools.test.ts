@@ -8,6 +8,7 @@ import type { FoodMasterService } from '#domain/food-master/service'
 import type {
   FoodMaster,
   RegisterFoodMasterInput,
+  RegisterFoodMasterWithoutNutritionInput,
   RegisterFromCompositionInput,
 } from '#domain/food-master/types'
 import {
@@ -318,6 +319,7 @@ const makeFoodMasterService = (
     errAsync(new FoodMasterDomainError('persistence_failed', 'not stubbed'))
   return {
     registerWithSimilarNameCheck: unused,
+    registerWithoutNutritionWithSimilarNameCheck: unused,
     getById: (id) => okAsync(foodMasters.get(id) ?? null),
     registerFromComposition(input) {
       calls.registerFromComposition.push(input)
@@ -621,7 +623,7 @@ const start = async (config: HarnessConfig = {}): Promise<Harness> => {
 }
 
 describe('MeshiMcpServer tools/list', () => {
-  it('exposes the thirteen public tools with stable names', async () => {
+  it('exposes the public tools with stable names', async () => {
     const h = await start()
     try {
       const result = await h.client.listTools()
@@ -637,6 +639,7 @@ describe('MeshiMcpServer tools/list', () => {
         'record_meal_skip',
         'register_food',
         'register_food_from_composition',
+        'register_food_without_nutrition',
         'search_foods',
         'update_meal_log',
         'update_profile',
@@ -698,6 +701,21 @@ describe('MeshiMcpServer tools/list', () => {
     }
   })
 
+  it('explains when to register a food without nutrition and that values can be added later', async () => {
+    const h = await start()
+    try {
+      const result = await h.client.listTools()
+      const tool = result.tools.find(
+        (candidate) => candidate.name === 'register_food_without_nutrition',
+      )
+      expect(tool?.description).toEqual(
+        '栄養値が不明な食品を登録し、food_master_id と名前を返す。公式の栄養情報が見つからず、ユーザーも栄養値を伝えていない場合だけ使う。栄養値を一般知識から作らない。栄養値は後から公式情報またはユーザーが伝えた値で補完できる。似た名前の候補が返されたら、同じ食品なら既存候補を使う。確信がなければユーザーに確認する。候補すべてと別物だと確認できた場合のみ、confirmed_distinct_from_master_ids に候補の food_master_id をすべて指定して再送する。',
+      )
+    } finally {
+      await h.close()
+    }
+  })
+
   it('pins each tool input schema to a domain-only property set (no chat-platform fields)', async () => {
     const h = await start()
     try {
@@ -733,6 +751,11 @@ describe('MeshiMcpServer tools/list', () => {
           'nutrition',
           'source',
           'source_url',
+        ],
+        register_food_without_nutrition: [
+          'aliases',
+          'confirmed_distinct_from_master_ids',
+          'name',
         ],
         update_meal_log: [
           'date',
@@ -2624,6 +2647,141 @@ describe('register_food', () => {
               source: 'user_input',
               isEstimated: false,
             },
+          },
+        ],
+      })
+    } finally {
+      await h.close()
+    }
+  })
+})
+
+describe('register_food_without_nutrition', () => {
+  it('registers a food without nutrition and forwards aliases and confirmations', async () => {
+    const calls: Array<{
+      input: RegisterFoodMasterWithoutNutritionInput
+      confirmedDistinctFromMasterIds?: ReadonlyArray<string>
+    }> = []
+    const h = await start({
+      foodMasterOverrides: {
+        registerWithoutNutritionWithSimilarNameCheck: (
+          input,
+          confirmedDistinctFromMasterIds,
+        ) => {
+          calls.push({
+            input,
+            ...(confirmedDistinctFromMasterIds === undefined
+              ? {}
+              : { confirmedDistinctFromMasterIds }),
+          })
+          return okAsync({
+            id: 'fm_unknown_alpha',
+            name: input.name,
+            aliases: input.aliases ?? [],
+            isEstimated: false,
+            nutritionStatus: 'unknown',
+            source: null,
+            sourceUrl: null,
+            sourceCompositionCode: null,
+            nutrition: {},
+            createdAt: new Date('2026-04-17T00:00:00.000Z'),
+          })
+        },
+      },
+    })
+    try {
+      const result = await h.client.callTool({
+        name: 'register_food_without_nutrition',
+        arguments: {
+          name: 'Example Bistro lunch plate',
+          aliases: ['Example Bistro plate'],
+          confirmed_distinct_from_master_ids: ['fm_candidate_alpha'],
+        },
+      })
+
+      expect(observation({ result, calls })).toEqual({
+        result: {
+          content: [{ type: 'text', text: '食品を登録しました。' }],
+          structuredContent: {
+            food_master_id: 'fm_unknown_alpha',
+            name: 'Example Bistro lunch plate',
+          },
+        },
+        calls: [
+          {
+            input: {
+              name: 'Example Bistro lunch plate',
+              aliases: ['Example Bistro plate'],
+            },
+            confirmedDistinctFromMasterIds: ['fm_candidate_alpha'],
+          },
+        ],
+      })
+    } finally {
+      await h.close()
+    }
+  })
+
+  it('returns similar-name candidates in the structured error', async () => {
+    const calls: Array<{
+      input: RegisterFoodMasterWithoutNutritionInput
+      confirmedDistinctFromMasterIds?: ReadonlyArray<string>
+    }> = []
+    const message =
+      'existing food_master(s) with a similar name were found; reuse one of them if it is the same product, gather stronger evidence and retry if unsure, ask the user to disambiguate, or retry with confirmed_distinct_from_master_ids listing exactly these food_master_id values once you have verified this is a different product'
+    const h = await start({
+      foodMasterOverrides: {
+        registerWithoutNutritionWithSimilarNameCheck: (
+          input,
+          confirmedDistinctFromMasterIds,
+        ) => {
+          calls.push({
+            input,
+            ...(confirmedDistinctFromMasterIds === undefined
+              ? {}
+              : { confirmedDistinctFromMasterIds }),
+          })
+          return errAsync(
+            new FoodMasterDomainError('similar_name_exists', message, {
+              candidates: [
+                {
+                  food_master_id: 'fm_candidate_alpha',
+                  name: 'Example Bistro dinner plate',
+                  score: 0.73,
+                },
+              ],
+            }),
+          )
+        },
+      },
+    })
+    try {
+      const result = await h.client.callTool({
+        name: 'register_food_without_nutrition',
+        arguments: { name: 'Example Bistro lunch plate' },
+      })
+
+      expect(observation({ result, calls })).toEqual({
+        result: {
+          isError: true,
+          content: [{ type: 'text', text: message }],
+          structuredContent: {
+            error: {
+              code: 'food_master/similar_name_exists',
+              message,
+              candidates: [
+                {
+                  food_master_id: 'fm_candidate_alpha',
+                  name: 'Example Bistro dinner plate',
+                  score: 0.73,
+                },
+              ],
+            },
+          },
+        },
+        calls: [
+          {
+            input: { name: 'Example Bistro lunch plate' },
           },
         ],
       })

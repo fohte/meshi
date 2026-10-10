@@ -2,7 +2,7 @@
 
 @fohte's personal meal management service, with an MCP server and a REST API for its web frontend.
 
-The MCP server exposes meal-history queries, profile management, origin-aware food search, food registration, food registration from the composition table, food master merging, resolved meal logging, meal-log updates and deletions, meal-skip recording and cancellation, and recommendation context. The REST API under `/api` serves the web frontend; its endpoints are listed below.
+The MCP server exposes meal-history queries, profile management, origin-aware food search, food registration (`register_food` and `register_food_without_nutrition`), food registration from the composition table, food master merging, resolved meal logging, meal-log updates and deletions, meal-skip recording and cancellation, and recommendation context. The REST API under `/api` serves the web frontend; its endpoints are listed below.
 
 ## Development
 

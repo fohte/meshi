@@ -17,6 +17,40 @@ const similarNameDetailsSchema = z.object({
   candidates: z.array(similarFoodMasterCandidateOutput),
 })
 
+export const registerFoodResult = (
+  result: ReturnType<FoodMasterService['registerWithSimilarNameCheck']>,
+  logger: Logger,
+  toolName: string,
+) =>
+  result.match(
+    (foodMaster) => {
+      logger.log(TOOL_SUCCEEDED, { tool: toolName })
+      return {
+        content: [{ type: 'text' as const, text: '食品を登録しました。' }],
+        structuredContent: {
+          food_master_id: foodMaster.id,
+          name: foodMaster.name,
+        },
+      }
+    },
+    (error) => {
+      const code = `food_master/${error.code}`
+      const similarDetails = similarNameDetailsSchema.safeParse(error.details)
+      return errorResult(logger, toolName, error, {
+        code,
+        structuredContent: {
+          error: {
+            code,
+            message: error.message,
+            ...(similarDetails.success
+              ? { candidates: similarDetails.data.candidates }
+              : {}),
+          },
+        },
+      })
+    },
+  )
+
 export const registerFoodTool = (
   server: McpServer,
   deps: {
@@ -36,8 +70,8 @@ export const registerFoodTool = (
     },
     async (args) => {
       logger.log(TOOL_CALLED, { tool: 'register_food' })
-      return await foodMasterService
-        .registerWithSimilarNameCheck(
+      return await registerFoodResult(
+        foodMasterService.registerWithSimilarNameCheck(
           {
             name: args.name,
             ...(args.aliases === undefined ? {} : { aliases: args.aliases }),
@@ -49,39 +83,10 @@ export const registerFoodTool = (
               : { sourceUrl: args.source_url }),
           },
           args.confirmed_distinct_from_master_ids,
-        )
-        .match(
-          (foodMaster) => {
-            logger.log(TOOL_SUCCEEDED, { tool: 'register_food' })
-            return {
-              content: [
-                { type: 'text' as const, text: '食品を登録しました。' },
-              ],
-              structuredContent: {
-                food_master_id: foodMaster.id,
-                name: foodMaster.name,
-              },
-            }
-          },
-          (error) => {
-            const code = `food_master/${error.code}`
-            const similarDetails = similarNameDetailsSchema.safeParse(
-              error.details,
-            )
-            return errorResult(logger, 'register_food', error, {
-              code,
-              structuredContent: {
-                error: {
-                  code,
-                  message: error.message,
-                  ...(similarDetails.success
-                    ? { candidates: similarDetails.data.candidates }
-                    : {}),
-                },
-              },
-            })
-          },
-        )
+        ),
+        logger,
+        'register_food',
+      )
     },
   )
 }

@@ -22,6 +22,7 @@ import {
 import { registerQueryMealsTool } from '#mcp-tools/query-meals'
 import { registerRecommendationContextTool } from '#mcp-tools/recommendation'
 import { registerFoodTool } from '#mcp-tools/register-food'
+import { registerFoodWithoutNutritionTool } from '#mcp-tools/register-food-without-nutrition'
 import { profileStructuredOutput, updateProfileInput } from '#mcp-tools/schemas'
 import { registerUpdateMealLogTool } from '#mcp-tools/update-meal-log'
 
@@ -58,6 +59,7 @@ export const registerMeshiTools = (
   registerFoodFromCompositionTool(server, { foodMasterService, logger })
 
   registerFoodTool(server, { foodMasterService, logger })
+  registerFoodWithoutNutritionTool(server, { foodMasterService, logger })
   registerMergeFoodMasterTool(server, { foodMasterService, logger })
 
   registerQueryMealsTool(server, { mealHistoryService, logger })
