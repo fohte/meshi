@@ -218,6 +218,37 @@ export const registerFoodInput = z.object({
     .describe('別物だと確認した類似食品の food_master_id'),
 })
 
+export const fillFoodNutritionInput = z.object({
+  food_master_id: z
+    .string()
+    .trim()
+    .min(1)
+    .describe('栄養値を補完する食品の ID'),
+  nutrition: registerFoodNutrition.describe(
+    '出典が示す 1 つ分の栄養値。energy_kcal は必須',
+  ),
+  source: z.enum(['web_search', 'user_input']),
+  is_estimated: z.boolean().describe('栄養値が推定値かどうか'),
+  source_url: z
+    .url()
+    .refine((url) => !/[\r\n]/.test(url), {
+      message: 'source_url must not contain control characters',
+    })
+    .optional()
+    .describe('web_search で参照した公式ページ'),
+})
+
+export const fillFoodNutritionStructuredOutput = z.object({
+  food_master_id: z.string().optional(),
+  nutrition_status: z.enum(['confirmed', 'estimated']).optional(),
+  error: z
+    .object({
+      code: z.string(),
+      message: z.string(),
+    })
+    .optional(),
+})
+
 export const similarFoodMasterCandidateOutput = z.object({
   food_master_id: z.string(),
   name: z.string(),

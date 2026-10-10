@@ -9,6 +9,7 @@ import type { MealSkipService } from '#domain/meal-skip/meal-skip-service'
 import type { UserProfileService } from '#domain/user-profile/user-profile-service'
 import type { Logger } from '#logger'
 import { registerDeleteMealLogTool } from '#mcp-tools/delete-meal-log'
+import { registerFillFoodNutritionTool } from '#mcp-tools/fill-food-nutrition'
 import { registerFoodFromCompositionTool } from '#mcp-tools/food-composition'
 import { registerMealLoggingTools } from '#mcp-tools/meal-logging'
 import { registerMealSkipTools } from '#mcp-tools/meal-skip'
@@ -58,6 +59,7 @@ export const registerMeshiTools = (
   registerFoodFromCompositionTool(server, { foodMasterService, logger })
 
   registerFoodTool(server, { foodMasterService, logger })
+  registerFillFoodNutritionTool(server, { foodMasterService, logger })
   registerMergeFoodMasterTool(server, { foodMasterService, logger })
 
   registerQueryMealsTool(server, { mealHistoryService, logger })

@@ -30,6 +30,13 @@ const SAMPLE_FOOD_MASTER: FoodMaster = {
 }
 
 const notStubbed = (name: string): FoodMasterService => ({
+  fillNutrition: () =>
+    errAsync(
+      new FoodMasterDomainError(
+        'persistence_failed',
+        `${name}.fillNutrition not stubbed`,
+      ),
+    ),
   registerWithSimilarNameCheck: () =>
     errAsync(
       new FoodMasterDomainError(

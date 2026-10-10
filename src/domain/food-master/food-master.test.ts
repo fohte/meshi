@@ -557,6 +557,169 @@ describeIfDb('FoodMasterService + Repository', () => {
     })
   })
 
+  it('fills unknown nutrition and returns the resulting status', async () => {
+    await seedFoodMasterWithoutNutrition(getTx(), {
+      id: 'fm_pending_alpha',
+      name: 'sample takeaway bowl',
+    })
+
+    const status = (
+      await service.fillNutrition({
+        foodMasterId: 'fm_pending_alpha',
+        nutrition: { energy_kcal: 240, protein_g: 12 },
+        source: 'web_search',
+        isEstimated: false,
+        sourceUrl: 'https://example.test/items/sample-bowl',
+      })
+    )._unsafeUnwrap()
+    const foodMaster = (
+      await service.getById('fm_pending_alpha')
+    )._unsafeUnwrap()
+
+    expect(
+      observation({
+        status,
+        foodMaster: foodMaster === null ? null : normalize(foodMaster),
+      }),
+    ).toEqual({
+      status: 'confirmed',
+      foodMaster: {
+        id: 'fm_pending_alpha',
+        name: 'sample takeaway bowl',
+        aliases: [],
+        isEstimated: false,
+        nutritionStatus: 'confirmed',
+        source: 'web_search',
+        sourceUrl: 'https://example.test/items/sample-bowl',
+        sourceCompositionCode: null,
+        nutrition: { energy_kcal: 240, protein_g: 12 },
+        createdAt: '<date>',
+      },
+    })
+  })
+
+  it('marks user-provided estimated nutrition as estimated', async () => {
+    await seedFoodMasterWithoutNutrition(getTx(), {
+      id: 'fm_pending_beta',
+      name: 'sample market side',
+    })
+
+    const status = (
+      await service.fillNutrition({
+        foodMasterId: 'fm_pending_beta',
+        nutrition: { energy_kcal: 190 },
+        source: 'user_input',
+        isEstimated: true,
+      })
+    )._unsafeUnwrap()
+    const foodMaster = (
+      await service.getById('fm_pending_beta')
+    )._unsafeUnwrap()
+
+    expect(
+      observation({
+        status,
+        foodMaster: foodMaster === null ? null : normalize(foodMaster),
+      }),
+    ).toEqual({
+      status: 'estimated',
+      foodMaster: {
+        id: 'fm_pending_beta',
+        name: 'sample market side',
+        aliases: [],
+        isEstimated: true,
+        nutritionStatus: 'estimated',
+        source: 'user_input',
+        sourceUrl: null,
+        sourceCompositionCode: null,
+        nutrition: { energy_kcal: 190 },
+        createdAt: '<date>',
+      },
+    })
+  })
+
+  it('does not overwrite existing nutrition metadata', async () => {
+    const existing = (
+      await repository.register({
+        name: 'sample pantry item',
+        nutrition: { energy_kcal: 175, protein_g: 7 },
+        source: 'user_input',
+        isEstimated: false,
+      })
+    )._unsafeUnwrap()
+    const error = await captureDomainError(
+      service.fillNutrition({
+        foodMasterId: existing.id,
+        nutrition: { energy_kcal: 999, protein_g: 40 },
+        source: 'user_input',
+        isEstimated: true,
+      }),
+    )
+    const foodMaster = (await service.getById(existing.id))._unsafeUnwrap()
+
+    expect(
+      observation({
+        error,
+        foodMaster: foodMaster === null ? null : normalize(foodMaster),
+      }),
+    ).toEqual({
+      error: {
+        code: 'nutrition_already_exists',
+        details: { foodMasterId: existing.id },
+      },
+      foodMaster: normalize(existing),
+    })
+  })
+
+  it('returns a not-found error for an unknown food master id', async () => {
+    const tx = getTx()
+    const error = await captureDomainError(
+      service.fillNutrition({
+        foodMasterId: 'fm_missing_alpha',
+        nutrition: { energy_kcal: 240 },
+        source: 'user_input',
+        isEstimated: false,
+      }),
+    )
+    const rows = await tx<{ count: string }[]>`
+      SELECT count(*)::text AS count
+      FROM food_master_nutrition
+      WHERE food_master_id = 'fm_missing_alpha'
+    `
+
+    expect(observation({ error, rows })).toEqual({
+      error: {
+        code: 'food_master_not_found',
+        details: { foodMasterId: 'fm_missing_alpha' },
+      },
+      rows: [{ count: '0' }],
+    })
+  })
+
+  it('rejects estimated values from web_search before writing', async () => {
+    const tx = getTx()
+    const error = await captureDomainError(
+      service.fillNutrition({
+        foodMasterId: 'fm_missing_alpha',
+        nutrition: { energy_kcal: 240 },
+        source: 'web_search',
+        isEstimated: true,
+        sourceUrl: 'https://example.test/items/sample-bowl',
+      }),
+    )
+    const rows = await tx<{ count: string }[]>`
+      SELECT count(*)::text AS count FROM food_master_nutrition
+    `
+
+    expect(observation({ error, rows })).toEqual({
+      error: {
+        code: 'invalid_source_combination',
+        details: { source: 'web_search', isEstimated: true },
+      },
+      rows: [{ count: '0' }],
+    })
+  })
+
   it('registers a food_master from a food_compositions row', async () => {
     const tx = getTx()
     await seedFoodComposition(tx, { code: '01088', name: 'そば ゆで' })

@@ -27,6 +27,8 @@ const rejectingProfileService: UserProfileService = {
 }
 
 const rejectingFoodMasterService: FoodMasterService = {
+  fillNutrition: () =>
+    errAsync(new FoodMasterDomainError('persistence_failed', 'stub')),
   registerWithSimilarNameCheck: () =>
     errAsync(new FoodMasterDomainError('persistence_failed', 'stub')),
   getById: () =>

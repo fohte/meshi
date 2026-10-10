@@ -5,6 +5,8 @@ export const NUTRITION_STATUSES = ['confirmed', 'estimated', 'unknown'] as const
 
 export type NutritionStatus = (typeof NUTRITION_STATUSES)[number]
 
+export type KnownNutritionStatus = Exclude<NutritionStatus, 'unknown'>
+
 export const nutritionStatusFromIsEstimated = (
   isEstimated: boolean | null,
 ): NutritionStatus =>
@@ -64,6 +66,14 @@ export interface RegisterFoodMasterInput {
   readonly isEstimated: boolean
   readonly sourceUrl?: string
   readonly sourceCompositionCode?: string
+}
+
+export interface FillFoodNutritionInput {
+  readonly foodMasterId: FoodMasterId
+  readonly nutrition: NutritionMap
+  readonly source: Exclude<FoodSource, 'composition_table_estimate'>
+  readonly isEstimated: boolean
+  readonly sourceUrl?: string
 }
 
 export interface RegisterFromCompositionInput {

@@ -15,6 +15,7 @@ type FoodMasterErrorCode =
   | 'unexpected_composition_code'
   | 'unknown_nutrient_code'
   | 'negative_nutrient_value'
+  | 'nutrition_already_exists'
   | 'duplicate_name'
   | 'duplicate_alias'
   | 'similar_name_exists'

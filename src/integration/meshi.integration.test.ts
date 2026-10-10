@@ -26,6 +26,7 @@ import { jstDate } from '#test/jst-date'
 import { createNullLogger } from '#test/logger'
 import {
   seedFoodMaster as seedFoodMasterRow,
+  seedFoodMasterWithoutNutrition as seedFoodMasterWithoutNutritionRow,
   seedMealLog as seedMealLogRow,
 } from '#test/seed'
 
@@ -340,6 +341,87 @@ describeIfDb('meshi integration', () => {
             text: '食事履歴を取得しました。',
           },
         ],
+      })
+    } finally {
+      await harness.close()
+    }
+  })
+
+  it('includes earlier meal logs after filling their food nutrition', async () => {
+    const tx = getTx()
+    await seedFoodMasterWithoutNutritionRow(tx, {
+      id: 'fm_pending_alpha',
+      name: 'sample takeaway bowl',
+    })
+    await seedMealLogRow(tx, {
+      id: 'ml_pending_alpha',
+      foodMasterId: 'fm_pending_alpha',
+      eatenDate: jstDate('2026-06-12'),
+      mealType: 'lunch',
+      quantity: 1.5,
+      createdAt: new Date('2026-06-12T03:30:45.000Z'),
+    })
+
+    const harness = await startHarness({ tx })
+
+    try {
+      const fillResult = normalizeResult(
+        await harness.client.callTool({
+          name: 'fill_food_nutrition',
+          arguments: {
+            food_master_id: 'fm_pending_alpha',
+            nutrition: { energy_kcal: 240, protein_g: 12 },
+            source: 'web_search',
+            is_estimated: false,
+            source_url: 'https://example.test/items/sample-bowl',
+          },
+        }),
+      )
+      const queryResult = normalizeResult(
+        await harness.client.callTool({
+          name: 'query_meals',
+          arguments: {
+            period_from: '2026-06-12',
+            period_to: '2026-06-13',
+          },
+        }),
+      )
+
+      expect(observation({ fillResult, queryResult })).toEqual({
+        fillResult: {
+          content: [{ type: 'text', text: '食品の栄養値を補完しました。' }],
+          structuredContent: {
+            food_master_id: 'fm_pending_alpha',
+            nutrition_status: 'confirmed',
+          },
+        },
+        queryResult: {
+          structuredContent: {
+            totals: { energy_kcal: 360, protein_g: 18 },
+            per_day: [
+              {
+                date: '2026-06-12',
+                totals: { energy_kcal: 360, protein_g: 18 },
+                has_unknown_values: false,
+              },
+            ],
+            entries: [
+              {
+                meal_log_id: 'ml_pending_alpha',
+                food_master_id: 'fm_pending_alpha',
+                food_name: 'sample takeaway bowl',
+                eaten_date: '2026-06-12',
+                meal_type: 'lunch',
+                quantity: 1.5,
+                recorded_at: '2026-06-12T03:30:45Z',
+                nutrition_status: 'confirmed',
+              },
+            ],
+            has_estimated_values: false,
+            has_unknown_values: false,
+          },
+          content: [{ type: 'text', text: '食事履歴を取得しました。' }],
+        },
       })
     } finally {
       await harness.close()

@@ -5,11 +5,14 @@ import type { Sql } from '#db/index'
 import { errorMessage, FoodMasterDomainError } from '#domain/food-master/errors'
 import { defaultIdGenerator, type IdGenerator } from '#domain/food-master/id'
 import { mergeFoodMasters } from '#domain/food-master/merge-repository'
+import { createFoodMasterNutritionFiller } from '#domain/food-master/nutrition'
 import { createFoodMasterRegistrar } from '#domain/food-master/registration'
 import { toNutritionMap } from '#domain/food-master/rows'
 import type {
+  FillFoodNutritionInput,
   FoodMaster,
   FoodMasterId,
+  KnownNutritionStatus,
   MergeFoodMasterResult,
   NutritionMap,
   RegisterFoodMasterInput,
@@ -26,6 +29,9 @@ export interface FoodMasterRepository {
   register(
     input: RegisterFoodMasterInput,
   ): ResultAsync<FoodMaster, FoodMasterDomainError>
+  fillNutrition(
+    input: FillFoodNutritionInput,
+  ): ResultAsync<KnownNutritionStatus, FoodMasterDomainError>
   findById(
     id: FoodMasterId,
   ): ResultAsync<FoodMaster | null, FoodMasterDomainError>
@@ -96,6 +102,11 @@ export const createFoodMasterRepository = (
   const generateId = options.generateId ?? defaultIdGenerator
   const wrapInTransaction = options.wrapInTransaction ?? true
   const register = createFoodMasterRegistrar(sql, generateId, wrapInTransaction)
+  const fillNutrition = createFoodMasterNutritionFiller(
+    sql,
+    generateId,
+    wrapInTransaction,
+  )
 
   const findById = (
     id: FoodMasterId,
@@ -273,6 +284,7 @@ export const createFoodMasterRepository = (
 
   return {
     register,
+    fillNutrition,
     findById,
     findComposition,
     findSimilarNames,

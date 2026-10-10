@@ -6,6 +6,7 @@ import type { FoodSearchService } from '#domain/food-browse/food-search-service'
 import { FoodMasterDomainError } from '#domain/food-master/errors'
 import type { FoodMasterService } from '#domain/food-master/service'
 import type {
+  FillFoodNutritionInput,
   FoodMaster,
   RegisterFoodMasterInput,
   RegisterFromCompositionInput,
@@ -317,6 +318,7 @@ const makeFoodMasterService = (
   const unused = () =>
     errAsync(new FoodMasterDomainError('persistence_failed', 'not stubbed'))
   return {
+    fillNutrition: unused,
     registerWithSimilarNameCheck: unused,
     getById: (id) => okAsync(foodMasters.get(id) ?? null),
     registerFromComposition(input) {
@@ -621,7 +623,7 @@ const start = async (config: HarnessConfig = {}): Promise<Harness> => {
 }
 
 describe('MeshiMcpServer tools/list', () => {
-  it('exposes the thirteen public tools with stable names', async () => {
+  it('exposes the fourteen public tools with stable names', async () => {
     const h = await start()
     try {
       const result = await h.client.listTools()
@@ -629,6 +631,7 @@ describe('MeshiMcpServer tools/list', () => {
       expect(names).toEqual([
         'cancel_meal_skip',
         'delete_meal_log',
+        'fill_food_nutrition',
         'get_profile',
         'get_recommendation_context',
         'merge_food_master',
@@ -698,6 +701,21 @@ describe('MeshiMcpServer tools/list', () => {
     }
   })
 
+  it('explains the evidence rules for filling unknown nutrition', async () => {
+    const h = await start()
+    try {
+      const result = await h.client.listTools()
+      const fillFoodNutrition = result.tools.find(
+        (tool) => tool.name === 'fill_food_nutrition',
+      )
+      expect(fillFoodNutrition?.description).toEqual(
+        '栄養値が不明の food_master に栄養値を補完する。food_master_id を指定する。nutrition.energy_kcal は必須。既に栄養値がある食品は補完できない。栄養値を一般知識から作らない。出典はメーカーまたは店の公式ページを優先し、まとめサイトやブログは使わない。source_url はこの商品とサイズの栄養値を載せたページにする。source=web_search は is_estimated=false かつ source_url 必須。source=user_input はユーザー本人が値を伝えた場合だけ使い、source_url は指定しない。栄養値は出典が示す 1 つ分 (1 個、1 食、100g など) のまま渡す。',
+      )
+    } finally {
+      await h.close()
+    }
+  })
+
   it('pins each tool input schema to a domain-only property set (no chat-platform fields)', async () => {
     const h = await start()
     try {
@@ -713,6 +731,13 @@ describe('MeshiMcpServer tools/list', () => {
       expect(propsByTool).toEqual({
         cancel_meal_skip: ['date', 'meal_type'],
         delete_meal_log: ['meal_log_ids'],
+        fill_food_nutrition: [
+          'food_master_id',
+          'is_estimated',
+          'nutrition',
+          'source',
+          'source_url',
+        ],
         get_profile: [],
         get_recommendation_context: ['period_from', 'period_to'],
         merge_food_master: [
@@ -2626,6 +2651,88 @@ describe('register_food', () => {
             },
           },
         ],
+      })
+    } finally {
+      await h.close()
+    }
+  })
+})
+
+describe('fill_food_nutrition', () => {
+  it('fills an unknown food through FoodMasterService', async () => {
+    const calls: FillFoodNutritionInput[] = []
+    const h = await start({
+      foodMasterOverrides: {
+        fillNutrition: (input) => {
+          calls.push(input)
+          return okAsync('confirmed')
+        },
+      },
+    })
+    try {
+      const result = await h.client.callTool({
+        name: 'fill_food_nutrition',
+        arguments: {
+          food_master_id: 'fm_unknown_alpha',
+          nutrition: { energy_kcal: 315, protein_g: 12.5 },
+          source: 'web_search',
+          is_estimated: false,
+          source_url: 'https://example.test/items/sample-bowl',
+        },
+      })
+
+      expect(observation({ result, calls })).toEqual({
+        result: {
+          content: [{ type: 'text', text: '食品の栄養値を補完しました。' }],
+          structuredContent: {
+            food_master_id: 'fm_unknown_alpha',
+            nutrition_status: 'confirmed',
+          },
+        },
+        calls: [
+          {
+            foodMasterId: 'fm_unknown_alpha',
+            nutrition: { energy_kcal: 315, protein_g: 12.5 },
+            source: 'web_search',
+            isEstimated: false,
+            sourceUrl: 'https://example.test/items/sample-bowl',
+          },
+        ],
+      })
+    } finally {
+      await h.close()
+    }
+  })
+
+  it('requires energy_kcal before calling FoodMasterService', async () => {
+    const calls: FillFoodNutritionInput[] = []
+    const h = await start({
+      foodMasterOverrides: {
+        fillNutrition: (input) => {
+          calls.push(input)
+          return okAsync('confirmed')
+        },
+      },
+    })
+    try {
+      const result = await h.client.callTool({
+        name: 'fill_food_nutrition',
+        arguments: {
+          food_master_id: 'fm_unknown_alpha',
+          nutrition: { protein_g: 12.5 },
+          source: 'user_input',
+          is_estimated: false,
+        },
+      })
+
+      expect(
+        observation({ result: normalizeValidationError(result), calls }),
+      ).toEqual({
+        result: {
+          content: [{ type: 'text', text: VALIDATION_ERROR_TEXT }],
+          isError: true,
+        },
+        calls: [],
       })
     } finally {
       await h.close()

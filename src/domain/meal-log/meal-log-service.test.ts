@@ -164,6 +164,7 @@ const createFakeFoodMasterService = (
     throw new Error('unused in this test')
   }
   const foodMasterService: FoodMasterService = {
+    fillNutrition: unused,
     registerWithSimilarNameCheck: unused,
     getById: unused,
     registerFromComposition: unused,

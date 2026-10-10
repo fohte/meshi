@@ -15,11 +15,7 @@ import type {
 import { nutritionStatusFromIsEstimated } from '#domain/food-master/types'
 import {
   hasDuplicateAfterTrim,
-  INVALID_SOURCE_COMBINATION_MESSAGE,
-  isEmptyNutrition,
-  isInvalidSourceCombination,
-  type SourceEvidenceViolation,
-  validateSourceEvidence,
+  normalizeAndValidateNutrition,
 } from '#domain/food-master/validation'
 
 const FOOD_MASTERS_NAME_CONSTRAINT = 'food_masters_name_key'
@@ -35,18 +31,6 @@ interface NormalizedInput {
   readonly sourceCompositionCode: string | null
 }
 
-const SOURCE_EVIDENCE_VIOLATION_MESSAGE: Record<
-  SourceEvidenceViolation,
-  string
-> = {
-  missing_source_url: "source='web_search' requires sourceUrl",
-  unexpected_source_url: "sourceUrl must not be set unless source='web_search'",
-  missing_composition_code:
-    "source='composition_table_estimate' requires sourceCompositionCode",
-  unexpected_composition_code:
-    "sourceCompositionCode must not be set unless source='composition_table_estimate'",
-}
-
 const normalizeAndValidate = (
   input: RegisterFoodMasterInput,
 ): Result<NormalizedInput, FoodMasterDomainError> => {
@@ -56,55 +40,8 @@ const normalizeAndValidate = (
       new FoodMasterDomainError('empty_name', 'name must not be empty'),
     )
   }
-  if (isInvalidSourceCombination(input.source, input.isEstimated)) {
-    return err(
-      new FoodMasterDomainError(
-        'invalid_source_combination',
-        // isInvalidSourceCombination's other branch (composition_table_estimate
-        // + isEstimated=false) needs its own message — INVALID_SOURCE_COMBINATION_MESSAGE
-        // is specific to the web_search case and would misdescribe that one.
-        input.source === 'web_search'
-          ? INVALID_SOURCE_COMBINATION_MESSAGE
-          : "source='composition_table_estimate' requires is_estimated=true",
-        { source: input.source, isEstimated: input.isEstimated },
-      ),
-    )
-  }
-  const sourceUrl = input.sourceUrl ?? null
-  const sourceCompositionCode = input.sourceCompositionCode ?? null
-  const evidenceViolation = validateSourceEvidence({
-    source: input.source,
-    sourceUrl,
-    sourceCompositionCode,
-  })
-  if (evidenceViolation !== null) {
-    return err(
-      new FoodMasterDomainError(
-        evidenceViolation,
-        SOURCE_EVIDENCE_VIOLATION_MESSAGE[evidenceViolation],
-        { source: input.source, sourceUrl, sourceCompositionCode },
-      ),
-    )
-  }
-  if (isEmptyNutrition(input.nutrition)) {
-    return err(
-      new FoodMasterDomainError(
-        'empty_nutrition',
-        'nutrition must include at least one nutrient value',
-      ),
-    )
-  }
-  for (const [code, value] of Object.entries(input.nutrition)) {
-    if (!Number.isFinite(value) || value < 0) {
-      return err(
-        new FoodMasterDomainError(
-          'negative_nutrient_value',
-          `nutrient value must be a non-negative finite number (code=${code}, value=${String(value)})`,
-          { code, value },
-        ),
-      )
-    }
-  }
+  const nutritionResult = normalizeAndValidateNutrition(input)
+  if (nutritionResult.isErr()) return err(nutritionResult.error)
   const aliases = (input.aliases ?? []).map((a) => a.trim())
   if (aliases.some((a) => a === '')) {
     return err(
@@ -126,11 +63,7 @@ const normalizeAndValidate = (
   return ok({
     name,
     aliases,
-    nutrition: input.nutrition,
-    source: input.source,
-    isEstimated: input.isEstimated,
-    sourceUrl,
-    sourceCompositionCode,
+    ...nutritionResult.value,
   })
 }
 
