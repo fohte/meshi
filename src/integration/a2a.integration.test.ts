@@ -17,6 +17,7 @@ import { createDrizzleUserProfileRepository } from '#adapters/db/drizzle-user-pr
 import type { WebSearchClient } from '#adapters/web-search/web-search-client'
 import { createApp } from '#app'
 import type { Sql } from '#db/index'
+import { seedNutrientDefinitions } from '#db/seed/nutrient-definitions'
 import {
   createFoodMasterRepository,
   createFoodMasterService,
@@ -316,6 +317,7 @@ describeIfDb('A2A integration', () => {
     if (TEST_DATABASE_URL === undefined)
       throw new Error('TEST_DATABASE_URL is not set')
     const domainTx = getDomainTx()
+    await seedNutrientDefinitions(domainTx)
     const foodName = '星雲堂 白桃ソーダ'
     const sourceUrl = 'https://nutrition.example.test/items/nebula-peach-soda'
     const messageText = '2026-06-12 の昼食に星雲堂 白桃ソーダを 2 本飲んだ'
@@ -404,7 +406,11 @@ describeIfDb('A2A integration', () => {
         taskId: task.id,
         contextId,
       }
-      const agentMessage = buildAgentMessage(task.id, contextId, finalText)
+      const agentMessage = buildAgentMessage(
+        task.id,
+        contextId,
+        `${finalText}\n\n新しく登録した食品:\n- ${foodName} 42kcal\n  出典: ${sourceUrl} (web検索)\n値が違う場合は教えてください。`,
+      )
       const foodMasters = await domainTx<
         {
           id: string

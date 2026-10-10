@@ -5,11 +5,13 @@ import type { FoodSearchService } from '#domain/food-browse/food-search-service'
 import type { FoodMasterService } from '#domain/food-master/service'
 import type { MealHistoryService } from '#domain/meal-history/types'
 import type { MealLogService } from '#domain/meal-log/meal-log-service'
+import type { MealSkipService } from '#domain/meal-skip/meal-skip-service'
 import type { UserProfileService } from '#domain/user-profile/user-profile-service'
 import type { Logger } from '#logger'
 import { registerDeleteMealLogTool } from '#mcp-tools/delete-meal-log'
 import { registerFoodFromCompositionTool } from '#mcp-tools/food-composition'
 import { registerMealLoggingTools } from '#mcp-tools/meal-logging'
+import { registerMealSkipTools } from '#mcp-tools/meal-skip'
 import { registerMergeFoodMasterTool } from '#mcp-tools/merge-food-master'
 import {
   buildProfilePayload,
@@ -28,6 +30,7 @@ export interface MeshiToolDeps {
   readonly profileService: UserProfileService
   readonly foodSearchService: FoodSearchService
   readonly mealLogService: MealLogService
+  readonly mealSkipService: MealSkipService
   readonly foodMasterService: FoodMasterService
   readonly logger: Logger
 }
@@ -42,6 +45,7 @@ export const registerMeshiTools = (
     foodSearchService,
     foodMasterService,
     mealLogService,
+    mealSkipService,
     logger,
   } = deps
 
@@ -50,6 +54,7 @@ export const registerMeshiTools = (
     mealLogService,
     logger,
   })
+  registerMealSkipTools(server, { mealSkipService, logger })
   registerFoodFromCompositionTool(server, { foodMasterService, logger })
 
   registerFoodTool(server, { foodMasterService, logger })

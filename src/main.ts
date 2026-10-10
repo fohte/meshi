@@ -162,6 +162,7 @@ export const main = async (): Promise<void> => {
     profileService: userProfileService,
     foodSearchService,
     mealLogService,
+    mealSkipService,
     foodMasterService,
     logger,
   }

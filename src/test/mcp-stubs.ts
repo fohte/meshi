@@ -10,6 +10,8 @@ import {
 } from '#domain/meal-history/types'
 import { DomainError } from '#domain/meal-log/errors'
 import type { MealLogService } from '#domain/meal-log/meal-log-service'
+import { MealSkipPersistenceError } from '#domain/meal-skip/errors'
+import type { MealSkipService } from '#domain/meal-skip/meal-skip-service'
 import { UserProfileRepositoryError } from '#domain/user-profile/errors'
 import type { UserProfileService } from '#domain/user-profile/user-profile-service'
 import { createNullLogger } from '#logger'
@@ -53,10 +55,18 @@ const rejectingMealLogService: MealLogService = {
   delete: () => errAsync(new DomainError('stub', 'test/unused')),
   deleteMany: () => errAsync(new DomainError('stub', 'test/unused')),
 }
+
+const rejectingMealSkipService: MealSkipService = {
+  record: () => errAsync(new MealSkipPersistenceError('stub')),
+  cancel: () => errAsync(new MealSkipPersistenceError('stub')),
+  findForDate: () => errAsync(new MealSkipPersistenceError('stub')),
+}
+
 export const createStubMcpDeps = (): MeshiToolDeps => ({
   mealHistoryService: rejectingMealHistoryService,
   profileService: rejectingProfileService,
   mealLogService: rejectingMealLogService,
+  mealSkipService: rejectingMealSkipService,
   foodSearchService: rejectingFoodSearchService,
   foodMasterService: rejectingFoodMasterService,
   logger: createNullLogger(),
