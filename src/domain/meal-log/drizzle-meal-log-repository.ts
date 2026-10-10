@@ -327,8 +327,8 @@ export const createDrizzleMealLogRepository = (
             .where(eq(mealLogs.id, id))
             .limit(1)
           // The FK on meal_logs.food_master_id is ON DELETE RESTRICT, so an existing
-          // meal_log always has its food_master. An empty innerJoin therefore means
-          // the meal_log itself does not exist, not that the food_master is missing.
+          // meal_log always has its food_master. The nutrition join also requires a
+          // metadata row, so an empty result can mean either row is missing.
           const row = rows[0]
           if (row === undefined) return null
 

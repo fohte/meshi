@@ -1,6 +1,6 @@
 import type { FoodSource, NutritionMap } from '#domain/food-master/types'
 
-// Shared by repository.ts's normalizeAndValidate and the register_food_master
+// Shared by registration.ts's normalizeAndValidate and the register_food_master
 // tool's zod schema so the two layers can't silently drift apart.
 
 export const isEmptyNutrition = (nutrition: NutritionMap): boolean =>
@@ -42,7 +42,7 @@ export type SourceEvidenceViolation =
   | 'unexpected_composition_code'
 
 // Documents the evidence rules enforced by food_master_nutrition's CHECK
-// constraints (see schema.ts). Shared by repository.ts's
+// constraints (see schema.ts). Shared by registration.ts's
 // normalizeAndValidate and the register_food_master tool's zod refine
 // (which always passes sourceCompositionCode: null, since that tool never
 // sets it) so the three layers can't silently drift apart.

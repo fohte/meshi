@@ -36,7 +36,8 @@ describeIfDb('mergeFoodMasters (merge-repository)', () => {
     await seedFoodMaster(tx, {
       id: 'fm_survivor',
       name: 'survivor food',
-      source: 'user_input',
+      source: 'web_search',
+      sourceUrl: 'https://example.test/survivor',
       nutrients: { energy_kcal: 100 },
     })
     await seedFoodMaster(tx, {
@@ -187,8 +188,8 @@ describeIfDb('mergeFoodMasters (merge-repository)', () => {
         {
           foodMasterId: 'fm_survivor',
           isEstimated: false,
-          source: 'user_input',
-          sourceUrl: null,
+          source: 'web_search',
+          sourceUrl: 'https://example.test/survivor',
           sourceCompositionCode: null,
         },
       ],
