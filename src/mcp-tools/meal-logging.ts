@@ -79,7 +79,7 @@ export const registerMealLoggingTools = (
     'record_meal_log',
     {
       description:
-        '食品 ID と量が確定した食事を内部 LLM なしで記録する。quantity は食品 1 つ分への倍率。1 品目でも不正なら何も保存しない。',
+        '食品 ID と量が確定した食事を記録する。quantity は食品 1 つ分への倍率。1 品目でも不正なら何も保存しない。',
       inputSchema: recordMealLogInput,
       outputSchema: recordMealLogStructuredOutput,
     },

@@ -3,7 +3,7 @@ import type { FoodSource, NutritionMap } from '#domain/food-master/types'
 export const isEmptyNutrition = (nutrition: NutritionMap): boolean =>
   Object.keys(nutrition).length === 0
 
-// Used by normalizeAndValidate to validate repository-level source combinations.
+// Used by food-master registration to validate source combinations.
 export const isInvalidSourceCombination = (
   source: FoodSource,
   isEstimated: boolean,

@@ -3,7 +3,11 @@ import { drizzle } from 'drizzle-orm/postgres-js'
 import { okAsync, ResultAsync } from 'neverthrow'
 
 import type { Sql } from '#db/index'
-import { foodMasterNutrients, foodMasters } from '#db/schema'
+import {
+  foodMasterNutrients,
+  foodMasterNutrition,
+  foodMasters,
+} from '#db/schema'
 import { NUTRIENT_CODES } from '#db/seed/nutrient-definitions'
 import type {
   DayDetail,
@@ -103,10 +107,14 @@ const enrichEntries = (
       .select({
         id: foodMasters.id,
         name: foodMasters.name,
-        isEstimated: foodMasters.isEstimated,
+        isEstimated: foodMasterNutrition.isEstimated,
         kcalPerUnit: foodMasterNutrients.value,
       })
       .from(foodMasters)
+      .innerJoin(
+        foodMasterNutrition,
+        eq(foodMasterNutrition.foodMasterId, foodMasters.id),
+      )
       .leftJoin(
         foodMasterNutrients,
         and(

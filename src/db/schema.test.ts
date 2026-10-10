@@ -16,6 +16,7 @@ describeIfDb('schema migrations', () => {
       'food_compositions',
       'food_master_aliases',
       'food_master_nutrients',
+      'food_master_nutrition',
       'food_masters',
       'meal_logs',
       'meal_skips',
@@ -66,7 +67,7 @@ describeIfDb('schema migrations', () => {
     expect(rows).toEqual([{ extname: 'pg_trgm' }])
   })
 
-  it('creates composite primary keys on the *_nutrients tables', async () => {
+  it('creates primary keys on food_master_nutrition and the *_nutrients tables', async () => {
     const sql = getTestSql()
     const rows = await sql<{ table_name: string; columns: string[] }[]>`
       SELECT c.conrelid::regclass::text AS table_name,
@@ -76,7 +77,11 @@ describeIfDb('schema migrations', () => {
       JOIN pg_attribute a ON a.attrelid = c.conrelid AND a.attnum = u.attnum
       WHERE c.contype = 'p'
         AND c.conrelid::regclass::text IN
-          ('food_master_nutrients', 'food_composition_nutrients')
+        (
+          'food_master_nutrients',
+          'food_master_nutrition',
+          'food_composition_nutrients'
+        )
       GROUP BY c.conrelid
       ORDER BY table_name
     `
@@ -89,19 +94,33 @@ describeIfDb('schema migrations', () => {
         table_name: 'food_master_nutrients',
         columns: ['food_master_id', 'nutrient_code'],
       },
+      {
+        table_name: 'food_master_nutrition',
+        columns: ['food_master_id'],
+      },
     ])
   })
 
-  it('creates the partial index on food_masters.is_estimated', async () => {
+  it('creates indexes on food_master_nutrition metadata', async () => {
     const sql = getTestSql()
-    const rows = await sql<{ indexdef: string }[]>`
-      SELECT indexdef FROM pg_indexes
-      WHERE indexname = 'food_masters_is_estimated_idx'
+    const rows = await sql<{ indexname: string; indexdef: string }[]>`
+      SELECT indexname, indexdef FROM pg_indexes
+      WHERE indexname IN (
+        'food_master_nutrition_is_estimated_idx',
+        'food_master_nutrition_source_composition_code_idx'
+      )
+      ORDER BY indexname
     `
     expect(rows).toEqual([
       {
+        indexname: 'food_master_nutrition_is_estimated_idx',
         indexdef:
-          'CREATE INDEX food_masters_is_estimated_idx ON public.food_masters USING btree (is_estimated) WHERE (is_estimated = true)',
+          'CREATE INDEX food_master_nutrition_is_estimated_idx ON public.food_master_nutrition USING btree (is_estimated) WHERE (is_estimated = true)',
+      },
+      {
+        indexname: 'food_master_nutrition_source_composition_code_idx',
+        indexdef:
+          'CREATE INDEX food_master_nutrition_source_composition_code_idx ON public.food_master_nutrition USING btree (source_composition_code)',
       },
     ])
   })
@@ -196,7 +215,7 @@ describeIfDb('schema migrations', () => {
       {
         conname: 'food_master_nutrients_food_master_id_fk',
         table_name: 'food_master_nutrients',
-        ref_table: 'food_masters',
+        ref_table: 'food_master_nutrition',
         on_update: 'c',
         on_delete: 'c',
       },
@@ -208,8 +227,15 @@ describeIfDb('schema migrations', () => {
         on_delete: 'r',
       },
       {
-        conname: 'food_masters_source_composition_code_fk',
-        table_name: 'food_masters',
+        conname: 'food_master_nutrition_food_master_id_fk',
+        table_name: 'food_master_nutrition',
+        ref_table: 'food_masters',
+        on_update: 'c',
+        on_delete: 'c',
+      },
+      {
+        conname: 'food_master_nutrition_source_composition_code_fk',
+        table_name: 'food_master_nutrition',
         ref_table: 'food_compositions',
         on_update: 'c',
         on_delete: 'r',
@@ -226,9 +252,12 @@ describeIfDb('schema migrations', () => {
 
   it('creates the expected CHECK constraints', async () => {
     const sql = getTestSql()
-    const rows = await sql<{ conname: string; table_name: string }[]>`
+    const rows = await sql<
+      { conname: string; table_name: string; validated: boolean }[]
+    >`
       SELECT c.conname,
-             c.conrelid::regclass::text AS table_name
+             c.conrelid::regclass::text AS table_name,
+             c.convalidated AS validated
       FROM pg_constraint c
       WHERE c.contype = 'c'
         AND c.connamespace = 'public'::regnamespace
@@ -238,29 +267,43 @@ describeIfDb('schema migrations', () => {
       {
         conname: 'food_composition_nutrients_value_nonneg',
         table_name: 'food_composition_nutrients',
+        validated: true,
       },
       {
         conname: 'food_master_nutrients_value_nonneg',
         table_name: 'food_master_nutrients',
+        validated: true,
       },
       {
-        conname: 'food_masters_composition_evidence',
-        table_name: 'food_masters',
+        conname: 'food_master_nutrition_composition_evidence',
+        table_name: 'food_master_nutrition',
+        validated: false,
       },
       {
-        conname: 'food_masters_user_input_evidence',
-        table_name: 'food_masters',
+        conname: 'food_master_nutrition_user_input_evidence',
+        table_name: 'food_master_nutrition',
+        validated: false,
       },
       {
-        conname: 'food_masters_web_search_evidence',
-        table_name: 'food_masters',
+        conname: 'food_master_nutrition_web_search_evidence',
+        table_name: 'food_master_nutrition',
+        validated: false,
       },
-      { conname: 'meal_logs_quantity_positive', table_name: 'meal_logs' },
+      {
+        conname: 'meal_logs_quantity_positive',
+        table_name: 'meal_logs',
+        validated: true,
+      },
       {
         conname: 'user_profiles_daily_targets_object',
         table_name: 'user_profiles',
+        validated: true,
       },
-      { conname: 'user_profiles_singleton', table_name: 'user_profiles' },
+      {
+        conname: 'user_profiles_singleton',
+        table_name: 'user_profiles',
+        validated: true,
+      },
     ])
   })
 })
@@ -287,8 +330,8 @@ describeIfDb('schema runtime constraints', () => {
   it('rejects inserts that violate the meal_logs_quantity_positive CHECK', async () => {
     const tx = getTx()
     await tx`
-      INSERT INTO food_masters (id, name, source)
-      VALUES ('fm_q', 'tofu', 'user_input')
+      INSERT INTO food_masters (id, name)
+      VALUES ('fm_q', 'tofu')
     `
     expect(
       await runOutcome(tx`
@@ -298,53 +341,58 @@ describeIfDb('schema runtime constraints', () => {
     ).toEqual({ status: 'error', code: '23514' })
   })
 
-  it('rejects inserts that violate the food_masters_web_search_evidence CHECK (is_estimated=true)', async () => {
+  it('rejects inserts that violate the food_master_nutrition_web_search_evidence CHECK (is_estimated=true)', async () => {
     const tx = getTx()
+    await tx`INSERT INTO food_masters (id, name) VALUES ('fm_e', 'guessed')`
     expect(
       await runOutcome(tx`
-        INSERT INTO food_masters (id, name, is_estimated, source)
-        VALUES ('fm_e', 'guessed', true, 'web_search')
+        INSERT INTO food_master_nutrition (food_master_id, is_estimated, source, source_url)
+        VALUES ('fm_e', true, 'web_search', 'https://example.com')
       `),
     ).toEqual({ status: 'error', code: '23514' })
   })
 
-  it('rejects inserts that violate the food_masters_web_search_evidence CHECK (missing source_url)', async () => {
+  it('rejects inserts that violate the food_master_nutrition_web_search_evidence CHECK (missing source_url)', async () => {
     const tx = getTx()
+    await tx`INSERT INTO food_masters (id, name) VALUES ('fm_wse', 'guessed')`
     expect(
       await runOutcome(tx`
-        INSERT INTO food_masters (id, name, is_estimated, source)
-        VALUES ('fm_wse', 'guessed', false, 'web_search')
+        INSERT INTO food_master_nutrition (food_master_id, is_estimated, source)
+        VALUES ('fm_wse', false, 'web_search')
       `),
     ).toEqual({ status: 'error', code: '23514' })
   })
 
-  it('rejects inserts that violate the food_masters_web_search_evidence CHECK (source_composition_code set)', async () => {
+  it('rejects inserts that violate the food_master_nutrition_web_search_evidence CHECK (source_composition_code set)', async () => {
     const tx = getTx()
     await tx`INSERT INTO food_compositions (code, name) VALUES ('18008', 'カレールウ')`
+    await tx`INSERT INTO food_masters (id, name) VALUES ('fm_wsc', 'guessed')`
     expect(
       await runOutcome(tx`
-        INSERT INTO food_masters (id, name, is_estimated, source, source_url, source_composition_code)
-        VALUES ('fm_wsc', 'guessed', false, 'web_search', 'https://example.com', '18008')
+        INSERT INTO food_master_nutrition (food_master_id, is_estimated, source, source_url, source_composition_code)
+        VALUES ('fm_wsc', false, 'web_search', 'https://example.com', '18008')
       `),
     ).toEqual({ status: 'error', code: '23514' })
   })
 
-  it('rejects inserts that violate the food_masters_composition_evidence CHECK (missing source_composition_code)', async () => {
+  it('rejects inserts that violate the food_master_nutrition_composition_evidence CHECK (missing source_composition_code)', async () => {
     const tx = getTx()
+    await tx`INSERT INTO food_masters (id, name) VALUES ('fm_ce', 'unbacked')`
     expect(
       await runOutcome(tx`
-        INSERT INTO food_masters (id, name, is_estimated, source)
-        VALUES ('fm_ce', 'unbacked', true, 'composition_table_estimate')
+        INSERT INTO food_master_nutrition (food_master_id, is_estimated, source)
+        VALUES ('fm_ce', true, 'composition_table_estimate')
       `),
     ).toEqual({ status: 'error', code: '23514' })
   })
 
-  it('rejects inserts that violate the food_masters_user_input_evidence CHECK (source_url set)', async () => {
+  it('rejects inserts that violate the food_master_nutrition_user_input_evidence CHECK (source_url set)', async () => {
     const tx = getTx()
+    await tx`INSERT INTO food_masters (id, name) VALUES ('fm_uie', 'claimed')`
     expect(
       await runOutcome(tx`
-        INSERT INTO food_masters (id, name, is_estimated, source, source_url)
-        VALUES ('fm_uie', 'claimed', false, 'user_input', 'https://example.com')
+        INSERT INTO food_master_nutrition (food_master_id, is_estimated, source, source_url)
+        VALUES ('fm_uie', false, 'user_input', 'https://example.com')
       `),
     ).toEqual({ status: 'error', code: '23514' })
   })
@@ -356,8 +404,12 @@ describeIfDb('schema runtime constraints', () => {
       VALUES ('protein_g', 'protein', 'g')
     `
     await tx`
-      INSERT INTO food_masters (id, name, source)
-      VALUES ('fm_n', 'rice', 'user_input')
+      INSERT INTO food_masters (id, name)
+      VALUES ('fm_n', 'rice')
+    `
+    await tx`
+      INSERT INTO food_master_nutrition (food_master_id, is_estimated, source)
+      VALUES ('fm_n', false, 'user_input')
     `
     expect(
       await runOutcome(tx`
@@ -365,6 +417,24 @@ describeIfDb('schema runtime constraints', () => {
         VALUES ('fm_n', 'protein_g', -1)
       `),
     ).toEqual({ status: 'error', code: '23514' })
+  })
+
+  it('rejects nutrient rows without food_master_nutrition metadata', async () => {
+    const tx = getTx()
+    await tx`
+      INSERT INTO nutrient_definitions (code, display_name, unit)
+      VALUES ('fiber_g', 'fiber', 'g')
+    `
+    await tx`
+      INSERT INTO food_masters (id, name)
+      VALUES ('fm_missing_nutrition', 'oats')
+    `
+    expect(
+      await runOutcome(tx`
+        INSERT INTO food_master_nutrients (food_master_id, nutrient_code, value)
+        VALUES ('fm_missing_nutrition', 'fiber_g', 2)
+      `),
+    ).toEqual({ status: 'error', code: '23503' })
   })
 
   it('rejects user_profiles rows other than id = 1', async () => {
@@ -387,8 +457,8 @@ describeIfDb('schema runtime constraints', () => {
   it('forbids deleting a food_masters row referenced by a meal_log (FK RESTRICT)', async () => {
     const tx = getTx()
     await tx`
-      INSERT INTO food_masters (id, name, source)
-      VALUES ('fm_d', 'natto', 'user_input')
+      INSERT INTO food_masters (id, name)
+      VALUES ('fm_d', 'natto')
     `
     await tx`
       INSERT INTO meal_logs (id, food_master_id, eaten_date, meal_type, quantity)

@@ -10,7 +10,12 @@ import {
 } from 'neverthrow'
 
 import type { Sql } from '#db/index'
-import { foodMasterNutrients, foodMasters, mealLogs } from '#db/schema'
+import {
+  foodMasterNutrients,
+  foodMasterNutrition,
+  foodMasters,
+  mealLogs,
+} from '#db/schema'
 import {
   DomainError,
   FoodMasterNotFoundError,
@@ -68,9 +73,13 @@ const loadFoodMaster = (
         .select({
           id: foodMasters.id,
           name: foodMasters.name,
-          isEstimated: foodMasters.isEstimated,
+          isEstimated: foodMasterNutrition.isEstimated,
         })
         .from(foodMasters)
+        .innerJoin(
+          foodMasterNutrition,
+          eq(foodMasterNutrition.foodMasterId, foodMasters.id),
+        )
         .where(eq(foodMasters.id, foodMasterId))
         .limit(1)
 
@@ -306,16 +315,20 @@ export const createDrizzleMealLogRepository = (
               food: {
                 id: foodMasters.id,
                 name: foodMasters.name,
-                isEstimated: foodMasters.isEstimated,
+                isEstimated: foodMasterNutrition.isEstimated,
               },
             })
             .from(mealLogs)
             .innerJoin(foodMasters, eq(mealLogs.foodMasterId, foodMasters.id))
+            .innerJoin(
+              foodMasterNutrition,
+              eq(foodMasterNutrition.foodMasterId, foodMasters.id),
+            )
             .where(eq(mealLogs.id, id))
             .limit(1)
           // The FK on meal_logs.food_master_id is ON DELETE RESTRICT, so an existing
-          // meal_log always has its food_master. An empty innerJoin therefore means
-          // the meal_log itself does not exist, not that the food_master is missing.
+          // meal_log always has its food_master. The nutrition join also requires a
+          // metadata row, so an empty result can mean either row is missing.
           const row = rows[0]
           if (row === undefined) return null
 

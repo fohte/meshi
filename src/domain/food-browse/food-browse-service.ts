@@ -105,7 +105,12 @@ export const createFoodBrowseService = (
     listRecent: (limit) =>
       ResultAsync.fromPromise(
         sql`
-          SELECT fm.id, fm.name, fm.is_estimated, fm.source, fmn.value AS energy_kcal
+          SELECT
+            fm.id,
+            fm.name,
+            nutrition.is_estimated,
+            nutrition.source,
+            nutrients.value AS energy_kcal
           FROM (
             SELECT food_master_id, MAX(eaten_date) AS last_eaten_date
             FROM meal_logs
@@ -114,8 +119,10 @@ export const createFoodBrowseService = (
             LIMIT ${limit}
           ) recent
           JOIN food_masters fm ON fm.id = recent.food_master_id
-          LEFT JOIN food_master_nutrients fmn
-            ON fmn.food_master_id = fm.id AND fmn.nutrient_code = ${ENERGY_KCAL_CODE}
+          JOIN food_master_nutrition nutrition ON nutrition.food_master_id = fm.id
+          LEFT JOIN food_master_nutrients nutrients
+            ON nutrients.food_master_id = fm.id
+            AND nutrients.nutrient_code = ${ENERGY_KCAL_CODE}
           ORDER BY recent.last_eaten_date DESC, fm.id ASC
         `,
         (caughtErr) =>
@@ -127,7 +134,12 @@ export const createFoodBrowseService = (
     listFrequent: (limit) =>
       ResultAsync.fromPromise(
         sql`
-          SELECT fm.id, fm.name, fm.is_estimated, fm.source, fmn.value AS energy_kcal
+          SELECT
+            fm.id,
+            fm.name,
+            nutrition.is_estimated,
+            nutrition.source,
+            nutrients.value AS energy_kcal
           FROM (
             SELECT food_master_id, COUNT(*) AS cnt
             FROM meal_logs
@@ -136,8 +148,10 @@ export const createFoodBrowseService = (
             LIMIT ${limit}
           ) freq
           JOIN food_masters fm ON fm.id = freq.food_master_id
-          LEFT JOIN food_master_nutrients fmn
-            ON fmn.food_master_id = fm.id AND fmn.nutrient_code = ${ENERGY_KCAL_CODE}
+          JOIN food_master_nutrition nutrition ON nutrition.food_master_id = fm.id
+          LEFT JOIN food_master_nutrients nutrients
+            ON nutrients.food_master_id = fm.id
+            AND nutrients.nutrient_code = ${ENERGY_KCAL_CODE}
           ORDER BY freq.cnt DESC, fm.name ASC
         `,
         (caughtErr) =>

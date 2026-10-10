@@ -6,10 +6,10 @@ MEXT food composition reference entries.
 
 ## Columns
 
-| Name | Type | Default | Nullable | Children                                                                                                                | Parents | Comment                                  |
-| ---- | ---- | ------- | -------- | ----------------------------------------------------------------------------------------------------------------------- | ------- | ---------------------------------------- |
-| code | text |         | false    | [public.food_composition_nutrients](public.food_composition_nutrients.md) [public.food_masters](public.food_masters.md) |         | MEXT food composition entry code.        |
-| name | text |         | false    |                                                                                                                         |         | Name of the MEXT food composition entry. |
+| Name | Type | Default | Nullable | Children                                                                                                                                  | Parents | Comment                                  |
+| ---- | ---- | ------- | -------- | ----------------------------------------------------------------------------------------------------------------------------------------- | ------- | ---------------------------------------- |
+| code | text |         | false    | [public.food_composition_nutrients](public.food_composition_nutrients.md) [public.food_master_nutrition](public.food_master_nutrition.md) |         | MEXT food composition entry code.        |
+| name | text |         | false    |                                                                                                                                           |         | Name of the MEXT food composition entry. |
 
 ## Constraints
 
@@ -33,7 +33,7 @@ MEXT food composition reference entries.
 erDiagram
 
 "public.food_composition_nutrients" }o--|| "public.food_compositions" : "FOREIGN KEY (food_composition_code) REFERENCES food_compositions(code) ON UPDATE CASCADE ON DELETE CASCADE"
-"public.food_masters" }o--o| "public.food_compositions" : "FOREIGN KEY (source_composition_code) REFERENCES food_compositions(code) ON UPDATE CASCADE ON DELETE RESTRICT"
+"public.food_master_nutrition" }o--o| "public.food_compositions" : "FOREIGN KEY (source_composition_code) REFERENCES food_compositions(code) ON UPDATE CASCADE ON DELETE RESTRICT"
 
 "public.food_compositions" {
   text code
@@ -44,13 +44,11 @@ erDiagram
   text nutrient_code FK
   numeric value
 }
-"public.food_masters" {
-  text id
-  text name
+"public.food_master_nutrition" {
+  text food_master_id FK
   boolean is_estimated
   food_source source
   text source_url
-  timestamp_with_time_zone created_at
   text source_composition_code FK
 }
 ```

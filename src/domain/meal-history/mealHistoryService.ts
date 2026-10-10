@@ -100,9 +100,10 @@ export const createMealHistoryService = (sql: Sql): MealHistoryService => {
                 ml.created_at AT TIME ZONE 'UTC',
                 'YYYY-MM-DD"T"HH24:MI:SS"Z"'
               ) AS recorded_at,
-              fm.is_estimated AS is_estimated
+              fmn.is_estimated AS is_estimated
             FROM meal_logs ml
             INNER JOIN food_masters fm ON fm.id = ml.food_master_id
+            INNER JOIN food_master_nutrition fmn ON fmn.food_master_id = fm.id
             WHERE ml.eaten_date >= ${periodFrom}::date
               AND ml.eaten_date < ${periodTo}::date
               AND (
