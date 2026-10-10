@@ -46,11 +46,7 @@ erDiagram
 "public.food_masters" {
   text id
   text name
-  boolean is_estimated
-  food_source source
-  text source_url
   timestamp_with_time_zone created_at
-  text source_composition_code FK
 }
 ```
 

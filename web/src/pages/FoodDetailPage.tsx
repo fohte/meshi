@@ -20,7 +20,7 @@ const MEAL_TYPE_LABELS: Record<MealType, string> = {
 const formatNumber = (value: number): string =>
   Number.isInteger(value) ? String(value) : value.toFixed(1)
 
-// food_masters.source_url is populated from web-search results with no
+// food_master_nutrition.source_url is populated from web-search results with no
 // scheme restriction on write; rendering it as an <a href> without this
 // guard would let a javascript: URI execute in the app's origin.
 const isHttpUrl = (url: string): boolean =>

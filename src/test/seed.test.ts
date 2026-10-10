@@ -39,14 +39,11 @@ describe('seedFoodMaster', () => {
       },
       {
         table: 'food_masters',
-        params: [
-          'fm_reversed',
-          'reversed nutrients',
-          false,
-          'user_input',
-          null,
-          null,
-        ],
+        params: ['fm_reversed', 'reversed nutrients'],
+      },
+      {
+        table: 'food_master_nutrition',
+        params: ['fm_reversed', false, 'user_input', null, null],
       },
       {
         table: 'food_master_nutrients',
@@ -66,14 +63,11 @@ describe('seedFoodMaster', () => {
       },
       {
         table: 'food_masters',
-        params: [
-          'fm_sorted',
-          'sorted nutrients',
-          false,
-          'user_input',
-          null,
-          null,
-        ],
+        params: ['fm_sorted', 'sorted nutrients'],
+      },
+      {
+        table: 'food_master_nutrition',
+        params: ['fm_sorted', false, 'user_input', null, null],
       },
       {
         table: 'food_master_nutrients',

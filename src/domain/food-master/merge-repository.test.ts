@@ -36,7 +36,8 @@ describeIfDb('mergeFoodMasters (merge-repository)', () => {
     await seedFoodMaster(tx, {
       id: 'fm_survivor',
       name: 'survivor food',
-      source: 'user_input',
+      source: 'web_search',
+      sourceUrl: 'https://example.test/survivor',
       nutrients: { energy_kcal: 100 },
     })
     await seedFoodMaster(tx, {
@@ -73,6 +74,13 @@ describeIfDb('mergeFoodMasters (merge-repository)', () => {
 
   interface DbSnapshot {
     readonly foodMasters: ReadonlyArray<{ id: string; name: string }>
+    readonly nutritionSources: ReadonlyArray<{
+      foodMasterId: string
+      isEstimated: boolean
+      source: string
+      sourceUrl: string | null
+      sourceCompositionCode: string | null
+    }>
     readonly aliases: ReadonlyArray<{ foodMasterId: string; alias: string }>
     readonly nutrients: ReadonlyArray<{
       foodMasterId: string
@@ -83,23 +91,44 @@ describeIfDb('mergeFoodMasters (merge-repository)', () => {
 
   const snapshot = async (): Promise<DbSnapshot> => {
     const tx = getTx()
-    const [foodMasters, aliases, nutrients, mealLogs] = await Promise.all([
-      tx<{ id: string; name: string }[]>`
+    const [foodMasters, nutritionSources, aliases, nutrients, mealLogs] =
+      await Promise.all([
+        tx<{ id: string; name: string }[]>`
         SELECT id, name FROM food_masters ORDER BY id
       `,
-      tx<{ food_master_id: string; alias: string }[]>`
+        tx<
+          {
+            food_master_id: string
+            is_estimated: boolean
+            source: string
+            source_url: string | null
+            source_composition_code: string | null
+          }[]
+        >`
+        SELECT food_master_id, is_estimated, source, source_url,
+               source_composition_code
+        FROM food_master_nutrition ORDER BY food_master_id
+      `,
+        tx<{ food_master_id: string; alias: string }[]>`
         SELECT food_master_id, alias FROM food_master_aliases ORDER BY alias
       `,
-      tx<{ food_master_id: string; nutrient_code: string }[]>`
+        tx<{ food_master_id: string; nutrient_code: string }[]>`
         SELECT food_master_id, nutrient_code FROM food_master_nutrients
         ORDER BY food_master_id, nutrient_code
       `,
-      tx<{ id: string; food_master_id: string }[]>`
+        tx<{ id: string; food_master_id: string }[]>`
         SELECT id, food_master_id FROM meal_logs ORDER BY id
       `,
-    ])
+      ])
     return {
       foodMasters,
+      nutritionSources: nutritionSources.map((r) => ({
+        foodMasterId: r.food_master_id,
+        isEstimated: r.is_estimated,
+        source: r.source,
+        sourceUrl: r.source_url,
+        sourceCompositionCode: r.source_composition_code,
+      })),
       aliases: aliases.map((r) => ({
         foodMasterId: r.food_master_id,
         alias: r.alias,
@@ -155,6 +184,15 @@ describeIfDb('mergeFoodMasters (merge-repository)', () => {
 
     expect(await snapshot()).toEqual({
       foodMasters: [{ id: 'fm_survivor', name: 'survivor food' }],
+      nutritionSources: [
+        {
+          foodMasterId: 'fm_survivor',
+          isEstimated: false,
+          source: 'web_search',
+          sourceUrl: 'https://example.test/survivor',
+          sourceCompositionCode: null,
+        },
+      ],
       aliases: [
         { foodMasterId: 'fm_survivor', alias: 'loser alias' },
         { foodMasterId: 'fm_survivor', alias: 'loser food' },

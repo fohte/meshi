@@ -7,6 +7,7 @@ import type {
   foodCompositions,
   foodMasterAliases,
   foodMasterNutrients,
+  foodMasterNutrition,
   foodMasters,
   mealLogs,
   nutrientDefinitions,
@@ -43,9 +44,10 @@ const seedFoodMasterNutrient = async (
 
 export const seedFoodMaster = async (
   sql: Sql,
-  values: Omit<typeof foodMasters.$inferInsert, 'createdAt'> & {
-    nutrients?: Readonly<Record<string, number>>
-  },
+  values: Omit<typeof foodMasters.$inferInsert, 'createdAt'> &
+    Omit<typeof foodMasterNutrition.$inferInsert, 'foodMasterId'> & {
+      nutrients?: Readonly<Record<string, number>>
+    },
 ): Promise<void> => {
   const { nutrients, ...row } = values
   // Seed definitions in a stable code order before food masters so concurrent
@@ -62,11 +64,13 @@ export const seedFoodMaster = async (
     })
   }
 
+  await sql`INSERT INTO food_masters (id, name) VALUES (${row.id}, ${row.name})`
   await sql`
-    INSERT INTO food_masters (id, name, is_estimated, source, source_url, source_composition_code)
+    INSERT INTO food_master_nutrition (
+      food_master_id, is_estimated, source, source_url, source_composition_code
+    )
     VALUES (
       ${row.id},
-      ${row.name},
       ${row.isEstimated ?? false},
       ${row.source},
       ${row.sourceUrl ?? null},

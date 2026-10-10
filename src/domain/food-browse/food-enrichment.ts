@@ -3,7 +3,11 @@ import { drizzle } from 'drizzle-orm/postgres-js'
 import { errAsync, okAsync, ResultAsync } from 'neverthrow'
 import { z } from 'zod'
 
-import { foodMasterNutrients, foodMasters } from '#db/schema'
+import {
+  foodMasterNutrients,
+  foodMasterNutrition,
+  foodMasters,
+} from '#db/schema'
 import type { FoodSource } from '#domain/food-master/types'
 
 export type FoodSearchDb = ReturnType<typeof drizzle>
@@ -54,10 +58,14 @@ export const loadFoodMasterEnrichment = (
         db
           .select({
             id: foodMasters.id,
-            source: foodMasters.source,
+            source: foodMasterNutrition.source,
             energyKcal: foodMasterNutrients.value,
           })
           .from(foodMasters)
+          .innerJoin(
+            foodMasterNutrition,
+            eq(foodMasterNutrition.foodMasterId, foodMasters.id),
+          )
           .leftJoin(
             foodMasterNutrients,
             and(

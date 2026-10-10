@@ -1,5 +1,8 @@
 import { CodedDomainError } from '#domain/errors'
 
+export const errorMessage = (e: unknown): string =>
+  e instanceof Error ? e.message : String(e)
+
 type FoodMasterErrorCode =
   | 'empty_name'
   | 'empty_alias'

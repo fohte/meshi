@@ -23,13 +23,9 @@ comments:
       is_major: 'Whether this nutrient belongs to the major nutrient group.'
       sort_order: 'Display order within the major or minor nutrient group.'
   - table: food_masters
-    tableComment: 'Foods available for meal logging, with nutrition-source and estimation metadata.'
+    tableComment: 'Foods available for meal logging.'
     columnComments:
       name: 'Food name.'
-      is_estimated: 'Whether the nutrition values are estimated.'
-      source: 'Origin of the nutrition values: web search, food composition table, or user input.'
-      source_url: 'URL of the web page used as evidence for the nutrition values.'
-      source_composition_code: 'Code of the food composition entry used to register the food.'
   - table: food_master_aliases
     tableComment: 'Alternate names used to find food master entries.'
     columnComments:
@@ -41,6 +37,14 @@ comments:
       food_master_id: 'Identifier of the food master this nutrient value belongs to.'
       nutrient_code: 'Identifier of the nutrient.'
       value: 'Nutrient value for the food master; its quantity basis is not stored.'
+  - table: food_master_nutrition
+    tableComment: 'Nutrition source and estimation metadata for a food master.'
+    columnComments:
+      food_master_id: 'Identifier of the food master this nutrition metadata belongs to.'
+      is_estimated: 'Whether the nutrition values are estimated.'
+      source: 'Origin of the nutrition values: web search, food composition table, or user input.'
+      source_url: 'URL of the web page used as evidence for the nutrition values.'
+      source_composition_code: 'Code of the food composition entry used as evidence.'
   - table: meal_logs
     tableComment: 'Recorded food consumption entries.'
     columnComments:
