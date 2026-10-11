@@ -23,6 +23,7 @@ export interface NutrientRow {
   readonly unit: string
   readonly value: number
   readonly isUnknown: boolean
+  readonly isIncomplete?: true
   readonly target: number | null
   readonly pct: number
   readonly over: boolean
@@ -39,6 +40,7 @@ export interface NutritionSummaryData {
   readonly energy: {
     readonly value: number
     readonly isUnknown: boolean
+    readonly isIncomplete?: true
     readonly target: number | null
     readonly pct: number | null
     readonly over: boolean
@@ -57,9 +59,11 @@ export const buildNutritionSummaryData = (
   definitions: ReadonlyArray<NutrientDefinition>,
   targets: Readonly<Record<string, number>> | null,
   hasUnknownValues = false,
+  incompleteNutrients: ReadonlyArray<string> = [],
 ): NutritionSummaryData => {
   const valueFor = (code: string): number => totals[code] ?? 0
   const targetFor = (code: string): number | null => targets?.[code] ?? null
+  const incompleteCodes = new Set(incompleteNutrients)
   // A target of 0 (or negative, though the settings form doesn't offer a way
   // to enter one) can't drive a percentage — treat it the same as "no
   // target" rather than showing NaN%/Infinity%.
@@ -76,7 +80,10 @@ export const buildNutritionSummaryData = (
       label: def.displayName,
       unit: def.unit,
       value,
-      isUnknown: hasUnknownValues && totals[def.code] === undefined,
+      isUnknown:
+        totals[def.code] === undefined &&
+        (hasUnknownValues || incompleteCodes.has(def.code)),
+      ...(incompleteCodes.has(def.code) ? { isIncomplete: true as const } : {}),
       target,
       pct,
       over: usableTarget && pct > OVER_TARGET_PCT,
@@ -94,10 +101,13 @@ export const buildNutritionSummaryData = (
   const energyPct = energyUsableTarget
     ? (energyValue / energyTarget) * 100
     : null
-  const energyUnknown = hasUnknownValues && totals[ENERGY_CODE] === undefined
+  const energyIncomplete = incompleteCodes.has(ENERGY_CODE)
+  const energyUnknown =
+    totals[ENERGY_CODE] === undefined && (hasUnknownValues || energyIncomplete)
   const energy = {
     value: energyValue,
     isUnknown: energyUnknown,
+    ...(energyIncomplete ? { isIncomplete: true as const } : {}),
     target: energyTarget,
     pct: energyUnknown ? null : energyPct,
     over: energyPct !== null && energyPct > OVER_TARGET_PCT,

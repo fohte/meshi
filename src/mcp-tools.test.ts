@@ -85,10 +85,12 @@ const makeLogger = (sink: LogEntry[]): Logger => ({
 
 const successMealHistory: MealHistoryAggregate = {
   totals: { energy_kcal: 1850 },
+  incompleteNutrients: ['energy_kcal'],
   perDay: [
     {
       date: jstDate('2026-06-12'),
       totals: { energy_kcal: 1850 },
+      incompleteNutrients: ['energy_kcal'],
       hasUnknownValues: true,
     },
   ],
@@ -184,10 +186,12 @@ const recommendationProfile: UserProfile = {
 
 const recommendationHistory: MealHistoryAggregate = {
   totals: { energy_kcal: 701, protein_g: 27 },
+  incompleteNutrients: ['energy_kcal', 'protein_g'],
   perDay: [
     {
       date: jstDate('2025-11-23'),
       totals: { energy_kcal: 701, protein_g: 27 },
+      incompleteNutrients: ['energy_kcal', 'protein_g'],
       hasUnknownValues: true,
     },
   ],
@@ -1141,10 +1145,12 @@ describe('query_meals', () => {
         content: [{ type: 'text', text: '食事履歴を取得しました。' }],
         structuredContent: {
           totals: { energy_kcal: 1850 },
+          incomplete_nutrients: ['energy_kcal'],
           per_day: [
             {
               date: '2026-06-12',
               totals: { energy_kcal: 1850 },
+              incomplete_nutrients: ['energy_kcal'],
               has_unknown_values: true,
             },
           ],
@@ -1935,10 +1941,12 @@ describe('get_recommendation_context', () => {
           },
           history: {
             totals: { energy_kcal: 701, protein_g: 27 },
+            incomplete_nutrients: ['energy_kcal', 'protein_g'],
             per_day: [
               {
                 date: '2025-11-23',
                 totals: { energy_kcal: 701, protein_g: 27 },
+                incomplete_nutrients: ['energy_kcal', 'protein_g'],
                 has_unknown_values: true,
               },
             ],

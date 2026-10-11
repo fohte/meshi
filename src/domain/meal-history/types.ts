@@ -32,11 +32,13 @@ export interface MealLogEntry {
 export interface MealHistoryDayTotals {
   readonly date: JstDate
   readonly totals: NutritionMap
+  readonly incompleteNutrients: ReadonlyArray<NutrientCode>
   readonly hasUnknownValues: boolean
 }
 
 export interface MealHistoryAggregate {
   readonly totals: NutritionMap
+  readonly incompleteNutrients: ReadonlyArray<NutrientCode>
   readonly perDay: ReadonlyArray<MealHistoryDayTotals>
   readonly entries: ReadonlyArray<MealLogEntry>
   readonly hasEstimatedValues: boolean

@@ -11,10 +11,20 @@ const nutritionMap = z.record(z.string().min(1), z.number())
 
 export const mealHistoryStructuredOutput = z.object({
   totals: nutritionMap,
+  incomplete_nutrients: z
+    .array(z.string())
+    .describe(
+      '期間内の食事に値のない食品が 1 件以上ある栄養素コード。値のない行は不明として扱います。',
+    ),
   per_day: z.array(
     z.object({
       date: jstDateSchema,
       totals: nutritionMap,
+      incomplete_nutrients: z
+        .array(z.string())
+        .describe(
+          'この日の食事に値のない食品が 1 件以上ある栄養素コード。値のない行は不明として扱います。',
+        ),
       has_unknown_values: z.boolean(),
     }),
   ),

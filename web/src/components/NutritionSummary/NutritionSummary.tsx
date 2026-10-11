@@ -39,6 +39,9 @@ export const NutritionSummary = ({
         <span className={styles.energyValue}>
           {energy.isUnknown ? '不明' : Math.round(energy.value)}
         </span>
+        {energy.isIncomplete && !energy.isUnknown && (
+          <span className={styles.incompleteNote}>一部不明 (下限)</span>
+        )}
         <span className={styles.energyTarget}>
           / {energy.target === null ? '—' : Math.round(energy.target)} kcal
         </span>
@@ -108,6 +111,12 @@ export const NutritionSummary = ({
                 {row.isUnknown
                   ? '不明'
                   : formatNutrientValue(row.value, row.unit)}
+                {row.isIncomplete && !row.isUnknown && (
+                  <span className={styles.incompleteNote}>
+                    {' '}
+                    一部不明 (下限)
+                  </span>
+                )}
               </span>
               <span className={styles.majorRowTarget}>
                 {row.target === null
@@ -163,6 +172,12 @@ export const NutritionSummary = ({
                   {row.isUnknown
                     ? '不明'
                     : formatNutrientValue(row.value, row.unit)}
+                  {row.isIncomplete && !row.isUnknown && (
+                    <span className={styles.incompleteNote}>
+                      {' '}
+                      一部不明 (下限)
+                    </span>
+                  )}
                 </td>
                 <td>
                   {row.target === null

@@ -25,6 +25,7 @@ export const mountDayDetailRoutes = (
         c.json({
           date: dateParam,
           totals: detail.totals,
+          incompleteNutrients: detail.incompleteNutrients,
           hasEstimatedValues: detail.hasEstimatedValues,
           hasUnknownValues: detail.hasUnknownValues,
           skippedMealTypes: detail.skippedMealTypes,

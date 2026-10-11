@@ -18,6 +18,7 @@ const stubEmptyAggregate: MealHistoryService = {
   query: () =>
     okAsync({
       totals: {},
+      incompleteNutrients: [],
       perDay: [],
       entries: [],
       hasEstimatedValues: false,
@@ -41,6 +42,7 @@ describe('GET /api/meal-history', () => {
         capturedInput = input
         return okAsync({
           totals: {},
+          incompleteNutrients: [],
           perDay: [],
           entries: [],
           hasEstimatedValues: false,
@@ -64,10 +66,12 @@ describe('GET /api/meal-history', () => {
       query: () =>
         okAsync({
           totals: { energy_kcal: 100 },
+          incompleteNutrients: [],
           perDay: [
             {
               date: jstDate('2026-07-29'),
               totals: { energy_kcal: 100 },
+              incompleteNutrients: [],
               hasUnknownValues: false,
             },
           ],

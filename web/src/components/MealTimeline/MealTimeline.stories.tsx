@@ -82,3 +82,22 @@ export const WithUnknownNutrition: Story = {
   name: '夕食に栄養値不明の食品が含まれています',
   args: { groups: buildMealTimelineGroups([...ENTRIES, UNKNOWN_ENTRY], []) },
 }
+
+const ENTRY_WITHOUT_KCAL: DayDetailEntry = {
+  id: 'l5',
+  foodMasterId: 'meal-without-kcal',
+  foodName: 'エネルギー値が登録されていない食品',
+  eatenDate: '2026-07-29',
+  mealType: 'snack',
+  quantity: 1,
+  kcal: null,
+  isEstimated: false,
+  nutritionStatus: 'confirmed',
+}
+
+export const WithoutKcalValue: Story = {
+  name: 'エネルギー値が登録されていない食品を含んでいます',
+  args: {
+    groups: buildMealTimelineGroups([...ENTRIES, ENTRY_WITHOUT_KCAL], []),
+  },
+}

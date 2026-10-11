@@ -115,6 +115,7 @@ export const DayDetailView = ({
           date={date}
           entries={dayDetailQuery.data.entries}
           totals={dayDetailQuery.data.totals}
+          incompleteNutrients={dayDetailQuery.data.incompleteNutrients}
           hasEstimatedValues={dayDetailQuery.data.hasEstimatedValues}
           hasUnknownValues={dayDetailQuery.data.hasUnknownValues}
           skippedMealTypes={dayDetailQuery.data.skippedMealTypes}
@@ -130,6 +131,7 @@ interface DayDetailContentProps {
   readonly date: string
   readonly entries: ReadonlyArray<DayDetailEntry>
   readonly totals: Readonly<Record<string, number>>
+  readonly incompleteNutrients: ReadonlyArray<string>
   readonly hasEstimatedValues: boolean
   readonly hasUnknownValues: boolean
   readonly skippedMealTypes: ReadonlyArray<MealType>
@@ -141,6 +143,7 @@ const DayDetailContent = ({
   date,
   entries,
   totals,
+  incompleteNutrients,
   hasEstimatedValues,
   hasUnknownValues,
   skippedMealTypes,
@@ -172,6 +175,7 @@ const DayDetailContent = ({
           definitions,
           targets,
           hasUnknownValues,
+          incompleteNutrients,
         )}
         hasEstimatedValues={hasEstimatedValues}
         hasUnknownValues={hasUnknownValues}

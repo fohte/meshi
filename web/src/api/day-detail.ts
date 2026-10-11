@@ -25,6 +25,7 @@ export type DayDetailEntry = z.infer<typeof dayDetailEntrySchema>
 const dayDetailSchema = z.object({
   date: z.string(),
   totals: z.record(z.string(), z.number()),
+  incompleteNutrients: z.array(z.string()),
   hasEstimatedValues: z.boolean(),
   hasUnknownValues: z.boolean(),
   entries: z.array(dayDetailEntrySchema),

@@ -104,6 +104,7 @@ describeIfDb('MealHistoryService.query', () => {
         energy_kcal: 156 * 2 + 142 * 0.5,
         protein_g: 2.5 * 2 + 12 * 0.5,
       },
+      incompleteNutrients: ['energy_kcal', 'protein_g'],
       perDay: [
         {
           date: '2026-06-01',
@@ -111,6 +112,7 @@ describeIfDb('MealHistoryService.query', () => {
             energy_kcal: 156 * 2 + 142 * 0.5,
             protein_g: 2.5 * 2 + 12 * 0.5,
           },
+          incompleteNutrients: ['energy_kcal', 'protein_g'],
           hasUnknownValues: true,
         },
       ],
@@ -194,10 +196,12 @@ describeIfDb('MealHistoryService.query', () => {
 
     expect(result).toEqual({
       totals: { energy_kcal: 142 * 0.5, protein_g: 12 * 0.5 },
+      incompleteNutrients: [],
       perDay: [
         {
           date: '2026-06-01',
           totals: { energy_kcal: 142 * 0.5, protein_g: 12 * 0.5 },
+          incompleteNutrients: [],
           hasUnknownValues: false,
         },
       ],
@@ -210,6 +214,107 @@ describeIfDb('MealHistoryService.query', () => {
           mealType: 'dinner',
           quantity: 0.5,
           recordedAt: '2026-06-01T03:04:05Z',
+          nutritionStatus: 'confirmed',
+        },
+      ],
+      hasEstimatedValues: false,
+      hasUnknownValues: false,
+    })
+  })
+
+  it('marks nutrients missing from any meal in the overall and per-day totals', async () => {
+    const tx = getTx()
+    await seedNutrientDefinitions(tx)
+    await seedFoodMaster(tx, {
+      id: 'complete-food',
+      name: 'complete food',
+      source: 'user_input',
+      nutrients: { energy_kcal: 100, protein_g: 10 },
+    })
+    await seedFoodMaster(tx, {
+      id: 'partial-food',
+      name: 'partial food',
+      source: 'user_input',
+      nutrients: { energy_kcal: 50 },
+    })
+    await seedMealLog(tx, {
+      id: 'log-complete-day-one',
+      foodMasterId: 'complete-food',
+      eatenDate: jstDate('2026-06-01'),
+      mealType: 'breakfast',
+      quantity: 1,
+      createdAt: new Date('2026-06-01T03:00:00.000Z'),
+    })
+    await seedMealLog(tx, {
+      id: 'log-partial-day-one',
+      foodMasterId: 'partial-food',
+      eatenDate: jstDate('2026-06-01'),
+      mealType: 'lunch',
+      quantity: 1,
+      createdAt: new Date('2026-06-01T04:00:00.000Z'),
+    })
+    await seedMealLog(tx, {
+      id: 'log-complete-day-two',
+      foodMasterId: 'complete-food',
+      eatenDate: jstDate('2026-06-02'),
+      mealType: 'dinner',
+      quantity: 1,
+      createdAt: new Date('2026-06-02T03:00:00.000Z'),
+    })
+
+    const result = (
+      await createMealHistoryService(tx).query({
+        periodFrom: jstDate('2026-06-01'),
+        periodTo: jstDate('2026-06-03'),
+      })
+    )._unsafeUnwrap()
+
+    expect(result).toEqual({
+      totals: { energy_kcal: 250, protein_g: 20 },
+      incompleteNutrients: ['protein_g'],
+      perDay: [
+        {
+          date: '2026-06-01',
+          totals: { energy_kcal: 150, protein_g: 10 },
+          incompleteNutrients: ['protein_g'],
+          hasUnknownValues: false,
+        },
+        {
+          date: '2026-06-02',
+          totals: { energy_kcal: 100, protein_g: 10 },
+          incompleteNutrients: [],
+          hasUnknownValues: false,
+        },
+      ],
+      entries: [
+        {
+          id: 'log-complete-day-one',
+          foodMasterId: 'complete-food',
+          foodName: 'complete food',
+          eatenDate: '2026-06-01',
+          mealType: 'breakfast',
+          quantity: 1,
+          recordedAt: '2026-06-01T03:00:00Z',
+          nutritionStatus: 'confirmed',
+        },
+        {
+          id: 'log-partial-day-one',
+          foodMasterId: 'partial-food',
+          foodName: 'partial food',
+          eatenDate: '2026-06-01',
+          mealType: 'lunch',
+          quantity: 1,
+          recordedAt: '2026-06-01T04:00:00Z',
+          nutritionStatus: 'confirmed',
+        },
+        {
+          id: 'log-complete-day-two',
+          foodMasterId: 'complete-food',
+          foodName: 'complete food',
+          eatenDate: '2026-06-02',
+          mealType: 'dinner',
+          quantity: 1,
+          recordedAt: '2026-06-02T03:00:00Z',
           nutritionStatus: 'confirmed',
         },
       ],
@@ -244,10 +349,12 @@ describeIfDb('MealHistoryService.query', () => {
 
     expect(result).toEqual({
       totals: {},
+      incompleteNutrients: [],
       perDay: [
         {
           date: '2026-06-01',
           totals: {},
+          incompleteNutrients: [],
           hasUnknownValues: true,
         },
       ],
@@ -297,10 +404,12 @@ describeIfDb('MealHistoryService.query', () => {
 
     expect(result).toEqual({
       totals: { iron_mg: 2 * 1 },
+      incompleteNutrients: [],
       perDay: [
         {
           date: '2026-06-01',
           totals: { iron_mg: 2 * 1 },
+          incompleteNutrients: [],
           hasUnknownValues: false,
         },
       ],
@@ -350,10 +459,12 @@ describeIfDb('MealHistoryService.query', () => {
 
     expect(result).toEqual({
       totals: {},
+      incompleteNutrients: [],
       perDay: [
         {
           date: '2026-06-01',
           totals: {},
+          incompleteNutrients: [],
           hasUnknownValues: false,
         },
       ],
@@ -420,6 +531,7 @@ describeIfDb('MealHistoryService.query', () => {
         energy_kcal: 156 * 1 + 200 * 2.5,
         protein_g: 2.5 * 1 + 8 * 2.5,
       },
+      incompleteNutrients: [],
       perDay: [
         {
           date: '2026-06-01',
@@ -427,6 +539,7 @@ describeIfDb('MealHistoryService.query', () => {
             energy_kcal: 156 * 1 + 200 * 2.5,
             protein_g: 2.5 * 1 + 8 * 2.5,
           },
+          incompleteNutrients: [],
           hasUnknownValues: false,
         },
       ],
@@ -529,10 +642,12 @@ describeIfDb(
 
           expect(result).toEqual({
             totals: { probe_energy_kcal: 156 * 2 },
+            incompleteNutrients: [],
             perDay: [
               {
                 date: '2026-06-01',
                 totals: { probe_energy_kcal: 156 * 2 },
+                incompleteNutrients: [],
                 hasUnknownValues: false,
               },
             ],

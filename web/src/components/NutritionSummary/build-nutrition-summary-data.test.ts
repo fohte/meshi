@@ -649,4 +649,99 @@ describe('buildNutritionSummaryData', () => {
       hasAnyTarget: false,
     })
   })
+
+  it('marks incomplete totals as lower bounds and wholly missing totals as unknown', () => {
+    const definitions = DEFINITIONS.filter((definition) =>
+      ['energy_kcal', 'protein_g', 'iron_mg'].includes(definition.code),
+    )
+
+    expect(
+      buildNutritionSummaryData(
+        { energy_kcal: 100, protein_g: 20 },
+        definitions,
+        null,
+        false,
+        ['protein_g', 'iron_mg'],
+      ),
+    ).toEqual({
+      energy: {
+        value: 100,
+        isUnknown: false,
+        target: null,
+        pct: null,
+        over: false,
+      },
+      pfc: {
+        segments: [
+          {
+            label: 'たんぱく質',
+            color: 'var(--color-text)',
+            pct: 100,
+            targetPct: 20,
+          },
+          {
+            label: '脂質',
+            color: 'var(--color-muted)',
+            pct: 0,
+            targetPct: 25,
+          },
+          {
+            label: '炭水化物',
+            color: '#3f3f46',
+            pct: 0,
+            targetPct: 55,
+          },
+        ],
+        targetMarks: [20, 45],
+      },
+      majorRows: [
+        {
+          code: 'protein_g',
+          label: 'たんぱく質',
+          unit: 'g',
+          value: 20,
+          isUnknown: false,
+          isIncomplete: true,
+          target: null,
+          pct: 0,
+          over: false,
+        },
+      ],
+      allRows: [
+        {
+          code: 'energy_kcal',
+          label: 'エネルギー',
+          unit: 'kcal',
+          value: 100,
+          isUnknown: false,
+          target: null,
+          pct: 0,
+          over: false,
+        },
+        {
+          code: 'protein_g',
+          label: 'たんぱく質',
+          unit: 'g',
+          value: 20,
+          isUnknown: false,
+          isIncomplete: true,
+          target: null,
+          pct: 0,
+          over: false,
+        },
+        {
+          code: 'iron_mg',
+          label: '鉄',
+          unit: 'mg',
+          value: 0,
+          isUnknown: true,
+          isIncomplete: true,
+          target: null,
+          pct: 0,
+          over: false,
+        },
+      ],
+      hasAnyTarget: false,
+    })
+  })
 })

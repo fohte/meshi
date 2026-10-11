@@ -17,6 +17,7 @@ describe('fetchDayDetail', () => {
           Promise.resolve({
             date: '2026-07-29',
             totals: {},
+            incompleteNutrients: [],
             hasEstimatedValues: false,
             hasUnknownValues: true,
             skippedMealTypes: [],
@@ -42,6 +43,7 @@ describe('fetchDayDetail', () => {
     expect(result._unsafeUnwrap()).toEqual({
       date: '2026-07-29',
       totals: {},
+      incompleteNutrients: [],
       hasEstimatedValues: false,
       hasUnknownValues: true,
       skippedMealTypes: [],
