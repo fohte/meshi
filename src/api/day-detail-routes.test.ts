@@ -17,6 +17,7 @@ const stubEmptyDetail: DayDetailService = {
   query: () =>
     okAsync({
       totals: {},
+      incompleteNutrients: [],
       hasEstimatedValues: false,
       hasUnknownValues: false,
       entries: [],
@@ -40,6 +41,7 @@ describe('GET /api/days/:date', () => {
         capturedInput = input
         return okAsync({
           totals: {},
+          incompleteNutrients: [],
           hasEstimatedValues: false,
           hasUnknownValues: false,
           entries: [],
@@ -59,6 +61,7 @@ describe('GET /api/days/:date', () => {
       query: () =>
         okAsync({
           totals: { energy_kcal: 312, protein_g: 5 },
+          incompleteNutrients: ['protein_g'],
           hasEstimatedValues: true,
           hasUnknownValues: false,
           entries: [
@@ -85,6 +88,7 @@ describe('GET /api/days/:date', () => {
     expect(await res.json()).toEqual({
       date: '2026-07-29',
       totals: { energy_kcal: 312, protein_g: 5 },
+      incompleteNutrients: ['protein_g'],
       hasEstimatedValues: true,
       hasUnknownValues: false,
       skippedMealTypes: ['lunch'],

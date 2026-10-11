@@ -19,6 +19,7 @@ export interface DayDetailEntry {
 
 export interface DayDetail {
   readonly totals: NutritionMap
+  readonly incompleteNutrients: ReadonlyArray<string>
   readonly hasEstimatedValues: boolean
   readonly hasUnknownValues: boolean
   readonly entries: ReadonlyArray<DayDetailEntry>

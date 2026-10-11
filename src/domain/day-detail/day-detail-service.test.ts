@@ -55,6 +55,12 @@ describeIfDb('DayDetailService.query', () => {
       id: 'unknown-food',
       name: '不明なメニュー',
     })
+    await seedFoodMaster(tx, {
+      id: 'partial-food',
+      name: '栄養値が一部不明',
+      source: 'user_input',
+      nutrients: { protein_g: 7 },
+    })
     await seedMealLog(tx, {
       id: 'log-1',
       foodMasterId: 'rice',
@@ -76,12 +82,20 @@ describeIfDb('DayDetailService.query', () => {
       mealType: 'snack',
       quantity: 1,
     })
+    await seedMealLog(tx, {
+      id: 'log-4',
+      foodMasterId: 'partial-food',
+      eatenDate: jstDate('2026-06-01'),
+      mealType: 'lunch',
+      quantity: 1,
+    })
 
     const stubTotals = { energy_kcal: 412 }
     const mealHistoryService: MealHistoryService = {
       query: () =>
         okAsync({
           totals: stubTotals,
+          incompleteNutrients: ['protein_g'],
           perDay: [],
           hasEstimatedValues: true,
           hasUnknownValues: true,
@@ -116,6 +130,16 @@ describeIfDb('DayDetailService.query', () => {
               recordedAt: '2026-06-01T03:00:00Z',
               nutritionStatus: 'unknown',
             },
+            {
+              id: 'log-4',
+              foodMasterId: 'partial-food',
+              foodName: '栄養値が一部不明',
+              eatenDate: jstDate('2026-06-01'),
+              mealType: 'lunch',
+              quantity: 1,
+              recordedAt: '2026-06-01T03:00:00Z',
+              nutritionStatus: 'confirmed',
+            },
           ],
         }),
     }
@@ -129,6 +153,7 @@ describeIfDb('DayDetailService.query', () => {
 
     expect(result).toEqual({
       totals: stubTotals,
+      incompleteNutrients: ['protein_g'],
       hasEstimatedValues: true,
       hasUnknownValues: true,
       entries: [
@@ -165,6 +190,17 @@ describeIfDb('DayDetailService.query', () => {
           isEstimated: false,
           nutritionStatus: 'unknown',
         },
+        {
+          id: 'log-4',
+          foodMasterId: 'partial-food',
+          foodName: '栄養値が一部不明',
+          eatenDate: '2026-06-01',
+          mealType: 'lunch',
+          quantity: 1,
+          kcal: null,
+          isEstimated: false,
+          nutritionStatus: 'confirmed',
+        },
       ],
       skippedMealTypes: [],
     })
@@ -176,6 +212,7 @@ describeIfDb('DayDetailService.query', () => {
       query: () =>
         okAsync({
           totals: {},
+          incompleteNutrients: [],
           perDay: [],
           hasEstimatedValues: false,
           hasUnknownValues: false,
@@ -192,6 +229,7 @@ describeIfDb('DayDetailService.query', () => {
 
     expect(result).toEqual({
       totals: {},
+      incompleteNutrients: [],
       hasEstimatedValues: false,
       hasUnknownValues: false,
       entries: [],
@@ -219,6 +257,7 @@ describeIfDb('DayDetailService.query', () => {
       query: () =>
         okAsync({
           totals: { energy_kcal: 312 },
+          incompleteNutrients: [],
           perDay: [],
           hasEstimatedValues: false,
           hasUnknownValues: false,
@@ -268,6 +307,7 @@ describeIfDb('DayDetailService.query', () => {
 
     expect(result).toEqual({
       totals: { energy_kcal: 312 },
+      incompleteNutrients: [],
       hasEstimatedValues: false,
       hasUnknownValues: false,
       entries: [

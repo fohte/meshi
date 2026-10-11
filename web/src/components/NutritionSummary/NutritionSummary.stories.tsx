@@ -135,3 +135,24 @@ export const UnknownNutrition: Story = {
     data: buildNutritionSummaryData({}, DEFINITIONS, null, true),
   },
 }
+
+export const IncompleteNutrients: Story = {
+  name: 'エネルギーと一部の栄養素が不明で、合計を下限として表示しています',
+  args: {
+    hasEstimatedValues: false,
+    hasUnknownValues: false,
+    data: buildNutritionSummaryData(
+      {
+        energy_kcal: 1540,
+        protein_g: 62,
+        fat_g: 48,
+        carb_g: 190,
+        salt_g: 4.2,
+      },
+      DEFINITIONS,
+      null,
+      false,
+      ['energy_kcal', 'dietary_fiber_g', 'salt_g'],
+    ),
+  },
+}

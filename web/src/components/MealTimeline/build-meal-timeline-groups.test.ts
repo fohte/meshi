@@ -290,4 +290,62 @@ describe('buildMealTimelineGroups', () => {
       },
     ])
   })
+
+  it('shows unknown kcal when a confirmed entry has no energy value', () => {
+    expect(
+      buildMealTimelineGroups(
+        [
+          entry({
+            id: 'l3',
+            foodMasterId: 'partial-food',
+            foodName: '栄養値が一部不明の食事',
+            mealType: 'lunch',
+            quantity: 1,
+            kcal: null,
+            isEstimated: false,
+            nutritionStatus: 'confirmed',
+          }),
+        ],
+        [],
+      ),
+    ).toEqual([
+      {
+        mealType: 'breakfast',
+        label: '朝食',
+        status: 'unrecorded',
+        kcalText: null,
+        items: [],
+      },
+      {
+        mealType: 'lunch',
+        label: '昼食',
+        status: 'eaten',
+        kcalText: '不明',
+        items: [
+          {
+            id: 'l3',
+            name: '栄養値が一部不明の食事',
+            isEstimated: false,
+            isUnknown: true,
+            quantityText: '×1',
+            kcalText: '不明',
+          },
+        ],
+      },
+      {
+        mealType: 'dinner',
+        label: '夕食',
+        status: 'unrecorded',
+        kcalText: null,
+        items: [],
+      },
+      {
+        mealType: 'snack',
+        label: '間食',
+        status: 'unrecorded',
+        kcalText: null,
+        items: [],
+      },
+    ])
+  })
 })

@@ -27,6 +27,12 @@
   color: var(--color-muted);
 }
 
+.incompleteNote {
+  font-family: var(--font-sans);
+  font-size: 11px;
+  color: var(--color-muted);
+}
+
 .estimateMark {
   font-family: var(--font-mono);
 }

@@ -309,6 +309,7 @@ describeIfDb('meshi integration', () => {
             protein_g: 5,
             carbohydrate_g: 74,
           },
+          incomplete_nutrients: ['fat_g'],
           per_day: [
             {
               date: '2026-06-12',
@@ -317,6 +318,7 @@ describeIfDb('meshi integration', () => {
                 protein_g: 5,
                 carbohydrate_g: 74,
               },
+              incomplete_nutrients: ['fat_g'],
               has_unknown_values: false,
             },
           ],
@@ -398,10 +400,12 @@ describeIfDb('meshi integration', () => {
         queryResult: {
           structuredContent: {
             totals: { energy_kcal: 360, protein_g: 18 },
+            incomplete_nutrients: ['carbohydrate_g', 'fat_g'],
             per_day: [
               {
                 date: '2026-06-12',
                 totals: { energy_kcal: 360, protein_g: 18 },
+                incomplete_nutrients: ['carbohydrate_g', 'fat_g'],
                 has_unknown_values: false,
               },
             ],
@@ -491,10 +495,12 @@ describeIfDb('meshi integration', () => {
       const queryData = z
         .object({
           totals: z.record(z.string(), z.number()),
+          incomplete_nutrients: z.array(z.string()),
           per_day: z.array(
             z.object({
               date: z.string(),
               totals: z.record(z.string(), z.number()),
+              incomplete_nutrients: z.array(z.string()),
               has_unknown_values: z.boolean(),
             }),
           ),
@@ -577,10 +583,22 @@ describeIfDb('meshi integration', () => {
           content: [{ type: 'text', text: '食事履歴を取得しました。' }],
           structuredContent: {
             totals: {},
+            incomplete_nutrients: [
+              'carbohydrate_g',
+              'energy_kcal',
+              'fat_g',
+              'protein_g',
+            ],
             per_day: [
               {
                 date: '2026-06-12',
                 totals: {},
+                incomplete_nutrients: [
+                  'carbohydrate_g',
+                  'energy_kcal',
+                  'fat_g',
+                  'protein_g',
+                ],
                 has_unknown_values: true,
               },
             ],
@@ -700,10 +718,12 @@ describeIfDb('meshi integration', () => {
           content: [{ type: 'text', text: '食事履歴を取得しました。' }],
           structuredContent: {
             totals: { energy_kcal: 411, protein_g: 15 },
+            incomplete_nutrients: ['carbohydrate_g', 'fat_g'],
             per_day: [
               {
                 date: '2026-04-17',
                 totals: { energy_kcal: 411, protein_g: 15 },
+                incomplete_nutrients: ['carbohydrate_g', 'fat_g'],
                 has_unknown_values: false,
               },
             ],

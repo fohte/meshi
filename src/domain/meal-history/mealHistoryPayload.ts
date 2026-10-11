@@ -14,9 +14,11 @@ interface MealHistoryPayloadEntry {
 
 interface MealHistoryPayloadBase {
   readonly totals: Record<string, number>
+  readonly incomplete_nutrients: Array<string>
   readonly per_day: Array<{
     readonly date: string
     readonly totals: Record<string, number>
+    readonly incomplete_nutrients: Array<string>
     readonly has_unknown_values: boolean
   }>
   readonly entries: Array<MealHistoryPayloadEntry>
@@ -48,9 +50,11 @@ export function toMealHistoryPayload(
 ): MealHistoryPayloadBase | MealHistoryPayloadWithRecordedAt {
   return {
     totals: { ...aggregate.totals },
+    incomplete_nutrients: [...aggregate.incompleteNutrients],
     per_day: aggregate.perDay.map((day) => ({
       date: day.date,
       totals: { ...day.totals },
+      incomplete_nutrients: [...day.incompleteNutrients],
       has_unknown_values: day.hasUnknownValues,
     })),
     entries: aggregate.entries.map((entry) => ({

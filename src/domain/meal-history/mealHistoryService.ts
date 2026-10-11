@@ -32,6 +32,11 @@ const aggregateRowSchema = z.object({
   value: numericString,
 })
 
+const incompleteNutrientRowSchema = z.object({
+  day: jstDateSchema,
+  nutrient_code: z.string(),
+})
+
 const entryRowSchema = z.object({
   id: z.string(),
   food_master_id: z.string(),
@@ -61,9 +66,11 @@ export const createMealHistoryService = (sql: Sql): MealHistoryService => {
 
       return ResultAsync.fromPromise(
         (async () => {
-          const aggregateRaw = emptyNutrientFilter
-            ? []
-            : await sql`
+          const [aggregateRaw, incompleteNutrientRaw, entryRaw] =
+            await Promise.all([
+              emptyNutrientFilter
+                ? Promise.resolve([])
+                : sql`
                 SELECT
                   to_char(ml.eaten_date, 'YYYY-MM-DD') AS day,
                   fmn.nutrient_code AS nutrient_code,
@@ -87,38 +94,65 @@ export const createMealHistoryService = (sql: Sql): MealHistoryService => {
                   )
                 GROUP BY day, fmn.nutrient_code
                 ORDER BY day, fmn.nutrient_code
-              `
+              `,
+              emptyNutrientFilter
+                ? Promise.resolve([])
+                : sql`
+                    SELECT
+                      to_char(ml.eaten_date, 'YYYY-MM-DD') AS day,
+                      nd.code AS nutrient_code
+                    FROM meal_logs ml
+                    CROSS JOIN nutrient_definitions nd
+                    LEFT JOIN food_master_nutrients fmn
+                      ON fmn.food_master_id = ml.food_master_id
+                      AND fmn.nutrient_code = nd.code
+                    WHERE ml.eaten_date >= ${periodFrom}::date
+                      AND ml.eaten_date < ${periodTo}::date
+                      AND (
+                        ${foodFilter === null}::boolean
+                        OR ml.food_master_id = ANY(${foodFilter ?? []}::text[])
+                      )
+                      AND (
+                        CASE
+                          WHEN ${useMajorOnly}::boolean THEN nd.is_major = true
+                          ELSE nd.code = ANY(${nutrientCodes ?? []}::text[])
+                        END
+                      )
+                      AND fmn.food_master_id IS NULL
+                    GROUP BY day, nd.code
+                    ORDER BY day, nd.code
+                  `,
+              sql`
+                SELECT
+                  ml.id AS id,
+                  ml.food_master_id AS food_master_id,
+                  fm.name AS food_name,
+                  to_char(ml.eaten_date, 'YYYY-MM-DD') AS eaten_date,
+                  ml.meal_type AS meal_type,
+                  ml.quantity AS quantity,
+                  to_char(
+                    ml.created_at AT TIME ZONE 'UTC',
+                    'YYYY-MM-DD"T"HH24:MI:SS"Z"'
+                  ) AS recorded_at,
+                  fmn.is_estimated AS is_estimated
+                FROM meal_logs ml
+                INNER JOIN food_masters fm ON fm.id = ml.food_master_id
+                LEFT JOIN food_master_nutrition fmn ON fmn.food_master_id = fm.id
+                WHERE ml.eaten_date >= ${periodFrom}::date
+                  AND ml.eaten_date < ${periodTo}::date
+                  AND (
+                    ${foodFilter === null}::boolean
+                    OR ml.food_master_id = ANY(${foodFilter ?? []}::text[])
+                  )
+                ORDER BY ml.eaten_date ASC, ml.created_at ASC, ml.id ASC
+              `,
+            ])
 
-          const entryRaw = await sql`
-            SELECT
-              ml.id AS id,
-              ml.food_master_id AS food_master_id,
-              fm.name AS food_name,
-              to_char(ml.eaten_date, 'YYYY-MM-DD') AS eaten_date,
-              ml.meal_type AS meal_type,
-              ml.quantity AS quantity,
-              to_char(
-                ml.created_at AT TIME ZONE 'UTC',
-                'YYYY-MM-DD"T"HH24:MI:SS"Z"'
-              ) AS recorded_at,
-              fmn.is_estimated AS is_estimated
-            FROM meal_logs ml
-            INNER JOIN food_masters fm ON fm.id = ml.food_master_id
-            LEFT JOIN food_master_nutrition fmn ON fmn.food_master_id = fm.id
-            WHERE ml.eaten_date >= ${periodFrom}::date
-              AND ml.eaten_date < ${periodTo}::date
-              AND (
-                ${foodFilter === null}::boolean
-                OR ml.food_master_id = ANY(${foodFilter ?? []}::text[])
-              )
-            ORDER BY ml.eaten_date ASC, ml.created_at ASC, ml.id ASC
-          `
-
-          return { aggregateRaw, entryRaw }
+          return { aggregateRaw, incompleteNutrientRaw, entryRaw }
         })(),
         (caughtErr) =>
           new MealHistoryQueryError('meal history query failed', caughtErr),
-      ).andThen(({ aggregateRaw, entryRaw }) => {
+      ).andThen(({ aggregateRaw, incompleteNutrientRaw, entryRaw }) => {
         const aggregateParsed = z
           .array(aggregateRowSchema)
           .safeParse(aggregateRaw)
@@ -127,6 +161,17 @@ export const createMealHistoryService = (sql: Sql): MealHistoryService => {
             new MealHistoryQueryError(
               'meal history aggregate rows are invalid',
               aggregateParsed.error,
+            ),
+          )
+        }
+        const incompleteNutrientParsed = z
+          .array(incompleteNutrientRowSchema)
+          .safeParse(incompleteNutrientRaw)
+        if (!incompleteNutrientParsed.success) {
+          return err(
+            new MealHistoryQueryError(
+              'meal history incomplete nutrient rows are invalid',
+              incompleteNutrientParsed.error,
             ),
           )
         }
@@ -142,6 +187,7 @@ export const createMealHistoryService = (sql: Sql): MealHistoryService => {
 
         const perDay = buildPerDay(
           aggregateParsed.data,
+          incompleteNutrientParsed.data,
           entryParsed.data.map((row) => row.eaten_date),
           new Set(
             entryParsed.data
@@ -154,6 +200,9 @@ export const createMealHistoryService = (sql: Sql): MealHistoryService => {
           ),
         )
         const totals = sumPerDay(perDay)
+        const incompleteNutrients = [
+          ...new Set(perDay.flatMap((day) => day.incompleteNutrients)),
+        ].sort()
         const entries: MealLogEntry[] = entryParsed.data.map((row) => ({
           id: row.id,
           foodMasterId: row.food_master_id,
@@ -175,6 +224,7 @@ export const createMealHistoryService = (sql: Sql): MealHistoryService => {
 
         return ok({
           totals,
+          incompleteNutrients,
           perDay,
           entries,
           hasEstimatedValues,
@@ -191,32 +241,49 @@ const buildPerDay = (
     nutrient_code: NutrientCode
     value: number
   }>,
+  incompleteNutrientRows: ReadonlyArray<{
+    day: JstDate
+    nutrient_code: NutrientCode
+  }>,
   entryDays: ReadonlyArray<JstDate>,
   unknownDays: ReadonlySet<JstDate>,
 ): ReadonlyArray<MealHistoryDayTotals> => {
-  const byDay = new Map<
-    JstDate,
-    { totals: Record<NutrientCode, number>; hasUnknownValues: boolean }
-  >()
-  for (const date of entryDays) {
-    byDay.set(date, {
+  type DayTotals = {
+    totals: Record<NutrientCode, number>
+    incompleteNutrients: Set<NutrientCode>
+    hasUnknownValues: boolean
+  }
+  const byDay = new Map<JstDate, DayTotals>()
+  const dayFor = (date: JstDate) => {
+    const existing = byDay.get(date)
+    if (existing) return existing
+
+    const day: DayTotals = {
       totals: {},
+      incompleteNutrients: new Set<NutrientCode>(),
       hasUnknownValues: unknownDays.has(date),
-    })
+    }
+    byDay.set(date, day)
+    return day
+  }
+
+  for (const date of entryDays) {
+    dayFor(date)
   }
   for (const row of rows) {
-    const day = byDay.get(row.day) ?? {
-      totals: {},
-      hasUnknownValues: false,
-    }
+    const day = dayFor(row.day)
     day.totals[row.nutrient_code] = row.value
-    byDay.set(row.day, day)
+  }
+  for (const row of incompleteNutrientRows) {
+    const day = dayFor(row.day)
+    day.incompleteNutrients.add(row.nutrient_code)
   }
   return [...byDay.entries()]
     .sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))
     .map(([date, day]) => ({
       date,
       totals: day.totals,
+      incompleteNutrients: [...day.incompleteNutrients].sort(),
       hasUnknownValues: day.hasUnknownValues,
     }))
 }

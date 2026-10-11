@@ -33,7 +33,11 @@ export const mountMealHistoryRoutes = (
       (aggregate) =>
         c.json({
           totals: aggregate.totals,
-          perDay: aggregate.perDay,
+          perDay: aggregate.perDay.map((day) => ({
+            date: day.date,
+            totals: day.totals,
+            hasUnknownValues: day.hasUnknownValues,
+          })),
           entries: aggregate.entries.map((entry) => ({
             id: entry.id,
             foodMasterId: entry.foodMasterId,

@@ -91,6 +91,7 @@ const enrichEntries = (
   if (foodMasterIds.length === 0) {
     return okAsync({
       totals: aggregate.totals,
+      incompleteNutrients: aggregate.incompleteNutrients,
       hasEstimatedValues: aggregate.hasEstimatedValues,
       hasUnknownValues: aggregate.hasUnknownValues,
       entries: [],
@@ -146,7 +147,9 @@ const enrichEntries = (
         kcal:
           food === undefined || entry.nutritionStatus === 'unknown'
             ? null
-            : (food.kcalPerUnit ?? 0) * entry.quantity,
+            : food.kcalPerUnit === null
+              ? null
+              : food.kcalPerUnit * entry.quantity,
         isEstimated: entry.nutritionStatus === 'estimated',
         nutritionStatus: entry.nutritionStatus,
       }
@@ -154,6 +157,7 @@ const enrichEntries = (
 
     return {
       totals: aggregate.totals,
+      incompleteNutrients: aggregate.incompleteNutrients,
       hasEstimatedValues: aggregate.hasEstimatedValues,
       hasUnknownValues: aggregate.hasUnknownValues,
       entries,

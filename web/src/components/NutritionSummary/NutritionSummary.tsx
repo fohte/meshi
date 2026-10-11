@@ -11,6 +11,27 @@ export interface NutritionSummaryProps {
   readonly hasUnknownValues: boolean
 }
 
+interface NutrientValueProps {
+  readonly value: string | number
+  readonly isUnknown: boolean
+  readonly isIncomplete: boolean
+  readonly className?: string | undefined
+}
+
+const NutrientValue = ({
+  value,
+  isUnknown,
+  isIncomplete,
+  className,
+}: NutrientValueProps): React.JSX.Element => (
+  <span className={className}>
+    {isUnknown ? '不明' : value}
+    {isIncomplete && !isUnknown && (
+      <span className={styles.incompleteNote}> 一部不明 (下限)</span>
+    )}
+  </span>
+)
+
 export const NutritionSummary = ({
   data,
   hasEstimatedValues,
@@ -36,9 +57,12 @@ export const NutritionSummary = ({
       </div>
 
       <div className={styles.energyRow}>
-        <span className={styles.energyValue}>
-          {energy.isUnknown ? '不明' : Math.round(energy.value)}
-        </span>
+        <NutrientValue
+          value={Math.round(energy.value)}
+          isUnknown={energy.isUnknown}
+          isIncomplete={energy.isIncomplete === true}
+          className={styles.energyValue}
+        />
         <span className={styles.energyTarget}>
           / {energy.target === null ? '—' : Math.round(energy.target)} kcal
         </span>
@@ -104,11 +128,12 @@ export const NutritionSummary = ({
           <div key={row.code}>
             <div className={styles.majorRowHead}>
               <span className={styles.majorRowLabel}>{row.label}</span>
-              <span className={styles.majorRowValue}>
-                {row.isUnknown
-                  ? '不明'
-                  : formatNutrientValue(row.value, row.unit)}
-              </span>
+              <NutrientValue
+                value={formatNutrientValue(row.value, row.unit)}
+                isUnknown={row.isUnknown}
+                isIncomplete={row.isIncomplete === true}
+                className={styles.majorRowValue}
+              />
               <span className={styles.majorRowTarget}>
                 {row.target === null
                   ? '目標なし'
@@ -160,9 +185,11 @@ export const NutritionSummary = ({
               <tr key={row.code}>
                 <td>{row.label}</td>
                 <td>
-                  {row.isUnknown
-                    ? '不明'
-                    : formatNutrientValue(row.value, row.unit)}
+                  <NutrientValue
+                    value={formatNutrientValue(row.value, row.unit)}
+                    isUnknown={row.isUnknown}
+                    isIncomplete={row.isIncomplete === true}
+                  />
                 </td>
                 <td>
                   {row.target === null

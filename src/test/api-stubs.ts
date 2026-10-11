@@ -13,6 +13,7 @@ export const createStubApiDeps = (): ApiDeps => ({
     query: () =>
       okAsync({
         totals: {},
+        incompleteNutrients: [],
         perDay: [],
         entries: [],
         hasEstimatedValues: false,
@@ -23,6 +24,7 @@ export const createStubApiDeps = (): ApiDeps => ({
     query: () =>
       okAsync({
         totals: {},
+        incompleteNutrients: [],
         hasEstimatedValues: false,
         hasUnknownValues: false,
         entries: [],
