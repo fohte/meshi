@@ -720,6 +720,120 @@ describeIfDb('FoodMasterService + Repository', () => {
     })
   })
 
+  it('registers a food without nutrition metadata and round-trips it as unknown', async () => {
+    const tx = getTx()
+    const registered = (
+      await service.registerWithoutNutritionWithSimilarNameCheck({
+        name: 'Example Bistro tasting plate',
+        aliases: ['Example Bistro sampler'],
+      })
+    )._unsafeUnwrap()
+    const fetched = (await service.getById(registered.id))._unsafeUnwrap()
+    const nutritionRows = await tx<{ count: string }[]>`
+      SELECT count(*)::text AS count
+      FROM food_master_nutrition
+      WHERE food_master_id = ${registered.id}
+    `
+
+    expect(
+      observation({
+        registered: normalize(registered),
+        fetched: fetched === null ? null : normalize(fetched),
+        nutritionRows,
+      }),
+    ).toEqual({
+      registered: {
+        id: 'fm_test_0001',
+        name: 'Example Bistro tasting plate',
+        aliases: ['Example Bistro sampler'],
+        isEstimated: false,
+        nutritionStatus: 'unknown',
+        source: null,
+        sourceUrl: null,
+        sourceCompositionCode: null,
+        nutrition: {},
+        createdAt: '<date>',
+      },
+      fetched: {
+        id: 'fm_test_0001',
+        name: 'Example Bistro tasting plate',
+        aliases: ['Example Bistro sampler'],
+        isEstimated: false,
+        nutritionStatus: 'unknown',
+        source: null,
+        sourceUrl: null,
+        sourceCompositionCode: null,
+        nutrition: {},
+        createdAt: '<date>',
+      },
+      nutritionRows: [{ count: '0' }],
+    })
+  })
+
+  it('rejects duplicate aliases after trimming when registering without nutrition', async () => {
+    const tx = getTx()
+    const error = await captureDomainError(
+      service.registerWithoutNutritionWithSimilarNameCheck({
+        name: 'Example Bistro tasting plate',
+        aliases: ['Example Bistro sampler', ' Example Bistro sampler '],
+      }),
+    )
+    const rows = await tx<{ food_master_count: string; alias_count: string }[]>`
+      SELECT
+        (SELECT count(*)::text FROM food_masters) AS food_master_count,
+        (SELECT count(*)::text FROM food_master_aliases) AS alias_count
+    `
+
+    expect(observation({ error, rows })).toEqual({
+      error: {
+        code: 'duplicate_alias_in_input',
+        details: {
+          aliases: ['Example Bistro sampler', 'Example Bistro sampler'],
+        },
+      },
+      rows: [{ food_master_count: '0', alias_count: '0' }],
+    })
+  })
+
+  it('blocks a food without nutrition when a similar name is unconfirmed', async () => {
+    const tx = getTx()
+    const existing = (
+      await repository.register({
+        ...baseInput,
+        name: 'Example Bistro tasting plate',
+      })
+    )._unsafeUnwrap()
+    const captured = await captureDomainError(
+      service.registerWithoutNutritionWithSimilarNameCheck({
+        name: `${existing.name} seasonal`,
+      }),
+    )
+    const rows = await tx<{ count: string }[]>`
+      SELECT count(*)::text AS count FROM food_masters
+    `
+
+    expect(
+      observation({
+        error: normalizeSimilarNameError(captured),
+        foodMasters: rows,
+      }),
+    ).toEqual({
+      error: {
+        code: 'similar_name_exists',
+        details: {
+          candidates: [
+            {
+              food_master_id: 'fm_test_0001',
+              name: 'Example Bistro tasting plate',
+              score: '<score>',
+            },
+          ],
+        },
+      },
+      foodMasters: [{ count: '1' }],
+    })
+  })
+
   it('registers a food_master from a food_compositions row', async () => {
     const tx = getTx()
     await seedFoodComposition(tx, { code: '01088', name: 'そば ゆで' })

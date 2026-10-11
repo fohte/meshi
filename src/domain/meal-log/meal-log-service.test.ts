@@ -166,6 +166,7 @@ const createFakeFoodMasterService = (
   const foodMasterService: FoodMasterService = {
     fillNutrition: unused,
     registerWithSimilarNameCheck: unused,
+    registerWithoutNutritionWithSimilarNameCheck: unused,
     getById: unused,
     registerFromComposition: unused,
     findSimilarNames: unused,

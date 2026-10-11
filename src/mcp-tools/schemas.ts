@@ -249,6 +249,12 @@ export const fillFoodNutritionStructuredOutput = z.object({
     .optional(),
 })
 
+export const registerFoodWithoutNutritionInput = registerFoodInput.pick({
+  name: true,
+  aliases: true,
+  confirmed_distinct_from_master_ids: true,
+})
+
 export const similarFoodMasterCandidateOutput = z.object({
   food_master_id: z.string(),
   name: z.string(),

@@ -16,6 +16,7 @@ import type {
   MergeFoodMasterResult,
   NutritionMap,
   RegisterFoodMasterInput,
+  RegisterFoodMasterWithoutNutritionInput,
   SimilarFoodMasterCandidate,
 } from '#domain/food-master/types'
 import { nutritionStatusFromIsEstimated } from '#domain/food-master/types'
@@ -32,6 +33,9 @@ export interface FoodMasterRepository {
   fillNutrition(
     input: FillFoodNutritionInput,
   ): ResultAsync<KnownNutritionStatus, FoodMasterDomainError>
+  registerWithoutNutrition(
+    input: RegisterFoodMasterWithoutNutritionInput,
+  ): ResultAsync<FoodMaster, FoodMasterDomainError>
   findById(
     id: FoodMasterId,
   ): ResultAsync<FoodMaster | null, FoodMasterDomainError>
@@ -101,7 +105,12 @@ export const createFoodMasterRepository = (
 ): FoodMasterRepository => {
   const generateId = options.generateId ?? defaultIdGenerator
   const wrapInTransaction = options.wrapInTransaction ?? true
-  const register = createFoodMasterRegistrar(sql, generateId, wrapInTransaction)
+  const registrar = createFoodMasterRegistrar(
+    sql,
+    generateId,
+    wrapInTransaction,
+  )
+  const { register, registerWithoutNutrition } = registrar
   const fillNutrition = createFoodMasterNutritionFiller(
     sql,
     generateId,
@@ -285,6 +294,7 @@ export const createFoodMasterRepository = (
   return {
     register,
     fillNutrition,
+    registerWithoutNutrition,
     findById,
     findComposition,
     findSimilarNames,

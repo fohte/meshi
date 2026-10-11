@@ -11,6 +11,7 @@ import type {
   FoodSource,
   NutritionMap,
   RegisterFoodMasterInput,
+  RegisterFoodMasterWithoutNutritionInput,
 } from '#domain/food-master/types'
 import { nutritionStatusFromIsEstimated } from '#domain/food-master/types'
 import {
@@ -25,25 +26,30 @@ interface NormalizedInput {
   readonly name: string
   readonly aliases: ReadonlyArray<string>
   readonly nutrition: NutritionMap
-  readonly source: FoodSource
+  readonly source: FoodSource | null
   readonly isEstimated: boolean
   readonly sourceUrl: string | null
   readonly sourceCompositionCode: string | null
+  readonly hasNutritionRecord: boolean
 }
 
-const normalizeAndValidate = (
-  input: RegisterFoodMasterInput,
-): Result<NormalizedInput, FoodMasterDomainError> => {
-  const name = input.name.trim()
+const normalizeFoodMasterName = (
+  rawName: string,
+): Result<string, FoodMasterDomainError> => {
+  const name = rawName.trim()
   if (name === '') {
     return err(
       new FoodMasterDomainError('empty_name', 'name must not be empty'),
     )
   }
-  const nutritionResult = normalizeAndValidateNutrition(input)
-  if (nutritionResult.isErr()) return err(nutritionResult.error)
-  const aliases = (input.aliases ?? []).map((a) => a.trim())
-  if (aliases.some((a) => a === '')) {
+  return ok(name)
+}
+
+const normalizeFoodMasterAliases = (
+  rawAliases: ReadonlyArray<string> | undefined,
+): Result<ReadonlyArray<string>, FoodMasterDomainError> => {
+  const aliases = (rawAliases ?? []).map((alias) => alias.trim())
+  if (aliases.some((alias) => alias === '')) {
     return err(
       new FoodMasterDomainError(
         'empty_alias',
@@ -60,10 +66,42 @@ const normalizeAndValidate = (
       ),
     )
   }
+  return ok(aliases)
+}
+
+const normalizeAndValidate = (
+  input: RegisterFoodMasterInput,
+): Result<NormalizedInput, FoodMasterDomainError> => {
+  const normalizedName = normalizeFoodMasterName(input.name)
+  if (normalizedName.isErr()) return err(normalizedName.error)
+  const nutritionResult = normalizeAndValidateNutrition(input)
+  if (nutritionResult.isErr()) return err(nutritionResult.error)
+  const normalizedAliases = normalizeFoodMasterAliases(input.aliases)
+  if (normalizedAliases.isErr()) return err(normalizedAliases.error)
   return ok({
-    name,
-    aliases,
+    name: normalizedName.value,
+    aliases: normalizedAliases.value,
     ...nutritionResult.value,
+    hasNutritionRecord: true,
+  })
+}
+
+const normalizeWithoutNutrition = (
+  input: RegisterFoodMasterWithoutNutritionInput,
+): Result<NormalizedInput, FoodMasterDomainError> => {
+  const normalizedName = normalizeFoodMasterName(input.name)
+  if (normalizedName.isErr()) return err(normalizedName.error)
+  const normalizedAliases = normalizeFoodMasterAliases(input.aliases)
+  if (normalizedAliases.isErr()) return err(normalizedAliases.error)
+  return ok({
+    name: normalizedName.value,
+    aliases: normalizedAliases.value,
+    nutrition: {},
+    source: null,
+    isEstimated: false,
+    sourceUrl: null,
+    sourceCompositionCode: null,
+    hasNutritionRecord: false,
   })
 }
 
@@ -108,9 +146,14 @@ export const createFoodMasterRegistrar = (
   sql: Sql,
   generateId: IdGenerator,
   wrapInTransaction: boolean,
-): ((
-  input: RegisterFoodMasterInput,
-) => ResultAsync<FoodMaster, FoodMasterDomainError>) => {
+): {
+  readonly register: (
+    input: RegisterFoodMasterInput,
+  ) => ResultAsync<FoodMaster, FoodMasterDomainError>
+  readonly registerWithoutNutrition: (
+    input: RegisterFoodMasterWithoutNutritionInput,
+  ) => ResultAsync<FoodMaster, FoodMasterDomainError>
+} => {
   const registerInTx = async (
     tx: Sql | TxSql,
     normalized: NormalizedInput,
@@ -149,18 +192,20 @@ export const createFoodMasterRegistrar = (
       )
     }
 
-    await tx`
-      INSERT INTO food_master_nutrition (
-        food_master_id, is_estimated, source, source_url, source_composition_code
-      )
-      VALUES (
-        ${id},
-        ${normalized.isEstimated},
-        ${normalized.source},
-        ${normalized.sourceUrl},
-        ${normalized.sourceCompositionCode}
-      )
-    `
+    if (normalized.hasNutritionRecord) {
+      await tx`
+        INSERT INTO food_master_nutrition (
+          food_master_id, is_estimated, source, source_url, source_composition_code
+        )
+        VALUES (
+          ${id},
+          ${normalized.isEstimated},
+          ${normalized.source},
+          ${normalized.sourceUrl},
+          ${normalized.sourceCompositionCode}
+        )
+      `
+    }
 
     if (normalized.aliases.length > 0) {
       const aliasRows = normalized.aliases.map((alias) => ({
@@ -185,7 +230,9 @@ export const createFoodMasterRegistrar = (
       name: inserted.name,
       aliases: normalized.aliases,
       isEstimated: normalized.isEstimated,
-      nutritionStatus: nutritionStatusFromIsEstimated(normalized.isEstimated),
+      nutritionStatus: normalized.hasNutritionRecord
+        ? nutritionStatusFromIsEstimated(normalized.isEstimated)
+        : 'unknown',
       source: normalized.source,
       sourceUrl: normalized.sourceUrl,
       sourceCompositionCode: normalized.sourceCompositionCode,
@@ -194,8 +241,9 @@ export const createFoodMasterRegistrar = (
     })
   }
 
-  return (input) => {
-    const normalizedResult = normalizeAndValidate(input)
+  const registerNormalized = (
+    normalizedResult: Result<NormalizedInput, FoodMasterDomainError>,
+  ): ResultAsync<FoodMaster, FoodMasterDomainError> => {
     if (normalizedResult.isErr()) return errAsync(normalizedResult.error)
     const normalized = normalizedResult.value
     const nutrientCodes = Object.keys(normalized.nutrition)
@@ -211,5 +259,11 @@ export const createFoodMasterRegistrar = (
     return ResultAsync.fromPromise(settle, (caughtErr) =>
       toRegisterError(caughtErr, normalized),
     ).andThen((result) => result)
+  }
+
+  return {
+    register: (input) => registerNormalized(normalizeAndValidate(input)),
+    registerWithoutNutrition: (input) =>
+      registerNormalized(normalizeWithoutNutrition(input)),
   }
 }
