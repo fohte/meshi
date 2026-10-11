@@ -73,6 +73,13 @@ export const createStubApiDeps = (): ApiDeps => ({
           'foodMasterService.registerWithSimilarNameCheck not stubbed',
         ),
       ),
+    registerWithoutNutritionWithSimilarNameCheck: () =>
+      errAsync(
+        new FoodMasterDomainError(
+          'persistence_failed',
+          'foodMasterService.registerWithoutNutritionWithSimilarNameCheck not stubbed',
+        ),
+      ),
     getById: () => okAsync(null),
     registerFromComposition: () =>
       errAsync(

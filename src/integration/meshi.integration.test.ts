@@ -346,6 +346,184 @@ describeIfDb('meshi integration', () => {
     }
   })
 
+  it('registers a food without nutrition, records it, and queries unknown status', async () => {
+    const tx = getTx()
+    const harness = await startHarness({ tx })
+
+    try {
+      const registration = normalizeResult(
+        await harness.client.callTool({
+          name: 'register_food_without_nutrition',
+          arguments: {
+            name: 'Example Bistro tasting plate',
+            aliases: ['Example Bistro sampler'],
+          },
+        }),
+      )
+      const registeredFood = z
+        .object({ food_master_id: z.string(), name: z.string() })
+        .parse(registration.structuredContent)
+
+      const recording = normalizeResult(
+        await harness.client.callTool({
+          name: 'record_meal_log',
+          arguments: {
+            date: '2026-06-12',
+            meal_type: 'dinner',
+            items: [
+              {
+                food_master_id: registeredFood.food_master_id,
+                food_name: registeredFood.name,
+                quantity: 2,
+              },
+            ],
+          },
+        }),
+      )
+      const recordedItems = z
+        .object({
+          recorded: z.array(
+            z.object({
+              meal_log_id: z.string(),
+              food_master_id: z.string(),
+              food_name: z.string(),
+              quantity: z.number(),
+              nutrition: z.record(z.string(), z.number()),
+              is_estimated: z.boolean(),
+              nutrition_status: z.enum(['confirmed', 'estimated', 'unknown']),
+            }),
+          ),
+          error: z.null(),
+        })
+        .parse(recording.structuredContent)
+
+      const query = normalizeResult(
+        await harness.client.callTool({
+          name: 'query_meals',
+          arguments: {
+            period_from: '2026-06-12',
+            period_to: '2026-06-13',
+          },
+        }),
+      )
+      const queryData = z
+        .object({
+          totals: z.record(z.string(), z.number()),
+          per_day: z.array(
+            z.object({
+              date: z.string(),
+              totals: z.record(z.string(), z.number()),
+              has_unknown_values: z.boolean(),
+            }),
+          ),
+          entries: z.array(
+            z.object({
+              meal_log_id: z.string(),
+              food_master_id: z.string(),
+              food_name: z.string(),
+              eaten_date: z.string(),
+              meal_type: z.string(),
+              quantity: z.number(),
+              recorded_at: z.string(),
+              nutrition_status: z.enum(['confirmed', 'estimated', 'unknown']),
+            }),
+          ),
+          has_estimated_values: z.boolean(),
+          has_unknown_values: z.boolean(),
+        })
+        .parse(query.structuredContent)
+
+      expect(
+        observation({
+          registration: {
+            ...registration,
+            structuredContent: {
+              ...registeredFood,
+              food_master_id: '<food_master_id>',
+            },
+          },
+          recording: {
+            ...recording,
+            structuredContent: {
+              recorded: recordedItems.recorded.map((item) => ({
+                ...item,
+                meal_log_id: '<meal_log_id>',
+                food_master_id: '<food_master_id>',
+              })),
+              error: recordedItems.error,
+            },
+          },
+          query: {
+            ...query,
+            structuredContent: {
+              ...queryData,
+              entries: queryData.entries.map((entry) => ({
+                ...entry,
+                meal_log_id: '<meal_log_id>',
+                food_master_id: '<food_master_id>',
+                recorded_at: '<recorded_at>',
+              })),
+            },
+          },
+        }),
+      ).toEqual({
+        registration: {
+          content: [{ type: 'text', text: '食品を登録しました。' }],
+          structuredContent: {
+            food_master_id: '<food_master_id>',
+            name: 'Example Bistro tasting plate',
+          },
+        },
+        recording: {
+          content: [{ type: 'text', text: '1 品目を記録しました。' }],
+          structuredContent: {
+            recorded: [
+              {
+                meal_log_id: '<meal_log_id>',
+                food_master_id: '<food_master_id>',
+                food_name: 'Example Bistro tasting plate',
+                quantity: 2,
+                nutrition: {},
+                is_estimated: false,
+                nutrition_status: 'unknown',
+              },
+            ],
+            error: null,
+          },
+        },
+        query: {
+          content: [{ type: 'text', text: '食事履歴を取得しました。' }],
+          structuredContent: {
+            totals: {},
+            per_day: [
+              {
+                date: '2026-06-12',
+                totals: {},
+                has_unknown_values: true,
+              },
+            ],
+            entries: [
+              {
+                meal_log_id: '<meal_log_id>',
+                food_master_id: '<food_master_id>',
+                food_name: 'Example Bistro tasting plate',
+                eaten_date: '2026-06-12',
+                meal_type: 'dinner',
+                quantity: 2,
+                recorded_at: '<recorded_at>',
+                nutrition_status: 'unknown',
+              },
+            ],
+            has_estimated_values: false,
+            has_unknown_values: true,
+          },
+        },
+      })
+    } finally {
+      await harness.close()
+    }
+  })
+
   it('reflects meal log updates and deletions in query_meals', async () => {
     const tx = getTx()
     await seedFoodMasterRow(tx, {

@@ -37,6 +37,13 @@ const notStubbed = (name: string): FoodMasterService => ({
         `${name}.registerWithSimilarNameCheck not stubbed`,
       ),
     ),
+  registerWithoutNutritionWithSimilarNameCheck: () =>
+    errAsync(
+      new FoodMasterDomainError(
+        'persistence_failed',
+        `${name}.registerWithoutNutritionWithSimilarNameCheck not stubbed`,
+      ),
+    ),
   getById: () =>
     errAsync(
       new FoodMasterDomainError(

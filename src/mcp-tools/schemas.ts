@@ -218,6 +218,12 @@ export const registerFoodInput = z.object({
     .describe('別物だと確認した類似食品の food_master_id'),
 })
 
+export const registerFoodWithoutNutritionInput = registerFoodInput.pick({
+  name: true,
+  aliases: true,
+  confirmed_distinct_from_master_ids: true,
+})
+
 export const similarFoodMasterCandidateOutput = z.object({
   food_master_id: z.string(),
   name: z.string(),

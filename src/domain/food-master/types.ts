@@ -66,6 +66,11 @@ export interface RegisterFoodMasterInput {
   readonly sourceCompositionCode?: string
 }
 
+export interface RegisterFoodMasterWithoutNutritionInput {
+  readonly name: string
+  readonly aliases?: ReadonlyArray<string>
+}
+
 export interface RegisterFromCompositionInput {
   readonly compositionCode: string
   readonly name?: string
