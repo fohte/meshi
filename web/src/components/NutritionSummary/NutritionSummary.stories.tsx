@@ -137,7 +137,7 @@ export const UnknownNutrition: Story = {
 }
 
 export const IncompleteNutrients: Story = {
-  name: '一部の栄養素が不明で、合計を下限として表示しています',
+  name: 'エネルギーと一部の栄養素が不明で、合計を下限として表示しています',
   args: {
     hasEstimatedValues: false,
     hasUnknownValues: false,
@@ -152,7 +152,7 @@ export const IncompleteNutrients: Story = {
       DEFINITIONS,
       null,
       false,
-      ['dietary_fiber_g', 'salt_g'],
+      ['energy_kcal', 'dietary_fiber_g', 'salt_g'],
     ),
   },
 }

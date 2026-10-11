@@ -650,7 +650,7 @@ describe('buildNutritionSummaryData', () => {
     })
   })
 
-  it('marks incomplete totals as lower bounds and wholly missing totals as unknown', () => {
+  it('marks incomplete energy and nutrient totals as lower bounds and missing totals as unknown', () => {
     const definitions = DEFINITIONS.filter((definition) =>
       ['energy_kcal', 'protein_g', 'iron_mg'].includes(definition.code),
     )
@@ -661,12 +661,13 @@ describe('buildNutritionSummaryData', () => {
         definitions,
         null,
         false,
-        ['protein_g', 'iron_mg'],
+        ['energy_kcal', 'protein_g', 'iron_mg'],
       ),
     ).toEqual({
       energy: {
         value: 100,
         isUnknown: false,
+        isIncomplete: true,
         target: null,
         pct: null,
         over: false,
@@ -714,6 +715,7 @@ describe('buildNutritionSummaryData', () => {
           unit: 'kcal',
           value: 100,
           isUnknown: false,
+          isIncomplete: true,
           target: null,
           pct: 0,
           over: false,

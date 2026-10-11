@@ -248,38 +248,35 @@ const buildPerDay = (
   entryDays: ReadonlyArray<JstDate>,
   unknownDays: ReadonlySet<JstDate>,
 ): ReadonlyArray<MealHistoryDayTotals> => {
-  const byDay = new Map<
-    JstDate,
-    {
-      totals: Record<NutrientCode, number>
-      incompleteNutrients: Set<NutrientCode>
-      hasUnknownValues: boolean
-    }
-  >()
-  for (const date of entryDays) {
-    byDay.set(date, {
+  type DayTotals = {
+    totals: Record<NutrientCode, number>
+    incompleteNutrients: Set<NutrientCode>
+    hasUnknownValues: boolean
+  }
+  const byDay = new Map<JstDate, DayTotals>()
+  const dayFor = (date: JstDate) => {
+    const existing = byDay.get(date)
+    if (existing) return existing
+
+    const day: DayTotals = {
       totals: {},
-      incompleteNutrients: new Set(),
+      incompleteNutrients: new Set<NutrientCode>(),
       hasUnknownValues: unknownDays.has(date),
-    })
+    }
+    byDay.set(date, day)
+    return day
+  }
+
+  for (const date of entryDays) {
+    dayFor(date)
   }
   for (const row of rows) {
-    const day = byDay.get(row.day) ?? {
-      totals: {},
-      incompleteNutrients: new Set<NutrientCode>(),
-      hasUnknownValues: false,
-    }
+    const day = dayFor(row.day)
     day.totals[row.nutrient_code] = row.value
-    byDay.set(row.day, day)
   }
   for (const row of incompleteNutrientRows) {
-    const day = byDay.get(row.day) ?? {
-      totals: {},
-      incompleteNutrients: new Set<NutrientCode>(),
-      hasUnknownValues: false,
-    }
+    const day = dayFor(row.day)
     day.incompleteNutrients.add(row.nutrient_code)
-    byDay.set(row.day, day)
   }
   return [...byDay.entries()]
     .sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))
