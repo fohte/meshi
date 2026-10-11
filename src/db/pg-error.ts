@@ -1,4 +1,5 @@
 const PG_UNIQUE_VIOLATION = '23505'
+const PG_FOREIGN_KEY_VIOLATION = '23503'
 
 interface PgErrorShape {
   readonly code?: string
@@ -32,6 +33,9 @@ const findPostgresError = (err: unknown): PgErrorShape | undefined => {
 
 export const isUniqueViolation = (err: unknown): boolean =>
   findPostgresError(err)?.code === PG_UNIQUE_VIOLATION
+
+export const isForeignKeyViolation = (err: unknown): boolean =>
+  findPostgresError(err)?.code === PG_FOREIGN_KEY_VIOLATION
 
 export const getConstraintName = (err: unknown): string | undefined =>
   findPostgresError(err)?.constraint_name
