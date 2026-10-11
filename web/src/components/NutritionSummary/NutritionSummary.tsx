@@ -15,7 +15,7 @@ interface NutrientValueProps {
   readonly value: string | number
   readonly isUnknown: boolean
   readonly isIncomplete: boolean
-  readonly className?: string
+  readonly className?: string | undefined
 }
 
 const NutrientValue = ({
