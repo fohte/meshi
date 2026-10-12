@@ -12,6 +12,7 @@ import type { TxSql } from '#domain/food-master/rows'
 import { runInSavepoint } from '#domain/food-master/savepoint'
 import type {
   FillFoodNutritionInput,
+  FoodSource,
   NutritionStatus,
 } from '#domain/food-master/types'
 import {
@@ -23,6 +24,14 @@ const FOOD_MASTER_NUTRITION_PRIMARY_KEY = 'food_master_nutrition_pkey'
 const FOOD_MASTER_NUTRITION_FOOD_MASTER_ID_FK =
   'food_master_nutrition_food_master_id_fk'
 
+const nutritionAlreadyExists = (foodMasterId: string, cause?: unknown) =>
+  new FoodMasterDomainError(
+    'nutrition_already_exists',
+    'food_master already has nutrition metadata',
+    { foodMasterId },
+    cause,
+  )
+
 const toFillNutritionError = (
   caughtErr: unknown,
   foodMasterId: string,
@@ -32,12 +41,7 @@ const toFillNutritionError = (
     isUniqueViolation(caughtErr) &&
     constraint === FOOD_MASTER_NUTRITION_PRIMARY_KEY
   ) {
-    return new FoodMasterDomainError(
-      'nutrition_already_exists',
-      'food_master already has nutrition metadata',
-      { foodMasterId },
-      caughtErr,
-    )
+    return nutritionAlreadyExists(foodMasterId, caughtErr)
   }
   if (
     isForeignKeyViolation(caughtErr) &&
@@ -90,18 +94,61 @@ export const createFoodMasterNutritionFiller = (
       )
     }
 
-    await tx`
-      INSERT INTO food_master_nutrition (
-        food_master_id, is_estimated, source, source_url, source_composition_code
-      )
-      VALUES (
-        ${input.foodMasterId},
-        ${normalized.isEstimated},
-        ${normalized.source},
-        ${normalized.sourceUrl},
-        ${normalized.sourceCompositionCode}
-      )
+    const foodMasters = await tx<{ id: string }[]>`
+      SELECT id FROM food_masters
+      WHERE id = ${input.foodMasterId}
+      FOR UPDATE
     `
+    if (foodMasters.length === 0) {
+      return err(
+        new FoodMasterDomainError(
+          'food_master_not_found',
+          `food_master not found: ${input.foodMasterId}`,
+          { foodMasterId: input.foodMasterId },
+        ),
+      )
+    }
+
+    const existingNutrition = await tx<{ source: FoodSource }[]>`
+      SELECT source FROM food_master_nutrition
+      WHERE food_master_id = ${input.foodMasterId}
+    `
+    const existingSource = existingNutrition[0]?.source
+    if (
+      existingSource !== undefined &&
+      (existingSource !== 'model_estimate' ||
+        normalized.source === 'model_estimate')
+    ) {
+      return err(nutritionAlreadyExists(input.foodMasterId))
+    }
+
+    if (existingSource === 'model_estimate') {
+      await tx`
+        UPDATE food_master_nutrition
+        SET is_estimated = ${normalized.isEstimated},
+            source = ${normalized.source},
+            source_url = ${normalized.sourceUrl},
+            source_composition_code = ${normalized.sourceCompositionCode}
+        WHERE food_master_id = ${input.foodMasterId}
+      `
+      await tx`
+        DELETE FROM food_master_nutrients
+        WHERE food_master_id = ${input.foodMasterId}
+      `
+    } else {
+      await tx`
+        INSERT INTO food_master_nutrition (
+          food_master_id, is_estimated, source, source_url, source_composition_code
+        )
+        VALUES (
+          ${input.foodMasterId},
+          ${normalized.isEstimated},
+          ${normalized.source},
+          ${normalized.sourceUrl},
+          ${normalized.sourceCompositionCode}
+        )
+      `
+    }
 
     const nutrientRows = nutrientCodes.map((code) => ({
       food_master_id: input.foodMasterId,

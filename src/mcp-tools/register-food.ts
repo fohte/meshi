@@ -11,7 +11,7 @@ import {
 } from '#mcp-tools/schemas'
 
 const description =
-  '未登録の食品を登録し、food_master_id と名前を返す。nutrition.energy_kcal は必須。栄養値を一般知識から作らない。出典はメーカーまたは店の公式ページを優先し、まとめサイトやブログは使わない。source_url はこの商品とサイズの栄養値を載せたページにする。name はブランド名を先頭に付け、残りは公式の商品名をそのまま書く。source=web_search は is_estimated=false かつ source_url 必須。source=user_input はユーザー本人が値を伝えた場合だけ使い、source_url は指定しない。栄養値は出典が示す 1 つ分 (1 個、1 食、100g など) のまま渡す。食品成分表に載っている自炊の素材は成分表から登録する。似た名前の候補が返されたら、同じ食品なら既存候補を使う。確信がなければ出典を調べ直すかユーザーに確認する。候補すべてと別物だと確認できた場合のみ、confirmed_distinct_from_master_ids に候補の food_master_id をすべて指定して再送する。'
+  '未登録の食品を登録し、food_master_id と名前を返す。nutrition.energy_kcal は必須。公式情報はメーカーまたは店の公式ページを優先し、まとめサイトやブログは使わない。source_url はこの商品とサイズの栄養値を載せたページにする。name はブランド名を先頭に付け、残りは公式の商品名をそのまま書く。source=web_search は is_estimated=false かつ source_url 必須。source=user_input はユーザー本人が値を伝えた場合だけ使い、source_url は指定しない。公式情報もユーザーが伝えた値もない場合は、一般的な材料と量から栄養値を推定してよい。推定値は source=model_estimate と is_estimated=true を指定し、source_url と source_composition_code は指定しない。登録前にユーザーの確認を取らず、登録後に推定値であることを伝える。妥当な推定ができない場合は register_food_without_nutrition を使う。栄養値は出典が示す 1 つ分 (1 個、1 食、100g など) のまま渡す。食品成分表に載っている自炊の素材は成分表から登録する。似た名前の候補が返されたら、同じ食品なら既存候補を使う。食品名や類似候補の同一性が不確かな場合はユーザーに確認する。候補すべてと別物だと確認できた場合のみ、confirmed_distinct_from_master_ids に候補の food_master_id をすべて指定して再送する。'
 
 const similarNameDetailsSchema = z.object({
   candidates: z.array(similarFoodMasterCandidateOutput),

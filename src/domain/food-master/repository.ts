@@ -92,7 +92,12 @@ const foodMasterRowSchema = z.object({
   name: z.string(),
   is_estimated: z.boolean().nullable(),
   source: z
-    .enum(['web_search', 'composition_table_estimate', 'user_input'])
+    .enum([
+      'web_search',
+      'composition_table_estimate',
+      'user_input',
+      'model_estimate',
+    ])
     .nullable(),
   source_url: z.string().nullable(),
   source_composition_code: z.string().nullable(),

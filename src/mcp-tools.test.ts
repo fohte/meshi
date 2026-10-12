@@ -701,7 +701,7 @@ describe('MeshiMcpServer tools/list', () => {
         (tool) => tool.name === 'register_food',
       )
       expect(registerFood?.description).toEqual(
-        '未登録の食品を登録し、food_master_id と名前を返す。nutrition.energy_kcal は必須。栄養値を一般知識から作らない。出典はメーカーまたは店の公式ページを優先し、まとめサイトやブログは使わない。source_url はこの商品とサイズの栄養値を載せたページにする。name はブランド名を先頭に付け、残りは公式の商品名をそのまま書く。source=web_search は is_estimated=false かつ source_url 必須。source=user_input はユーザー本人が値を伝えた場合だけ使い、source_url は指定しない。栄養値は出典が示す 1 つ分 (1 個、1 食、100g など) のまま渡す。食品成分表に載っている自炊の素材は成分表から登録する。似た名前の候補が返されたら、同じ食品なら既存候補を使う。確信がなければ出典を調べ直すかユーザーに確認する。候補すべてと別物だと確認できた場合のみ、confirmed_distinct_from_master_ids に候補の food_master_id をすべて指定して再送する。',
+        '未登録の食品を登録し、food_master_id と名前を返す。nutrition.energy_kcal は必須。公式情報はメーカーまたは店の公式ページを優先し、まとめサイトやブログは使わない。source_url はこの商品とサイズの栄養値を載せたページにする。name はブランド名を先頭に付け、残りは公式の商品名をそのまま書く。source=web_search は is_estimated=false かつ source_url 必須。source=user_input はユーザー本人が値を伝えた場合だけ使い、source_url は指定しない。公式情報もユーザーが伝えた値もない場合は、一般的な材料と量から栄養値を推定してよい。推定値は source=model_estimate と is_estimated=true を指定し、source_url と source_composition_code は指定しない。登録前にユーザーの確認を取らず、登録後に推定値であることを伝える。妥当な推定ができない場合は register_food_without_nutrition を使う。栄養値は出典が示す 1 つ分 (1 個、1 食、100g など) のまま渡す。食品成分表に載っている自炊の素材は成分表から登録する。似た名前の候補が返されたら、同じ食品なら既存候補を使う。食品名や類似候補の同一性が不確かな場合はユーザーに確認する。候補すべてと別物だと確認できた場合のみ、confirmed_distinct_from_master_ids に候補の food_master_id をすべて指定して再送する。',
       )
     } finally {
       await h.close()
@@ -716,7 +716,7 @@ describe('MeshiMcpServer tools/list', () => {
         (tool) => tool.name === 'fill_food_nutrition',
       )
       expect(fillFoodNutrition?.description).toEqual(
-        '栄養値が不明の food_master に栄養値を補完する。food_master_id を指定する。nutrition.energy_kcal は必須。既に栄養値がある食品は補完できない。栄養値を一般知識から作らない。出典はメーカーまたは店の公式ページを優先し、まとめサイトやブログは使わない。source_url はこの商品とサイズの栄養値を載せたページにする。source=web_search は is_estimated=false かつ source_url 必須。source=user_input はユーザー本人が値を伝えた場合だけ使い、source_url は指定しない。栄養値は出典が示す 1 つ分 (1 個、1 食、100g など) のまま渡す。',
+        '栄養値が未登録の food_master に栄養値を補完する。food_master_id を指定する。nutrition.energy_kcal は必須。source=model_estimate の栄養値は source=web_search または source=user_input の値で置き換えられる。その他の source がある食品と、source=model_estimate の値を別の推定値で置き換えることはできない。公式情報はメーカーまたは店の公式ページを優先し、まとめサイトやブログは使わない。source_url はこの商品とサイズの栄養値を載せたページにする。source=web_search は is_estimated=false かつ source_url 必須。source=user_input はユーザー本人が値を伝えた場合だけ使い、source_url は指定しない。公式情報もユーザーが伝えた値もない場合は一般的な材料と量から推定してよい。推定値は source=model_estimate と is_estimated=true を指定し、source_url と source_composition_code は指定しない。登録前にユーザーの確認を取らず、登録後に推定値であることを伝える。栄養値は出典が示す 1 つ分 (1 個、1 食、100g など) のまま渡す。',
       )
     } finally {
       await h.close()
@@ -731,7 +731,7 @@ describe('MeshiMcpServer tools/list', () => {
         (candidate) => candidate.name === 'register_food_without_nutrition',
       )
       expect(tool?.description).toEqual(
-        '栄養値が不明な食品を登録し、food_master_id と名前を返す。公式の栄養情報が見つからず、ユーザーも栄養値を伝えていない場合だけ使う。栄養値を一般知識から作らない。栄養値は後から公式情報またはユーザーが伝えた値で補完できる。似た名前の候補が返されたら、同じ食品なら既存候補を使う。確信がなければユーザーに確認する。候補すべてと別物だと確認できた場合のみ、confirmed_distinct_from_master_ids に候補の food_master_id をすべて指定して再送する。',
+        '栄養値が不明な食品を登録し、food_master_id と名前を返す。公式情報もユーザーが伝えた値もなく、一般的な材料と量から妥当な推定もできない場合だけ使う。推定できる場合は register_food を使い、登録前にユーザーの確認を取らず、登録後に推定値であることを伝える。栄養値は後から公式情報、ユーザーが伝えた値、またはモデルの推定で補完できる。似た名前の候補が返されたら、同じ食品なら既存候補を使う。食品名や類似候補の同一性が不確かな場合はユーザーに確認する。候補すべてと別物だと確認できた場合のみ、confirmed_distinct_from_master_ids に候補の food_master_id をすべて指定して再送する。',
       )
     } finally {
       await h.close()
@@ -2573,6 +2573,62 @@ describe('register_food', () => {
     }
   })
 
+  it('passes model-estimated nutrition without evidence to FoodMasterService', async () => {
+    const calls: Array<{ input: RegisterFoodMasterInput }> = []
+    const h = await start({
+      foodMasterOverrides: {
+        registerWithSimilarNameCheck: (input) => {
+          calls.push({ input })
+          return okAsync({
+            id: 'fm_estimated_alpha',
+            name: input.name,
+            aliases: input.aliases ?? [],
+            isEstimated: input.isEstimated,
+            nutritionStatus: 'estimated',
+            source: input.source,
+            sourceUrl: input.sourceUrl ?? null,
+            sourceCompositionCode: null,
+            nutrition: input.nutrition,
+            createdAt: new Date('2026-04-17T00:00:00.000Z'),
+          })
+        },
+      },
+    })
+    try {
+      const result = await h.client.callTool({
+        name: 'register_food',
+        arguments: {
+          name: 'Sample Street Market lunch box',
+          nutrition: { energy_kcal: 460, protein_g: 18 },
+          source: 'model_estimate',
+          is_estimated: true,
+        },
+      })
+
+      expect(observation({ result, calls })).toEqual({
+        result: {
+          content: [{ type: 'text', text: '食品を登録しました。' }],
+          structuredContent: {
+            food_master_id: 'fm_estimated_alpha',
+            name: 'Sample Street Market lunch box',
+          },
+        },
+        calls: [
+          {
+            input: {
+              name: 'Sample Street Market lunch box',
+              nutrition: { energy_kcal: 460, protein_g: 18 },
+              source: 'model_estimate',
+              isEstimated: true,
+            },
+          },
+        ],
+      })
+    } finally {
+      await h.close()
+    }
+  })
+
   it('rejects nutrition without energy_kcal before calling FoodMasterService', async () => {
     const calls: Array<{ input: RegisterFoodMasterInput }> = []
     const h = await start({
@@ -2727,6 +2783,49 @@ describe('fill_food_nutrition', () => {
             source: 'web_search',
             isEstimated: false,
             sourceUrl: 'https://example.test/items/sample-bowl',
+          },
+        ],
+      })
+    } finally {
+      await h.close()
+    }
+  })
+
+  it('passes model-estimated nutrition to FoodMasterService', async () => {
+    const calls: FillFoodNutritionInput[] = []
+    const h = await start({
+      foodMasterOverrides: {
+        fillNutrition: (input) => {
+          calls.push(input)
+          return okAsync('estimated')
+        },
+      },
+    })
+    try {
+      const result = await h.client.callTool({
+        name: 'fill_food_nutrition',
+        arguments: {
+          food_master_id: 'fm_unknown_alpha',
+          nutrition: { energy_kcal: 275, protein_g: 11 },
+          source: 'model_estimate',
+          is_estimated: true,
+        },
+      })
+
+      expect(observation({ result, calls })).toEqual({
+        result: {
+          content: [{ type: 'text', text: '食品の栄養値を補完しました。' }],
+          structuredContent: {
+            food_master_id: 'fm_unknown_alpha',
+            nutrition_status: 'estimated',
+          },
+        },
+        calls: [
+          {
+            foodMasterId: 'fm_unknown_alpha',
+            nutrition: { energy_kcal: 275, protein_g: 11 },
+            source: 'model_estimate',
+            isEstimated: true,
           },
         ],
       })

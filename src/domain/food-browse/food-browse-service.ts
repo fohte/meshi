@@ -20,7 +20,12 @@ const rawRowSchema = z.object({
   name: z.string(),
   is_estimated: z.boolean().nullable(),
   source: z
-    .enum(['web_search', 'composition_table_estimate', 'user_input'])
+    .enum([
+      'web_search',
+      'composition_table_estimate',
+      'user_input',
+      'model_estimate',
+    ])
     .nullable(),
   energy_kcal: z
     .union([z.number(), z.string()])

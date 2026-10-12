@@ -49,7 +49,12 @@ const enrichmentRowsSchema = z.array(
   z.object({
     id: z.string(),
     source: z
-      .enum(['web_search', 'composition_table_estimate', 'user_input'])
+      .enum([
+        'web_search',
+        'composition_table_estimate',
+        'user_input',
+        'model_estimate',
+      ])
       .nullable(),
     isEstimated: z.boolean().nullable(),
     energyKcal: finiteNumeric.nullable(),

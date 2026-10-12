@@ -12,12 +12,12 @@ const isInvalidSourceCombination = (
   isEstimated: boolean,
 ): boolean =>
   (source === 'web_search' && isEstimated) ||
-  (source === 'composition_table_estimate' && !isEstimated)
+  (source === 'composition_table_estimate' && !isEstimated) ||
+  (source === 'model_estimate' && !isEstimated)
 
-// Explains the web_search + isEstimated=true case; invalid composition table
-// estimates use a separate message in normalizeAndValidate.
+// Explains why web_search cannot represent an estimate.
 const INVALID_SOURCE_COMBINATION_MESSAGE =
-  "is_estimated=true must not be combined with source='web_search': this source asserts that a real, accessible page confirms these exact values for this specific product and size. If the evidence is uncertain, do not mark the values as non-estimated to bypass this check; confirm them with the user before registering them as source='user_input'."
+  "is_estimated=true must not be combined with source='web_search': this source asserts that a real, accessible page confirms these exact values for this specific product and size. If the values are estimated from general knowledge, use source='model_estimate'."
 
 export const hasDuplicateAfterTrim = (
   values: ReadonlyArray<string>,
@@ -91,7 +91,9 @@ export const normalizeAndValidateNutrition = (input: {
         'invalid_source_combination',
         input.source === 'web_search'
           ? INVALID_SOURCE_COMBINATION_MESSAGE
-          : "source='composition_table_estimate' requires is_estimated=true",
+          : input.source === 'composition_table_estimate'
+            ? "source='composition_table_estimate' requires is_estimated=true"
+            : "source='model_estimate' requires is_estimated=true",
         { source: input.source, isEstimated: input.isEstimated },
       ),
     )

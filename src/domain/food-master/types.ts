@@ -1,5 +1,5 @@
 export type FoodSource =
-  'web_search' | 'composition_table_estimate' | 'user_input'
+  'web_search' | 'composition_table_estimate' | 'user_input' | 'model_estimate'
 
 export const NUTRITION_STATUSES = ['confirmed', 'estimated', 'unknown'] as const
 

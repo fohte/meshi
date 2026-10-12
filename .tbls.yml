@@ -42,7 +42,7 @@ comments:
     columnComments:
       food_master_id: 'Identifier of the food master this nutrition metadata belongs to.'
       is_estimated: 'Whether the nutrition values are estimated.'
-      source: 'Origin of the nutrition values: web search, food composition table, or user input.'
+      source: 'Origin of the nutrition values: web search, food composition table, user input, or a model estimate.'
       source_url: 'URL of the web page used as evidence for the nutrition values.'
       source_composition_code: 'Code of the food composition entry used as evidence.'
   - table: meal_logs

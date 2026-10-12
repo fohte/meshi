@@ -211,9 +211,9 @@ export const registerFoodInput = z.object({
     .optional()
     .describe('食品名の別名'),
   nutrition: registerFoodNutrition.describe(
-    '出典が示す 1 つ分の栄養値。energy_kcal は必須',
+    '食品 1 つ分の栄養値 (出典値または推定値)。energy_kcal は必須',
   ),
-  source: z.enum(['web_search', 'user_input']),
+  source: z.enum(['web_search', 'user_input', 'model_estimate']),
   is_estimated: z.boolean().describe('栄養値が推定値かどうか'),
   source_url: z
     .url()
@@ -235,9 +235,9 @@ export const fillFoodNutritionInput = z.object({
     .min(1)
     .describe('栄養値を補完する食品の ID'),
   nutrition: registerFoodNutrition.describe(
-    '出典が示す 1 つ分の栄養値。energy_kcal は必須',
+    '食品 1 つ分の栄養値 (出典値または推定値)。energy_kcal は必須',
   ),
-  source: z.enum(['web_search', 'user_input']),
+  source: z.enum(['web_search', 'user_input', 'model_estimate']),
   is_estimated: z.boolean().describe('栄養値が推定値かどうか'),
   source_url: z
     .url()

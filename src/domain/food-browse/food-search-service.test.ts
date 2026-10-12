@@ -26,7 +26,7 @@ describeIfDb('createFoodSearchService', () => {
       id: 'fm_catalog_beta',
       name: 'item_token_beta',
       isEstimated: true,
-      source: 'user_input',
+      source: 'model_estimate',
     })
     await seedFoodMasterWithoutNutrition(tx, {
       id: 'fm_catalog_gamma',

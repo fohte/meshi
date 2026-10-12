@@ -39,7 +39,12 @@ describeIfDb('schema migrations', () => {
     expect(rows).toEqual([
       {
         typname: 'food_source',
-        labels: ['web_search', 'composition_table_estimate', 'user_input'],
+        labels: [
+          'web_search',
+          'composition_table_estimate',
+          'user_input',
+          'model_estimate',
+        ],
       },
       {
         typname: 'meal_type',
@@ -280,6 +285,11 @@ describeIfDb('schema migrations', () => {
         validated: false,
       },
       {
+        conname: 'food_master_nutrition_model_estimate_evidence',
+        table_name: 'food_master_nutrition',
+        validated: true,
+      },
+      {
         conname: 'food_master_nutrition_user_input_evidence',
         table_name: 'food_master_nutrition',
         validated: false,
@@ -393,6 +403,54 @@ describeIfDb('schema runtime constraints', () => {
       await runOutcome(tx`
         INSERT INTO food_master_nutrition (food_master_id, is_estimated, source, source_url)
         VALUES ('fm_uie', false, 'user_input', 'https://example.com')
+      `),
+    ).toEqual({ status: 'error', code: '23514' })
+  })
+
+  it('accepts estimated model nutrition without source evidence', async () => {
+    const tx = getTx()
+    await tx`INSERT INTO food_masters (id, name) VALUES ('fm_me', 'estimated')`
+    expect(
+      await runOutcome(tx`
+        INSERT INTO food_master_nutrition (food_master_id, is_estimated, source)
+        VALUES ('fm_me', true, 'model_estimate')
+      `),
+    ).toEqual({ status: 'ok' })
+  })
+
+  it('rejects model nutrition without is_estimated=true', async () => {
+    const tx = getTx()
+    await tx`INSERT INTO food_masters (id, name) VALUES ('fm_mef', 'unestimated')`
+    expect(
+      await runOutcome(tx`
+        INSERT INTO food_master_nutrition (food_master_id, is_estimated, source)
+        VALUES ('fm_mef', false, 'model_estimate')
+      `),
+    ).toEqual({ status: 'error', code: '23514' })
+  })
+
+  it('rejects a source_url for model-estimated nutrition', async () => {
+    const tx = getTx()
+    await tx`INSERT INTO food_masters (id, name) VALUES ('fm_meu', 'url evidence')`
+    expect(
+      await runOutcome(tx`
+        INSERT INTO food_master_nutrition (food_master_id, is_estimated, source, source_url)
+        VALUES ('fm_meu', true, 'model_estimate', 'https://example.test/item')
+      `),
+    ).toEqual({ status: 'error', code: '23514' })
+  })
+
+  it('rejects a source_composition_code for model-estimated nutrition', async () => {
+    const tx = getTx()
+    await tx`
+      INSERT INTO food_compositions (code, name)
+      VALUES ('sample_composition_code', 'Sample composition')
+    `
+    await tx`INSERT INTO food_masters (id, name) VALUES ('fm_mec', 'composition evidence')`
+    expect(
+      await runOutcome(tx`
+        INSERT INTO food_master_nutrition (food_master_id, is_estimated, source, source_composition_code)
+        VALUES ('fm_mec', true, 'model_estimate', 'sample_composition_code')
       `),
     ).toEqual({ status: 'error', code: '23514' })
   })

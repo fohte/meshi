@@ -239,7 +239,8 @@ describeIfDb('createFoodBrowseService', () => {
       await seedFoodMaster(tx, {
         id: 'fm_frequent',
         name: 'frequent food',
-        source: 'user_input',
+        source: 'model_estimate',
+        isEstimated: true,
         nutrients: { energy_kcal: 20 },
       })
       await seedFoodMaster(tx, {
@@ -272,10 +273,10 @@ describeIfDb('createFoodBrowseService', () => {
           foodMasterId: 'fm_frequent',
           compositionCode: null,
           name: 'frequent food',
-          isEstimated: false,
-          nutritionStatus: 'confirmed',
+          isEstimated: true,
+          nutritionStatus: 'estimated',
           reason: 'history_frequent',
-          source: 'user_input',
+          source: 'model_estimate',
           energyKcalPerUnit: 20,
         },
         {

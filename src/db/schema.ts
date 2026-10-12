@@ -23,6 +23,7 @@ export const foodSourceEnum = pgEnum('food_source', [
   'web_search',
   'composition_table_estimate',
   'user_input',
+  'model_estimate',
 ])
 
 export const nutrientUnitEnum = pgEnum('nutrient_unit', [
@@ -120,6 +121,10 @@ export const foodMasterNutrition = pgTable(
     check(
       'food_master_nutrition_user_input_evidence',
       sql`${table.source} <> 'user_input' OR (${table.sourceUrl} IS NULL AND ${table.sourceCompositionCode} IS NULL)`,
+    ),
+    check(
+      'food_master_nutrition_model_estimate_evidence',
+      sql`${table.source}::text <> 'model_estimate' OR (${table.isEstimated} = true AND ${table.sourceUrl} IS NULL AND ${table.sourceCompositionCode} IS NULL)`,
     ),
   ],
 )
