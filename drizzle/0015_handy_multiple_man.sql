@@ -1,0 +1,1 @@
+ALTER TABLE "food_master_nutrition" ADD CONSTRAINT "food_master_nutrition_model_estimate_evidence" CHECK ("food_master_nutrition"."source"::text <> 'model_estimate' OR ("food_master_nutrition"."is_estimated" = true AND "food_master_nutrition"."source_url" IS NULL AND "food_master_nutrition"."source_composition_code" IS NULL));

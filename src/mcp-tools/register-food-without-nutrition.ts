@@ -22,7 +22,7 @@ export const registerFoodWithoutNutritionTool = (
     'register_food_without_nutrition',
     {
       description:
-        '栄養値が不明な食品を登録し、food_master_id と名前を返す。公式の栄養情報が見つからず、ユーザーも栄養値を伝えていない場合だけ使う。栄養値を一般知識から作らない。栄養値は後から公式情報またはユーザーが伝えた値で補完できる。似た名前の候補が返されたら、同じ食品なら既存候補を使う。確信がなければユーザーに確認する。候補すべてと別物だと確認できた場合のみ、confirmed_distinct_from_master_ids に候補の food_master_id をすべて指定して再送する。',
+        '栄養値が不明な食品を登録し、food_master_id と名前を返す。公式情報もユーザーが伝えた値もなく、一般的な材料と量から妥当な推定もできない場合だけ使う。推定できる場合は register_food を使い、登録前にユーザーの確認を取らず、登録後に推定値であることを伝える。栄養値は後から公式情報、ユーザーが伝えた値、またはモデルの推定で補完できる。似た名前の候補が返されたら、同じ食品なら既存候補を使う。食品名や類似候補の同一性が不確かな場合はユーザーに確認する。候補すべてと別物だと確認できた場合のみ、confirmed_distinct_from_master_ids に候補の food_master_id をすべて指定して再送する。',
       inputSchema: registerFoodWithoutNutritionInput,
       outputSchema: registerFoodStructuredOutput,
       annotations: { readOnlyHint: false, destructiveHint: false },

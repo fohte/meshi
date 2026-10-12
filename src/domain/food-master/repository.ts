@@ -2,6 +2,7 @@ import { err, errAsync, ok, okAsync, ResultAsync } from 'neverthrow'
 import { z } from 'zod'
 
 import type { Sql } from '#db/index'
+import { foodSourceEnum } from '#db/schema'
 import { errorMessage, FoodMasterDomainError } from '#domain/food-master/errors'
 import { defaultIdGenerator, type IdGenerator } from '#domain/food-master/id'
 import { mergeFoodMasters } from '#domain/food-master/merge-repository'
@@ -91,9 +92,7 @@ const foodMasterRowSchema = z.object({
   id: z.string(),
   name: z.string(),
   is_estimated: z.boolean().nullable(),
-  source: z
-    .enum(['web_search', 'composition_table_estimate', 'user_input'])
-    .nullable(),
+  source: z.enum(foodSourceEnum.enumValues).nullable(),
   source_url: z.string().nullable(),
   source_composition_code: z.string().nullable(),
   created_at: z.date(),

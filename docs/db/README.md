@@ -53,11 +53,11 @@
 
 ## Enums
 
-| Name                 | Values                                             |
-| -------------------- | -------------------------------------------------- |
-| public.food_source   | composition_table_estimate, user_input, web_search |
-| public.meal_type     | breakfast, dinner, lunch, snack                    |
-| public.nutrient_unit | g, kcal, mg, µg                                    |
+| Name                 | Values                                                             |
+| -------------------- | ------------------------------------------------------------------ |
+| public.food_source   | composition_table_estimate, model_estimate, user_input, web_search |
+| public.meal_type     | breakfast, dinner, lunch, snack                                    |
+| public.nutrient_unit | g, kcal, mg, µg                                                    |
 
 ## Relations
 

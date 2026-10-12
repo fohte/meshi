@@ -3,6 +3,7 @@ import { err, ok, ResultAsync } from 'neverthrow'
 import { z } from 'zod'
 
 import type { Sql } from '#db/index'
+import { foodSourceEnum } from '#db/schema'
 import {
   ENERGY_KCAL_CODE,
   loadFoodMasterEnrichment,
@@ -19,9 +20,7 @@ const rawRowSchema = z.object({
   id: z.string(),
   name: z.string(),
   is_estimated: z.boolean().nullable(),
-  source: z
-    .enum(['web_search', 'composition_table_estimate', 'user_input'])
-    .nullable(),
+  source: z.enum(foodSourceEnum.enumValues).nullable(),
   energy_kcal: z
     .union([z.number(), z.string()])
     .transform(Number)

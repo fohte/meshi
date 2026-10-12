@@ -10,6 +10,7 @@ export const foodSourceSchema = z.enum([
   'web_search',
   'composition_table_estimate',
   'user_input',
+  'model_estimate',
 ])
 export type FoodSource = z.infer<typeof foodSourceSchema>
 
@@ -17,6 +18,7 @@ export const SOURCE_LABELS: Record<FoodSource, string> = {
   web_search: 'Web検索',
   composition_table_estimate: '成分表推定',
   user_input: '手入力',
+  model_estimate: 'モデル推定',
 }
 
 const foodMatchReasonSchema = z.enum([

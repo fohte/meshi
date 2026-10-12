@@ -160,7 +160,7 @@ describeIfDb('FoodMasterService + Repository', () => {
       [
         'invalid_source_combination',
         { source: 'web_search', isEstimated: true },
-        "is_estimated=true must not be combined with source='web_search': this source asserts that a real, accessible page confirms these exact values for this specific product and size. If the evidence is uncertain, do not mark the values as non-estimated to bypass this check; confirm them with the user before registering them as source='user_input'.",
+        "is_estimated=true must not be combined with source='web_search': this source asserts that a real, accessible page confirms these exact values for this specific product and size. If the values are estimated from general knowledge, use source='model_estimate'.",
       ],
       [{ count: '0' }],
     ])
@@ -187,6 +187,22 @@ describeIfDb('FoodMasterService + Repository', () => {
       SELECT count(*)::text AS count FROM food_masters
     `
     expect(rows).toEqual([{ count: '0' }])
+  })
+
+  it("rejects is_estimated=false combined with source='model_estimate'", async () => {
+    const captured = await captureDomainError(
+      repository.register({
+        ...baseInput,
+        name: 'estimated pantry item',
+        source: 'model_estimate',
+        isEstimated: false,
+      }),
+    )
+
+    expect(captured).toEqual({
+      code: 'invalid_source_combination',
+      details: { source: 'model_estimate', isEstimated: false },
+    })
   })
 
   it("rejects source='web_search' without source_url", async () => {
@@ -378,6 +394,92 @@ describeIfDb('FoodMasterService + Repository', () => {
     expect(fetched === null ? null : normalize(fetched)).toEqual(
       normalize(registered),
     )
+  })
+
+  it("registers source='model_estimate' without evidence and round-trips it", async () => {
+    const registered = (
+      await repository.register({
+        name: 'estimated takeout plate',
+        nutrition: { energy_kcal: 430, protein_g: 16 },
+        source: 'model_estimate',
+        isEstimated: true,
+      })
+    )._unsafeUnwrap()
+    const fetched = (await service.getById('fm_test_0001'))._unsafeUnwrap()
+
+    expect(
+      observation({
+        registered: normalize(registered),
+        fetched: fetched === null ? null : normalize(fetched),
+      }),
+    ).toEqual({
+      registered: {
+        id: 'fm_test_0001',
+        name: 'estimated takeout plate',
+        aliases: [],
+        isEstimated: true,
+        nutritionStatus: 'estimated',
+        source: 'model_estimate',
+        sourceUrl: null,
+        sourceCompositionCode: null,
+        nutrition: { energy_kcal: 430, protein_g: 16 },
+        createdAt: '<date>',
+      },
+      fetched: {
+        id: 'fm_test_0001',
+        name: 'estimated takeout plate',
+        aliases: [],
+        isEstimated: true,
+        nutritionStatus: 'estimated',
+        source: 'model_estimate',
+        sourceUrl: null,
+        sourceCompositionCode: null,
+        nutrition: { energy_kcal: 430, protein_g: 16 },
+        createdAt: '<date>',
+      },
+    })
+  })
+
+  it("rejects sourceUrl with source='model_estimate'", async () => {
+    const captured = await captureDomainError(
+      repository.register({
+        name: 'estimated takeout plate',
+        nutrition: { energy_kcal: 430 },
+        source: 'model_estimate',
+        isEstimated: true,
+        sourceUrl: 'https://example.test/item',
+      }),
+    )
+
+    expect(captured).toEqual({
+      code: 'unexpected_source_url',
+      details: {
+        source: 'model_estimate',
+        sourceUrl: 'https://example.test/item',
+        sourceCompositionCode: null,
+      },
+    })
+  })
+
+  it("rejects sourceCompositionCode with source='model_estimate'", async () => {
+    const captured = await captureDomainError(
+      repository.register({
+        name: 'estimated takeout plate',
+        nutrition: { energy_kcal: 430 },
+        source: 'model_estimate',
+        isEstimated: true,
+        sourceCompositionCode: 'sample_composition_code',
+      }),
+    )
+
+    expect(captured).toEqual({
+      code: 'unexpected_composition_code',
+      details: {
+        source: 'model_estimate',
+        sourceUrl: null,
+        sourceCompositionCode: 'sample_composition_code',
+      },
+    })
   })
 
   it('rejects registrations with nutrient_code not present in nutrient_definitions', async () => {
@@ -598,6 +700,46 @@ describeIfDb('FoodMasterService + Repository', () => {
     })
   })
 
+  it('fills unknown nutrition with a model estimate and persists the source', async () => {
+    await seedFoodMasterWithoutNutrition(getTx(), {
+      id: 'fm_pending_model_estimate',
+      name: 'sample bakery pastry',
+    })
+
+    const status = (
+      await service.fillNutrition({
+        foodMasterId: 'fm_pending_model_estimate',
+        nutrition: { energy_kcal: 285, protein_g: 5 },
+        source: 'model_estimate',
+        isEstimated: true,
+      })
+    )._unsafeUnwrap()
+    const foodMaster = (
+      await service.getById('fm_pending_model_estimate')
+    )._unsafeUnwrap()
+
+    expect(
+      observation({
+        status,
+        foodMaster: foodMaster === null ? null : normalize(foodMaster),
+      }),
+    ).toEqual({
+      status: 'estimated',
+      foodMaster: {
+        id: 'fm_pending_model_estimate',
+        name: 'sample bakery pastry',
+        aliases: [],
+        isEstimated: true,
+        nutritionStatus: 'estimated',
+        source: 'model_estimate',
+        sourceUrl: null,
+        sourceCompositionCode: null,
+        nutrition: { energy_kcal: 285, protein_g: 5 },
+        createdAt: '<date>',
+      },
+    })
+  })
+
   it('marks user-provided estimated nutrition as estimated', async () => {
     await seedFoodMasterWithoutNutrition(getTx(), {
       id: 'fm_pending_beta',
@@ -638,13 +780,128 @@ describeIfDb('FoodMasterService + Repository', () => {
     })
   })
 
+  it('replaces model-estimated nutrition with official values and removes old nutrients', async () => {
+    await repository.register({
+      name: 'sample takeaway bowl',
+      nutrition: { energy_kcal: 510, protein_g: 12, iron_mg: 3 },
+      source: 'model_estimate',
+      isEstimated: true,
+    })
+
+    const status = (
+      await service.fillNutrition({
+        foodMasterId: 'fm_test_0001',
+        nutrition: { energy_kcal: 430, protein_g: 18 },
+        source: 'web_search',
+        isEstimated: false,
+        sourceUrl: 'https://example.test/items/takeaway-bowl',
+      })
+    )._unsafeUnwrap()
+    const foodMaster = (await service.getById('fm_test_0001'))._unsafeUnwrap()
+
+    expect(
+      observation({
+        status,
+        foodMaster: foodMaster === null ? null : normalize(foodMaster),
+      }),
+    ).toEqual({
+      status: 'confirmed',
+      foodMaster: {
+        id: 'fm_test_0001',
+        name: 'sample takeaway bowl',
+        aliases: [],
+        isEstimated: false,
+        nutritionStatus: 'confirmed',
+        source: 'web_search',
+        sourceUrl: 'https://example.test/items/takeaway-bowl',
+        sourceCompositionCode: null,
+        nutrition: { energy_kcal: 430, protein_g: 18 },
+        createdAt: '<date>',
+      },
+    })
+  })
+
+  it('replaces model-estimated nutrition with values supplied by the user', async () => {
+    await repository.register({
+      name: 'sample market side',
+      nutrition: { energy_kcal: 205 },
+      source: 'model_estimate',
+      isEstimated: true,
+    })
+
+    const status = (
+      await service.fillNutrition({
+        foodMasterId: 'fm_test_0001',
+        nutrition: { energy_kcal: 190, protein_g: 8 },
+        source: 'user_input',
+        isEstimated: false,
+      })
+    )._unsafeUnwrap()
+    const foodMaster = (await service.getById('fm_test_0001'))._unsafeUnwrap()
+
+    expect(
+      observation({
+        status,
+        foodMaster: foodMaster === null ? null : normalize(foodMaster),
+      }),
+    ).toEqual({
+      status: 'confirmed',
+      foodMaster: {
+        id: 'fm_test_0001',
+        name: 'sample market side',
+        aliases: [],
+        isEstimated: false,
+        nutritionStatus: 'confirmed',
+        source: 'user_input',
+        sourceUrl: null,
+        sourceCompositionCode: null,
+        nutrition: { energy_kcal: 190, protein_g: 8 },
+        createdAt: '<date>',
+      },
+    })
+  })
+
+  it('does not replace a model estimate with another model estimate', async () => {
+    const existing = (
+      await repository.register({
+        name: 'sample bakery roll',
+        nutrition: { energy_kcal: 260, protein_g: 6 },
+        source: 'model_estimate',
+        isEstimated: true,
+      })
+    )._unsafeUnwrap()
+    const error = await captureDomainError(
+      service.fillNutrition({
+        foodMasterId: existing.id,
+        nutrition: { energy_kcal: 300 },
+        source: 'model_estimate',
+        isEstimated: true,
+      }),
+    )
+    const foodMaster = (await service.getById(existing.id))._unsafeUnwrap()
+
+    expect(
+      observation({
+        error,
+        foodMaster: foodMaster === null ? null : normalize(foodMaster),
+      }),
+    ).toEqual({
+      error: {
+        code: 'nutrition_already_exists',
+        details: { foodMasterId: existing.id },
+      },
+      foodMaster: normalize(existing),
+    })
+  })
+
   it('does not overwrite existing nutrition metadata', async () => {
     const existing = (
       await repository.register({
         name: 'sample pantry item',
         nutrition: { energy_kcal: 175, protein_g: 7 },
-        source: 'user_input',
+        source: 'web_search',
         isEstimated: false,
+        sourceUrl: 'https://example.test/items/pantry-item',
       })
     )._unsafeUnwrap()
     const error = await captureDomainError(
@@ -652,6 +909,78 @@ describeIfDb('FoodMasterService + Repository', () => {
         foodMasterId: existing.id,
         nutrition: { energy_kcal: 999, protein_g: 40 },
         source: 'user_input',
+        isEstimated: true,
+      }),
+    )
+    const foodMaster = (await service.getById(existing.id))._unsafeUnwrap()
+
+    expect(
+      observation({
+        error,
+        foodMaster: foodMaster === null ? null : normalize(foodMaster),
+      }),
+    ).toEqual({
+      error: {
+        code: 'nutrition_already_exists',
+        details: { foodMasterId: existing.id },
+      },
+      foodMaster: normalize(existing),
+    })
+  })
+
+  it('does not overwrite estimated user-provided values', async () => {
+    const existing = (
+      await repository.register({
+        name: 'sample bakery snack',
+        nutrition: { energy_kcal: 185 },
+        source: 'user_input',
+        isEstimated: true,
+      })
+    )._unsafeUnwrap()
+    const error = await captureDomainError(
+      service.fillNutrition({
+        foodMasterId: existing.id,
+        nutrition: { energy_kcal: 210 },
+        source: 'web_search',
+        isEstimated: false,
+        sourceUrl: 'https://example.test/items/bakery-snack',
+      }),
+    )
+    const foodMaster = (await service.getById(existing.id))._unsafeUnwrap()
+
+    expect(
+      observation({
+        error,
+        foodMaster: foodMaster === null ? null : normalize(foodMaster),
+      }),
+    ).toEqual({
+      error: {
+        code: 'nutrition_already_exists',
+        details: { foodMasterId: existing.id },
+      },
+      foodMaster: normalize(existing),
+    })
+  })
+
+  it('does not overwrite food-composition estimates', async () => {
+    await seedFoodComposition(getTx(), {
+      code: 'sample_composition_code',
+      name: 'Sample composition',
+    })
+    const existing = (
+      await repository.register({
+        name: 'sample prepared dish',
+        nutrition: { energy_kcal: 215 },
+        source: 'composition_table_estimate',
+        isEstimated: true,
+        sourceCompositionCode: 'sample_composition_code',
+      })
+    )._unsafeUnwrap()
+    const error = await captureDomainError(
+      service.fillNutrition({
+        foodMasterId: existing.id,
+        nutrition: { energy_kcal: 230 },
+        source: 'model_estimate',
         isEstimated: true,
       }),
     )
