@@ -1,5 +1,6 @@
 import { z } from 'zod'
 
+import { foodSourceEnum } from '#db/schema'
 import { NUTRITION_STATUSES } from '#domain/food-master/types'
 import { hasDuplicateAfterTrim } from '#domain/food-master/validation'
 import { MEAL_TYPES } from '#domain/meal-log/types'
@@ -204,6 +205,10 @@ const registerFoodNutrition = z
   .object({ energy_kcal: z.number().nonnegative() })
   .catchall(z.number().nonnegative())
 
+const mcpFoodSourceSchema = z
+  .enum(foodSourceEnum.enumValues)
+  .exclude(['composition_table_estimate'])
+
 export const registerFoodInput = z.object({
   name: z.string().trim().min(1).describe('登録する食品名'),
   aliases: z
@@ -213,7 +218,7 @@ export const registerFoodInput = z.object({
   nutrition: registerFoodNutrition.describe(
     '食品 1 つ分の栄養値 (出典値または推定値)。energy_kcal は必須',
   ),
-  source: z.enum(['web_search', 'user_input', 'model_estimate']),
+  source: mcpFoodSourceSchema,
   is_estimated: z.boolean().describe('栄養値が推定値かどうか'),
   source_url: z
     .url()
@@ -237,7 +242,7 @@ export const fillFoodNutritionInput = z.object({
   nutrition: registerFoodNutrition.describe(
     '食品 1 つ分の栄養値 (出典値または推定値)。energy_kcal は必須',
   ),
-  source: z.enum(['web_search', 'user_input', 'model_estimate']),
+  source: mcpFoodSourceSchema,
   is_estimated: z.boolean().describe('栄養値が推定値かどうか'),
   source_url: z
     .url()

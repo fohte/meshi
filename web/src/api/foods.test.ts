@@ -5,6 +5,7 @@ import {
   fetchFoodSearch,
   fetchFoodSuggestions,
   FoodNotFoundError,
+  SOURCE_LABELS,
 } from '#api/foods'
 
 const mockFetchOk = (body: unknown): ReturnType<typeof vi.fn> => {
@@ -38,11 +39,11 @@ describe('fetchFoodSearch', () => {
       foodMasterId: 'fm_unknown',
       compositionCode: null,
       name: 'unknown food',
-      isEstimated: false,
-      nutritionStatus: 'unknown',
+      isEstimated: true,
+      nutritionStatus: 'estimated',
       reason: 'fuzzy_name',
-      source: null,
-      energyKcalPerUnit: null,
+      source: 'model_estimate',
+      energyKcalPerUnit: 285,
     }
     mockFetchOk({ items: [item] })
 
@@ -70,9 +71,9 @@ describe('fetchFoodDetail', () => {
     mockFetchOk({
       id: 'fm_unknown',
       name: 'unknown food',
-      isEstimated: false,
-      nutritionStatus: 'unknown',
-      source: null,
+      isEstimated: true,
+      nutritionStatus: 'estimated',
+      source: 'model_estimate',
       sourceUrl: null,
       aliases: [],
       nutrition: {},
@@ -92,9 +93,9 @@ describe('fetchFoodDetail', () => {
     expect(result._unsafeUnwrap()).toEqual({
       id: 'fm_unknown',
       name: 'unknown food',
-      isEstimated: false,
-      nutritionStatus: 'unknown',
-      source: null,
+      isEstimated: true,
+      nutritionStatus: 'estimated',
+      source: 'model_estimate',
       sourceUrl: null,
       aliases: [],
       nutrition: {},
@@ -107,6 +108,15 @@ describe('fetchFoodDetail', () => {
           quantity: 100,
         },
       ],
+    })
+  })
+
+  it('labels each nutrition source', () => {
+    expect(SOURCE_LABELS).toEqual({
+      web_search: 'Web検索',
+      composition_table_estimate: '成分表推定',
+      user_input: '手入力',
+      model_estimate: 'モデル推定',
     })
   })
 

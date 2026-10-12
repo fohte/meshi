@@ -1,5 +1,6 @@
-export type FoodSource =
-  'web_search' | 'composition_table_estimate' | 'user_input' | 'model_estimate'
+import type { foodSourceEnum } from '#db/schema'
+
+export type FoodSource = (typeof foodSourceEnum.enumValues)[number]
 
 export const NUTRITION_STATUSES = ['confirmed', 'estimated', 'unknown'] as const
 

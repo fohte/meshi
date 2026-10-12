@@ -700,6 +700,46 @@ describeIfDb('FoodMasterService + Repository', () => {
     })
   })
 
+  it('fills unknown nutrition with a model estimate and persists the source', async () => {
+    await seedFoodMasterWithoutNutrition(getTx(), {
+      id: 'fm_pending_model_estimate',
+      name: 'sample bakery pastry',
+    })
+
+    const status = (
+      await service.fillNutrition({
+        foodMasterId: 'fm_pending_model_estimate',
+        nutrition: { energy_kcal: 285, protein_g: 5 },
+        source: 'model_estimate',
+        isEstimated: true,
+      })
+    )._unsafeUnwrap()
+    const foodMaster = (
+      await service.getById('fm_pending_model_estimate')
+    )._unsafeUnwrap()
+
+    expect(
+      observation({
+        status,
+        foodMaster: foodMaster === null ? null : normalize(foodMaster),
+      }),
+    ).toEqual({
+      status: 'estimated',
+      foodMaster: {
+        id: 'fm_pending_model_estimate',
+        name: 'sample bakery pastry',
+        aliases: [],
+        isEstimated: true,
+        nutritionStatus: 'estimated',
+        source: 'model_estimate',
+        sourceUrl: null,
+        sourceCompositionCode: null,
+        nutrition: { energy_kcal: 285, protein_g: 5 },
+        createdAt: '<date>',
+      },
+    })
+  })
+
   it('marks user-provided estimated nutrition as estimated', async () => {
     await seedFoodMasterWithoutNutrition(getTx(), {
       id: 'fm_pending_beta',

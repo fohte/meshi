@@ -1,6 +1,7 @@
 import { expect, it } from 'vitest'
 
 import { describeIfDb, getTestSql, setupTx } from '#test/db'
+import { seedFoodComposition, seedFoodMasterWithoutNutrition } from '#test/seed'
 
 describeIfDb('schema migrations', () => {
   it('creates the expected tables', async () => {
@@ -409,7 +410,10 @@ describeIfDb('schema runtime constraints', () => {
 
   it('accepts estimated model nutrition without source evidence', async () => {
     const tx = getTx()
-    await tx`INSERT INTO food_masters (id, name) VALUES ('fm_me', 'estimated')`
+    await seedFoodMasterWithoutNutrition(tx, {
+      id: 'fm_me',
+      name: 'estimated',
+    })
     expect(
       await runOutcome(tx`
         INSERT INTO food_master_nutrition (food_master_id, is_estimated, source)
@@ -420,7 +424,10 @@ describeIfDb('schema runtime constraints', () => {
 
   it('rejects model nutrition without is_estimated=true', async () => {
     const tx = getTx()
-    await tx`INSERT INTO food_masters (id, name) VALUES ('fm_mef', 'unestimated')`
+    await seedFoodMasterWithoutNutrition(tx, {
+      id: 'fm_mef',
+      name: 'unestimated',
+    })
     expect(
       await runOutcome(tx`
         INSERT INTO food_master_nutrition (food_master_id, is_estimated, source)
@@ -431,7 +438,10 @@ describeIfDb('schema runtime constraints', () => {
 
   it('rejects a source_url for model-estimated nutrition', async () => {
     const tx = getTx()
-    await tx`INSERT INTO food_masters (id, name) VALUES ('fm_meu', 'url evidence')`
+    await seedFoodMasterWithoutNutrition(tx, {
+      id: 'fm_meu',
+      name: 'url evidence',
+    })
     expect(
       await runOutcome(tx`
         INSERT INTO food_master_nutrition (food_master_id, is_estimated, source, source_url)
@@ -442,11 +452,14 @@ describeIfDb('schema runtime constraints', () => {
 
   it('rejects a source_composition_code for model-estimated nutrition', async () => {
     const tx = getTx()
-    await tx`
-      INSERT INTO food_compositions (code, name)
-      VALUES ('sample_composition_code', 'Sample composition')
-    `
-    await tx`INSERT INTO food_masters (id, name) VALUES ('fm_mec', 'composition evidence')`
+    await seedFoodComposition(tx, {
+      code: 'sample_composition_code',
+      name: 'Sample composition',
+    })
+    await seedFoodMasterWithoutNutrition(tx, {
+      id: 'fm_mec',
+      name: 'composition evidence',
+    })
     expect(
       await runOutcome(tx`
         INSERT INTO food_master_nutrition (food_master_id, is_estimated, source, source_composition_code)

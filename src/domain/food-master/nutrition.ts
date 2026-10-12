@@ -1,4 +1,5 @@
 import { err, errAsync, ok, ResultAsync } from 'neverthrow'
+import { z } from 'zod'
 
 import type { Sql } from '#db/index'
 import {
@@ -6,13 +7,13 @@ import {
   isForeignKeyViolation,
   isUniqueViolation,
 } from '#db/pg-error'
+import { foodSourceEnum } from '#db/schema'
 import { errorMessage, FoodMasterDomainError } from '#domain/food-master/errors'
 import type { IdGenerator } from '#domain/food-master/id'
 import type { TxSql } from '#domain/food-master/rows'
 import { runInSavepoint } from '#domain/food-master/savepoint'
 import type {
   FillFoodNutritionInput,
-  FoodSource,
   NutritionStatus,
 } from '#domain/food-master/types'
 import {
@@ -23,6 +24,10 @@ import {
 const FOOD_MASTER_NUTRITION_PRIMARY_KEY = 'food_master_nutrition_pkey'
 const FOOD_MASTER_NUTRITION_FOOD_MASTER_ID_FK =
   'food_master_nutrition_food_master_id_fk'
+
+const existingNutritionRowsSchema = z.array(
+  z.object({ source: z.enum(foodSourceEnum.enumValues) }),
+)
 
 const nutritionAlreadyExists = (foodMasterId: string, cause?: unknown) =>
   new FoodMasterDomainError(
@@ -109,11 +114,21 @@ export const createFoodMasterNutritionFiller = (
       )
     }
 
-    const existingNutrition = await tx<{ source: FoodSource }[]>`
+    const existingNutrition = await tx<{ source: unknown }[]>`
       SELECT source FROM food_master_nutrition
       WHERE food_master_id = ${input.foodMasterId}
     `
-    const existingSource = existingNutrition[0]?.source
+    const parsedExistingNutrition =
+      existingNutritionRowsSchema.safeParse(existingNutrition)
+    if (!parsedExistingNutrition.success) {
+      return err(
+        new FoodMasterDomainError(
+          'persistence_failed',
+          `food_master_nutrition query returned invalid rows: ${parsedExistingNutrition.error.message}`,
+        ),
+      )
+    }
+    const existingSource = parsedExistingNutrition.data[0]?.source
     if (
       existingSource !== undefined &&
       (existingSource !== 'model_estimate' ||

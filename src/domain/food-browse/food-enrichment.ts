@@ -7,6 +7,7 @@ import {
   foodMasterNutrients,
   foodMasterNutrition,
   foodMasters,
+  foodSourceEnum,
 } from '#db/schema'
 import {
   type FoodSource,
@@ -48,14 +49,7 @@ export const finiteNumeric = z.union([
 const enrichmentRowsSchema = z.array(
   z.object({
     id: z.string(),
-    source: z
-      .enum([
-        'web_search',
-        'composition_table_estimate',
-        'user_input',
-        'model_estimate',
-      ])
-      .nullable(),
+    source: z.enum(foodSourceEnum.enumValues).nullable(),
     isEstimated: z.boolean().nullable(),
     energyKcal: finiteNumeric.nullable(),
   }),
