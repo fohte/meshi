@@ -11,6 +11,7 @@ export default {
   treatConfigHintsAsErrors: true,
   workspaces: {
     '.': {
+      entry: ['src/domain/meal-set/index.ts!'],
       project,
     },
   },
