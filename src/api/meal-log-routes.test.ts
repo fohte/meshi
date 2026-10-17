@@ -7,6 +7,7 @@ import { mountMealLogRoutes } from '#api/meal-log-routes'
 import {
   FoodMasterNotFoundError,
   FutureEatenDateError,
+  ImplausibleQuantityError,
   InvalidQuantityError,
   MealLogItemValidationError,
   MealLogNotFoundError,
@@ -62,11 +63,6 @@ const responseSnapshot = async <Details extends object>(
   status: res.status,
   body: await res.json(),
   ...details,
-})
-
-const errorResponseSnapshot = async (res: Response) => ({
-  status: res.status,
-  errorBodyValid: errorResponseSchema.safeParse(await res.json()).success,
 })
 
 const notStubbed = (name: string): MealLogService => ({
@@ -198,6 +194,39 @@ describe('POST /api/meal-logs', () => {
     })
   })
 
+  it('returns the one-based item index for a batch quantity error', async () => {
+    const app = buildApp({
+      ...notStubbed('service'),
+      recordMany: () =>
+        errAsync(
+          new MealLogItemValidationError(
+            2,
+            new ImplausibleQuantityError(6_000),
+          ),
+        ),
+    })
+
+    const res = await app.request(
+      jsonRequest('/api/meal-logs', 'POST', {
+        eatenDate: '2026-06-18',
+        mealType: 'lunch',
+        items: [
+          { foodMasterId: 'fm_rice', quantity: 150 },
+          { foodMasterId: 'fm_oats', quantity: 50 },
+        ],
+      }),
+    )
+
+    expect(await responseSnapshot(res, {})).toEqual({
+      status: 400,
+      body: {
+        error:
+          'item 2: resolved nutrition is implausible for a single meal: 6000kcal',
+        itemIndex: 2,
+      },
+    })
+  })
+
   it('returns 400 when a batch has no items', async () => {
     const app = buildApp(notStubbed('service'))
 
@@ -208,9 +237,9 @@ describe('POST /api/meal-logs', () => {
         items: [],
       }),
     )
-    expect(await errorResponseSnapshot(res)).toEqual({
+    expect(await responseSnapshot(res, {})).toEqual({
       status: 400,
-      errorBodyValid: true,
+      body: { error: 'Too small: expected array to have >=1 items' },
     })
   })
 

@@ -47,18 +47,14 @@ const recordSingleMealLogBodySchema = z.object({
   quantity: z.number().positive(),
 })
 
-const recordBatchMealLogBodySchema = z.object({
-  eatenDate: jstDateSchema,
-  mealType: z.enum(MEAL_TYPES),
-  items: z
-    .array(
-      z.object({
-        foodMasterId: z.string().min(1),
-        quantity: z.number().positive(),
-      }),
-    )
-    .min(1),
+const recordMealLogItemBodySchema = recordSingleMealLogBodySchema.pick({
+  foodMasterId: true,
+  quantity: true,
 })
+
+const recordBatchMealLogBodySchema = recordSingleMealLogBodySchema
+  .pick({ eatenDate: true, mealType: true })
+  .extend({ items: z.array(recordMealLogItemBodySchema).min(1) })
 
 const recordMealLogBodySchema = z.preprocess(
   (body: unknown) => {

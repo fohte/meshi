@@ -27,10 +27,10 @@ export interface RecordMealLogInput {
   readonly quantity: number
 }
 
-export interface RecordMealLogItemInput {
-  readonly foodMasterId: string
-  readonly quantity: number
-}
+export type RecordMealLogItemInput = Pick<
+  RecordMealLogInput,
+  'foodMasterId' | 'quantity'
+>
 
 export interface RecordMealLogsInput {
   readonly eatenDate: string
