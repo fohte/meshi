@@ -6,7 +6,7 @@ const MEAL_ORDER: ReadonlyArray<MealType> = [
   'dinner',
   'snack',
 ]
-const MEAL_LABELS: Record<MealType, string> = {
+export const MEAL_LABELS: Readonly<Record<MealType, string>> = {
   breakfast: '朝食',
   lunch: '昼食',
   dinner: '夕食',
