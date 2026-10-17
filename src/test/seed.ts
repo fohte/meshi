@@ -7,6 +7,8 @@ import type {
   foodMasterNutrition,
   foodMasters,
   mealLogs,
+  mealSetItems,
+  mealSets,
   nutrientDefinitions,
   stockItems,
   stockLots,
@@ -120,6 +122,32 @@ export const seedMealLog = async (
       ${values.quantity},
       COALESCE(${values.createdAt?.toISOString() ?? null}::timestamptz, now())
     )
+  `
+}
+
+export const seedMealSet = async (
+  sql: Sql,
+  values: typeof mealSets.$inferInsert,
+): Promise<void> => {
+  await sql`
+    INSERT INTO meal_sets (id, name, created_at)
+    VALUES (
+      ${values.id},
+      ${values.name},
+      COALESCE(${values.createdAt?.toISOString() ?? null}::timestamptz, now())
+    )
+  `
+}
+
+export const seedMealSetItem = async (
+  sql: Sql,
+  values: Omit<typeof mealSetItems.$inferInsert, 'quantity'> & {
+    quantity: number
+  },
+): Promise<void> => {
+  await sql`
+    INSERT INTO meal_set_items (meal_set_id, food_master_id, quantity)
+    VALUES (${values.mealSetId}, ${values.foodMasterId}, ${values.quantity})
   `
 }
 

@@ -7,7 +7,9 @@ import { mountMealLogRoutes } from '#api/meal-log-routes'
 import {
   FoodMasterNotFoundError,
   FutureEatenDateError,
+  ImplausibleQuantityError,
   InvalidQuantityError,
+  MealLogItemValidationError,
   MealLogNotFoundError,
   MealLogPersistenceError,
 } from '#domain/meal-log/errors'
@@ -54,6 +56,15 @@ const jsonRequest = (path: string, method: string, body?: unknown): Request =>
     ...(body === undefined ? {} : { body: JSON.stringify(body) }),
   })
 
+const responseSnapshot = async <Details extends object>(
+  res: Response,
+  details: Details,
+) => ({
+  status: res.status,
+  body: await res.json(),
+  ...details,
+})
+
 const notStubbed = (name: string): MealLogService => ({
   record: () =>
     errAsync(new MealLogPersistenceError(`${name}.record not stubbed`)),
@@ -96,6 +107,139 @@ describe('POST /api/meal-logs', () => {
       eatenDate: '2026-06-18',
       mealType: 'lunch',
       quantity: 150,
+    })
+  })
+
+  it('records multiple meal logs and returns 201 with the results', async () => {
+    let captured: unknown
+    const app = buildApp({
+      ...notStubbed('service'),
+      recordMany: (input) => {
+        captured = input
+        return okAsync([
+          { ...SAMPLE_RESULT, foodName: 'Rice' },
+          {
+            ...SAMPLE_RESULT,
+            id: 'ml_2',
+            foodMasterId: 'fm_oats',
+            quantity: 50,
+            foodName: 'Oats',
+          },
+        ])
+      },
+    })
+
+    const res = await app.request(
+      jsonRequest('/api/meal-logs', 'POST', {
+        eatenDate: '2026-06-18',
+        mealType: 'lunch',
+        items: [
+          { foodMasterId: 'fm_rice', quantity: 150 },
+          { foodMasterId: 'fm_oats', quantity: 50 },
+        ],
+      }),
+    )
+
+    expect(await responseSnapshot(res, { captured })).toEqual({
+      status: 201,
+      body: [
+        SAMPLE_JSON,
+        {
+          ...SAMPLE_JSON,
+          id: 'ml_2',
+          foodMasterId: 'fm_oats',
+          quantity: 50,
+        },
+      ],
+      captured: {
+        eatenDate: '2026-06-18',
+        mealType: 'lunch',
+        items: [
+          { foodMasterId: 'fm_rice', quantity: 150 },
+          { foodMasterId: 'fm_oats', quantity: 50 },
+        ],
+      },
+    })
+  })
+
+  it('returns the one-based item index when a batch item is invalid', async () => {
+    const app = buildApp({
+      ...notStubbed('service'),
+      recordMany: () =>
+        errAsync(
+          new MealLogItemValidationError(
+            2,
+            new FoodMasterNotFoundError('fm_missing'),
+          ),
+        ),
+    })
+
+    const res = await app.request(
+      jsonRequest('/api/meal-logs', 'POST', {
+        eatenDate: '2026-06-18',
+        mealType: 'lunch',
+        items: [
+          { foodMasterId: 'fm_rice', quantity: 150 },
+          { foodMasterId: 'fm_missing', quantity: 50 },
+        ],
+      }),
+    )
+
+    expect(await responseSnapshot(res, {})).toEqual({
+      status: 404,
+      body: {
+        error: 'item 2: food_master not found: fm_missing',
+        itemIndex: 2,
+      },
+    })
+  })
+
+  it('returns the one-based item index for a batch quantity error', async () => {
+    const app = buildApp({
+      ...notStubbed('service'),
+      recordMany: () =>
+        errAsync(
+          new MealLogItemValidationError(
+            2,
+            new ImplausibleQuantityError(6_000),
+          ),
+        ),
+    })
+
+    const res = await app.request(
+      jsonRequest('/api/meal-logs', 'POST', {
+        eatenDate: '2026-06-18',
+        mealType: 'lunch',
+        items: [
+          { foodMasterId: 'fm_rice', quantity: 150 },
+          { foodMasterId: 'fm_oats', quantity: 50 },
+        ],
+      }),
+    )
+
+    expect(await responseSnapshot(res, {})).toEqual({
+      status: 400,
+      body: {
+        error:
+          'item 2: resolved nutrition is implausible for a single meal: 6000kcal',
+        itemIndex: 2,
+      },
+    })
+  })
+
+  it('returns 400 when a batch has no items', async () => {
+    const app = buildApp(notStubbed('service'))
+
+    const res = await app.request(
+      jsonRequest('/api/meal-logs', 'POST', {
+        eatenDate: '2026-06-18',
+        mealType: 'lunch',
+        items: [],
+      }),
+    )
+    expect(await responseSnapshot(res, {})).toEqual({
+      status: 400,
+      body: { error: 'Too small: expected array to have >=1 items' },
     })
   })
 

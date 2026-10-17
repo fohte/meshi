@@ -2,6 +2,7 @@ import { err, ok, ResultAsync } from 'neverthrow'
 import { z } from 'zod'
 
 import { createAsText, type Sql } from '#db/index'
+import { numericValueSchema } from '#db/numeric-value-schema'
 import { nutritionStatusFromIsEstimated } from '#domain/food-master/types'
 import type {
   MealHistoryDayTotals,
@@ -14,22 +15,10 @@ import { MealHistoryQueryError } from '#domain/meal-history/types'
 import { MEAL_TYPES } from '#domain/meal-log/types'
 import { type JstDate, jstDateSchema } from '#lib/jst-date'
 
-const numericString = z.union([
-  z.number().refine(Number.isFinite),
-  z.string().transform((s, ctx) => {
-    const n = Number(s)
-    if (!Number.isFinite(n)) {
-      ctx.addIssue({ code: 'custom', message: `not a finite number: ${s}` })
-      return z.NEVER
-    }
-    return n
-  }),
-])
-
 const aggregateRowSchema = z.object({
   day: jstDateSchema,
   nutrient_code: z.string(),
-  value: numericString,
+  value: numericValueSchema,
 })
 
 const incompleteNutrientRowSchema = z.object({
@@ -43,7 +32,7 @@ const entryRowSchema = z.object({
   food_name: z.string(),
   eaten_date: jstDateSchema,
   meal_type: z.enum(MEAL_TYPES),
-  quantity: numericString,
+  quantity: numericValueSchema,
   recorded_at: z.iso.datetime({ offset: true }),
   is_estimated: z.boolean().nullable(),
 })

@@ -4,6 +4,7 @@ import { describeIfDb, getTestSql, setupTx } from '#test/db'
 import {
   seedFoodComposition,
   seedFoodMasterWithoutNutrition,
+  seedMealSet,
   seedStockLot,
 } from '#test/seed'
 
@@ -24,6 +25,8 @@ describeIfDb('schema migrations', () => {
       'food_master_nutrition',
       'food_masters',
       'meal_logs',
+      'meal_set_items',
+      'meal_sets',
       'meal_skips',
       'nutrient_definitions',
       'stock_items',
@@ -81,7 +84,7 @@ describeIfDb('schema migrations', () => {
     expect(rows).toEqual([{ extname: 'pg_trgm' }])
   })
 
-  it('creates primary keys on food_master_nutrition and the *_nutrients tables', async () => {
+  it('creates primary keys on nutrition and meal-set item tables', async () => {
     const sql = getTestSql()
     const rows = await sql<{ table_name: string; columns: string[] }[]>`
       SELECT c.conrelid::regclass::text AS table_name,
@@ -94,7 +97,8 @@ describeIfDb('schema migrations', () => {
         (
           'food_master_nutrients',
           'food_master_nutrition',
-          'food_composition_nutrients'
+          'food_composition_nutrients',
+          'meal_set_items'
         )
       GROUP BY c.conrelid
       ORDER BY table_name
@@ -111,6 +115,10 @@ describeIfDb('schema migrations', () => {
       {
         table_name: 'food_master_nutrition',
         columns: ['food_master_id'],
+      },
+      {
+        table_name: 'meal_set_items',
+        columns: ['meal_set_id', 'food_master_id'],
       },
     ])
   })
@@ -189,6 +197,30 @@ describeIfDb('schema migrations', () => {
     ])
   })
 
+  it('creates meal-set name and food lookup indexes', async () => {
+    const sql = getTestSql()
+    const rows = await sql<{ indexname: string; indexdef: string }[]>`
+      SELECT indexname, indexdef FROM pg_indexes
+      WHERE indexname IN (
+        'meal_sets_name_key',
+        'meal_set_items_food_master_id_idx'
+      )
+      ORDER BY indexname
+    `
+    expect(rows).toEqual([
+      {
+        indexname: 'meal_set_items_food_master_id_idx',
+        indexdef:
+          'CREATE INDEX meal_set_items_food_master_id_idx ON public.meal_set_items USING btree (food_master_id)',
+      },
+      {
+        indexname: 'meal_sets_name_key',
+        indexdef:
+          'CREATE UNIQUE INDEX meal_sets_name_key ON public.meal_sets USING btree (name)',
+      },
+    ])
+  })
+
   it('creates GIN trigram indexes on the fuzzy-searchable text columns', async () => {
     const sql = getTestSql()
     const rows = await sql<{ indexname: string; indexdef: string }[]>`
@@ -196,7 +228,8 @@ describeIfDb('schema migrations', () => {
       WHERE indexname IN (
         'food_masters_name_trgm_idx',
         'food_master_aliases_alias_trgm_idx',
-        'food_compositions_name_trgm_idx'
+        'food_compositions_name_trgm_idx',
+        'meal_sets_name_trgm_idx'
       )
       ORDER BY indexname
     `
@@ -215,6 +248,11 @@ describeIfDb('schema migrations', () => {
         indexname: 'food_masters_name_trgm_idx',
         indexdef:
           'CREATE INDEX food_masters_name_trgm_idx ON public.food_masters USING gin (name gin_trgm_ops)',
+      },
+      {
+        indexname: 'meal_sets_name_trgm_idx',
+        indexdef:
+          'CREATE INDEX meal_sets_name_trgm_idx ON public.meal_sets USING gin (name gin_trgm_ops)',
       },
     ])
   })
@@ -298,6 +336,20 @@ describeIfDb('schema migrations', () => {
         on_delete: 'r',
       },
       {
+        conname: 'meal_set_items_food_master_id_fk',
+        table_name: 'meal_set_items',
+        ref_table: 'food_masters',
+        on_update: 'c',
+        on_delete: 'r',
+      },
+      {
+        conname: 'meal_set_items_meal_set_id_fk',
+        table_name: 'meal_set_items',
+        ref_table: 'meal_sets',
+        on_update: 'c',
+        on_delete: 'c',
+      },
+      {
         conname: 'stock_items_food_master_id_fk',
         table_name: 'stock_items',
         ref_table: 'food_masters',
@@ -378,6 +430,16 @@ describeIfDb('schema migrations', () => {
         validated: true,
       },
       {
+        conname: 'meal_set_items_quantity_positive',
+        table_name: 'meal_set_items',
+        validated: true,
+      },
+      {
+        conname: 'meal_sets_name_nonblank',
+        table_name: 'meal_sets',
+        validated: true,
+      },
+      {
         conname: 'stock_items_eat_within_days_positive',
         table_name: 'stock_items',
         validated: true,
@@ -445,6 +507,35 @@ describeIfDb('schema runtime constraints', () => {
       await runOutcome(tx`
         INSERT INTO meal_logs (id, food_master_id, eaten_date, meal_type, quantity)
         VALUES ('ml_q', 'fm_q', CURRENT_DATE, 'breakfast', 0)
+      `),
+    ).toEqual({ status: 'error', code: '23514' })
+  })
+
+  it('rejects blank meal-set names', async () => {
+    const tx = getTx()
+    expect(
+      await runOutcome(tx`
+        INSERT INTO meal_sets (id, name)
+        VALUES ('ms_constraint_blank', '   ')
+      `),
+    ).toEqual({ status: 'error', code: '23514' })
+  })
+
+  it('rejects non-positive meal-set item quantities', async () => {
+    const tx = getTx()
+    await seedFoodMasterWithoutNutrition(tx, {
+      id: 'fm_constraint_quantity',
+      name: 'constraint sample food',
+    })
+    await seedMealSet(tx, {
+      id: 'ms_constraint_quantity',
+      name: 'constraint sample set',
+    })
+
+    expect(
+      await runOutcome(tx`
+        INSERT INTO meal_set_items (meal_set_id, food_master_id, quantity)
+        VALUES ('ms_constraint_quantity', 'fm_constraint_quantity', 0)
       `),
     ).toEqual({ status: 'error', code: '23514' })
   })

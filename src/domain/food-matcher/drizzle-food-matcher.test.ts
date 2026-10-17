@@ -44,17 +44,19 @@ describeIfDb('createDrizzleFoodMatcher', () => {
         name: 'rice_b',
         source: 'user_input',
       })
+      const recentDate = toJstDateString(daysAgo(1))
+      const olderDate = toJstDateString(daysAgo(5))
       await seedMealLog(tx, {
         id: 'ml_ra',
         foodMasterId: 'fm_recent_a',
-        eatenDate: toJstDateString(daysAgo(1)),
+        eatenDate: recentDate,
         mealType: 'breakfast',
         quantity: 1,
       })
       await seedMealLog(tx, {
         id: 'ml_rb',
         foodMasterId: 'fm_recent_b',
-        eatenDate: toJstDateString(daysAgo(5)),
+        eatenDate: olderDate,
         mealType: 'breakfast',
         quantity: 1,
       })
@@ -75,6 +77,8 @@ describeIfDb('createDrizzleFoodMatcher', () => {
           compositionCode: null,
           name: 'rice_a',
           isEstimated: false,
+          lastEatenDate: recentDate,
+          lastQuantity: 1,
           matchedQueries: ['rice'],
         },
         {
@@ -85,7 +89,66 @@ describeIfDb('createDrizzleFoodMatcher', () => {
           compositionCode: null,
           name: 'rice_b',
           isEstimated: false,
+          lastEatenDate: olderDate,
+          lastQuantity: 1,
           matchedQueries: ['rice'],
+        },
+      ])
+    })
+
+    it('returns the most recently eaten quantity, breaking same-day ties by creation time', async () => {
+      const tx = getTx()
+      await seedFoodMaster(tx, {
+        id: 'fm_history_latest',
+        name: 'grain_history_latest',
+        source: 'user_input',
+      })
+      const lastEatenDate = toJstDateString(daysAgo(30))
+      const olderEatenDate = toJstDateString(daysAgo(31))
+      const createdAt = new Date(Date.now() - 10 * 60 * 1000)
+      await seedMealLog(tx, {
+        id: 'ml_history_older',
+        foodMasterId: 'fm_history_latest',
+        eatenDate: olderEatenDate,
+        mealType: 'breakfast',
+        quantity: 9,
+        createdAt: new Date(createdAt.getTime() + 120_000),
+      })
+      await seedMealLog(tx, {
+        id: 'ml_history_same_day_older',
+        foodMasterId: 'fm_history_latest',
+        eatenDate: lastEatenDate,
+        mealType: 'breakfast',
+        quantity: 2,
+        createdAt,
+      })
+      await seedMealLog(tx, {
+        id: 'ml_history_same_day_newer',
+        foodMasterId: 'fm_history_latest',
+        eatenDate: lastEatenDate,
+        mealType: 'breakfast',
+        quantity: 3,
+        createdAt: new Date(createdAt.getTime() + 60_000),
+      })
+
+      const matcher = createDrizzleFoodMatcher(tx)
+      const result = (
+        await matcher.search({ queries: ['grain'], origin: 'retail', limit: 5 })
+      )._unsafeUnwrap()
+
+      const expectedScore = Number((1 + (1 - Math.exp(-1))).toFixed(3))
+      expect(normalize(result)).toEqual([
+        {
+          reason: 'history_frequent',
+          score: expectedScore,
+          nameSim: 1,
+          foodMasterId: 'fm_history_latest',
+          compositionCode: null,
+          name: 'grain_history_latest',
+          isEstimated: false,
+          lastEatenDate,
+          lastQuantity: 3,
+          matchedQueries: ['grain'],
         },
       ])
     })
@@ -102,11 +165,12 @@ describeIfDb('createDrizzleFoodMatcher', () => {
         name: 'soup_d',
         source: 'user_input',
       })
+      const eatenDate = toJstDateString(daysAgo(30))
       for (let i = 0; i < 5; i++) {
         await seedMealLog(tx, {
           id: `ml_fc_${String(i)}`,
           foodMasterId: 'fm_freq_c',
-          eatenDate: toJstDateString(daysAgo(30)),
+          eatenDate,
           mealType: 'breakfast',
           quantity: 1,
         })
@@ -114,7 +178,7 @@ describeIfDb('createDrizzleFoodMatcher', () => {
       await seedMealLog(tx, {
         id: 'ml_fd',
         foodMasterId: 'fm_freq_d',
-        eatenDate: toJstDateString(daysAgo(30)),
+        eatenDate,
         mealType: 'breakfast',
         quantity: 1,
       })
@@ -134,6 +198,8 @@ describeIfDb('createDrizzleFoodMatcher', () => {
           compositionCode: null,
           name: 'soup_c',
           isEstimated: false,
+          lastEatenDate: eatenDate,
+          lastQuantity: 1,
           matchedQueries: ['soup'],
         },
         {
@@ -144,6 +210,8 @@ describeIfDb('createDrizzleFoodMatcher', () => {
           compositionCode: null,
           name: 'soup_d',
           isEstimated: false,
+          lastEatenDate: eatenDate,
+          lastQuantity: 1,
           matchedQueries: ['soup'],
         },
       ])
@@ -173,6 +241,8 @@ describeIfDb('createDrizzleFoodMatcher', () => {
           compositionCode: null,
           name: 'bread_e',
           isEstimated: false,
+          lastEatenDate: null,
+          lastQuantity: null,
           matchedQueries: ['bread'],
         },
       ])
@@ -218,6 +288,8 @@ describeIfDb('createDrizzleFoodMatcher', () => {
           compositionCode: 'comp_noodle',
           name: 'noodle',
           isEstimated: true,
+          lastEatenDate: null,
+          lastQuantity: null,
           matchedQueries: ['noodle'],
         },
       ])
@@ -266,6 +338,8 @@ describeIfDb('createDrizzleFoodMatcher', () => {
           compositionCode: 'comp_curry',
           name: 'curry',
           isEstimated: true,
+          lastEatenDate: null,
+          lastQuantity: null,
           matchedQueries: ['curry'],
         },
         {
@@ -276,6 +350,8 @@ describeIfDb('createDrizzleFoodMatcher', () => {
           compositionCode: null,
           name: 'curry_f',
           isEstimated: false,
+          lastEatenDate: null,
+          lastQuantity: null,
           matchedQueries: ['curry'],
         },
       ])
@@ -308,6 +384,8 @@ describeIfDb('createDrizzleFoodMatcher', () => {
           compositionCode: null,
           name: 'curry_f',
           isEstimated: false,
+          lastEatenDate: null,
+          lastQuantity: null,
           matchedQueries: ['curry'],
         },
       ])
@@ -346,6 +424,8 @@ describeIfDb('createDrizzleFoodMatcher', () => {
           compositionCode: null,
           name: 'cereal_h',
           isEstimated: false,
+          lastEatenDate: null,
+          lastQuantity: null,
           matchedQueries: ['cereal', 'grain_alias'],
         },
       ])
@@ -379,6 +459,8 @@ describeIfDb('createDrizzleFoodMatcher', () => {
           compositionCode: null,
           name: 'ゲンキ ウェイトダウン チョコレート',
           isEstimated: false,
+          lastEatenDate: null,
+          lastQuantity: null,
           matchedQueries: ['ゲンキ'],
         },
       ])
@@ -410,6 +492,8 @@ describeIfDb('createDrizzleFoodMatcher', () => {
           compositionCode: null,
           name: 'protein_bar_j',
           isEstimated: false,
+          lastEatenDate: null,
+          lastQuantity: null,
           matchedQueries: ['protein_bar extra'],
         },
       ])
@@ -437,6 +521,8 @@ describeIfDb('createDrizzleFoodMatcher', () => {
           compositionCode: null,
           name: 'newgrainmix',
           isEstimated: false,
+          lastEatenDate: null,
+          lastQuantity: null,
           matchedQueries: ['grain'],
         },
       ])
@@ -476,6 +562,8 @@ describeIfDb('createDrizzleFoodMatcher', () => {
           compositionCode: null,
           name: '味噌汁',
           isEstimated: false,
+          lastEatenDate: null,
+          lastQuantity: null,
           matchedQueries: ['味噌汁'],
         },
       ])
@@ -512,6 +600,8 @@ describeIfDb('createDrizzleFoodMatcher', () => {
           compositionCode: null,
           name: '木綿豆腐',
           isEstimated: false,
+          lastEatenDate: null,
+          lastQuantity: null,
           matchedQueries: ['絹ごし豆腐'],
         },
       ])

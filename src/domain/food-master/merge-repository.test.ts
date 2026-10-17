@@ -10,6 +10,8 @@ import {
   seedFoodMaster,
   seedFoodMasterAlias,
   seedMealLog,
+  seedMealSet,
+  seedMealSetItem,
   seedStockItem,
   seedStockLot,
   seedStockMovement,
@@ -37,8 +39,7 @@ describeIfDb('mergeFoodMasters (merge-repository)', () => {
     })
   })
 
-  // Full seed for the basic case: survivor and loser each with their own
-  // alias, nutrient and meal_log, and no alias conflicts between them.
+  // The loser also appears in one meal set, with no alias conflicts in the pair.
   const seedBasicPair = async (): Promise<void> => {
     const tx = getTx()
     await seedFoodMaster(tx, {
@@ -77,6 +78,12 @@ describeIfDb('mergeFoodMasters (merge-repository)', () => {
       eatenDate: jstDate('2026-06-02'),
       mealType: 'lunch',
       quantity: 80,
+    })
+    await seedMealSet(tx, { id: 'ms_common_pair', name: 'common pair' })
+    await seedMealSetItem(tx, {
+      mealSetId: 'ms_common_pair',
+      foodMasterId: 'fm_loser',
+      quantity: 1.5,
     })
   }
 
@@ -119,6 +126,12 @@ describeIfDb('mergeFoodMasters (merge-repository)', () => {
       delta: string
       reason: string
     }>
+    readonly mealSets: ReadonlyArray<{ id: string; name: string }>
+    readonly mealSetItems: ReadonlyArray<{
+      mealSetId: string
+      foodMasterId: string
+      quantity: number
+    }>
   }
 
   const snapshot = async (): Promise<DbSnapshot> => {
@@ -133,6 +146,8 @@ describeIfDb('mergeFoodMasters (merge-repository)', () => {
       storageLocations,
       stockLots,
       stockMovements,
+      mealSets,
+      mealSetItems,
     ] = await Promise.all([
       tx<{ id: string; name: string }[]>`
         SELECT id, name FROM food_masters ORDER BY id
@@ -200,6 +215,13 @@ describeIfDb('mergeFoodMasters (merge-repository)', () => {
         SELECT id, stock_lot_id, delta::text AS delta, reason
         FROM stock_movements ORDER BY id
       `,
+      tx<{ id: string; name: string }[]>`
+        SELECT id, name FROM meal_sets ORDER BY id
+      `,
+      tx<{ meal_set_id: string; food_master_id: string; quantity: string }[]>`
+        SELECT meal_set_id, food_master_id, quantity
+        FROM meal_set_items ORDER BY meal_set_id, food_master_id
+      `,
     ])
     return {
       foodMasters,
@@ -246,6 +268,12 @@ describeIfDb('mergeFoodMasters (merge-repository)', () => {
         delta: r.delta,
         reason: r.reason,
       })),
+      mealSets,
+      mealSetItems: mealSetItems.map((r) => ({
+        mealSetId: r.meal_set_id,
+        foodMasterId: r.food_master_id,
+        quantity: Number(r.quantity),
+      })),
     }
   }
 
@@ -270,7 +298,7 @@ describeIfDb('mergeFoodMasters (merge-repository)', () => {
     expect(await snapshot()).toEqual(before)
   })
 
-  it('applies a merge (dry_run=false): moves aliases/meal_logs to the survivor and deletes the loser', async () => {
+  it('returns the merge result when a merge is applied', async () => {
     await seedBasicPair()
 
     const result = (
@@ -286,6 +314,12 @@ describeIfDb('mergeFoodMasters (merge-repository)', () => {
       discardedNutrition: { energy_kcal: 50, protein_g: 5 },
       movedMealLogCount: 1,
     })
+  })
+
+  it('moves food references to the survivor in logs and meal sets', async () => {
+    await seedBasicPair()
+
+    ;(await repo.merge('fm_survivor', 'fm_loser', false))._unsafeUnwrap()
 
     expect(await snapshot()).toEqual({
       foodMasters: [{ id: 'fm_survivor', name: 'survivor food' }],
@@ -309,6 +343,14 @@ describeIfDb('mergeFoodMasters (merge-repository)', () => {
       mealLogs: [
         { id: 'ml_loser', foodMasterId: 'fm_survivor' },
         { id: 'ml_survivor', foodMasterId: 'fm_survivor' },
+      ],
+      mealSets: [{ id: 'ms_common_pair', name: 'common pair' }],
+      mealSetItems: [
+        {
+          mealSetId: 'ms_common_pair',
+          foodMasterId: 'fm_survivor',
+          quantity: 1.5,
+        },
       ],
       stockItems: [],
       storageLocations: [],
@@ -464,6 +506,34 @@ describeIfDb('mergeFoodMasters (merge-repository)', () => {
         },
       ],
     })
+  })
+
+  it('sums quantities when both foods are included in the same meal set', async () => {
+    await seedBasicPair()
+    const tx = getTx()
+    await seedMealSetItem(tx, {
+      mealSetId: 'ms_common_pair',
+      foodMasterId: 'fm_survivor',
+      quantity: 2.25,
+    })
+
+    ;(await repo.merge('fm_survivor', 'fm_loser', false))._unsafeUnwrap()
+
+    const rows = await tx<
+      { meal_set_id: string; food_master_id: string; quantity: number }[]
+    >`
+      SELECT meal_set_id, food_master_id, quantity::float8 AS quantity
+      FROM meal_set_items
+      WHERE meal_set_id = 'ms_common_pair'
+      ORDER BY food_master_id
+    `
+    expect(rows).toEqual([
+      {
+        meal_set_id: 'ms_common_pair',
+        food_master_id: 'fm_survivor',
+        quantity: 3.75,
+      },
+    ])
   })
 
   // A third food_master already owns the loser's name as an alias, so the

@@ -1,5 +1,5 @@
 {
-  "id": "6dccb50f-c54b-429f-91e0-ed4d50cdb126",
+  "id": "00705e36-8b79-4183-b6c5-e100df7d714e",
   "prevId": "8cd0c0eb-419a-4db0-b1ce-6337fc646a3a",
   "version": "7",
   "dialect": "postgresql",
@@ -583,6 +583,150 @@
       },
       "isRLSEnabled": false
     },
+    "public.meal_set_items": {
+      "name": "meal_set_items",
+      "schema": "",
+      "columns": {
+        "meal_set_id": {
+          "name": "meal_set_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "food_master_id": {
+          "name": "food_master_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "quantity": {
+          "name": "quantity",
+          "type": "numeric",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {
+        "meal_set_items_food_master_id_idx": {
+          "name": "meal_set_items_food_master_id_idx",
+          "columns": [
+            {
+              "expression": "food_master_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "meal_set_items_meal_set_id_fk": {
+          "name": "meal_set_items_meal_set_id_fk",
+          "tableFrom": "meal_set_items",
+          "tableTo": "meal_sets",
+          "columnsFrom": ["meal_set_id"],
+          "columnsTo": ["id"],
+          "onDelete": "cascade",
+          "onUpdate": "cascade"
+        },
+        "meal_set_items_food_master_id_fk": {
+          "name": "meal_set_items_food_master_id_fk",
+          "tableFrom": "meal_set_items",
+          "tableTo": "food_masters",
+          "columnsFrom": ["food_master_id"],
+          "columnsTo": ["id"],
+          "onDelete": "restrict",
+          "onUpdate": "cascade"
+        }
+      },
+      "compositePrimaryKeys": {
+        "meal_set_items_pkey": {
+          "name": "meal_set_items_pkey",
+          "columns": ["meal_set_id", "food_master_id"]
+        }
+      },
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "meal_set_items_quantity_positive": {
+          "name": "meal_set_items_quantity_positive",
+          "value": "\"meal_set_items\".\"quantity\" > 0"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.meal_sets": {
+      "name": "meal_sets",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "name": {
+          "name": "name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "meal_sets_name_key": {
+          "name": "meal_sets_name_key",
+          "columns": [
+            {
+              "expression": "name",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "meal_sets_name_trgm_idx": {
+          "name": "meal_sets_name_trgm_idx",
+          "columns": [
+            {
+              "expression": "\"name\" gin_trgm_ops",
+              "asc": true,
+              "isExpression": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "gin",
+          "with": {}
+        }
+      },
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "meal_sets_name_nonblank": {
+          "name": "meal_sets_name_nonblank",
+          "value": "btrim(\"meal_sets\".\"name\") <> ''"
+        }
+      },
+      "isRLSEnabled": false
+    },
     "public.meal_skips": {
       "name": "meal_skips",
       "schema": "",
@@ -710,321 +854,6 @@
       "uniqueConstraints": {},
       "policies": {},
       "checkConstraints": {},
-      "isRLSEnabled": false
-    },
-    "public.stock_items": {
-      "name": "stock_items",
-      "schema": "",
-      "columns": {
-        "food_master_id": {
-          "name": "food_master_id",
-          "type": "text",
-          "primaryKey": true,
-          "notNull": true
-        },
-        "storage_location_id": {
-          "name": "storage_location_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "eat_within_days": {
-          "name": "eat_within_days",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "created_at": {
-          "name": "created_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        }
-      },
-      "indexes": {
-        "stock_items_storage_location_id_idx": {
-          "name": "stock_items_storage_location_id_idx",
-          "columns": [
-            {
-              "expression": "storage_location_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        }
-      },
-      "foreignKeys": {
-        "stock_items_food_master_id_fk": {
-          "name": "stock_items_food_master_id_fk",
-          "tableFrom": "stock_items",
-          "tableTo": "food_masters",
-          "columnsFrom": ["food_master_id"],
-          "columnsTo": ["id"],
-          "onDelete": "cascade",
-          "onUpdate": "cascade"
-        },
-        "stock_items_storage_location_id_fk": {
-          "name": "stock_items_storage_location_id_fk",
-          "tableFrom": "stock_items",
-          "tableTo": "storage_locations",
-          "columnsFrom": ["storage_location_id"],
-          "columnsTo": ["id"],
-          "onDelete": "set null",
-          "onUpdate": "cascade"
-        }
-      },
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {
-        "stock_items_eat_within_days_positive": {
-          "name": "stock_items_eat_within_days_positive",
-          "value": "\"stock_items\".\"eat_within_days\" IS NULL OR \"stock_items\".\"eat_within_days\" > 0"
-        }
-      },
-      "isRLSEnabled": false
-    },
-    "public.stock_lots": {
-      "name": "stock_lots",
-      "schema": "",
-      "columns": {
-        "id": {
-          "name": "id",
-          "type": "text",
-          "primaryKey": true,
-          "notNull": true
-        },
-        "food_master_id": {
-          "name": "food_master_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "quantity": {
-          "name": "quantity",
-          "type": "numeric",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "received_date": {
-          "name": "received_date",
-          "type": "date",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "best_before": {
-          "name": "best_before",
-          "type": "date",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "eat_by": {
-          "name": "eat_by",
-          "type": "date",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "created_at": {
-          "name": "created_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        }
-      },
-      "indexes": {
-        "stock_lots_food_master_id_received_date_idx": {
-          "name": "stock_lots_food_master_id_received_date_idx",
-          "columns": [
-            {
-              "expression": "food_master_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "received_date",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        }
-      },
-      "foreignKeys": {
-        "stock_lots_food_master_id_fk": {
-          "name": "stock_lots_food_master_id_fk",
-          "tableFrom": "stock_lots",
-          "tableTo": "food_masters",
-          "columnsFrom": ["food_master_id"],
-          "columnsTo": ["id"],
-          "onDelete": "restrict",
-          "onUpdate": "cascade"
-        }
-      },
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {
-        "stock_lots_quantity_positive": {
-          "name": "stock_lots_quantity_positive",
-          "value": "\"stock_lots\".\"quantity\" > 0"
-        }
-      },
-      "isRLSEnabled": false
-    },
-    "public.stock_movements": {
-      "name": "stock_movements",
-      "schema": "",
-      "columns": {
-        "id": {
-          "name": "id",
-          "type": "text",
-          "primaryKey": true,
-          "notNull": true
-        },
-        "stock_lot_id": {
-          "name": "stock_lot_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "delta": {
-          "name": "delta",
-          "type": "numeric",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "reason": {
-          "name": "reason",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "note": {
-          "name": "note",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "created_at": {
-          "name": "created_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        }
-      },
-      "indexes": {
-        "stock_movements_stock_lot_id_idx": {
-          "name": "stock_movements_stock_lot_id_idx",
-          "columns": [
-            {
-              "expression": "stock_lot_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        }
-      },
-      "foreignKeys": {
-        "stock_movements_stock_lot_id_fk": {
-          "name": "stock_movements_stock_lot_id_fk",
-          "tableFrom": "stock_movements",
-          "tableTo": "stock_lots",
-          "columnsFrom": ["stock_lot_id"],
-          "columnsTo": ["id"],
-          "onDelete": "restrict",
-          "onUpdate": "cascade"
-        }
-      },
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {
-        "stock_movements_delta_nonzero": {
-          "name": "stock_movements_delta_nonzero",
-          "value": "\"stock_movements\".\"delta\" <> 0"
-        },
-        "stock_movements_reason_valid": {
-          "name": "stock_movements_reason_valid",
-          "value": "\"stock_movements\".\"reason\" IN ('receive', 'meal', 'count')"
-        }
-      },
-      "isRLSEnabled": false
-    },
-    "public.storage_locations": {
-      "name": "storage_locations",
-      "schema": "",
-      "columns": {
-        "id": {
-          "name": "id",
-          "type": "text",
-          "primaryKey": true,
-          "notNull": true
-        },
-        "name": {
-          "name": "name",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "capacity": {
-          "name": "capacity",
-          "type": "numeric",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "created_at": {
-          "name": "created_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        }
-      },
-      "indexes": {
-        "storage_locations_name_key": {
-          "name": "storage_locations_name_key",
-          "columns": [
-            {
-              "expression": "name",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": true,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        }
-      },
-      "foreignKeys": {},
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {
-        "storage_locations_capacity_positive": {
-          "name": "storage_locations_capacity_positive",
-          "value": "\"storage_locations\".\"capacity\" IS NULL OR \"storage_locations\".\"capacity\" > 0"
-        }
-      },
       "isRLSEnabled": false
     },
     "public.user_profiles": {

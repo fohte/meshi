@@ -28,7 +28,7 @@ export const registerMealLoggingTools = (
     'search_foods',
     {
       description:
-        '登録済み食品を複数の名前候補から検索し、食品名、kcal、栄養状態 (nutrition_status: confirmed / estimated / unknown) を返す。栄養値が不明な食品の kcal は null。origin が homemade の場合のみ食品成分表の候補も返す。成分表候補は自炊の素材にだけ使い、買った商品や外食には使わない。成分表候補の energy_kcal は 100g あたり。',
+        '登録済み食品を複数の名前候補から検索し、食品名、kcal、栄養状態 (nutrition_status: confirmed / estimated / unknown)、最後に食べた JST 日付 (last_eaten_date) とそのときの量 (last_quantity) を返す。栄養値が不明な食品の kcal は null。last_eaten_date がある候補と同じ食品なら新規登録せず、その food_master_id を使う。量の指定が無ければ last_quantity を使い、null ならユーザーに量を聞く。origin が homemade の場合のみ食品成分表の候補も返す。成分表候補は自炊の素材にだけ使い、買った商品や外食には使わない。成分表候補の energy_kcal は 100g あたり。',
       inputSchema: searchFoodsInput,
       outputSchema: searchFoodsStructuredOutput,
       annotations: { readOnlyHint: true },
@@ -50,6 +50,8 @@ export const registerMealLoggingTools = (
                     : food.energyKcalPerUnit,
                 is_estimated: food.isEstimated,
                 nutrition_status: food.nutritionStatus,
+                last_eaten_date: food.lastEatenDate,
+                last_quantity: food.lastQuantity,
               })),
             }
             logger.log(TOOL_SUCCEEDED, {
