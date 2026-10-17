@@ -4,6 +4,7 @@ import { err, ok, okAsync, type Result, ResultAsync } from 'neverthrow'
 import { z } from 'zod'
 
 import type { Sql } from '#db/index'
+import { numericValueSchema } from '#db/numeric-value-schema'
 import { getConstraintName, isUniqueViolation } from '#db/pg-error'
 import { foodMasters, mealSetItems, mealSets } from '#db/schema'
 import {
@@ -34,40 +35,14 @@ const mealSetRowsSchema = z.array(
     createdAt: z.date(),
     foodMasterId: z.string(),
     foodName: z.string(),
-    quantity: z.union([
-      z.number().positive(),
-      z.string().transform((value, context) => {
-        const parsed = Number(value)
-        if (!Number.isFinite(parsed) || parsed <= 0) {
-          context.addIssue({
-            code: 'custom',
-            message: `expected a finite positive numeric value, got ${value}`,
-          })
-          return z.NEVER
-        }
-        return parsed
-      }),
-    ]),
+    quantity: numericValueSchema.pipe(z.number().positive()),
   }),
 )
 
 const searchRowsSchema = z.array(
   z.object({
     id: z.string(),
-    score: z.union([
-      z.number(),
-      z.string().transform((value, context) => {
-        const parsed = Number(value)
-        if (!Number.isFinite(parsed)) {
-          context.addIssue({
-            code: 'custom',
-            message: `expected a finite score, got ${value}`,
-          })
-          return z.NEVER
-        }
-        return parsed
-      }),
-    ]),
+    score: numericValueSchema,
   }),
 )
 
@@ -149,27 +124,42 @@ const findItems = async (
   }
 
   return ok(
-    input.items
-      .map((item) => ({
-        ...item,
-        foodName: foodsById.get(item.foodMasterId) ?? '',
-      }))
-      .toSorted(
-        (left, right) =>
-          left.foodName.localeCompare(right.foodName) ||
-          left.foodMasterId.localeCompare(right.foodMasterId),
-      ),
+    input.items.map((item) => ({
+      ...item,
+      foodName: foodsById.get(item.foodMasterId) ?? '',
+    })),
   )
 }
 
-const mealSetFromInsert = (
-  row: { id: string; name: string; createdAt: Date } | undefined,
+const insertMealSetItems = (
+  session: DbSession,
+  mealSetId: string,
   items: ReadonlyArray<MealSetItem>,
-  id: string,
-): Result<MealSet, MealSetPersistenceError> =>
-  row === undefined
-    ? err(new MealSetPersistenceError(`meal_set write returned no row: ${id}`))
-    : ok({ ...row, items })
+) =>
+  session.insert(mealSetItems).values(
+    items.map((item) => ({
+      mealSetId,
+      foodMasterId: item.foodMasterId,
+      quantity: item.quantity.toString(),
+    })),
+  )
+
+const loadWrittenMealSet = async (
+  session: DbSession,
+  mealSetId: string,
+): Promise<Result<MealSet, MealSetPersistenceError>> => {
+  const rawRows = await selectMealSetRows(session, eq(mealSets.id, mealSetId))
+  return toMealSets(rawRows).andThen((sets) => {
+    const [mealSet] = sets
+    return mealSet === undefined
+      ? err(
+          new MealSetPersistenceError(
+            `meal_set write returned no row: ${mealSetId}`,
+          ),
+        )
+      : ok(mealSet)
+  })
+}
 
 const buildPersistenceError = (
   message: string,
@@ -224,23 +214,17 @@ export const createDrizzleMealSetRepository = (
           const [inserted] = await session
             .insert(mealSets)
             .values({ id: input.id, name: input.name })
-            .returning({
-              id: mealSets.id,
-              name: mealSets.name,
-              createdAt: mealSets.createdAt,
-            })
+            .returning({ id: mealSets.id })
           if (inserted === undefined) {
-            return mealSetFromInsert(inserted, items.value, input.id)
+            return err(
+              new MealSetPersistenceError(
+                `meal_set write returned no row: ${input.id}`,
+              ),
+            )
           }
 
-          await session.insert(mealSetItems).values(
-            items.value.map((item) => ({
-              mealSetId: input.id,
-              foodMasterId: item.foodMasterId,
-              quantity: item.quantity.toString(),
-            })),
-          )
-          return mealSetFromInsert(inserted, items.value, input.id)
+          await insertMealSetItems(session, input.id, items.value)
+          return loadWrittenMealSet(session, input.id)
         },
         'failed to create meal_set',
         input.name,
@@ -272,11 +256,7 @@ export const createDrizzleMealSetRepository = (
             .update(mealSets)
             .set({ name: input.name })
             .where(eq(mealSets.id, input.id))
-            .returning({
-              id: mealSets.id,
-              name: mealSets.name,
-              createdAt: mealSets.createdAt,
-            })
+            .returning({ id: mealSets.id })
           if (updated === undefined) {
             return err(
               new MealSetPersistenceError(
@@ -288,14 +268,8 @@ export const createDrizzleMealSetRepository = (
           await session
             .delete(mealSetItems)
             .where(eq(mealSetItems.mealSetId, input.id))
-          await session.insert(mealSetItems).values(
-            items.value.map((item) => ({
-              mealSetId: input.id,
-              foodMasterId: item.foodMasterId,
-              quantity: item.quantity.toString(),
-            })),
-          )
-          return ok({ ...updated, items: items.value })
+          await insertMealSetItems(session, input.id, items.value)
+          return loadWrittenMealSet(session, input.id)
         },
         'failed to update meal_set',
         input.name,
@@ -313,19 +287,9 @@ export const createDrizzleMealSetRepository = (
     },
 
     searchByName(query, limit) {
-      const normalizedQuery = query.trim()
-      const normalizedLimit = Math.trunc(limit)
-      if (
-        normalizedQuery === '' ||
-        !Number.isFinite(limit) ||
-        normalizedLimit <= 0
-      ) {
-        return okAsync([])
-      }
-
       const score = sql<number>`GREATEST(
-        similarity(${mealSets.name}, ${normalizedQuery}),
-        word_similarity(${normalizedQuery}, ${mealSets.name})
+        similarity(${mealSets.name}, ${query}),
+        word_similarity(${query}, ${mealSets.name})
       )`
       return ResultAsync.fromPromise(
         db
@@ -336,13 +300,13 @@ export const createDrizzleMealSetRepository = (
           .from(mealSets)
           .where(
             sql<boolean>`
-            ${mealSets.name} % ${normalizedQuery}
-            OR ${mealSets.name} %> ${normalizedQuery}
-            OR strpos(lower(${mealSets.name}), lower(${normalizedQuery})) > 0
+            ${mealSets.name} % ${query}
+            OR ${mealSets.name} %> ${query}
+            OR strpos(lower(${mealSets.name}), lower(${query})) > 0
           `,
           )
           .orderBy(desc(score), asc(mealSets.name))
-          .limit(normalizedLimit),
+          .limit(limit),
         (caughtErr) =>
           new MealSetPersistenceError('failed to search meal_sets', caughtErr),
       ).andThen((rawRows) => {

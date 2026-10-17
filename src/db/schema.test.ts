@@ -1,7 +1,11 @@
 import { expect, it } from 'vitest'
 
 import { describeIfDb, getTestSql, setupTx } from '#test/db'
-import { seedFoodComposition, seedFoodMasterWithoutNutrition } from '#test/seed'
+import {
+  seedFoodComposition,
+  seedFoodMasterWithoutNutrition,
+  seedMealSet,
+} from '#test/seed'
 
 describeIfDb('schema migrations', () => {
   it('creates the expected tables', async () => {
@@ -409,6 +413,35 @@ describeIfDb('schema runtime constraints', () => {
       await runOutcome(tx`
         INSERT INTO meal_logs (id, food_master_id, eaten_date, meal_type, quantity)
         VALUES ('ml_q', 'fm_q', CURRENT_DATE, 'breakfast', 0)
+      `),
+    ).toEqual({ status: 'error', code: '23514' })
+  })
+
+  it('rejects blank meal-set names', async () => {
+    const tx = getTx()
+    expect(
+      await runOutcome(tx`
+        INSERT INTO meal_sets (id, name)
+        VALUES ('ms_constraint_blank', '   ')
+      `),
+    ).toEqual({ status: 'error', code: '23514' })
+  })
+
+  it('rejects non-positive meal-set item quantities', async () => {
+    const tx = getTx()
+    await seedFoodMasterWithoutNutrition(tx, {
+      id: 'fm_constraint_quantity',
+      name: 'constraint sample food',
+    })
+    await seedMealSet(tx, {
+      id: 'ms_constraint_quantity',
+      name: 'constraint sample set',
+    })
+
+    expect(
+      await runOutcome(tx`
+        INSERT INTO meal_set_items (meal_set_id, food_master_id, quantity)
+        VALUES ('ms_constraint_quantity', 'fm_constraint_quantity', 0)
       `),
     ).toEqual({ status: 'error', code: '23514' })
   })

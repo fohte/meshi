@@ -16,6 +16,7 @@ export interface MealSetRepository {
   update(input: MealSetWrite): ResultAsync<MealSet, MealSetDomainError>
   // Resolves to false when no row matched so the service can return a not-found error.
   delete(id: string): ResultAsync<boolean, MealSetDomainError>
+  // The service passes a trimmed, non-empty query and a positive integer limit.
   searchByName(
     query: string,
     limit: number,

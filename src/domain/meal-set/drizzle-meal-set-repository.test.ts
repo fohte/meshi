@@ -1,10 +1,12 @@
 import type { Result } from 'neverthrow'
 import { expect, it } from 'vitest'
 
-import { createDrizzleMealSetRepository } from '#domain/meal-set/drizzle-meal-set-repository'
-import type { MealSetDomainError } from '#domain/meal-set/errors'
-import { createMealSetService } from '#domain/meal-set/meal-set-service'
-import type { MealSet } from '#domain/meal-set/types'
+import {
+  createDrizzleMealSetRepository,
+  createMealSetService,
+  type MealSet,
+  type MealSetDomainError,
+} from '#domain/meal-set/index'
 import { describeIfDb, setupDrizzleTx } from '#test/db'
 import { seedFoodMasterWithoutNutrition } from '#test/seed'
 
@@ -81,58 +83,34 @@ describeIfDb('MealSetService with DrizzleMealSetRepository', () => {
     })
   })
 
-  it('lists sets by name and gets a set by ID with its food names', async () => {
+  it('lists sets by name with food names', async () => {
     await seedFoods()
     const service = buildService()
-    const morning = await service.register({
+    await service.register({
       name: 'morning blend',
       items: [{ foodMasterId: 'fm_meal_set_alpha', quantity: 1 }],
     })
-    const evening = await service.register({
+    await service.register({
       name: 'evening blend',
       items: [{ foodMasterId: 'fm_meal_set_zeta', quantity: 2 }],
     })
 
-    const [listed, found] = await Promise.all([
-      service.list(),
-      service.getById(morning._unsafeUnwrap().id),
-    ])
-    const foundSet = found._unsafeUnwrap()
+    const listed = await service.list()
 
-    expect(
-      observation({
-        list: listed._unsafeUnwrap().map(normalizeMealSet),
-        found: foundSet === null ? null : normalizeMealSet(foundSet),
-        registeredEveningId: evening._unsafeUnwrap().id,
-      }),
-    ).toEqual({
-      list: [
-        {
-          id: 'ms_domain_test_2',
-          name: 'evening blend',
-          items: [
-            {
-              foodMasterId: 'fm_meal_set_zeta',
-              foodName: 'zeta sample food',
-              quantity: 2,
-            },
-          ],
-          createdAt: CREATED_AT_PLACEHOLDER,
-        },
-        {
-          id: 'ms_domain_test_1',
-          name: 'morning blend',
-          items: [
-            {
-              foodMasterId: 'fm_meal_set_alpha',
-              foodName: 'alpha sample food',
-              quantity: 1,
-            },
-          ],
-          createdAt: CREATED_AT_PLACEHOLDER,
-        },
-      ],
-      found: {
+    expect(listed._unsafeUnwrap().map(normalizeMealSet)).toEqual([
+      {
+        id: 'ms_domain_test_2',
+        name: 'evening blend',
+        items: [
+          {
+            foodMasterId: 'fm_meal_set_zeta',
+            foodName: 'zeta sample food',
+            quantity: 2,
+          },
+        ],
+        createdAt: CREATED_AT_PLACEHOLDER,
+      },
+      {
         id: 'ms_domain_test_1',
         name: 'morning blend',
         items: [
@@ -144,7 +122,96 @@ describeIfDb('MealSetService with DrizzleMealSetRepository', () => {
         ],
         createdAt: CREATED_AT_PLACEHOLDER,
       },
-      registeredEveningId: 'ms_domain_test_2',
+    ])
+  })
+
+  it('gets a set by ID with food names', async () => {
+    await seedFoods()
+    const service = buildService()
+    const registered = await service.register({
+      name: 'morning blend',
+      items: [{ foodMasterId: 'fm_meal_set_alpha', quantity: 1 }],
+    })
+
+    const found = await service.getById(registered._unsafeUnwrap().id)
+    const foundSet = found._unsafeUnwrap()
+
+    expect(foundSet === null ? null : normalizeMealSet(foundSet)).toEqual({
+      id: 'ms_domain_test_1',
+      name: 'morning blend',
+      items: [
+        {
+          foodMasterId: 'fm_meal_set_alpha',
+          foodName: 'alpha sample food',
+          quantity: 1,
+        },
+      ],
+      createdAt: CREATED_AT_PLACEHOLDER,
+    })
+  })
+
+  it('returns items in the same database order after create and lookup', async () => {
+    const tx = getTx()
+    await seedFoodMasterWithoutNutrition(tx, {
+      id: 'fm_meal_set_case_lower',
+      name: 'apple sample food',
+    })
+    await seedFoodMasterWithoutNutrition(tx, {
+      id: 'fm_meal_set_case_upper',
+      name: 'Banana sample food',
+    })
+    const service = buildService()
+
+    const created = await service.register({
+      name: 'case-sensitive order',
+      items: [
+        { foodMasterId: 'fm_meal_set_case_lower', quantity: 1 },
+        { foodMasterId: 'fm_meal_set_case_upper', quantity: 1 },
+      ],
+    })
+    const fetched = await service.getById(created._unsafeUnwrap().id)
+    const fetchedSet = fetched._unsafeUnwrap()
+
+    expect(
+      observation({
+        created: normalizeMealSet(created._unsafeUnwrap()),
+        fetched: fetchedSet === null ? null : normalizeMealSet(fetchedSet),
+      }),
+    ).toEqual({
+      created: {
+        id: 'ms_domain_test_1',
+        name: 'case-sensitive order',
+        items: [
+          {
+            foodMasterId: 'fm_meal_set_case_upper',
+            foodName: 'Banana sample food',
+            quantity: 1,
+          },
+          {
+            foodMasterId: 'fm_meal_set_case_lower',
+            foodName: 'apple sample food',
+            quantity: 1,
+          },
+        ],
+        createdAt: CREATED_AT_PLACEHOLDER,
+      },
+      fetched: {
+        id: 'ms_domain_test_1',
+        name: 'case-sensitive order',
+        items: [
+          {
+            foodMasterId: 'fm_meal_set_case_upper',
+            foodName: 'Banana sample food',
+            quantity: 1,
+          },
+          {
+            foodMasterId: 'fm_meal_set_case_lower',
+            foodName: 'apple sample food',
+            quantity: 1,
+          },
+        ],
+        createdAt: CREATED_AT_PLACEHOLDER,
+      },
     })
   })
 
@@ -222,6 +289,41 @@ describeIfDb('MealSetService with DrizzleMealSetRepository', () => {
         createdAt: CREATED_AT_PLACEHOLDER,
       },
     ])
+  })
+
+  it('orders fuzzy search results by name relevance', async () => {
+    await seedFoods()
+    const service = buildService()
+    await service.register({
+      name: 'vanilla oat porridge',
+      items: [{ foodMasterId: 'fm_meal_set_alpha', quantity: 1 }],
+    })
+    await service.register({
+      name: 'vanilla oat pudding',
+      items: [{ foodMasterId: 'fm_meal_set_zeta', quantity: 1 }],
+    })
+
+    const found = await service.searchByName('vanilla oat porridge')
+
+    expect(found._unsafeUnwrap().map(({ id, name }) => ({ id, name }))).toEqual(
+      [
+        { id: 'ms_domain_test_1', name: 'vanilla oat porridge' },
+        { id: 'ms_domain_test_2', name: 'vanilla oat pudding' },
+      ],
+    )
+  })
+
+  it('returns no results when no meal-set names match', async () => {
+    await seedFoods()
+    const service = buildService()
+    await service.register({
+      name: 'vanilla oat porridge',
+      items: [{ foodMasterId: 'fm_meal_set_alpha', quantity: 1 }],
+    })
+
+    const found = await service.searchByName('unrelated quartz')
+
+    expect(found._unsafeUnwrap()).toEqual([])
   })
 
   it('returns an empty name domain error for a blank name', async () => {
