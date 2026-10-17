@@ -16,12 +16,12 @@ export interface CountStockInput {
   readonly bestBefore?: string | null
 }
 
-export interface DeliveryItemInput {
+interface DeliveryItemInput {
   readonly foodMasterId: string
   readonly quantity: number
 }
 
-export type RegisterableDeliveryStatus = 'planned' | 'cancelled'
+type RegisterableDeliveryStatus = 'planned' | 'cancelled'
 
 export interface RegisterDeliveryInput {
   readonly sourceRef?: string | null
@@ -81,12 +81,12 @@ interface StockLotStatus {
   readonly eatBy: string | null
 }
 
-export interface StockItemStatus extends StockItem {
+interface StockItemStatus extends StockItem {
   readonly totalQuantity: number
   readonly lots: ReadonlyArray<StockLotStatus>
 }
 
-export interface PlannedDelivery {
+interface PlannedDelivery {
   readonly id: string
   readonly sourceRef: string | null
   readonly expectedDate: string
