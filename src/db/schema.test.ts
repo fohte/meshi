@@ -1,12 +1,16 @@
 import { expect, it } from 'vitest'
 
 import { describeIfDb, getTestSql, setupTx } from '#test/db'
+import { jstDate } from '#test/jst-date'
 import {
   seedFoodComposition,
   seedFoodMasterWithoutNutrition,
+  seedMealLog,
   seedMealSet,
   seedStockLot,
 } from '#test/seed'
+
+const observation = <T extends object>(value: T): T => value
 
 describeIfDb('schema migrations', () => {
   it('creates the expected tables', async () => {
@@ -474,6 +478,11 @@ describeIfDb('schema migrations', () => {
         validated: true,
       },
       {
+        conname: 'stock_movements_meal_log_reason',
+        table_name: 'stock_movements',
+        validated: true,
+      },
+      {
         conname: 'stock_movements_reason_valid',
         table_name: 'stock_movements',
         validated: true,
@@ -821,5 +830,43 @@ describeIfDb('schema runtime constraints', () => {
         VALUES ('stm_invalid_reason', 'stl_invalid_reason', 1, 'correction')
       `),
     ).toEqual({ status: 'error', code: '23514' })
+  })
+
+  it('requires meal movements to reference their meal log', async () => {
+    const tx = getTx()
+    await seedFoodMasterWithoutNutrition(tx, {
+      id: 'fm_meal_movement_constraint',
+      name: 'Sample meal movement constraint item',
+    })
+    await seedStockLot(tx, {
+      id: 'stl_meal_movement_constraint',
+      foodMasterId: 'fm_meal_movement_constraint',
+      quantity: 1,
+    })
+    await seedMealLog(tx, {
+      id: 'ml_movement_constraint',
+      foodMasterId: 'fm_meal_movement_constraint',
+      eatenDate: jstDate('2026-06-15'),
+      mealType: 'lunch',
+      quantity: 1,
+    })
+
+    await tx.unsafe('SAVEPOINT meal_movement_missing_log')
+    const missingLogOutcome = await runOutcome(tx`
+      INSERT INTO stock_movements (id, stock_lot_id, delta, reason)
+      VALUES ('stm_meal_without_log', 'stl_meal_movement_constraint', -0.5, 'meal')
+    `)
+    await tx.unsafe('ROLLBACK TO SAVEPOINT meal_movement_missing_log')
+    await tx.unsafe('RELEASE SAVEPOINT meal_movement_missing_log')
+
+    const nonMealOutcome = await runOutcome(tx`
+      INSERT INTO stock_movements (id, stock_lot_id, delta, reason, meal_log_id)
+      VALUES ('stm_count_with_log', 'stl_meal_movement_constraint', 0.5, 'count', 'ml_movement_constraint')
+    `)
+
+    expect(observation({ missingLogOutcome, nonMealOutcome })).toEqual({
+      missingLogOutcome: { status: 'error', code: '23514' },
+      nonMealOutcome: { status: 'error', code: '23514' },
+    })
   })
 })

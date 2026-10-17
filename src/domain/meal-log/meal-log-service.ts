@@ -18,12 +18,14 @@ import {
   MealLogNotFoundError,
   MealLogPersistenceError,
 } from '#domain/meal-log/errors'
-import type { MealLogRepository } from '#domain/meal-log/meal-log-repository'
+import type {
+  MealLogRepository,
+  MealLogWriteResult,
+} from '#domain/meal-log/meal-log-repository'
 import type {
   FoodMasterRef,
   MealLogDeletionResult,
   MealLogResult,
-  MealLogRow,
   NutritionMap,
   RecordMealLogInput,
   RecordMealLogItemInput,
@@ -281,7 +283,7 @@ export const createMealLogService = (
 })
 
 const buildResult = (
-  log: MealLogRow & { readonly stockShortfall?: number },
+  log: MealLogWriteResult,
   food: FoodMasterRef,
 ): MealLogResult => ({
   ...log,

@@ -436,6 +436,10 @@ export const stockMovements = pgTable(
       'stock_movements_reason_valid',
       sql`${table.reason} IN ('receive', 'meal', 'count')`,
     ),
+    check(
+      'stock_movements_meal_log_reason',
+      sql`(${table.reason} = 'meal') = (${table.mealLogId} IS NOT NULL)`,
+    ),
   ],
 )
 

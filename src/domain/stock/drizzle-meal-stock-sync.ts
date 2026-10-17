@@ -13,9 +13,7 @@ import {
 } from '#domain/stock/stock-repository-utils'
 
 type Db = ReturnType<typeof drizzle>
-export type MealStockSyncSession = Parameters<
-  Parameters<Db['transaction']>[0]
->[0]
+type MealStockSyncSession = Parameters<Parameters<Db['transaction']>[0]>[0]
 
 const lockRowSchema = z.object({ id: z.string() })
 const numericTextSchema = z.string().regex(/^-?\d+(?:\.\d+)?$/)
@@ -25,7 +23,7 @@ const allocationRowSchema = z.object({
 })
 const shortfallRowSchema = z.object({ shortfall: numericTextSchema })
 
-export interface MealStockSyncInput {
+interface MealStockSyncInput {
   readonly mealLogId: string
   readonly foodMasterId: string
   readonly quantity: number
@@ -42,7 +40,7 @@ export const consumeStockForMealLog = async (
       .select({ id: foodMasters.id })
       .from(foodMasters)
       .where(eq(foodMasters.id, input.foodMasterId))
-      .for('update'),
+      .for('no key update'),
     'lock food_master for meal stock sync',
   )
   if (foodMasterRows.isErr()) return err(foodMasterRows.error)

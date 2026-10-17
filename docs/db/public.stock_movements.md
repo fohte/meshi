@@ -24,6 +24,7 @@ Quantity changes recorded against stock lots.
 | stock_movements_delta_nonzero         | CHECK       | CHECK ((delta <> (0)::numeric))                                                           |
 | stock_movements_delta_not_null        | n           | NOT NULL delta                                                                            |
 | stock_movements_id_not_null           | n           | NOT NULL id                                                                               |
+| stock_movements_meal_log_reason       | CHECK       | CHECK (((reason = 'meal'::text) = (meal_log_id IS NOT NULL)))                             |
 | stock_movements_reason_not_null       | n           | NOT NULL reason                                                                           |
 | stock_movements_reason_valid          | CHECK       | CHECK ((reason = ANY (ARRAY['receive'::text, 'meal'::text, 'count'::text])))              |
 | stock_movements_stock_lot_id_not_null | n           | NOT NULL stock_lot_id                                                                     |
