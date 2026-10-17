@@ -154,7 +154,7 @@ export const createDrizzleFoodMatcher = (
           SELECT
             ml.food_master_id,
             COUNT(*)::int AS cnt,
-            MAX(ml.eaten_date)::text AS last_eaten_date,
+            to_char(MAX(ml.eaten_date), 'YYYY-MM-DD') AS last_eaten_date,
             (ARRAY_AGG(ml.quantity ORDER BY ml.eaten_date DESC, ml.created_at DESC))[1] AS last_quantity,
             (((CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Tokyo')::date) - MAX(ml.eaten_date)) AS days_since
           FROM meal_logs ml
