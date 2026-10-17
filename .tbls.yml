@@ -129,3 +129,4 @@ comments:
       delta: 'Signed quantity change in food units.'
       reason: 'Reason for the quantity change: receive, meal, or count.'
       note: 'Optional note explaining the quantity change.'
+      meal_log_id: 'Identifier of the meal log that caused this movement.'

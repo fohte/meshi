@@ -1,113 +1,9 @@
 {
-  "id": "9f301e59-ec1c-460b-bb0e-39d735d4b42d",
+  "id": "29635ec5-5726-488f-a9c2-3f0925d787fa",
   "prevId": "75836e70-c296-412b-9351-dcb86c9fc418",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
-    "public.deliveries": {
-      "name": "deliveries",
-      "schema": "",
-      "columns": {
-        "id": {
-          "name": "id",
-          "type": "text",
-          "primaryKey": true,
-          "notNull": true
-        },
-        "source_ref": {
-          "name": "source_ref",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "status": {
-          "name": "status",
-          "type": "delivery_status",
-          "typeSchema": "public",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "'planned'"
-        },
-        "expected_date": {
-          "name": "expected_date",
-          "type": "date",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "received_date": {
-          "name": "received_date",
-          "type": "date",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "change_deadline": {
-          "name": "change_deadline",
-          "type": "date",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "created_at": {
-          "name": "created_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        }
-      },
-      "indexes": {
-        "deliveries_source_ref_key": {
-          "name": "deliveries_source_ref_key",
-          "columns": [
-            {
-              "expression": "source_ref",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": true,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
-        "deliveries_status_expected_date_idx": {
-          "name": "deliveries_status_expected_date_idx",
-          "columns": [
-            {
-              "expression": "status",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "expected_date",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        }
-      },
-      "foreignKeys": {},
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {
-        "deliveries_received_date_matches_status": {
-          "name": "deliveries_received_date_matches_status",
-          "value": "(\"deliveries\".\"status\" = 'received') = (\"deliveries\".\"received_date\" IS NOT NULL)"
-        },
-        "deliveries_source_ref_nonblank": {
-          "name": "deliveries_source_ref_nonblank",
-          "value": "\"deliveries\".\"source_ref\" IS NULL OR btrim(\"deliveries\".\"source_ref\") <> ''"
-        }
-      },
-      "isRLSEnabled": false
-    },
     "public.food_composition_nutrients": {
       "name": "food_composition_nutrients",
       "schema": "",
@@ -1147,12 +1043,6 @@
           "primaryKey": false,
           "notNull": true
         },
-        "delivery_id": {
-          "name": "delivery_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
         "quantity": {
           "name": "quantity",
           "type": "numeric",
@@ -1206,27 +1096,6 @@
           "concurrently": false,
           "method": "btree",
           "with": {}
-        },
-        "stock_lots_delivery_id_food_master_id_key": {
-          "name": "stock_lots_delivery_id_food_master_id_key",
-          "columns": [
-            {
-              "expression": "delivery_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "food_master_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": true,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
         }
       },
       "foreignKeys": {
@@ -1235,15 +1104,6 @@
           "tableFrom": "stock_lots",
           "tableTo": "food_masters",
           "columnsFrom": ["food_master_id"],
-          "columnsTo": ["id"],
-          "onDelete": "restrict",
-          "onUpdate": "cascade"
-        },
-        "stock_lots_delivery_id_fk": {
-          "name": "stock_lots_delivery_id_fk",
-          "tableFrom": "stock_lots",
-          "tableTo": "deliveries",
-          "columnsFrom": ["delivery_id"],
           "columnsTo": ["id"],
           "onDelete": "restrict",
           "onUpdate": "cascade"
@@ -1294,6 +1154,12 @@
           "primaryKey": false,
           "notNull": false
         },
+        "meal_log_id": {
+          "name": "meal_log_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
         "created_at": {
           "name": "created_at",
           "type": "timestamp with time zone",
@@ -1317,6 +1183,21 @@
           "concurrently": false,
           "method": "btree",
           "with": {}
+        },
+        "stock_movements_meal_log_id_idx": {
+          "name": "stock_movements_meal_log_id_idx",
+          "columns": [
+            {
+              "expression": "meal_log_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
         }
       },
       "foreignKeys": {
@@ -1327,6 +1208,15 @@
           "columnsFrom": ["stock_lot_id"],
           "columnsTo": ["id"],
           "onDelete": "restrict",
+          "onUpdate": "cascade"
+        },
+        "stock_movements_meal_log_id_fk": {
+          "name": "stock_movements_meal_log_id_fk",
+          "tableFrom": "stock_movements",
+          "tableTo": "meal_logs",
+          "columnsFrom": ["meal_log_id"],
+          "columnsTo": ["id"],
+          "onDelete": "cascade",
           "onUpdate": "cascade"
         }
       },
@@ -1341,6 +1231,10 @@
         "stock_movements_reason_valid": {
           "name": "stock_movements_reason_valid",
           "value": "\"stock_movements\".\"reason\" IN ('receive', 'meal', 'count')"
+        },
+        "stock_movements_meal_log_reason": {
+          "name": "stock_movements_meal_log_reason",
+          "value": "(\"stock_movements\".\"reason\" = 'meal') = (\"stock_movements\".\"meal_log_id\" IS NOT NULL)"
         }
       },
       "isRLSEnabled": false
@@ -1476,11 +1370,6 @@
     }
   },
   "enums": {
-    "public.delivery_status": {
-      "name": "delivery_status",
-      "schema": "public",
-      "values": ["planned", "received", "cancelled"]
-    },
     "public.food_source": {
       "name": "food_source",
       "schema": "public",

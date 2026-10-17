@@ -27,7 +27,12 @@ import { createDrizzleStockRepository } from '#domain/stock/drizzle-stock-reposi
 import { createStockService } from '#domain/stock/stock-service'
 import { createUserProfileService } from '#domain/user-profile/user-profile-service'
 import { createMcpServer } from '#mcp'
-import { describeIfDb, getTestSql, setupTx } from '#test/db'
+import {
+  addDrizzleNestedTransactions,
+  describeIfDb,
+  getTestSql,
+  setupTx,
+} from '#test/db'
 import { jstDate } from '#test/jst-date'
 import { createNullLogger } from '#test/logger'
 import {
@@ -54,13 +59,14 @@ const readOptions = (sql: Sql): unknown => Reflect.get(sql, 'options')
 // Borrow the pool's options onto ReservedSql so drizzle can mutate the
 // jsonb/timestamp serializers it needs at construction time.
 const prepareTxForDrizzle = (tx: Sql): Sql => {
-  if (readOptions(tx) !== undefined) return tx
-  Object.defineProperty(tx, 'options', {
-    value: readOptions(getTestSql()),
-    configurable: true,
-    writable: true,
-  })
-  return tx
+  if (readOptions(tx) === undefined) {
+    Object.defineProperty(tx, 'options', {
+      value: readOptions(getTestSql()),
+      configurable: true,
+      writable: true,
+    })
+  }
+  return addDrizzleNestedTransactions(tx)
 }
 
 interface OptionsBag {
@@ -494,6 +500,7 @@ describeIfDb('meshi integration', () => {
               nutrition: z.record(z.string(), z.number()),
               is_estimated: z.boolean(),
               nutrition_status: z.enum(['confirmed', 'estimated', 'unknown']),
+              stock_shortfall: z.number().nullable(),
             }),
           ),
           error: z.null(),
@@ -591,6 +598,7 @@ describeIfDb('meshi integration', () => {
                 nutrition: {},
                 is_estimated: false,
                 nutrition_status: 'unknown',
+                stock_shortfall: null,
               },
             ],
             error: null,
@@ -714,6 +722,7 @@ describeIfDb('meshi integration', () => {
             quantity: 3,
             nutrition: { energy_kcal: 411, protein_g: 15 },
             is_estimated: false,
+            stock_shortfall: null,
           },
         },
         deleteResult: {

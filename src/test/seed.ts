@@ -268,10 +268,12 @@ export const seedStockMovement = async (
   },
 ): Promise<void> => {
   await sql`
-    INSERT INTO stock_movements (id, stock_lot_id, delta, reason, note)
+    INSERT INTO stock_movements (
+      id, stock_lot_id, delta, reason, note, meal_log_id
+    )
     VALUES (
       ${values.id}, ${values.stockLotId}, ${values.delta},
-      ${values.reason}, ${values.note ?? null}
+      ${values.reason}, ${values.note ?? null}, ${values.mealLogId ?? null}
     )
   `
 }

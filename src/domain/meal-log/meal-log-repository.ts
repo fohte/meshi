@@ -25,6 +25,10 @@ export interface UpdateMealLogPatch {
   readonly quantity?: number
 }
 
+export interface MealLogWriteResult extends MealLogRow {
+  readonly stockShortfall?: number
+}
+
 export interface FoundMealLog {
   readonly log: MealLogRow
   readonly food: FoodMasterRef
@@ -32,11 +36,15 @@ export interface FoundMealLog {
 
 export interface MealLogRepository {
   findFoodMaster(foodMasterId: string): ResultAsync<FoodMasterRef, DomainError>
-  insertMealLog(input: InsertMealLogInput): ResultAsync<MealLogRow, DomainError>
+  insertMealLog(
+    input: InsertMealLogInput,
+  ): ResultAsync<MealLogWriteResult, DomainError>
   insertMealLogs(
     inputs: ReadonlyArray<InsertMealLogInput>,
-  ): ResultAsync<ReadonlyArray<MealLogRow>, DomainError>
-  updateMealLog(input: UpdateMealLogPatch): ResultAsync<MealLogRow, DomainError>
+  ): ResultAsync<ReadonlyArray<MealLogWriteResult>, DomainError>
+  updateMealLog(
+    input: UpdateMealLogPatch,
+  ): ResultAsync<MealLogWriteResult, DomainError>
   findMealLogById(id: string): ResultAsync<FoundMealLog | null, DomainError>
   // Resolves to false when no row matched `id`, rather than an error — the
   // service layer decides whether a no-op delete is a MealLogNotFoundError.

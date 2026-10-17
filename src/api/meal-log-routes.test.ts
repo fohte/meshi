@@ -44,6 +44,7 @@ const SAMPLE_JSON = {
   mealType: 'lunch',
   quantity: 150,
   nutrition: { energy_kcal: 234 },
+  stockShortfall: null,
   isEstimated: false,
   nutritionStatus: 'confirmed',
   createdAt: '2026-06-18T00:00:01.000Z',
@@ -108,6 +109,24 @@ describe('POST /api/meal-logs', () => {
       mealType: 'lunch',
       quantity: 150,
     })
+  })
+
+  it('returns a stock shortfall with a successfully recorded meal log', async () => {
+    const app = buildApp({
+      ...notStubbed('service'),
+      record: () => okAsync({ ...SAMPLE_RESULT, stockShortfall: 0.5 }),
+    })
+
+    const res = await app.request(
+      jsonRequest('/api/meal-logs', 'POST', {
+        foodMasterId: 'fm_rice',
+        eatenDate: '2026-06-18',
+        mealType: 'lunch',
+        quantity: 150,
+      }),
+    )
+
+    expect(await res.json()).toEqual({ ...SAMPLE_JSON, stockShortfall: 0.5 })
   })
 
   it('records multiple meal logs and returns 201 with the results', async () => {

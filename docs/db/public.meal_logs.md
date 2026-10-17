@@ -6,14 +6,14 @@ Recorded food consumption entries.
 
 ## Columns
 
-| Name           | Type                     | Default | Nullable | Children | Parents                                       | Comment                                                  |
-| -------------- | ------------------------ | ------- | -------- | -------- | --------------------------------------------- | -------------------------------------------------------- |
-| id             | text                     |         | false    |          |                                               |                                                          |
-| food_master_id | text                     |         | false    |          | [public.food_masters](public.food_masters.md) | Identifier of the food recorded in this meal log.        |
-| quantity       | numeric                  |         | false    |          |                                               | Multiplier applied to the food master's nutrient values. |
-| created_at     | timestamp with time zone | now()   | false    |          |                                               |                                                          |
-| meal_type      | meal_type                |         | false    |          |                                               | Meal category: breakfast, lunch, dinner, or snack.       |
-| eaten_date     | date                     |         | false    |          |                                               | Asia/Tokyo calendar date on which the food was eaten.    |
+| Name           | Type                     | Default | Nullable | Children                                            | Parents                                       | Comment                                                  |
+| -------------- | ------------------------ | ------- | -------- | --------------------------------------------------- | --------------------------------------------- | -------------------------------------------------------- |
+| id             | text                     |         | false    | [public.stock_movements](public.stock_movements.md) |                                               |                                                          |
+| food_master_id | text                     |         | false    |                                                     | [public.food_masters](public.food_masters.md) | Identifier of the food recorded in this meal log.        |
+| quantity       | numeric                  |         | false    |                                                     |                                               | Multiplier applied to the food master's nutrient values. |
+| created_at     | timestamp with time zone | now()   | false    |                                                     |                                               |                                                          |
+| meal_type      | meal_type                |         | false    |                                                     |                                               | Meal category: breakfast, lunch, dinner, or snack.       |
+| eaten_date     | date                     |         | false    |                                                     |                                               | Asia/Tokyo calendar date on which the food was eaten.    |
 
 ## Constraints
 
@@ -42,6 +42,7 @@ Recorded food consumption entries.
 ```mermaid
 erDiagram
 
+"public.stock_movements" }o--o| "public.meal_logs" : "FOREIGN KEY (meal_log_id) REFERENCES meal_logs(id) ON UPDATE CASCADE ON DELETE CASCADE"
 "public.meal_logs" }o--|| "public.food_masters" : "FOREIGN KEY (food_master_id) REFERENCES food_masters(id) ON UPDATE CASCADE ON DELETE RESTRICT"
 
 "public.meal_logs" {
@@ -51,6 +52,15 @@ erDiagram
   timestamp_with_time_zone created_at
   meal_type meal_type
   date eaten_date
+}
+"public.stock_movements" {
+  text id
+  text stock_lot_id FK
+  numeric delta
+  text reason
+  text note
+  timestamp_with_time_zone created_at
+  text meal_log_id FK
 }
 "public.food_masters" {
   text id

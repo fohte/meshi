@@ -457,6 +457,7 @@ export const stockMovements = pgTable(
     delta: numeric('delta').notNull(),
     reason: text('reason').notNull(),
     note: text('note'),
+    mealLogId: text('meal_log_id'),
     createdAt: timestamp('created_at', { withTimezone: true, mode: 'date' })
       .notNull()
       .default(sql`now()`),
@@ -469,11 +470,23 @@ export const stockMovements = pgTable(
     })
       .onUpdate('cascade')
       .onDelete('restrict'),
+    foreignKey({
+      name: 'stock_movements_meal_log_id_fk',
+      columns: [table.mealLogId],
+      foreignColumns: [mealLogs.id],
+    })
+      .onUpdate('cascade')
+      .onDelete('cascade'),
     index('stock_movements_stock_lot_id_idx').on(table.stockLotId),
+    index('stock_movements_meal_log_id_idx').on(table.mealLogId),
     check('stock_movements_delta_nonzero', sql`${table.delta} <> 0`),
     check(
       'stock_movements_reason_valid',
       sql`${table.reason} IN ('receive', 'meal', 'count')`,
+    ),
+    check(
+      'stock_movements_meal_log_reason',
+      sql`(${table.reason} = 'meal') = (${table.mealLogId} IS NOT NULL)`,
     ),
   ],
 )

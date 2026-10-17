@@ -1,5 +1,9 @@
+import { asc, eq, sql } from 'drizzle-orm'
+import { drizzle } from 'drizzle-orm/postgres-js'
 import { expect, it } from 'vitest'
 
+import type { Sql } from '#db/index'
+import { stockLots, stockMovements } from '#db/schema'
 import { createDrizzleMealLogRepository } from '#domain/meal-log/drizzle-meal-log-repository'
 import {
   FoodMasterNotFoundError,
@@ -10,7 +14,13 @@ import type { FoundMealLog } from '#domain/meal-log/meal-log-repository'
 import type { FoodMasterRef, MealLogRow } from '#domain/meal-log/types'
 import { describeIfDb, setupDrizzleTx } from '#test/db'
 import { jstDate } from '#test/jst-date'
-import { seedFoodMaster, seedFoodMasterWithoutNutrition } from '#test/seed'
+import {
+  seedFoodMaster,
+  seedFoodMasterWithoutNutrition,
+  seedStockItem,
+  seedStockLot,
+  seedStockMovement,
+} from '#test/seed'
 
 const CREATED_AT_PLACEHOLDER = new Date('2000-01-01T00:00:00.000Z')
 
@@ -31,6 +41,46 @@ const normalizeFoodAndMealLog = (
       ? null
       : { log: normalizeRow(fetched.log), food: fetched.food },
 })
+
+const readMealMovements = async (tx: Sql, mealLogId: string) => {
+  const rows = await drizzle(tx)
+    .select({
+      stockLotId: stockMovements.stockLotId,
+      delta: stockMovements.delta,
+      reason: stockMovements.reason,
+      mealLogId: stockMovements.mealLogId,
+    })
+    .from(stockMovements)
+    .where(eq(stockMovements.mealLogId, mealLogId))
+    .orderBy(asc(stockMovements.stockLotId))
+
+  return rows.map((row) => ({
+    ...row,
+    delta: Number(row.delta),
+  }))
+}
+
+const readLotBalances = async (tx: Sql, foodMasterId: string) => {
+  const rows = await drizzle(tx)
+    .select({
+      stockLotId: stockLots.id,
+      remaining: sql<string>`COALESCE(SUM(${stockMovements.delta}), 0)::text`,
+    })
+    .from(stockLots)
+    .leftJoin(stockMovements, eq(stockMovements.stockLotId, stockLots.id))
+    .where(eq(stockLots.foodMasterId, foodMasterId))
+    .groupBy(stockLots.id, stockLots.receivedDate, stockLots.createdAt)
+    .orderBy(
+      sql`${stockLots.receivedDate} ASC NULLS FIRST`,
+      asc(stockLots.createdAt),
+      asc(stockLots.id),
+    )
+
+  return rows.map((row) => ({
+    stockLotId: row.stockLotId,
+    remaining: Number(row.remaining),
+  }))
+}
 
 describeIfDb('createDrizzleMealLogRepository', () => {
   const getTx = setupDrizzleTx()
@@ -96,6 +146,479 @@ describeIfDb('createDrizzleMealLogRepository', () => {
         },
       },
     })
+  })
+
+  it('consumes fractional stock from the oldest lots and reports the shortfall', async () => {
+    const tx = getTx()
+    await seedFoodMasterWithoutNutrition(tx, {
+      id: 'fm_stock_fifo',
+      name: 'Sample stock item',
+    })
+    await seedStockItem(tx, { foodMasterId: 'fm_stock_fifo' })
+    for (const lot of [
+      { id: 'stl_stock_unknown', receivedDate: null, quantity: 1 },
+      { id: 'stl_stock_old', receivedDate: '2026-01-01', quantity: 1 },
+      { id: 'stl_stock_new', receivedDate: '2026-02-01', quantity: 0.25 },
+    ]) {
+      await seedStockLot(tx, {
+        id: lot.id,
+        foodMasterId: 'fm_stock_fifo',
+        quantity: lot.quantity,
+        receivedDate: lot.receivedDate,
+      })
+      await seedStockMovement(tx, {
+        id: `stm_opening_${lot.id}`,
+        stockLotId: lot.id,
+        delta: lot.quantity,
+        reason: 'count',
+      })
+    }
+    const repo = createDrizzleMealLogRepository(tx)
+
+    const inserted = (
+      await repo.insertMealLog({
+        id: 'ml_stock_fifo',
+        foodMasterId: 'fm_stock_fifo',
+        eatenDate: jstDate('2026-06-15'),
+        mealType: 'lunch',
+        quantity: 2.5,
+      })
+    )._unsafeUnwrap()
+    const movements = await readMealMovements(tx, 'ml_stock_fifo')
+    const balances = await readLotBalances(tx, 'fm_stock_fifo')
+
+    expect(
+      observation({
+        stockShortfall: inserted.stockShortfall,
+        movements,
+        balances,
+      }),
+    ).toEqual({
+      stockShortfall: 0.25,
+      movements: [
+        {
+          stockLotId: 'stl_stock_new',
+          delta: -0.25,
+          reason: 'meal',
+          mealLogId: 'ml_stock_fifo',
+        },
+        {
+          stockLotId: 'stl_stock_old',
+          delta: -1,
+          reason: 'meal',
+          mealLogId: 'ml_stock_fifo',
+        },
+        {
+          stockLotId: 'stl_stock_unknown',
+          delta: -1,
+          reason: 'meal',
+          mealLogId: 'ml_stock_fifo',
+        },
+      ],
+      balances: [
+        { stockLotId: 'stl_stock_unknown', remaining: 0 },
+        { stockLotId: 'stl_stock_old', remaining: 0 },
+        { stockLotId: 'stl_stock_new', remaining: 0 },
+      ],
+    })
+  })
+
+  it('reports the full quantity as a shortfall when a tracked item has no lots', async () => {
+    const tx = getTx()
+    await seedFoodMasterWithoutNutrition(tx, {
+      id: 'fm_stock_no_lots',
+      name: 'Sample item without lots',
+    })
+    await seedStockItem(tx, { foodMasterId: 'fm_stock_no_lots' })
+    const repo = createDrizzleMealLogRepository(tx)
+
+    const inserted = (
+      await repo.insertMealLog({
+        id: 'ml_stock_no_lots',
+        foodMasterId: 'fm_stock_no_lots',
+        eatenDate: jstDate('2026-06-15'),
+        mealType: 'lunch',
+        quantity: 1.25,
+      })
+    )._unsafeUnwrap()
+
+    expect(
+      observation({
+        stockShortfall: inserted.stockShortfall,
+        movements: await readMealMovements(tx, 'ml_stock_no_lots'),
+        balances: await readLotBalances(tx, 'fm_stock_no_lots'),
+      }),
+    ).toEqual({ stockShortfall: 1.25, movements: [], balances: [] })
+  })
+
+  it('replaces stock movements when the meal quantity changes', async () => {
+    const tx = getTx()
+    await seedFoodMasterWithoutNutrition(tx, {
+      id: 'fm_stock_quantity',
+      name: 'Sample quantity item',
+    })
+    await seedStockItem(tx, { foodMasterId: 'fm_stock_quantity' })
+    await seedStockLot(tx, {
+      id: 'stl_stock_quantity',
+      foodMasterId: 'fm_stock_quantity',
+      quantity: 3,
+    })
+    await seedStockMovement(tx, {
+      id: 'stm_stock_quantity_opening',
+      stockLotId: 'stl_stock_quantity',
+      delta: 3,
+      reason: 'count',
+    })
+    const repo = createDrizzleMealLogRepository(tx)
+    await repo.insertMealLog({
+      id: 'ml_stock_quantity',
+      foodMasterId: 'fm_stock_quantity',
+      eatenDate: jstDate('2026-06-15'),
+      mealType: 'lunch',
+      quantity: 1,
+    })
+
+    const updated = (
+      await repo.updateMealLog({ id: 'ml_stock_quantity', quantity: 1.5 })
+    )._unsafeUnwrap()
+    const movements = await readMealMovements(tx, 'ml_stock_quantity')
+    const balances = await readLotBalances(tx, 'fm_stock_quantity')
+
+    expect(
+      observation({
+        stockShortfall: updated.stockShortfall,
+        movements,
+        balances,
+      }),
+    ).toEqual({
+      stockShortfall: 0,
+      movements: [
+        {
+          stockLotId: 'stl_stock_quantity',
+          delta: -1.5,
+          reason: 'meal',
+          mealLogId: 'ml_stock_quantity',
+        },
+      ],
+      balances: [{ stockLotId: 'stl_stock_quantity', remaining: 1.5 }],
+    })
+  })
+
+  it('moves stock consumption when the meal food changes', async () => {
+    const tx = getTx()
+    for (const { foodMasterId, name } of [
+      { foodMasterId: 'fm_stock_before', name: 'Sample stock item before' },
+      { foodMasterId: 'fm_stock_after', name: 'Sample stock item after' },
+    ]) {
+      await seedFoodMasterWithoutNutrition(tx, {
+        id: foodMasterId,
+        name,
+      })
+      await seedStockItem(tx, { foodMasterId })
+      const stockLotId = `stl_${foodMasterId}`
+      await seedStockLot(tx, { id: stockLotId, foodMasterId, quantity: 2 })
+      await seedStockMovement(tx, {
+        id: `stm_${foodMasterId}_opening`,
+        stockLotId,
+        delta: 2,
+        reason: 'count',
+      })
+    }
+    const repo = createDrizzleMealLogRepository(tx)
+    await repo.insertMealLog({
+      id: 'ml_stock_food_change',
+      foodMasterId: 'fm_stock_before',
+      eatenDate: jstDate('2026-06-15'),
+      mealType: 'lunch',
+      quantity: 1.5,
+    })
+
+    const updated = (
+      await repo.updateMealLog({
+        id: 'ml_stock_food_change',
+        foodMasterId: 'fm_stock_after',
+      })
+    )._unsafeUnwrap()
+    const movements = await readMealMovements(tx, 'ml_stock_food_change')
+    const balances = await Promise.all([
+      readLotBalances(tx, 'fm_stock_before'),
+      readLotBalances(tx, 'fm_stock_after'),
+    ])
+
+    expect(
+      observation({
+        stockShortfall: updated.stockShortfall,
+        movements,
+        balances,
+      }),
+    ).toEqual({
+      stockShortfall: 0,
+      movements: [
+        {
+          stockLotId: 'stl_fm_stock_after',
+          delta: -1.5,
+          reason: 'meal',
+          mealLogId: 'ml_stock_food_change',
+        },
+      ],
+      balances: [
+        [{ stockLotId: 'stl_fm_stock_before', remaining: 2 }],
+        [{ stockLotId: 'stl_fm_stock_after', remaining: 0.5 }],
+      ],
+    })
+  })
+
+  it('consumes stock in input order for an atomic batch', async () => {
+    const tx = getTx()
+    await seedFoodMasterWithoutNutrition(tx, {
+      id: 'fm_stock_batch',
+      name: 'Sample batch item',
+    })
+    await seedStockItem(tx, { foodMasterId: 'fm_stock_batch' })
+    for (const [id, quantity] of [
+      ['stl_stock_batch_first', 1.5],
+      ['stl_stock_batch_second', 1],
+    ] as const) {
+      await seedStockLot(tx, {
+        id,
+        foodMasterId: 'fm_stock_batch',
+        quantity,
+      })
+      await seedStockMovement(tx, {
+        id: `stm_opening_${id}`,
+        stockLotId: id,
+        delta: quantity,
+        reason: 'count',
+      })
+    }
+    const repo = createDrizzleMealLogRepository(tx)
+
+    const inserted = (
+      await repo.insertMealLogs([
+        {
+          id: 'ml_stock_batch_first',
+          foodMasterId: 'fm_stock_batch',
+          eatenDate: jstDate('2026-06-15'),
+          mealType: 'lunch',
+          quantity: 1.25,
+        },
+        {
+          id: 'ml_stock_batch_second',
+          foodMasterId: 'fm_stock_batch',
+          eatenDate: jstDate('2026-06-15'),
+          mealType: 'lunch',
+          quantity: 1,
+        },
+      ])
+    )._unsafeUnwrap()
+    const movements = await Promise.all(
+      inserted.map((row) => readMealMovements(tx, row.id)),
+    )
+
+    expect(
+      observation({
+        shortfalls: inserted.map((row) => row.stockShortfall),
+        movements,
+      }),
+    ).toEqual({
+      shortfalls: [0, 0],
+      movements: [
+        [
+          {
+            stockLotId: 'stl_stock_batch_first',
+            delta: -1.25,
+            reason: 'meal',
+            mealLogId: 'ml_stock_batch_first',
+          },
+        ],
+        [
+          {
+            stockLotId: 'stl_stock_batch_first',
+            delta: -0.25,
+            reason: 'meal',
+            mealLogId: 'ml_stock_batch_second',
+          },
+          {
+            stockLotId: 'stl_stock_batch_second',
+            delta: -0.75,
+            reason: 'meal',
+            mealLogId: 'ml_stock_batch_second',
+          },
+        ],
+      ],
+    })
+  })
+
+  it('rolls back all meal and stock writes when stock movement creation fails', async () => {
+    const tx = getTx()
+    await seedFoodMasterWithoutNutrition(tx, {
+      id: 'fm_stock_atomic',
+      name: 'Sample atomic item',
+    })
+    await seedStockItem(tx, { foodMasterId: 'fm_stock_atomic' })
+    for (const suffix of ['first', 'second']) {
+      const stockLotId = `stl_stock_atomic_${suffix}`
+      await seedStockLot(tx, {
+        id: stockLotId,
+        foodMasterId: 'fm_stock_atomic',
+        quantity: 1,
+      })
+      await seedStockMovement(tx, {
+        id: `stm_stock_atomic_${suffix}`,
+        stockLotId,
+        delta: 1,
+        reason: 'count',
+      })
+    }
+    const repo = createDrizzleMealLogRepository(tx, {
+      generateId: () => 'stm_duplicate',
+    })
+
+    const result = await repo.insertMealLogs([
+      {
+        id: 'ml_stock_atomic_first',
+        foodMasterId: 'fm_stock_atomic',
+        eatenDate: jstDate('2026-06-15'),
+        mealType: 'lunch',
+        quantity: 1,
+      },
+      {
+        id: 'ml_stock_atomic_second',
+        foodMasterId: 'fm_stock_atomic',
+        eatenDate: jstDate('2026-06-15'),
+        mealType: 'lunch',
+        quantity: 1,
+      },
+    ])
+    const remainingLogs = await Promise.all([
+      repo.findMealLogById('ml_stock_atomic_first'),
+      repo.findMealLogById('ml_stock_atomic_second'),
+    ])
+    const movements = await Promise.all([
+      readMealMovements(tx, 'ml_stock_atomic_first'),
+      readMealMovements(tx, 'ml_stock_atomic_second'),
+    ])
+
+    expect(
+      observation({
+        errorCode: result.isErr() ? result.error.code : null,
+        remainingLogs: remainingLogs.map(
+          (entry) => entry._unsafeUnwrap()?.log.id ?? null,
+        ),
+        movements,
+      }),
+    ).toEqual({
+      errorCode: 'meal_log/persistence_failed',
+      remainingLogs: [null, null],
+      movements: [[], []],
+    })
+  })
+
+  it('restores the previous meal and stock movements when an update sync fails', async () => {
+    const tx = getTx()
+    await seedFoodMasterWithoutNutrition(tx, {
+      id: 'fm_stock_update_rollback',
+      name: 'Sample update rollback item',
+    })
+    await seedStockItem(tx, { foodMasterId: 'fm_stock_update_rollback' })
+    await seedStockLot(tx, {
+      id: 'stl_stock_update_rollback',
+      foodMasterId: 'fm_stock_update_rollback',
+      quantity: 2,
+    })
+    await seedStockMovement(tx, {
+      id: 'stm_stock_update_opening',
+      stockLotId: 'stl_stock_update_rollback',
+      delta: 2,
+      reason: 'count',
+    })
+    let generatedMovementCount = 0
+    const repo = createDrizzleMealLogRepository(tx, {
+      generateId: () => {
+        generatedMovementCount += 1
+        return generatedMovementCount === 1
+          ? 'stm_stock_update_initial'
+          : 'stm_stock_update_opening'
+      },
+    })
+    await repo.insertMealLog({
+      id: 'ml_stock_update_rollback',
+      foodMasterId: 'fm_stock_update_rollback',
+      eatenDate: jstDate('2026-06-15'),
+      mealType: 'lunch',
+      quantity: 0.5,
+    })
+
+    const result = await repo.updateMealLog({
+      id: 'ml_stock_update_rollback',
+      quantity: 1.5,
+    })
+    const current = (
+      await repo.findMealLogById('ml_stock_update_rollback')
+    )._unsafeUnwrap()
+
+    expect(
+      observation({
+        errorCode: result.isErr() ? result.error.code : null,
+        mealLog: current === null ? null : normalizeRow(current.log),
+        movements: await readMealMovements(tx, 'ml_stock_update_rollback'),
+        balances: await readLotBalances(tx, 'fm_stock_update_rollback'),
+      }),
+    ).toEqual({
+      errorCode: 'meal_log/persistence_failed',
+      mealLog: {
+        id: 'ml_stock_update_rollback',
+        foodMasterId: 'fm_stock_update_rollback',
+        eatenDate: jstDate('2026-06-15'),
+        mealType: 'lunch',
+        quantity: 0.5,
+        createdAt: CREATED_AT_PLACEHOLDER,
+      },
+      movements: [
+        {
+          stockLotId: 'stl_stock_update_rollback',
+          delta: -0.5,
+          reason: 'meal',
+          mealLogId: 'ml_stock_update_rollback',
+        },
+      ],
+      balances: [{ stockLotId: 'stl_stock_update_rollback', remaining: 1.5 }],
+    })
+  })
+
+  it('deletes meal stock movements through the foreign key cascade', async () => {
+    const tx = getTx()
+    await seedFoodMasterWithoutNutrition(tx, {
+      id: 'fm_stock_delete',
+      name: 'Sample delete item',
+    })
+    await seedStockItem(tx, { foodMasterId: 'fm_stock_delete' })
+    await seedStockLot(tx, {
+      id: 'stl_stock_delete',
+      foodMasterId: 'fm_stock_delete',
+      quantity: 1,
+    })
+    await seedStockMovement(tx, {
+      id: 'stm_stock_delete_opening',
+      stockLotId: 'stl_stock_delete',
+      delta: 1,
+      reason: 'count',
+    })
+    const repo = createDrizzleMealLogRepository(tx)
+    await repo.insertMealLog({
+      id: 'ml_stock_delete',
+      foodMasterId: 'fm_stock_delete',
+      eatenDate: jstDate('2026-06-15'),
+      mealType: 'lunch',
+      quantity: 1,
+    })
+
+    const deleted = await repo.deleteMealLog('ml_stock_delete')
+    const movements = await readMealMovements(tx, 'ml_stock_delete')
+
+    expect(
+      observation({ deleted: deleted._unsafeUnwrap(), movements }),
+    ).toEqual({ deleted: true, movements: [] })
   })
 
   it('finds and returns a meal log for a food without nutrition metadata', async () => {
