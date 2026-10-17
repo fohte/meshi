@@ -7486,7 +7486,7 @@ snapshots:
       '@opentelemetry/resource-detector-azure': 0.27.0(@opentelemetry/api@1.9.1)
       '@opentelemetry/resource-detector-container': 0.8.12(@opentelemetry/api@1.9.1)
       '@opentelemetry/resource-detector-gcp': 0.54.0(@opentelemetry/api@1.9.1)(supports-color@10.2.2)
-      '@opentelemetry/resources': 2.8.0(@opentelemetry/api@1.9.1)
+      '@opentelemetry/resources': 2.11.0(@opentelemetry/api@1.9.1)
       '@opentelemetry/sdk-node': 0.219.0(@opentelemetry/api@1.9.1)(supports-color@10.2.2)
     transitivePeerDependencies:
       - supports-color
@@ -7495,7 +7495,7 @@ snapshots:
     dependencies:
       '@opentelemetry/api': 1.9.1
       '@opentelemetry/core': 2.8.0(@opentelemetry/api@1.9.1)
-      yaml: 2.9.1
+      yaml: 2.9.0
 
   '@opentelemetry/context-async-hooks@2.8.0(@opentelemetry/api@1.9.1)':
     dependencies:
@@ -8035,33 +8035,33 @@ snapshots:
     dependencies:
       '@opentelemetry/api': 1.9.1
       '@opentelemetry/core': 2.11.0(@opentelemetry/api@1.9.1)
-      '@opentelemetry/resources': 2.8.0(@opentelemetry/api@1.9.1)
+      '@opentelemetry/resources': 2.11.0(@opentelemetry/api@1.9.1)
 
   '@opentelemetry/resource-detector-aws@2.21.0(@opentelemetry/api@1.9.1)':
     dependencies:
       '@opentelemetry/api': 1.9.1
       '@opentelemetry/core': 2.11.0(@opentelemetry/api@1.9.1)
-      '@opentelemetry/resources': 2.8.0(@opentelemetry/api@1.9.1)
+      '@opentelemetry/resources': 2.11.0(@opentelemetry/api@1.9.1)
       '@opentelemetry/semantic-conventions': 1.41.1
 
   '@opentelemetry/resource-detector-azure@0.27.0(@opentelemetry/api@1.9.1)':
     dependencies:
       '@opentelemetry/api': 1.9.1
       '@opentelemetry/core': 2.11.0(@opentelemetry/api@1.9.1)
-      '@opentelemetry/resources': 2.8.0(@opentelemetry/api@1.9.1)
+      '@opentelemetry/resources': 2.11.0(@opentelemetry/api@1.9.1)
       '@opentelemetry/semantic-conventions': 1.41.1
 
   '@opentelemetry/resource-detector-container@0.8.12(@opentelemetry/api@1.9.1)':
     dependencies:
       '@opentelemetry/api': 1.9.1
       '@opentelemetry/core': 2.11.0(@opentelemetry/api@1.9.1)
-      '@opentelemetry/resources': 2.8.0(@opentelemetry/api@1.9.1)
+      '@opentelemetry/resources': 2.11.0(@opentelemetry/api@1.9.1)
 
   '@opentelemetry/resource-detector-gcp@0.54.0(@opentelemetry/api@1.9.1)(supports-color@10.2.2)':
     dependencies:
       '@opentelemetry/api': 1.9.1
       '@opentelemetry/core': 2.11.0(@opentelemetry/api@1.9.1)
-      '@opentelemetry/resources': 2.8.0(@opentelemetry/api@1.9.1)
+      '@opentelemetry/resources': 2.11.0(@opentelemetry/api@1.9.1)
       gcp-metadata: 8.1.4(supports-color@10.2.2)
     transitivePeerDependencies:
       - supports-color
@@ -8862,7 +8862,7 @@ snapshots:
 
   '@types/bunyan@1.8.11':
     dependencies:
-      '@types/node': 26.5.0
+      '@types/node': 26.4.1
 
   '@types/chai@5.2.3':
     dependencies:
@@ -8871,7 +8871,7 @@ snapshots:
 
   '@types/connect@3.4.38':
     dependencies:
-      '@types/node': 26.5.0
+      '@types/node': 26.4.1
 
   '@types/deep-eql@4.0.2': {}
 
@@ -8887,11 +8887,11 @@ snapshots:
 
   '@types/memcached@2.2.10':
     dependencies:
-      '@types/node': 26.5.0
+      '@types/node': 26.4.1
 
   '@types/mysql@2.15.27':
     dependencies:
-      '@types/node': 26.5.0
+      '@types/node': 26.4.1
 
   '@types/node@26.4.1':
     dependencies:
@@ -8903,7 +8903,7 @@ snapshots:
 
   '@types/oracledb@6.5.2':
     dependencies:
-      '@types/node': 26.5.0
+      '@types/node': 26.4.1
 
   '@types/pg-pool@2.0.7':
     dependencies:
@@ -8911,7 +8911,7 @@ snapshots:
 
   '@types/pg@8.15.6':
     dependencies:
-      '@types/node': 26.5.0
+      '@types/node': 26.4.1
       pg-protocol: 1.16.0
       pg-types: 2.2.0
 
@@ -8933,7 +8933,7 @@ snapshots:
 
   '@types/tedious@4.0.14':
     dependencies:
-      '@types/node': 26.5.0
+      '@types/node': 26.4.1
 
   '@types/validate-npm-package-name@4.0.2': {}
 
@@ -11173,7 +11173,7 @@ snapshots:
       '@protobufjs/path': 1.1.2
       '@protobufjs/pool': 1.1.0
       '@protobufjs/utf8': 1.1.2
-      '@types/node': 26.5.0
+      '@types/node': 26.4.1
       long: 5.3.2
 
   proxy-addr@2.0.7:
@@ -12004,8 +12004,7 @@ snapshots:
 
   yallist@3.1.1: {}
 
-  yaml@2.9.0:
-    optional: true
+  yaml@2.9.0: {}
 
   yaml@2.9.1: {}
 
