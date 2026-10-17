@@ -1,6 +1,7 @@
 import type {
   CapacityWarning,
   EatByWarning,
+  EatByWarningRiskType,
   PriorityLot,
   StockStatus,
   StockStatusSnapshot,
@@ -10,20 +11,21 @@ import type { JstDate } from '#lib/jst-date'
 
 const CONSUMPTION_WINDOW_DAYS = 14
 const WARNING_WINDOW_DAYS = 3
+const RATE_COMPARISON_TOLERANCE = 0.000001
 
 type StockStatusItem = StockStatusSnapshot['stockItems'][number]
 type StockLot = StockStatusItem['lots'][number]
 type LotTarget = { readonly date: string; readonly type: TargetDateType }
-type LotRisk = 'deadline_passed' | 'consumption_rate_below_required'
 
 interface AssessedLot {
   readonly item: StockStatusItem
   readonly lot: StockLot
   readonly target: LotTarget | null
-  readonly displayDate: string | null
+  readonly daysUntilTarget: number | null
+  readonly quantityUsedForRate: number | null
   readonly requiredDailyConsumption: number | null
   readonly actualDailyConsumption: number
-  readonly risk: LotRisk | null
+  readonly risk: EatByWarningRiskType | null
 }
 
 const daysBetween = (from: string, to: string): number => {
@@ -31,6 +33,9 @@ const daysBetween = (from: string, to: string): number => {
   const toMilliseconds = Date.parse(`${to}T00:00:00.000Z`)
   return Math.round((toMilliseconds - fromMilliseconds) / 86_400_000)
 }
+
+const roundRate = (rate: number): number =>
+  Math.round((rate + Number.EPSILON) * 100) / 100
 
 const getTargetDate = (lot: StockLot): LotTarget | null => {
   if (lot.bestBefore !== null && lot.eatBy !== null) {
@@ -81,31 +86,35 @@ const assessLots = (
       }
 
       const daysUntilTarget = daysBetween(today, targetDate)
-      if (daysUntilTarget >= 0) {
+      const isPastTarget = daysUntilTarget < 0
+      if (!isPastTarget) {
         cumulativeRemainingQuantity += targetGroup.reduce(
           (total, { lot }) => total + lot.remainingQuantity,
           0,
         )
       }
+      const quantityUsedForRate = isPastTarget
+        ? null
+        : cumulativeRemainingQuantity
+      const requiredDailyConsumption = isPastTarget
+        ? null
+        : cumulativeRemainingQuantity / Math.max(1, daysUntilTarget)
+      const risk: EatByWarningRiskType | null = isPastTarget
+        ? 'deadline_passed'
+        : daysUntilTarget <= WARNING_WINDOW_DAYS &&
+            requiredDailyConsumption !== null &&
+            actualDailyConsumption + RATE_COMPARISON_TOLERANCE <
+              requiredDailyConsumption
+          ? 'consumption_rate_below_required'
+          : null
 
       for (const { lot, target } of targetGroup) {
-        const requiredDailyConsumption =
-          daysUntilTarget < 0
-            ? lot.remainingQuantity
-            : cumulativeRemainingQuantity / Math.max(1, daysUntilTarget)
-        const risk: LotRisk | null =
-          daysUntilTarget < 0
-            ? 'deadline_passed'
-            : daysUntilTarget <= WARNING_WINDOW_DAYS &&
-                actualDailyConsumption < requiredDailyConsumption
-              ? 'consumption_rate_below_required'
-              : null
-
         assessments.push({
           item,
           lot,
           target,
-          displayDate: target.date,
+          daysUntilTarget: isPastTarget ? null : daysUntilTarget,
+          quantityUsedForRate,
           requiredDailyConsumption,
           actualDailyConsumption,
           risk,
@@ -119,7 +128,8 @@ const assessLots = (
         item,
         lot,
         target: null,
-        displayDate: lot.receivedDate,
+        daysUntilTarget: null,
+        quantityUsedForRate: null,
         requiredDailyConsumption: null,
         actualDailyConsumption,
         risk: null,
@@ -142,20 +152,21 @@ const projectLocationQuantityAtDate = (
   const arrivalsByDate = new Map<string, Map<string, number>>()
 
   for (const delivery of snapshot.plannedDeliveries) {
-    if (delivery.expectedDate < today || delivery.expectedDate > targetDate)
-      continue
+    const arrivalDate =
+      delivery.expectedDate < today ? today : delivery.expectedDate
+    if (arrivalDate > targetDate) continue
 
     for (const item of delivery.items) {
       const stockItem = stockItemsByFood.get(item.foodMasterId)
       if (stockItem?.storageLocationId !== locationId) continue
 
       const arrivals =
-        arrivalsByDate.get(delivery.expectedDate) ?? new Map<string, number>()
+        arrivalsByDate.get(arrivalDate) ?? new Map<string, number>()
       arrivals.set(
         item.foodMasterId,
         (arrivals.get(item.foodMasterId) ?? 0) + item.quantity,
       )
-      arrivalsByDate.set(delivery.expectedDate, arrivals)
+      arrivalsByDate.set(arrivalDate, arrivals)
     }
   }
 
@@ -186,6 +197,18 @@ const projectLocationQuantityAtDate = (
   )
 }
 
+interface CapacityWarningGroup {
+  readonly storageLocationId: string
+  readonly storageLocationName: string
+  readonly expectedDate: string
+  readonly forecastDate: string
+  readonly capacity: number
+  readonly deliveries: Map<
+    string,
+    { readonly deliveryId: string; readonly changeDeadline: string | null }
+  >
+}
+
 const calculateCapacityWarnings = (
   snapshot: StockStatusSnapshot,
   today: JstDate,
@@ -202,12 +225,11 @@ const calculateCapacityWarnings = (
     stockItemsByLocation.set(item.storageLocationId, locationItems)
   }
 
-  const warnings: CapacityWarning[] = []
+  const groupsByLocation = new Map<string, Map<string, CapacityWarningGroup>>()
   for (const delivery of snapshot.plannedDeliveries) {
-    const daysUntilDelivery = daysBetween(today, delivery.expectedDate)
-    if (daysUntilDelivery < 0 || daysUntilDelivery > WARNING_WINDOW_DAYS) {
-      continue
-    }
+    const forecastDate =
+      delivery.expectedDate < today ? today : delivery.expectedDate
+    if (daysBetween(today, forecastDate) > WARNING_WINDOW_DAYS) continue
 
     const locationIds = new Set(
       delivery.items.flatMap((item) => {
@@ -231,28 +253,56 @@ const calculateCapacityWarnings = (
         continue
       }
 
+      const datesForLocation =
+        groupsByLocation.get(locationId) ??
+        new Map<string, CapacityWarningGroup>()
+      const group = datesForLocation.get(delivery.expectedDate) ?? {
+        storageLocationId: locationId,
+        storageLocationName: location.name,
+        expectedDate: delivery.expectedDate,
+        forecastDate,
+        capacity,
+        deliveries: new Map(),
+      }
+      group.deliveries.set(delivery.id, {
+        deliveryId: delivery.id,
+        changeDeadline: delivery.changeDeadline,
+      })
+      datesForLocation.set(delivery.expectedDate, group)
+      groupsByLocation.set(locationId, datesForLocation)
+    }
+  }
+
+  const warnings: CapacityWarning[] = []
+  for (const [locationId, datesForLocation] of groupsByLocation) {
+    const locationItems = stockItemsByLocation.get(locationId) ?? []
+    for (const group of datesForLocation.values()) {
       const projectedQuantity = projectLocationQuantityAtDate(
         snapshot,
         stockItemsByFood,
         locationItems,
         locationId,
-        delivery.expectedDate,
+        group.forecastDate,
         today,
         dailyConsumptionByFood,
       )
-      if (projectedQuantity <= capacity) continue
+      if (projectedQuantity <= group.capacity) continue
 
       warnings.push({
-        id: `capacity-overflow:${delivery.id}:${locationId}`,
-        storageLocationId: locationId,
-        storageLocationName: location.name,
-        deliveryId: delivery.id,
-        sourceRef: delivery.sourceRef,
-        expectedDate: delivery.expectedDate,
-        changeDeadline: delivery.changeDeadline,
+        id: [
+          'capacity-overflow',
+          group.storageLocationId,
+          group.expectedDate,
+        ].join(':'),
+        storageLocationId: group.storageLocationId,
+        storageLocationName: group.storageLocationName,
+        expectedDate: group.expectedDate,
+        deliveries: [...group.deliveries.values()].sort((left, right) =>
+          left.deliveryId.localeCompare(right.deliveryId),
+        ),
         projectedQuantity,
-        capacity,
-        excessQuantity: projectedQuantity - capacity,
+        capacity: group.capacity,
+        excessQuantity: projectedQuantity - group.capacity,
       })
     }
   }
@@ -261,7 +311,7 @@ const calculateCapacityWarnings = (
     (left, right) =>
       left.expectedDate.localeCompare(right.expectedDate) ||
       left.storageLocationName.localeCompare(right.storageLocationName) ||
-      left.deliveryId.localeCompare(right.deliveryId),
+      left.storageLocationId.localeCompare(right.storageLocationId),
   )
 }
 
@@ -270,25 +320,30 @@ const calculateEatByWarnings = (
 ): EatByWarning[] =>
   assessedLots
     .flatMap((assessment) => {
-      if (
-        assessment.target === null ||
-        assessment.risk === null ||
-        assessment.requiredDailyConsumption === null
-      ) {
-        return []
-      }
+      if (assessment.target === null || assessment.risk === null) return []
 
       return [
         {
-          id: `eat-by-risk:${assessment.lot.id}`,
+          id: [
+            'eat-by-risk',
+            assessment.lot.id,
+            assessment.target.date,
+            assessment.risk,
+          ].join(':'),
+          riskType: assessment.risk,
           stockLotId: assessment.lot.id,
           foodMasterId: assessment.item.foodMasterId,
           foodName: assessment.item.foodName,
           targetDate: assessment.target.date,
           targetDateType: assessment.target.type,
           remainingQuantity: assessment.lot.remainingQuantity,
-          requiredDailyConsumption: assessment.requiredDailyConsumption,
-          actualDailyConsumption: assessment.actualDailyConsumption,
+          quantityUsedForRate: assessment.quantityUsedForRate,
+          daysUntilTarget: assessment.daysUntilTarget,
+          requiredDailyConsumption:
+            assessment.requiredDailyConsumption === null
+              ? null
+              : roundRate(assessment.requiredDailyConsumption),
+          actualDailyConsumption: roundRate(assessment.actualDailyConsumption),
         },
       ]
     })
@@ -304,8 +359,6 @@ const calculatePriorityLots = (
 ): PriorityLot[] =>
   assessedLots
     .flatMap((assessment) => {
-      if (assessment.displayDate === null) return []
-
       const reasons: PriorityLot['reasons'][number][] = [
         assessment.target?.type ?? 'oldest_received',
       ]
@@ -313,32 +366,39 @@ const calculatePriorityLots = (
 
       return [
         {
-          foodMasterId: assessment.item.foodMasterId,
-          foodName: assessment.item.foodName,
-          stockLotId: assessment.lot.id,
-          remainingQuantity: assessment.lot.remainingQuantity,
-          targetDate: assessment.displayDate,
-          reasons,
+          assessment,
+          lot: {
+            foodMasterId: assessment.item.foodMasterId,
+            foodName: assessment.item.foodName,
+            stockLotId: assessment.lot.id,
+            remainingQuantity: assessment.lot.remainingQuantity,
+            targetDate: assessment.target?.date ?? null,
+            reasons,
+          },
         },
       ]
     })
     .sort((left, right) => {
-      const leftUndated = left.reasons.includes('oldest_received')
-      const rightUndated = right.reasons.includes('oldest_received')
-      const leftPaceRisk = left.reasons.includes(
+      const leftUndated = left.assessment.target === null
+      const rightUndated = right.assessment.target === null
+      const leftPaceRisk = left.lot.reasons.includes(
         'consumption_rate_below_required',
       )
-      const rightPaceRisk = right.reasons.includes(
+      const rightPaceRisk = right.lot.reasons.includes(
         'consumption_rate_below_required',
       )
       return (
         Number(leftUndated) - Number(rightUndated) ||
-        left.targetDate.localeCompare(right.targetDate) ||
+        (left.lot.targetDate ?? '').localeCompare(right.lot.targetDate ?? '') ||
         Number(rightPaceRisk) - Number(leftPaceRisk) ||
-        left.foodName.localeCompare(right.foodName) ||
-        left.stockLotId.localeCompare(right.stockLotId)
+        (left.assessment.lot.receivedDate ?? '').localeCompare(
+          right.assessment.lot.receivedDate ?? '',
+        ) ||
+        left.lot.foodName.localeCompare(right.lot.foodName) ||
+        left.lot.stockLotId.localeCompare(right.lot.stockLotId)
       )
     })
+    .map(({ lot }) => lot)
 
 export const calculateStockStatus = (
   snapshot: StockStatusSnapshot,

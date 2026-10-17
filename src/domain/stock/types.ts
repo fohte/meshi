@@ -120,24 +120,35 @@ export interface CapacityWarning {
   readonly id: string
   readonly storageLocationId: string
   readonly storageLocationName: string
-  readonly deliveryId: string
-  readonly sourceRef: string | null
   readonly expectedDate: string
-  readonly changeDeadline: string | null
+  readonly deliveries: ReadonlyArray<{
+    readonly deliveryId: string
+    readonly changeDeadline: string | null
+  }>
   readonly projectedQuantity: number
   readonly capacity: number
   readonly excessQuantity: number
 }
 
+export const EAT_BY_WARNING_RISK_TYPES = [
+  'deadline_passed',
+  'consumption_rate_below_required',
+] as const
+
+export type EatByWarningRiskType = (typeof EAT_BY_WARNING_RISK_TYPES)[number]
+
 export interface EatByWarning {
   readonly id: string
+  readonly riskType: EatByWarningRiskType
   readonly stockLotId: string
   readonly foodMasterId: string
   readonly foodName: string
   readonly targetDate: string
   readonly targetDateType: TargetDateType
   readonly remainingQuantity: number
-  readonly requiredDailyConsumption: number
+  readonly quantityUsedForRate: number | null
+  readonly daysUntilTarget: number | null
+  readonly requiredDailyConsumption: number | null
   readonly actualDailyConsumption: number
 }
 
@@ -160,7 +171,7 @@ export interface PriorityLot {
   readonly foodName: string
   readonly stockLotId: string
   readonly remainingQuantity: number
-  readonly targetDate: string
+  readonly targetDate: string | null
   readonly reasons: ReadonlyArray<PriorityLotReason>
 }
 

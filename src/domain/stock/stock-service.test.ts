@@ -238,3 +238,85 @@ it.each(invalidReceiveInputs)('rejects $name', async ({ input, message }) => {
     new StockDomainError('invalid_input', message),
   )
 })
+
+it('uses the JST calendar date when evaluating the delivery warning window', async () => {
+  const repositoryWithDelivery: StockRepository = {
+    ...repository,
+    getStockStatus: () =>
+      okAsync({
+        stockItems: [
+          {
+            foodMasterId: 'fm_boundary',
+            foodName: 'Sample food',
+            storageLocationId: 'sl_boundary',
+            storageLocation: { name: 'Sample freezer', capacity: 1 },
+            eatWithinDays: null,
+            totalQuantity: 0,
+            lots: [],
+          },
+        ],
+        plannedDeliveries: [
+          {
+            id: 'dly_boundary',
+            sourceRef: null,
+            expectedDate: '2026-10-22',
+            changeDeadline: null,
+            items: [
+              {
+                foodMasterId: 'fm_boundary',
+                foodName: 'Sample food',
+                quantity: 2,
+              },
+            ],
+          },
+        ],
+        recentConsumption: [],
+      }),
+  }
+  const service = createStockService(repositoryWithDelivery, {
+    now: () => new Date('2026-10-18T23:30:00.000Z'),
+  })
+
+  expect((await service.getStockStatus())._unsafeUnwrap()).toEqual({
+    stockItems: [
+      {
+        foodMasterId: 'fm_boundary',
+        foodName: 'Sample food',
+        storageLocationId: 'sl_boundary',
+        storageLocation: { name: 'Sample freezer', capacity: 1 },
+        eatWithinDays: null,
+        totalQuantity: 0,
+        lots: [],
+      },
+    ],
+    plannedDeliveries: [
+      {
+        id: 'dly_boundary',
+        sourceRef: null,
+        expectedDate: '2026-10-22',
+        changeDeadline: null,
+        items: [
+          {
+            foodMasterId: 'fm_boundary',
+            foodName: 'Sample food',
+            quantity: 2,
+          },
+        ],
+      },
+    ],
+    capacityWarnings: [
+      {
+        id: 'capacity-overflow:sl_boundary:2026-10-22',
+        storageLocationId: 'sl_boundary',
+        storageLocationName: 'Sample freezer',
+        expectedDate: '2026-10-22',
+        deliveries: [{ deliveryId: 'dly_boundary', changeDeadline: null }],
+        projectedQuantity: 2,
+        capacity: 1,
+        excessQuantity: 1,
+      },
+    ],
+    eatByWarnings: [],
+    priorityLots: [],
+  })
+})

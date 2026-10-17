@@ -1,6 +1,10 @@
 import { z } from 'zod'
 
-import { PRIORITY_LOT_REASONS, TARGET_DATE_TYPES } from '#domain/stock/types'
+import {
+  EAT_BY_WARNING_RISK_TYPES,
+  PRIORITY_LOT_REASONS,
+  TARGET_DATE_TYPES,
+} from '#domain/stock/types'
 import { deliveryStructuredItemOutput } from '#mcp-tools/delivery-schemas'
 
 export const getStockStatusInput = z.object({}).strict()
@@ -44,10 +48,13 @@ export const getStockStatusStructuredOutput = z.object({
       id: z.string(),
       storage_location_id: z.string(),
       storage_location_name: z.string(),
-      delivery_id: z.string(),
-      source_ref: z.string().nullable(),
       expected_date: z.iso.date(),
-      change_deadline: z.iso.date().nullable(),
+      deliveries: z.array(
+        z.object({
+          delivery_id: z.string(),
+          change_deadline: z.iso.date().nullable(),
+        }),
+      ),
       projected_quantity: z.number(),
       capacity: z.number(),
       excess_quantity: z.number(),
@@ -56,13 +63,16 @@ export const getStockStatusStructuredOutput = z.object({
   eat_by_warnings: z.array(
     z.object({
       id: z.string(),
+      risk_type: z.enum(EAT_BY_WARNING_RISK_TYPES),
       stock_lot_id: z.string(),
       food_master_id: z.string(),
       food_name: z.string(),
       target_date: z.iso.date(),
       target_date_type: z.enum(TARGET_DATE_TYPES),
       remaining_quantity: z.number(),
-      required_daily_consumption: z.number(),
+      quantity_used_for_rate: z.number().nullable(),
+      days_until_target: z.number().int().nullable(),
+      required_daily_consumption: z.number().nullable(),
       actual_daily_consumption: z.number(),
     }),
   ),
@@ -72,7 +82,7 @@ export const getStockStatusStructuredOutput = z.object({
       food_name: z.string(),
       stock_lot_id: z.string(),
       remaining_quantity: z.number(),
-      target_date: z.iso.date(),
+      target_date: z.iso.date().nullable(),
       reasons: z.array(z.enum(PRIORITY_LOT_REASONS)),
     }),
   ),

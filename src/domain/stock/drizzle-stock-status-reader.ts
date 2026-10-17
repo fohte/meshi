@@ -121,8 +121,8 @@ export const createStockStatusReader =
           SELECT ml.food_master_id, SUM(ml.quantity)::text AS quantity
           FROM meal_logs ml
           JOIN stock_items si ON si.food_master_id = ml.food_master_id
-          WHERE ml.eaten_date >= ${today}::date - 13
-            AND ml.eaten_date <= ${today}::date
+          WHERE ml.eaten_date >= ${today}::date - 14
+            AND ml.eaten_date < ${today}::date
           GROUP BY ml.food_master_id
         )
         SELECT
