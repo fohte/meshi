@@ -20,7 +20,7 @@ export const registerGetStockStatusTool = (
     'get_stock_status',
     {
       description:
-        '在庫管理の対象になっている食品について、合計残数、入荷分ごとの残数と日付、保存場所と容量を返す。',
+        '在庫管理の対象になっている食品の残数、入荷分ごとの日付、保存場所と容量、および受領前の入荷予定を返す。',
       inputSchema: getStockStatusInput,
       outputSchema: getStockStatusStructuredOutput,
       annotations: { readOnlyHint: true },
@@ -28,9 +28,9 @@ export const registerGetStockStatusTool = (
     async () => {
       logger.log(TOOL_CALLED, { tool: 'get_stock_status' })
       return stockService.getStockStatus().match(
-        (items) => {
+        (status) => {
           const payload = {
-            stock_items: items.map((item) => ({
+            stock_items: status.stockItems.map((item) => ({
               food_master_id: item.foodMasterId,
               food_name: item.foodName,
               total_quantity: item.totalQuantity,
@@ -45,16 +45,28 @@ export const registerGetStockStatusTool = (
                 eat_by: lot.eatBy,
               })),
             })),
+            planned_deliveries: status.plannedDeliveries.map((delivery) => ({
+              delivery_id: delivery.id,
+              source_ref: delivery.sourceRef,
+              expected_date: delivery.expectedDate,
+              change_deadline: delivery.changeDeadline,
+              items: delivery.items.map((item) => ({
+                food_master_id: item.foodMasterId,
+                food_name: item.foodName,
+                quantity: item.quantity,
+              })),
+            })),
           }
           logger.log(TOOL_SUCCEEDED, {
             tool: 'get_stock_status',
-            stock_item_count: items.length,
+            stock_item_count: status.stockItems.length,
+            planned_delivery_count: status.plannedDeliveries.length,
           })
           return {
             content: [
               {
                 type: 'text' as const,
-                text: `${String(items.length)} 件の在庫状況を取得しました。`,
+                text: `${String(status.stockItems.length)} 件の在庫状況と ${String(status.plannedDeliveries.length)} 件の入荷予定を取得しました。`,
               },
             ],
             structuredContent: payload,

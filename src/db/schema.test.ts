@@ -18,6 +18,7 @@ describeIfDb('schema migrations', () => {
       ORDER BY table_name
     `
     expect(rows.map((r) => r.table_name)).toEqual([
+      'deliveries',
       'food_composition_nutrients',
       'food_compositions',
       'food_master_aliases',
@@ -37,18 +38,28 @@ describeIfDb('schema migrations', () => {
     ])
   })
 
-  it('creates the food_source, nutrient_unit, and meal_type enums with expected values', async () => {
+  it('creates the expected enums with their values', async () => {
     const sql = getTestSql()
     const rows = await sql<{ typname: string; labels: string[] }[]>`
       SELECT t.typname,
              array_agg(e.enumlabel ORDER BY e.enumsortorder) AS labels
       FROM pg_type t
       JOIN pg_enum e ON e.enumtypid = t.oid
-      WHERE t.typname IN ('a2a_task_state', 'food_source', 'nutrient_unit', 'meal_type')
+      WHERE t.typname IN (
+        'a2a_task_state',
+        'delivery_status',
+        'food_source',
+        'nutrient_unit',
+        'meal_type'
+      )
       GROUP BY t.typname
       ORDER BY t.typname
     `
     expect(rows).toEqual([
+      {
+        typname: 'delivery_status',
+        labels: ['planned', 'received', 'cancelled'],
+      },
       {
         typname: 'food_source',
         labels: [
@@ -362,6 +373,13 @@ describeIfDb('schema migrations', () => {
         ref_table: 'storage_locations',
         on_update: 'c',
         on_delete: 'n',
+      },
+      {
+        conname: 'stock_lots_delivery_id_fk',
+        table_name: 'stock_lots',
+        ref_table: 'deliveries',
+        on_update: 'c',
+        on_delete: 'r',
       },
       {
         conname: 'stock_lots_food_master_id_fk',

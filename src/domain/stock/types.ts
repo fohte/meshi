@@ -16,6 +16,43 @@ export interface CountStockInput {
   readonly bestBefore?: string | null
 }
 
+export interface DeliveryItemInput {
+  readonly foodMasterId: string
+  readonly quantity: number
+}
+
+export type RegisterableDeliveryStatus = 'planned' | 'cancelled'
+
+export interface RegisterDeliveryInput {
+  readonly sourceRef?: string | null
+  readonly status: RegisterableDeliveryStatus
+  readonly expectedDate: string
+  readonly changeDeadline?: string | null
+  readonly items: ReadonlyArray<DeliveryItemInput>
+}
+
+export interface ReceiveDeliveryInput {
+  readonly deliveryId: string
+  readonly receivedDate: string
+  readonly items?: ReadonlyArray<DeliveryItemInput>
+}
+
+export interface DeliveryItem {
+  readonly foodMasterId: string
+  readonly foodName: string
+  readonly quantity: number
+}
+
+export interface Delivery {
+  readonly id: string
+  readonly sourceRef: string | null
+  readonly status: 'planned' | 'received' | 'cancelled'
+  readonly expectedDate: string
+  readonly receivedDate: string | null
+  readonly changeDeadline: string | null
+  readonly items: ReadonlyArray<DeliveryItem>
+}
+
 interface StockStorageLocation {
   readonly name: string
   readonly capacity: number | null
@@ -49,6 +86,19 @@ export interface StockItemStatus extends StockItem {
   readonly lots: ReadonlyArray<StockLotStatus>
 }
 
+export interface PlannedDelivery {
+  readonly id: string
+  readonly sourceRef: string | null
+  readonly expectedDate: string
+  readonly changeDeadline: string | null
+  readonly items: ReadonlyArray<DeliveryItem>
+}
+
+export interface StockStatus {
+  readonly stockItems: ReadonlyArray<StockItemStatus>
+  readonly plannedDeliveries: ReadonlyArray<PlannedDelivery>
+}
+
 export interface StockRepository {
   setStockItem(
     input: SetStockItemInput,
@@ -56,10 +106,13 @@ export interface StockRepository {
   countStock(
     input: CountStockInput,
   ): ResultAsync<StockCountResult, StockDomainError>
-  getStockStatus(): ResultAsync<
-    ReadonlyArray<StockItemStatus>,
-    StockDomainError
-  >
+  registerDelivery(
+    input: RegisterDeliveryInput,
+  ): ResultAsync<Delivery, StockDomainError>
+  receiveDelivery(
+    input: ReceiveDeliveryInput,
+  ): ResultAsync<Delivery, StockDomainError>
+  getStockStatus(): ResultAsync<StockStatus, StockDomainError>
 }
 
 export interface StockService {
@@ -69,8 +122,11 @@ export interface StockService {
   countStock(
     input: CountStockInput,
   ): ResultAsync<StockCountResult, StockDomainError>
-  getStockStatus(): ResultAsync<
-    ReadonlyArray<StockItemStatus>,
-    StockDomainError
-  >
+  registerDelivery(
+    input: RegisterDeliveryInput,
+  ): ResultAsync<Delivery, StockDomainError>
+  receiveDelivery(
+    input: ReceiveDeliveryInput,
+  ): ResultAsync<Delivery, StockDomainError>
+  getStockStatus(): ResultAsync<StockStatus, StockDomainError>
 }

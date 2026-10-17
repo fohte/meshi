@@ -1,6 +1,8 @@
 import type { Sql } from '#db/index'
 import { defaultIdGenerator, type IdGenerator } from '#domain/food-master/id'
 import { createStockCounter } from '#domain/stock/drizzle-stock-counter'
+import { createStockDeliveryReceiver } from '#domain/stock/drizzle-stock-delivery-receiver'
+import { createStockDeliveryWriter } from '#domain/stock/drizzle-stock-delivery-writer'
 import { createStockItemWriter } from '#domain/stock/drizzle-stock-item-writer'
 import { createStockStatusReader } from '#domain/stock/drizzle-stock-status-reader'
 import type { StockRepository } from '#domain/stock/types'
@@ -20,6 +22,16 @@ export const createDrizzleStockRepository = (
   return {
     setStockItem: createStockItemWriter(pgSql, generateId, wrapInTransaction),
     countStock: createStockCounter(pgSql, generateId, wrapInTransaction),
+    registerDelivery: createStockDeliveryWriter(
+      pgSql,
+      generateId,
+      wrapInTransaction,
+    ),
+    receiveDelivery: createStockDeliveryReceiver(
+      pgSql,
+      generateId,
+      wrapInTransaction,
+    ),
     getStockStatus: createStockStatusReader(pgSql),
   }
 }

@@ -3,6 +3,9 @@ import { CodedDomainError } from '#domain/errors'
 export type StockDomainErrorCode =
   | 'food_master_not_found'
   | 'stock_item_not_found'
+  | 'delivery_not_found'
+  | 'delivery_not_planned'
+  | 'delivery_item_not_found'
   | 'invalid_input'
   | 'persistence_failed'
 

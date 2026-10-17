@@ -633,7 +633,7 @@ const start = async (config: HarnessConfig = {}): Promise<Harness> => {
 }
 
 describe('MeshiMcpServer tools/list', () => {
-  it('exposes the eighteen public tools with stable names', async () => {
+  it('exposes the twenty public tools with stable names', async () => {
     const h = await start()
     try {
       const result = await h.client.listTools()
@@ -648,8 +648,10 @@ describe('MeshiMcpServer tools/list', () => {
         'get_stock_status',
         'merge_food_master',
         'query_meals',
+        'receive_delivery',
         'record_meal_log',
         'record_meal_skip',
+        'register_delivery',
         'register_food',
         'register_food_from_composition',
         'register_food_without_nutrition',
@@ -782,8 +784,16 @@ describe('MeshiMcpServer tools/list', () => {
           'survivor_food_master_id',
         ],
         query_meals: ['period_from', 'period_to'],
+        receive_delivery: ['delivery_id', 'items', 'received_date'],
         record_meal_log: ['date', 'items', 'meal_type'],
         record_meal_skip: ['date', 'meal_type'],
+        register_delivery: [
+          'change_deadline',
+          'expected_date',
+          'items',
+          'source_ref',
+          'status',
+        ],
         register_food_from_composition: ['aliases', 'composition_code', 'name'],
         search_foods: ['limit', 'origin', 'queries'],
         set_stock_item: [
@@ -840,6 +850,26 @@ describe('MeshiMcpServer tools/list', () => {
       expect(requiredByTool).toEqual({
         cancel_meal_skip: ['date', 'meal_type'],
         record_meal_skip: ['date', 'meal_type'],
+      })
+    } finally {
+      await h.close()
+    }
+  })
+
+  it('requires dates and delivery identity for delivery operations', async () => {
+    const h = await start()
+    try {
+      const result = await h.client.listTools()
+      const requiredByTool = Object.fromEntries(
+        result.tools
+          .filter((tool) =>
+            ['register_delivery', 'receive_delivery'].includes(tool.name),
+          )
+          .map((tool) => [tool.name, tool.inputSchema.required]),
+      )
+      expect(requiredByTool).toEqual({
+        receive_delivery: ['delivery_id', 'received_date'],
+        register_delivery: ['status', 'expected_date', 'items'],
       })
     } finally {
       await h.close()

@@ -1,5 +1,6 @@
 import type { Sql } from '#db/index'
 import type {
+  deliveries,
   foodCompositionNutrients,
   foodCompositions,
   foodMasterAliases,
@@ -207,6 +208,21 @@ export const seedStockItem = async (
   `
 }
 
+export const seedDelivery = async (
+  sql: Sql,
+  values: Omit<typeof deliveries.$inferInsert, 'createdAt'>,
+): Promise<void> => {
+  await sql`
+    INSERT INTO deliveries (
+      id, source_ref, status, expected_date, received_date, change_deadline
+    ) VALUES (
+      ${values.id}, ${values.sourceRef ?? null},
+      ${values.status ?? 'planned'}, ${values.expectedDate},
+      ${values.receivedDate ?? null}, ${values.changeDeadline ?? null}
+    )
+  `
+}
+
 export const seedStockLot = async (
   sql: Sql,
   values: Omit<typeof stockLots.$inferInsert, 'createdAt' | 'quantity'> & {
@@ -215,9 +231,10 @@ export const seedStockLot = async (
 ): Promise<void> => {
   await sql`
     INSERT INTO stock_lots (
-      id, food_master_id, quantity, received_date, best_before, eat_by
+      id, food_master_id, delivery_id, quantity, received_date, best_before, eat_by
     ) VALUES (
-      ${values.id}, ${values.foodMasterId}, ${values.quantity},
+      ${values.id}, ${values.foodMasterId}, ${values.deliveryId ?? null},
+      ${values.quantity},
       ${values.receivedDate ?? null}, ${values.bestBefore ?? null},
       ${values.eatBy ?? null}
     )
