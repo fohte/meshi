@@ -60,6 +60,8 @@ The server fails fast on missing required env at startup. This table covers ever
 
 ### Run
 
+Set the required `R2_*` variables in `.env` before starting the server. mise loads `.env` and `.env.local` for local commands, while Compose reads `.env` and passes the values to the app. The access key needs object read, write, and delete permissions on the selected bucket; objects are stored under `meal-photos/`.
+
 ```sh
 pnpm build && pnpm start   # one-shot, from the built dist/
 pnpm dev                   # tsx watch, no build step
@@ -70,8 +72,6 @@ To create `meshi_dev`, run `mise run db:up` once before starting the app in a co
 ```sh
 docker compose up app
 ```
-
-Set the required `R2_*` variables before starting the server. `pnpm dev` reads them from `.env.local` through mise, and Compose reads them from `.env` and passes them to the app. The access key needs object read, write, and delete permissions on the selected bucket; objects are stored under `meal-photos/`.
 
 It's published to a random host port; find it with `docker compose port app 8080`.
 
