@@ -45,23 +45,24 @@ export interface UpdateMealLogInput {
   readonly quantity?: number
 }
 
-export const postMealLog = (
+export function postMealLog(
   input: RecordMealLogInput,
-): ResultAsync<MealLogResult, ApiRequestError> =>
-  requestJson('/api/meal-logs', mealLogResultSchema, {
-    method: 'POST',
-    headers: { 'content-type': 'application/json' },
-    body: JSON.stringify(input),
-  })
-
-export const postMealLogs = (
+): ResultAsync<MealLogResult, ApiRequestError>
+export function postMealLog(
   input: RecordMealLogsInput,
-): ResultAsync<ReadonlyArray<MealLogResult>, ApiRequestError> =>
-  requestJson('/api/meal-logs', z.array(mealLogResultSchema), {
+): ResultAsync<ReadonlyArray<MealLogResult>, ApiRequestError>
+export function postMealLog(
+  input: RecordMealLogInput | RecordMealLogsInput,
+): ResultAsync<MealLogResult | ReadonlyArray<MealLogResult>, ApiRequestError> {
+  const responseSchema =
+    'items' in input ? z.array(mealLogResultSchema) : mealLogResultSchema
+
+  return requestJson('/api/meal-logs', responseSchema, {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify(input),
   })
+}
 
 export const patchMealLog = (
   id: string,
