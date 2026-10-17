@@ -1,6 +1,8 @@
 import type { Meta, StoryObj } from '@storybook/react-vite'
 
 import type { DayDetailEntry } from '#api/day-detail'
+import type { MealPhoto } from '#api/meal-photos'
+import { MealPhotoGallery } from '#components/MealPhotoGallery/MealPhotoGallery'
 import { buildMealTimelineGroups } from '#components/MealTimeline/build-meal-timeline-groups'
 import { MealTimeline } from '#components/MealTimeline/MealTimeline'
 
@@ -95,9 +97,39 @@ const ENTRY_WITHOUT_KCAL: DayDetailEntry = {
   nutritionStatus: 'confirmed',
 }
 
+const MEAL_PHOTO: MealPhoto = {
+  id: 'meal_photo_one',
+  date: '2026-07-29',
+  mealType: 'breakfast',
+  contentType: 'image/jpeg',
+  createdAt: '2026-07-29T03:00:01.000Z',
+  contentUrl:
+    'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120"%3E%3Crect width="120" height="120" fill="%232a2a2a"/%3E%3Ccircle cx="60" cy="60" r="32" fill="%23ef4444"/%3E%3C/svg%3E',
+}
+
 export const WithoutKcalValue: Story = {
   name: 'エネルギー値が登録されていない食品を含んでいます',
   args: {
     groups: buildMealTimelineGroups([...ENTRIES, ENTRY_WITHOUT_KCAL], []),
+  },
+}
+
+export const WithMealPhoto: Story = {
+  name: '朝食の見出しの下に写真を並べています',
+  args: {
+    groups: buildMealTimelineGroups(ENTRIES, []),
+    renderMealPhotos: (mealType) =>
+      mealType === 'breakfast' ? (
+        <MealPhotoGallery
+          mealName="朝食"
+          photos={[MEAL_PHOTO]}
+          onUpload={() => undefined}
+          onPhotoClick={() => undefined}
+          onClosePreview={() => undefined}
+          onRequestDelete={() => undefined}
+          onCancelDeleteConfirmation={() => undefined}
+          onDeletePhoto={() => undefined}
+        />
+      ) : null,
   },
 }
