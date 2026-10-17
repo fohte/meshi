@@ -24,6 +24,10 @@ import { createDrizzleFoodMatcher } from '#domain/food-matcher/index'
 import { createMealHistoryService } from '#domain/meal-history/index'
 import { createDrizzleMealLogRepository } from '#domain/meal-log/drizzle-meal-log-repository'
 import { createMealLogService } from '#domain/meal-log/meal-log-service'
+import {
+  createDrizzleMealSetRepository,
+  createMealSetService,
+} from '#domain/meal-set/index'
 import { createDrizzleMealSkipRepository } from '#domain/meal-skip/drizzle-meal-skip-repository'
 import { createMealSkipService } from '#domain/meal-skip/meal-skip-service'
 import { createDrizzleNutrientDefinitionRepository } from '#domain/nutrient-definition/index'
@@ -78,6 +82,10 @@ export const main = async (): Promise<void> => {
     idGenerator: () => randomUUID(),
     now: () => new Date(),
   })
+  const mealSetService = createMealSetService({
+    repository: createDrizzleMealSetRepository(sql),
+    idGenerator: () => randomUUID(),
+  })
   const foodMatcher = createDrizzleFoodMatcher(sql)
   const foodSearchService = createFoodSearchService(sql, foodMatcher)
   const mealHistoryService = createMealHistoryService(sql)
@@ -113,6 +121,7 @@ export const main = async (): Promise<void> => {
     foodBrowseService,
     foodDetailService,
     mealLogService,
+    mealSetService,
     foodMasterService,
     mealSkipService,
   })

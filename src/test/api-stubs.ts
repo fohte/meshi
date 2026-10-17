@@ -3,6 +3,7 @@ import { errAsync, okAsync } from 'neverthrow'
 import type { ApiDeps } from '#api/index'
 import { FoodMasterDomainError } from '#domain/food-master/errors'
 import { MealLogPersistenceError } from '#domain/meal-log/errors'
+import { MealSetPersistenceError } from '#domain/meal-set/errors'
 import { MealSkipPersistenceError } from '#domain/meal-skip/errors'
 import { DEFAULT_USER_PROFILE } from '#domain/user-profile/user-profile'
 
@@ -66,6 +67,23 @@ export const createStubApiDeps = (): ApiDeps => ({
       errAsync(
         new MealLogPersistenceError('mealLogService.deleteMany not stubbed'),
       ),
+  },
+  mealSetService: {
+    register: () =>
+      errAsync(
+        new MealSetPersistenceError('mealSetService.register not stubbed'),
+      ),
+    list: () => okAsync([]),
+    getById: () => okAsync(null),
+    update: () =>
+      errAsync(
+        new MealSetPersistenceError('mealSetService.update not stubbed'),
+      ),
+    delete: () =>
+      errAsync(
+        new MealSetPersistenceError('mealSetService.delete not stubbed'),
+      ),
+    searchByName: () => okAsync([]),
   },
   foodMasterService: {
     fillNutrition: () =>
