@@ -1,8 +1,11 @@
 import type { Context, Hono } from 'hono'
 import { z } from 'zod'
 
-import { jsonBadRequest, jsonServerError, parseJsonBody } from '#api/errors'
-import type { DomainError } from '#domain/meal-log/errors'
+import { jsonServerError, parseJsonBody } from '#api/errors'
+import {
+  type DomainError,
+  MealLogItemValidationError,
+} from '#domain/meal-log/errors'
 import type { MealLogService } from '#domain/meal-log/meal-log-service'
 import type { MealLogResult } from '#domain/meal-log/types'
 import { MEAL_TYPES } from '#domain/meal-log/types'
@@ -24,21 +27,59 @@ const CLIENT_ERROR_CODES = new Set([
 // hits genuine DB errors, this needs to route by error code instead of
 // collapsing everything to 500.
 const mealLogErrorResponse = (c: Context, error: DomainError): Response => {
+  const errorBody =
+    error instanceof MealLogItemValidationError
+      ? { error: error.message, itemIndex: error.itemIndex }
+      : { error: error.message }
   if (NOT_FOUND_CODES.has(error.code)) {
-    return c.json({ error: error.message }, 404)
+    return c.json(errorBody, 404)
   }
   if (CLIENT_ERROR_CODES.has(error.code)) {
-    return jsonBadRequest(c, error.message)
+    return c.json(errorBody, 400)
   }
   return jsonServerError(c, error)
 }
 
-const recordMealLogBodySchema = z.object({
+const recordSingleMealLogBodySchema = z.object({
   foodMasterId: z.string().min(1),
   eatenDate: jstDateSchema,
   mealType: z.enum(MEAL_TYPES),
   quantity: z.number().positive(),
 })
+
+const recordBatchMealLogBodySchema = z.object({
+  eatenDate: jstDateSchema,
+  mealType: z.enum(MEAL_TYPES),
+  items: z
+    .array(
+      z.object({
+        foodMasterId: z.string().min(1),
+        quantity: z.number().positive(),
+      }),
+    )
+    .min(1),
+})
+
+const recordMealLogBodySchema = z.preprocess(
+  (body: unknown) => {
+    const isBatchRequest =
+      typeof body === 'object' &&
+      body !== null &&
+      !Array.isArray(body) &&
+      'items' in body
+    return {
+      type: isBatchRequest ? 'batch' : 'single',
+      body,
+    }
+  },
+  z.discriminatedUnion('type', [
+    z.object({
+      type: z.literal('single'),
+      body: recordSingleMealLogBodySchema,
+    }),
+    z.object({ type: z.literal('batch'), body: recordBatchMealLogBodySchema }),
+  ]),
+)
 
 const updateMealLogBodySchema = z.object({
   foodMasterId: z.string().min(1).optional(),
@@ -67,12 +108,15 @@ export const mountMealLogRoutes = (
     const parsed = await parseJsonBody(c, recordMealLogBodySchema)
     if (parsed.isErr()) return parsed.error
 
-    const result = await mealLogService.record({
-      foodMasterId: parsed.value.foodMasterId,
-      eatenDate: parsed.value.eatenDate,
-      mealType: parsed.value.mealType,
-      quantity: parsed.value.quantity,
-    })
+    if (parsed.value.type === 'batch') {
+      const result = await mealLogService.recordMany(parsed.value.body)
+      return result.match(
+        (mealLogs) => c.json(mealLogs.map(toMealLogJson), 201),
+        (error) => mealLogErrorResponse(c, error),
+      )
+    }
+
+    const result = await mealLogService.record(parsed.value.body)
     return result.match(
       (mealLog) => c.json(toMealLogJson(mealLog), 201),
       (error) => mealLogErrorResponse(c, error),
