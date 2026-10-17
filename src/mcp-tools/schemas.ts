@@ -5,13 +5,17 @@ import { NUTRITION_STATUSES } from '#domain/food-master/types'
 import { hasDuplicateAfterTrim } from '#domain/food-master/validation'
 import { MEAL_TYPES } from '#domain/meal-log/types'
 import { jstDateSchema } from '#lib/jst-date'
-import { deliveryStructuredItemOutput } from '#mcp-tools/delivery-schemas'
+import { stockStorageLocationOutput } from '#mcp-tools/stock-status-schemas'
 
 export {
   deliveryStructuredOutput,
   receiveDeliveryInput,
   registerDeliveryInput,
 } from '#mcp-tools/delivery-schemas'
+export {
+  getStockStatusInput,
+  getStockStatusStructuredOutput,
+} from '#mcp-tools/stock-status-schemas'
 
 // z.number() rejects NaN and Infinity by default in zod v4, so it is safe to
 // reuse this schema on the MCP input boundary (update_profile.daily_targets).
@@ -424,11 +428,6 @@ export const setStockItemInput = z
     },
   )
 
-const stockStorageLocationOutput = z.object({
-  name: z.string(),
-  capacity: z.number().nullable(),
-})
-
 export const setStockItemStructuredOutput = z.object({
   food_master_id: z.string(),
   food_name: z.string(),
@@ -450,37 +449,4 @@ export const countStockStructuredOutput = z.object({
   previous_quantity: z.number(),
   counted_quantity: z.number(),
   difference: z.number(),
-})
-
-export const getStockStatusInput = z.object({}).strict()
-
-export const getStockStatusStructuredOutput = z.object({
-  stock_items: z.array(
-    z.object({
-      food_master_id: z.string(),
-      food_name: z.string(),
-      total_quantity: z.number(),
-      storage_location: stockStorageLocationOutput.nullable(),
-      eat_within_days: z.number().int().nullable(),
-      lots: z.array(
-        z.object({
-          stock_lot_id: z.string(),
-          quantity: z.number(),
-          remaining_quantity: z.number(),
-          received_date: z.iso.date().nullable(),
-          best_before: z.iso.date().nullable(),
-          eat_by: z.iso.date().nullable(),
-        }),
-      ),
-    }),
-  ),
-  planned_deliveries: z.array(
-    z.object({
-      delivery_id: z.string(),
-      source_ref: z.string().nullable(),
-      expected_date: z.iso.date(),
-      change_deadline: z.iso.date().nullable(),
-      items: z.array(deliveryStructuredItemOutput),
-    }),
-  ),
 })
