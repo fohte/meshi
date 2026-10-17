@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import { ApiRequestError } from '#api/errors'
-import { deleteMealLog, mealLogsApi, patchMealLog } from '#api/meal-logs'
+import { deleteMealLog, patchMealLog, postMealLog } from '#api/meal-logs'
 
 const mockFetchOk = (body: unknown): ReturnType<typeof vi.fn> => {
   const fetchMock = vi.fn().mockResolvedValue({
@@ -12,14 +12,6 @@ const mockFetchOk = (body: unknown): ReturnType<typeof vi.fn> => {
   vi.stubGlobal('fetch', fetchMock)
   return fetchMock
 }
-
-const requestSnapshot = (
-  fetchMock: ReturnType<typeof vi.fn>,
-  result: unknown,
-) => ({
-  calls: fetchMock.mock.calls,
-  result,
-})
 
 afterEach(() => {
   vi.unstubAllGlobals()
@@ -37,11 +29,11 @@ const SAMPLE_JSON = {
   createdAt: '2026-07-29T03:00:01.000Z',
 }
 
-describe('mealLogsApi.postMealLog', () => {
+describe('postMealLog', () => {
   it('posts to /api/meal-logs with a JSON body and resolves with the result', async () => {
     const fetchMock = mockFetchOk(SAMPLE_JSON)
 
-    const result = await mealLogsApi.postMealLog({
+    const result = await postMealLog({
       foodMasterId: 'fm_unknown',
       eatenDate: '2026-07-29',
       mealType: 'breakfast',
@@ -59,48 +51,6 @@ describe('mealLogsApi.postMealLog', () => {
       }),
     })
     expect(result._unsafeUnwrap()).toEqual(SAMPLE_JSON)
-  })
-})
-
-describe('mealLogsApi.postMealLogs', () => {
-  it('posts multiple meal logs and resolves with the result array', async () => {
-    const secondResult = {
-      ...SAMPLE_JSON,
-      id: 'ml_2',
-      foodMasterId: 'fm_oats',
-      quantity: 50,
-    }
-    const fetchMock = mockFetchOk([SAMPLE_JSON, secondResult])
-
-    const result = await mealLogsApi.postMealLogs({
-      eatenDate: '2026-07-29',
-      mealType: 'breakfast',
-      items: [
-        { foodMasterId: 'fm_unknown', quantity: 150 },
-        { foodMasterId: 'fm_oats', quantity: 50 },
-      ],
-    })
-
-    expect(requestSnapshot(fetchMock, result._unsafeUnwrap())).toEqual({
-      calls: [
-        [
-          '/api/meal-logs',
-          {
-            method: 'POST',
-            headers: { 'content-type': 'application/json' },
-            body: JSON.stringify({
-              eatenDate: '2026-07-29',
-              mealType: 'breakfast',
-              items: [
-                { foodMasterId: 'fm_unknown', quantity: 150 },
-                { foodMasterId: 'fm_oats', quantity: 50 },
-              ],
-            }),
-          },
-        ],
-      ],
-      result: [SAMPLE_JSON, secondResult],
-    })
   })
 })
 

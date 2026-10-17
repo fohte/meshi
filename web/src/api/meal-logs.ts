@@ -27,17 +27,6 @@ export interface RecordMealLogInput {
   readonly quantity: number
 }
 
-type RecordMealLogItemInput = Pick<
-  RecordMealLogInput,
-  'foodMasterId' | 'quantity'
->
-
-interface RecordMealLogsInput {
-  readonly eatenDate: string
-  readonly mealType: MealType
-  readonly items: ReadonlyArray<RecordMealLogItemInput>
-}
-
 export interface UpdateMealLogInput {
   readonly foodMasterId?: string
   readonly eatenDate?: string
@@ -45,7 +34,7 @@ export interface UpdateMealLogInput {
   readonly quantity?: number
 }
 
-const postMealLog = (
+export const postMealLog = (
   input: RecordMealLogInput,
 ): ResultAsync<MealLogResult, ApiRequestError> =>
   requestJson('/api/meal-logs', mealLogResultSchema, {
@@ -53,17 +42,6 @@ const postMealLog = (
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify(input),
   })
-
-const postMealLogs = (
-  input: RecordMealLogsInput,
-): ResultAsync<ReadonlyArray<MealLogResult>, ApiRequestError> =>
-  requestJson('/api/meal-logs', z.array(mealLogResultSchema), {
-    method: 'POST',
-    headers: { 'content-type': 'application/json' },
-    body: JSON.stringify(input),
-  })
-
-export const mealLogsApi = { postMealLog, postMealLogs }
 
 export const patchMealLog = (
   id: string,

@@ -7,8 +7,8 @@ import { registerFoodMasterFromComposition } from '#api/food-masters'
 import {
   deleteMealLog,
   type MealLogResult,
-  mealLogsApi,
   patchMealLog,
+  postMealLog,
 } from '#api/meal-logs'
 import { toPromise } from '#api/to-promise'
 import { MealLogSheet } from '#meal-log-sheet/MealLogSheet'
@@ -87,7 +87,7 @@ export const MealLogSheetProvider = ({
       return toPromise(
         sheet.mode === 'edit' && sheet.mealLogId !== null
           ? patchMealLog(sheet.mealLogId, payload)
-          : mealLogsApi.postMealLog(payload),
+          : postMealLog(payload),
       )
     },
     onSuccess: (_result, { continueCreating, sheetId }) => {
