@@ -1,5 +1,5 @@
 {
-  "id": "4b5305e0-2102-45af-b80a-c464bf3a7a93",
+  "id": "75836e70-c296-412b-9351-dcb86c9fc418",
   "prevId": "76cc86d7-fb31-482e-a6b5-f3aa3530a5f3",
   "version": "7",
   "dialect": "postgresql",
@@ -583,6 +583,99 @@
       },
       "isRLSEnabled": false
     },
+    "public.meal_photos": {
+      "name": "meal_photos",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "eaten_date": {
+          "name": "eaten_date",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "meal_type": {
+          "name": "meal_type",
+          "type": "meal_type",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "object_key": {
+          "name": "object_key",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "content_type": {
+          "name": "content_type",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "meal_photos_object_key_key": {
+          "name": "meal_photos_object_key_key",
+          "columns": [
+            {
+              "expression": "object_key",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "meal_photos_eaten_date_meal_type_idx": {
+          "name": "meal_photos_eaten_date_meal_type_idx",
+          "columns": [
+            {
+              "expression": "eaten_date",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "meal_type",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "meal_photos_content_type_check": {
+          "name": "meal_photos_content_type_check",
+          "value": "\"meal_photos\".\"content_type\" in ('image/jpeg', 'image/png', 'image/webp')"
+        }
+      },
+      "isRLSEnabled": false
+    },
     "public.meal_set_items": {
       "name": "meal_set_items",
       "schema": "",
@@ -1061,12 +1154,6 @@
           "primaryKey": false,
           "notNull": false
         },
-        "meal_log_id": {
-          "name": "meal_log_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
         "created_at": {
           "name": "created_at",
           "type": "timestamp with time zone",
@@ -1090,21 +1177,6 @@
           "concurrently": false,
           "method": "btree",
           "with": {}
-        },
-        "stock_movements_meal_log_id_idx": {
-          "name": "stock_movements_meal_log_id_idx",
-          "columns": [
-            {
-              "expression": "meal_log_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
         }
       },
       "foreignKeys": {
@@ -1115,15 +1187,6 @@
           "columnsFrom": ["stock_lot_id"],
           "columnsTo": ["id"],
           "onDelete": "restrict",
-          "onUpdate": "cascade"
-        },
-        "stock_movements_meal_log_id_fk": {
-          "name": "stock_movements_meal_log_id_fk",
-          "tableFrom": "stock_movements",
-          "tableTo": "meal_logs",
-          "columnsFrom": ["meal_log_id"],
-          "columnsTo": ["id"],
-          "onDelete": "cascade",
           "onUpdate": "cascade"
         }
       },

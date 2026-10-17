@@ -144,6 +144,18 @@ export const searchFoodsInput = z.object({
     .describe('retail は買ったものや外食、homemade は自炊'),
 })
 
+const mealSetItemOutput = z.object({
+  food_master_id: z.string(),
+  food_name: z.string(),
+  quantity: z.number(),
+})
+
+const mealSetOutput = z.object({
+  meal_set_id: z.string(),
+  name: z.string(),
+  items: z.array(mealSetItemOutput),
+})
+
 export const searchFoodsStructuredOutput = z.object({
   foods: z.array(
     z.object({
@@ -169,6 +181,29 @@ export const searchFoodsStructuredOutput = z.object({
         ),
     }),
   ),
+  meal_sets: z.array(mealSetOutput),
+})
+
+// The service owns semantic validation so callers receive typed meal-set errors.
+export const registerMealSetInput = z.object({
+  name: z.string().describe('登録するマイセット名'),
+  items: z
+    .array(
+      z.object({
+        food_master_id: z.string().describe('セットに含める食品の ID'),
+        quantity: z.number().describe('食品 1 つ分への倍率'),
+      }),
+    )
+    .describe('マイセットに含める食品'),
+})
+
+export const registerMealSetStructuredOutput = mealSetOutput.partial().extend({
+  error: z
+    .object({
+      code: z.string(),
+      message: z.string(),
+    })
+    .optional(),
 })
 
 export const registerFoodFromCompositionInput = z
