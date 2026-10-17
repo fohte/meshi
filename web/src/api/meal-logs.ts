@@ -27,7 +27,7 @@ export interface RecordMealLogInput {
   readonly quantity: number
 }
 
-export type RecordMealLogItemInput = Pick<
+type RecordMealLogItemInput = Pick<
   RecordMealLogInput,
   'foodMasterId' | 'quantity'
 >
