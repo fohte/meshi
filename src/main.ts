@@ -31,6 +31,8 @@ import {
 import { createDrizzleMealSkipRepository } from '#domain/meal-skip/drizzle-meal-skip-repository'
 import { createMealSkipService } from '#domain/meal-skip/meal-skip-service'
 import { createDrizzleNutrientDefinitionRepository } from '#domain/nutrient-definition/index'
+import { createDrizzleStockRepository } from '#domain/stock/drizzle-stock-repository'
+import { createStockService } from '#domain/stock/stock-service'
 import { createUserProfileService } from '#domain/user-profile/user-profile-service'
 import { EnvError, loadEnv } from '#env'
 import { createJsonStdoutLogger } from '#logger'
@@ -86,6 +88,7 @@ export const main = async (): Promise<void> => {
     repository: createDrizzleMealSetRepository(sql),
     idGenerator: () => randomUUID(),
   })
+  const stockService = createStockService(createDrizzleStockRepository(sql))
   const foodMatcher = createDrizzleFoodMatcher(sql)
   const foodSearchService = createFoodSearchService(sql, foodMatcher)
   const mealHistoryService = createMealHistoryService(sql)
@@ -109,6 +112,7 @@ export const main = async (): Promise<void> => {
     mealLogService,
     mealSetService,
     mealSkipService,
+    stockService,
     foodMasterService,
     logger,
   }

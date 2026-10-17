@@ -292,6 +292,116 @@ export const mealSkips = pgTable(
   ],
 )
 
+export const storageLocations = pgTable(
+  'storage_locations',
+  {
+    id: text('id').primaryKey(),
+    name: text('name').notNull(),
+    capacity: numeric('capacity'),
+    createdAt: timestamp('created_at', { withTimezone: true, mode: 'date' })
+      .notNull()
+      .default(sql`now()`),
+  },
+  (table) => [
+    uniqueIndex('storage_locations_name_key').on(table.name),
+    check(
+      'storage_locations_capacity_positive',
+      sql`${table.capacity} IS NULL OR ${table.capacity} > 0`,
+    ),
+  ],
+)
+
+export const stockItems = pgTable(
+  'stock_items',
+  {
+    foodMasterId: text('food_master_id').primaryKey(),
+    storageLocationId: text('storage_location_id'),
+    eatWithinDays: integer('eat_within_days'),
+    createdAt: timestamp('created_at', { withTimezone: true, mode: 'date' })
+      .notNull()
+      .default(sql`now()`),
+  },
+  (table) => [
+    foreignKey({
+      name: 'stock_items_food_master_id_fk',
+      columns: [table.foodMasterId],
+      foreignColumns: [foodMasters.id],
+    })
+      .onUpdate('cascade')
+      .onDelete('cascade'),
+    foreignKey({
+      name: 'stock_items_storage_location_id_fk',
+      columns: [table.storageLocationId],
+      foreignColumns: [storageLocations.id],
+    })
+      .onUpdate('cascade')
+      .onDelete('set null'),
+    index('stock_items_storage_location_id_idx').on(table.storageLocationId),
+    check(
+      'stock_items_eat_within_days_positive',
+      sql`${table.eatWithinDays} IS NULL OR ${table.eatWithinDays} > 0`,
+    ),
+  ],
+)
+
+export const stockLots = pgTable(
+  'stock_lots',
+  {
+    id: text('id').primaryKey(),
+    foodMasterId: text('food_master_id').notNull(),
+    quantity: numeric('quantity').notNull(),
+    receivedDate: date('received_date', { mode: 'string' }),
+    bestBefore: date('best_before', { mode: 'string' }),
+    eatBy: date('eat_by', { mode: 'string' }),
+    createdAt: timestamp('created_at', { withTimezone: true, mode: 'date' })
+      .notNull()
+      .default(sql`now()`),
+  },
+  (table) => [
+    foreignKey({
+      name: 'stock_lots_food_master_id_fk',
+      columns: [table.foodMasterId],
+      foreignColumns: [foodMasters.id],
+    })
+      .onUpdate('cascade')
+      .onDelete('restrict'),
+    index('stock_lots_food_master_id_received_date_idx').on(
+      table.foodMasterId,
+      table.receivedDate,
+    ),
+    check('stock_lots_quantity_positive', sql`${table.quantity} > 0`),
+  ],
+)
+
+export const stockMovements = pgTable(
+  'stock_movements',
+  {
+    id: text('id').primaryKey(),
+    stockLotId: text('stock_lot_id').notNull(),
+    delta: numeric('delta').notNull(),
+    reason: text('reason').notNull(),
+    note: text('note'),
+    createdAt: timestamp('created_at', { withTimezone: true, mode: 'date' })
+      .notNull()
+      .default(sql`now()`),
+  },
+  (table) => [
+    foreignKey({
+      name: 'stock_movements_stock_lot_id_fk',
+      columns: [table.stockLotId],
+      foreignColumns: [stockLots.id],
+    })
+      .onUpdate('cascade')
+      .onDelete('restrict'),
+    index('stock_movements_stock_lot_id_idx').on(table.stockLotId),
+    check('stock_movements_delta_nonzero', sql`${table.delta} <> 0`),
+    check(
+      'stock_movements_reason_valid',
+      sql`${table.reason} IN ('receive', 'meal', 'count')`,
+    ),
+  ],
+)
+
 export const foodCompositions = pgTable(
   'food_compositions',
   {

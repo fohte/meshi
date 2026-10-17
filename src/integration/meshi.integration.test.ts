@@ -23,6 +23,8 @@ import {
 } from '#domain/meal-set/index'
 import { createDrizzleMealSkipRepository } from '#domain/meal-skip/drizzle-meal-skip-repository'
 import { createMealSkipService } from '#domain/meal-skip/meal-skip-service'
+import { createDrizzleStockRepository } from '#domain/stock/drizzle-stock-repository'
+import { createStockService } from '#domain/stock/stock-service'
 import { createUserProfileService } from '#domain/user-profile/user-profile-service'
 import { createMcpServer } from '#mcp'
 import { describeIfDb, getTestSql, setupTx } from '#test/db'
@@ -133,6 +135,9 @@ const startHarness = async (opts: HarnessOptions): Promise<Harness> => {
     }),
     idGenerator: () => randomUUID(),
   })
+  const stockService = createStockService(
+    createDrizzleStockRepository(tx, { wrapInTransaction: false }),
+  )
   const foodMatcher = createDrizzleFoodMatcher(tx)
   const foodSearchService = createFoodSearchService(tx, foodMatcher)
   const mealHistoryService = createMealHistoryService(tx)
@@ -150,6 +155,7 @@ const startHarness = async (opts: HarnessOptions): Promise<Harness> => {
     mealLogService,
     mealSkipService,
     mealSetService,
+    stockService,
     foodMasterService,
     logger: createNullLogger(),
   })
