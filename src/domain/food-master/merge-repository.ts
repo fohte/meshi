@@ -201,9 +201,26 @@ const applyMerge = async (
   )
   if (movedMealLogRows.isErr()) return err(movedMealLogRows.error)
 
+  await tx`
+    DELETE FROM stock_items AS loser_item
+    WHERE loser_item.food_master_id = ${loserId}
+      AND EXISTS (
+        SELECT 1 FROM stock_items AS survivor_item
+        WHERE survivor_item.food_master_id = ${survivorId}
+      )
+  `
+  await tx`
+    UPDATE stock_items SET food_master_id = ${survivorId}
+    WHERE food_master_id = ${loserId}
+  `
+  await tx`
+    UPDATE stock_lots SET food_master_id = ${survivorId}
+    WHERE food_master_id = ${loserId}
+  `
+
   // meal_logs is fully repointed above, so this DELETE never trips the
-  // meal_logs FK's ON DELETE RESTRICT; food_master_aliases/_nutrients cascade
-  // away whatever was deliberately left under loserId.
+  // meal_logs and stock_lots FKs' ON DELETE RESTRICT; food_master_aliases and
+  // _nutrients cascade away whatever was deliberately left under loserId.
   await tx`DELETE FROM food_masters WHERE id = ${loserId}`
 
   return ok({

@@ -77,3 +77,29 @@ comments:
       allergies: 'User allergy entries.'
       constraints: 'User dietary constraint entries.'
       daily_targets: 'Daily nutrition target values keyed by nutrient code.'
+  - table: storage_locations
+    tableComment: 'Named places where stock items are stored.'
+    columnComments:
+      name: 'Unique name of the storage location.'
+      capacity: 'Optional maximum stock capacity in food units.'
+  - table: stock_items
+    tableComment: 'Foods configured for stock tracking.'
+    columnComments:
+      food_master_id: 'Identifier of the food tracked in stock.'
+      storage_location_id: 'Identifier of the optional storage location.'
+      eat_within_days: 'Target number of days from receipt to consume the food.'
+  - table: stock_lots
+    tableComment: 'Received or counted batches of stock for a food.'
+    columnComments:
+      food_master_id: 'Identifier of the food this batch belongs to.'
+      quantity: 'Quantity originally recorded for this batch in food units.'
+      received_date: 'Date the batch was received, when known.'
+      best_before: 'Best-before date shown for the batch, when known.'
+      eat_by: 'Target date to consume the batch, when known.'
+  - table: stock_movements
+    tableComment: 'Quantity changes recorded against stock lots.'
+    columnComments:
+      stock_lot_id: 'Identifier of the stock batch affected by this movement.'
+      delta: 'Signed quantity change in food units.'
+      reason: 'Reason for the quantity change: receive, meal, or count.'
+      note: 'Optional note explaining the quantity change.'

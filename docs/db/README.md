@@ -14,6 +14,10 @@
 | [public.user_profiles](public.user_profiles.md)                           | 7       | The singleton user profile for preferences and daily nutrition targets. | BASE TABLE |
 | [public.meal_skips](public.meal_skips.md)                                 | 4       | Meals marked as skipped for a date and meal type.                       | BASE TABLE |
 | [public.food_master_nutrition](public.food_master_nutrition.md)           | 5       | Nutrition source and estimation metadata for a food master.             | BASE TABLE |
+| [public.stock_items](public.stock_items.md)                               | 4       | Foods configured for stock tracking.                                    | BASE TABLE |
+| [public.stock_lots](public.stock_lots.md)                                 | 7       | Received or counted batches of stock for a food.                        | BASE TABLE |
+| [public.stock_movements](public.stock_movements.md)                       | 6       | Quantity changes recorded against stock lots.                           | BASE TABLE |
+| [public.storage_locations](public.storage_locations.md)                   | 4       | Named places where stock items are stored.                              | BASE TABLE |
 
 ## Stored procedures and functions
 
@@ -72,6 +76,10 @@ erDiagram
 "public.meal_logs" }o--|| "public.food_masters" : "FOREIGN KEY (food_master_id) REFERENCES food_masters(id) ON UPDATE CASCADE ON DELETE RESTRICT"
 "public.food_master_nutrition" }o--o| "public.food_compositions" : "FOREIGN KEY (source_composition_code) REFERENCES food_compositions(code) ON UPDATE CASCADE ON DELETE RESTRICT"
 "public.food_master_nutrition" |o--|| "public.food_masters" : "FOREIGN KEY (food_master_id) REFERENCES food_masters(id) ON UPDATE CASCADE ON DELETE CASCADE"
+"public.stock_items" |o--|| "public.food_masters" : "FOREIGN KEY (food_master_id) REFERENCES food_masters(id) ON UPDATE CASCADE ON DELETE CASCADE"
+"public.stock_items" }o--o| "public.storage_locations" : "FOREIGN KEY (storage_location_id) REFERENCES storage_locations(id) ON UPDATE CASCADE ON DELETE SET NULL"
+"public.stock_lots" }o--|| "public.food_masters" : "FOREIGN KEY (food_master_id) REFERENCES food_masters(id) ON UPDATE CASCADE ON DELETE RESTRICT"
+"public.stock_movements" }o--|| "public.stock_lots" : "FOREIGN KEY (stock_lot_id) REFERENCES stock_lots(id) ON UPDATE CASCADE ON DELETE RESTRICT"
 
 "public.food_composition_nutrients" {
   text food_composition_code FK
@@ -133,6 +141,35 @@ erDiagram
   food_source source
   text source_url
   text source_composition_code FK
+}
+"public.stock_items" {
+  text food_master_id FK
+  text storage_location_id FK
+  integer eat_within_days
+  timestamp_with_time_zone created_at
+}
+"public.stock_lots" {
+  text id
+  text food_master_id FK
+  numeric quantity
+  date received_date
+  date best_before
+  date eat_by
+  timestamp_with_time_zone created_at
+}
+"public.stock_movements" {
+  text id
+  text stock_lot_id FK
+  numeric delta
+  text reason
+  text note
+  timestamp_with_time_zone created_at
+}
+"public.storage_locations" {
+  text id
+  text name
+  numeric capacity
+  timestamp_with_time_zone created_at
 }
 ```
 

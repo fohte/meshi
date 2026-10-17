@@ -6,7 +6,15 @@ import { captureDomainError } from '#test/capture-domain-error'
 import { describeIfDb, setupTx } from '#test/db'
 import { createCountingIdGenerator, type IdCounter } from '#test/id-counter'
 import { jstDate } from '#test/jst-date'
-import { seedFoodMaster, seedFoodMasterAlias, seedMealLog } from '#test/seed'
+import {
+  seedFoodMaster,
+  seedFoodMasterAlias,
+  seedMealLog,
+  seedStockItem,
+  seedStockLot,
+  seedStockMovement,
+  seedStorageLocation,
+} from '#test/seed'
 
 describeIfDb('mergeFoodMasters (merge-repository)', () => {
   const getTx = setupTx()
@@ -87,39 +95,112 @@ describeIfDb('mergeFoodMasters (merge-repository)', () => {
       nutrientCode: string
     }>
     readonly mealLogs: ReadonlyArray<{ id: string; foodMasterId: string }>
+    readonly stockItems: ReadonlyArray<{
+      foodMasterId: string
+      storageLocationId: string | null
+      eatWithinDays: number | null
+    }>
+    readonly storageLocations: ReadonlyArray<{
+      id: string
+      name: string
+      capacity: string | null
+    }>
+    readonly stockLots: ReadonlyArray<{
+      id: string
+      foodMasterId: string
+      quantity: string
+      receivedDate: string | null
+      bestBefore: string | null
+      eatBy: string | null
+    }>
+    readonly stockMovements: ReadonlyArray<{
+      id: string
+      stockLotId: string
+      delta: string
+      reason: string
+    }>
   }
 
   const snapshot = async (): Promise<DbSnapshot> => {
     const tx = getTx()
-    const [foodMasters, nutritionSources, aliases, nutrients, mealLogs] =
-      await Promise.all([
-        tx<{ id: string; name: string }[]>`
+    const [
+      foodMasters,
+      nutritionSources,
+      aliases,
+      nutrients,
+      mealLogs,
+      stockItems,
+      storageLocations,
+      stockLots,
+      stockMovements,
+    ] = await Promise.all([
+      tx<{ id: string; name: string }[]>`
         SELECT id, name FROM food_masters ORDER BY id
       `,
-        tx<
-          {
-            food_master_id: string
-            is_estimated: boolean
-            source: string
-            source_url: string | null
-            source_composition_code: string | null
-          }[]
-        >`
+      tx<
+        {
+          food_master_id: string
+          is_estimated: boolean
+          source: string
+          source_url: string | null
+          source_composition_code: string | null
+        }[]
+      >`
         SELECT food_master_id, is_estimated, source, source_url,
                source_composition_code
         FROM food_master_nutrition ORDER BY food_master_id
       `,
-        tx<{ food_master_id: string; alias: string }[]>`
+      tx<{ food_master_id: string; alias: string }[]>`
         SELECT food_master_id, alias FROM food_master_aliases ORDER BY alias
       `,
-        tx<{ food_master_id: string; nutrient_code: string }[]>`
+      tx<{ food_master_id: string; nutrient_code: string }[]>`
         SELECT food_master_id, nutrient_code FROM food_master_nutrients
         ORDER BY food_master_id, nutrient_code
       `,
-        tx<{ id: string; food_master_id: string }[]>`
+      tx<{ id: string; food_master_id: string }[]>`
         SELECT id, food_master_id FROM meal_logs ORDER BY id
       `,
-      ])
+      tx<
+        {
+          food_master_id: string
+          storage_location_id: string | null
+          eat_within_days: number | null
+        }[]
+      >`
+        SELECT food_master_id, storage_location_id, eat_within_days
+        FROM stock_items ORDER BY food_master_id
+      `,
+      tx<{ id: string; name: string; capacity: string | null }[]>`
+        SELECT id, name, capacity::text AS capacity
+        FROM storage_locations ORDER BY id
+      `,
+      tx<
+        {
+          id: string
+          food_master_id: string
+          quantity: string
+          received_date: string | null
+          best_before: string | null
+          eat_by: string | null
+        }[]
+      >`
+        SELECT id, food_master_id, quantity::text AS quantity,
+               received_date::text AS received_date,
+               best_before::text AS best_before, eat_by::text AS eat_by
+        FROM stock_lots ORDER BY id
+      `,
+      tx<
+        {
+          id: string
+          stock_lot_id: string
+          delta: string
+          reason: string
+        }[]
+      >`
+        SELECT id, stock_lot_id, delta::text AS delta, reason
+        FROM stock_movements ORDER BY id
+      `,
+    ])
     return {
       foodMasters,
       nutritionSources: nutritionSources.map((r) => ({
@@ -140,6 +221,30 @@ describeIfDb('mergeFoodMasters (merge-repository)', () => {
       mealLogs: mealLogs.map((r) => ({
         id: r.id,
         foodMasterId: r.food_master_id,
+      })),
+      stockItems: stockItems.map((r) => ({
+        foodMasterId: r.food_master_id,
+        storageLocationId: r.storage_location_id,
+        eatWithinDays: r.eat_within_days,
+      })),
+      storageLocations: storageLocations.map((r) => ({
+        id: r.id,
+        name: r.name,
+        capacity: r.capacity,
+      })),
+      stockLots: stockLots.map((r) => ({
+        id: r.id,
+        foodMasterId: r.food_master_id,
+        quantity: r.quantity,
+        receivedDate: r.received_date,
+        bestBefore: r.best_before,
+        eatBy: r.eat_by,
+      })),
+      stockMovements: stockMovements.map((r) => ({
+        id: r.id,
+        stockLotId: r.stock_lot_id,
+        delta: r.delta,
+        reason: r.reason,
       })),
     }
   }
@@ -204,6 +309,159 @@ describeIfDb('mergeFoodMasters (merge-repository)', () => {
       mealLogs: [
         { id: 'ml_loser', foodMasterId: 'fm_survivor' },
         { id: 'ml_survivor', foodMasterId: 'fm_survivor' },
+      ],
+      stockItems: [],
+      storageLocations: [],
+      stockLots: [],
+      stockMovements: [],
+    })
+  })
+
+  const snapshotStock = async (): Promise<{
+    readonly stockItems: DbSnapshot['stockItems']
+    readonly storageLocations: DbSnapshot['storageLocations']
+    readonly stockLots: DbSnapshot['stockLots']
+    readonly stockMovements: DbSnapshot['stockMovements']
+  }> => {
+    const result = await snapshot()
+    return {
+      stockItems: result.stockItems,
+      storageLocations: result.storageLocations,
+      stockLots: result.stockLots,
+      stockMovements: result.stockMovements,
+    }
+  }
+
+  it('moves stock items and lots from the loser when the survivor has no stock item', async () => {
+    await seedBasicPair()
+    const tx = getTx()
+    await seedStorageLocation(tx, {
+      id: 'sl_loser',
+      name: 'Sample compartment',
+      capacity: 6,
+    })
+    await seedStockItem(tx, {
+      foodMasterId: 'fm_loser',
+      storageLocationId: 'sl_loser',
+      eatWithinDays: 18,
+    })
+    await seedStockLot(tx, {
+      id: 'stl_loser',
+      foodMasterId: 'fm_loser',
+      quantity: 4.25,
+      receivedDate: '2026-10-01',
+      bestBefore: '2026-11-01',
+      eatBy: '2026-10-19',
+    })
+    await seedStockMovement(tx, {
+      id: 'stm_loser',
+      stockLotId: 'stl_loser',
+      delta: 4.25,
+      reason: 'count',
+    })
+
+    const mergeResult = await repo.merge('fm_survivor', 'fm_loser', false)
+    mergeResult._unsafeUnwrap()
+
+    expect(await snapshotStock()).toEqual({
+      stockItems: [
+        {
+          foodMasterId: 'fm_survivor',
+          storageLocationId: 'sl_loser',
+          eatWithinDays: 18,
+        },
+      ],
+      storageLocations: [
+        { id: 'sl_loser', name: 'Sample compartment', capacity: '6' },
+      ],
+      stockLots: [
+        {
+          id: 'stl_loser',
+          foodMasterId: 'fm_survivor',
+          quantity: '4.25',
+          receivedDate: '2026-10-01',
+          bestBefore: '2026-11-01',
+          eatBy: '2026-10-19',
+        },
+      ],
+      stockMovements: [
+        {
+          id: 'stm_loser',
+          stockLotId: 'stl_loser',
+          delta: '4.25',
+          reason: 'count',
+        },
+      ],
+    })
+  })
+
+  it('keeps the survivor stock item settings when both foods have stock items', async () => {
+    await seedBasicPair()
+    const tx = getTx()
+    await seedStorageLocation(tx, {
+      id: 'sl_survivor',
+      name: 'Sample shelf',
+      capacity: 12,
+    })
+    await seedStorageLocation(tx, {
+      id: 'sl_loser',
+      name: 'Sample drawer',
+      capacity: 5,
+    })
+    await seedStockItem(tx, {
+      foodMasterId: 'fm_survivor',
+      storageLocationId: 'sl_survivor',
+      eatWithinDays: 30,
+    })
+    await seedStockItem(tx, {
+      foodMasterId: 'fm_loser',
+      storageLocationId: 'sl_loser',
+      eatWithinDays: 10,
+    })
+    await seedStockLot(tx, {
+      id: 'stl_loser',
+      foodMasterId: 'fm_loser',
+      quantity: 2,
+    })
+    await seedStockMovement(tx, {
+      id: 'stm_loser',
+      stockLotId: 'stl_loser',
+      delta: 2,
+      reason: 'count',
+    })
+
+    const mergeResult = await repo.merge('fm_survivor', 'fm_loser', false)
+    mergeResult._unsafeUnwrap()
+
+    expect(await snapshotStock()).toEqual({
+      stockItems: [
+        {
+          foodMasterId: 'fm_survivor',
+          storageLocationId: 'sl_survivor',
+          eatWithinDays: 30,
+        },
+      ],
+      storageLocations: [
+        { id: 'sl_loser', name: 'Sample drawer', capacity: '5' },
+        { id: 'sl_survivor', name: 'Sample shelf', capacity: '12' },
+      ],
+      stockLots: [
+        {
+          id: 'stl_loser',
+          foodMasterId: 'fm_survivor',
+          quantity: '2',
+          receivedDate: null,
+          bestBefore: null,
+          eatBy: null,
+        },
+      ],
+      stockMovements: [
+        {
+          id: 'stm_loser',
+          stockLotId: 'stl_loser',
+          delta: '2',
+          reason: 'count',
+        },
       ],
     })
   })

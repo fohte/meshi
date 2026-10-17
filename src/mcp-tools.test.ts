@@ -49,6 +49,7 @@ import type { UserProfileService } from '#domain/user-profile/user-profile-servi
 import type { Logger } from '#logger'
 import { createMcpServer } from '#mcp'
 import { jstDate } from '#test/jst-date'
+import { createStubMcpDeps } from '#test/mcp-stubs'
 
 const VALIDATION_ERROR_TEXT = '<schema validation error>'
 
@@ -603,6 +604,7 @@ const start = async (config: HarnessConfig = {}): Promise<Harness> => {
     mealHistoryService,
     mealLogService,
     mealSkipService,
+    stockService: createStubMcpDeps().stockService,
     profileService,
     foodSearchService,
     logger,
@@ -629,17 +631,19 @@ const start = async (config: HarnessConfig = {}): Promise<Harness> => {
 }
 
 describe('MeshiMcpServer tools/list', () => {
-  it('exposes the fifteen public tools with stable names', async () => {
+  it('exposes the eighteen public tools with stable names', async () => {
     const h = await start()
     try {
       const result = await h.client.listTools()
       const names = result.tools.map((t) => t.name).sort()
       expect(names).toEqual([
         'cancel_meal_skip',
+        'count_stock',
         'delete_meal_log',
         'fill_food_nutrition',
         'get_profile',
         'get_recommendation_context',
+        'get_stock_status',
         'merge_food_master',
         'query_meals',
         'record_meal_log',
@@ -648,6 +652,7 @@ describe('MeshiMcpServer tools/list', () => {
         'register_food_from_composition',
         'register_food_without_nutrition',
         'search_foods',
+        'set_stock_item',
         'update_meal_log',
         'update_profile',
       ])
@@ -752,6 +757,12 @@ describe('MeshiMcpServer tools/list', () => {
       }
       expect(propsByTool).toEqual({
         cancel_meal_skip: ['date', 'meal_type'],
+        count_stock: [
+          'best_before',
+          'food_master_id',
+          'quantity',
+          'received_date',
+        ],
         delete_meal_log: ['meal_log_ids'],
         fill_food_nutrition: [
           'food_master_id',
@@ -762,6 +773,7 @@ describe('MeshiMcpServer tools/list', () => {
         ],
         get_profile: [],
         get_recommendation_context: ['period_from', 'period_to'],
+        get_stock_status: [],
         merge_food_master: [
           'dry_run',
           'loser_food_master_id',
@@ -772,6 +784,12 @@ describe('MeshiMcpServer tools/list', () => {
         record_meal_skip: ['date', 'meal_type'],
         register_food_from_composition: ['aliases', 'composition_code', 'name'],
         search_foods: ['limit', 'origin', 'queries'],
+        set_stock_item: [
+          'eat_within_days',
+          'food_master_id',
+          'storage_location_capacity',
+          'storage_location_name',
+        ],
         register_food: [
           'aliases',
           'confirmed_distinct_from_master_ids',

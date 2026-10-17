@@ -12,6 +12,8 @@ import { DomainError } from '#domain/meal-log/errors'
 import type { MealLogService } from '#domain/meal-log/meal-log-service'
 import { MealSkipPersistenceError } from '#domain/meal-skip/errors'
 import type { MealSkipService } from '#domain/meal-skip/meal-skip-service'
+import { StockDomainError } from '#domain/stock/errors'
+import type { StockService } from '#domain/stock/types'
 import { UserProfileRepositoryError } from '#domain/user-profile/errors'
 import type { UserProfileService } from '#domain/user-profile/user-profile-service'
 import type { MeshiToolDeps } from '#mcp-tools'
@@ -66,11 +68,21 @@ const rejectingMealSkipService: MealSkipService = {
   findForDate: () => errAsync(new MealSkipPersistenceError('stub')),
 }
 
+const rejectingStockService: StockService = {
+  setStockItem: () =>
+    errAsync(new StockDomainError('persistence_failed', 'stub')),
+  countStock: () =>
+    errAsync(new StockDomainError('persistence_failed', 'stub')),
+  getStockStatus: () =>
+    errAsync(new StockDomainError('persistence_failed', 'stub')),
+}
+
 export const createStubMcpDeps = (): MeshiToolDeps => ({
   mealHistoryService: rejectingMealHistoryService,
   profileService: rejectingProfileService,
   mealLogService: rejectingMealLogService,
   mealSkipService: rejectingMealSkipService,
+  stockService: rejectingStockService,
   foodSearchService: rejectingFoodSearchService,
   foodMasterService: rejectingFoodMasterService,
   logger: createNullLogger(),
