@@ -40,7 +40,7 @@ export interface RecordMealLogInput {
 
 export interface RecordMealLogItemInput {
   readonly foodMasterId: string
-  readonly foodName: string
+  readonly foodName?: string
   readonly quantity: number
 }
 

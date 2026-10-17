@@ -666,7 +666,6 @@ describe('MealLogService.recordMany', () => {
           },
           {
             foodMasterId: BATCH_FOOD_BETA.id,
-            foodName: BATCH_FOOD_BETA.name,
             quantity: 0.5,
           },
         ],
