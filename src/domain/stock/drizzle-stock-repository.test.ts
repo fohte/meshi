@@ -3,15 +3,18 @@ import { beforeEach, expect, it } from 'vitest'
 import { createDrizzleStockRepository } from '#domain/stock/drizzle-stock-repository'
 import { createStockService } from '#domain/stock/stock-service'
 import type { StockService } from '#domain/stock/types'
+import { toJstDateString } from '#lib/jst-date'
 import { captureDomainError } from '#test/capture-domain-error'
 import { describeIfDb, setupTx } from '#test/db'
 import { createCountingIdGenerator, type IdCounter } from '#test/id-counter'
 import {
   seedDelivery,
   seedFoodMasterWithoutNutrition,
+  seedMealLog,
   seedStockItem,
   seedStockLot,
   seedStockMovement,
+  seedStorageLocation,
 } from '#test/seed'
 
 describeIfDb('stock repository', () => {
@@ -31,6 +34,7 @@ describeIfDb('stock repository', () => {
         generateId: createCountingIdGenerator(counter),
         wrapInTransaction: false,
       }),
+      { now: () => new Date('2026-10-18T03:00:00.000Z') },
     )
   })
 
@@ -168,6 +172,7 @@ describeIfDb('stock repository', () => {
         {
           foodMasterId: 'fm_first_count',
           foodName: 'Sample food for first count',
+          storageLocationId: null,
           storageLocation: null,
           eatWithinDays: 10,
           totalQuantity: 2.5,
@@ -184,6 +189,304 @@ describeIfDb('stock repository', () => {
         },
       ],
       plannedDeliveries: [],
+      capacityWarnings: [],
+      eatByWarnings: [
+        {
+          id: 'eat-by-risk:stl_test_0001:2026-10-11:deadline_passed',
+          riskType: 'deadline_passed',
+          stockLotId: 'stl_test_0001',
+          foodMasterId: 'fm_first_count',
+          foodName: 'Sample food for first count',
+          targetDate: '2026-10-11',
+          targetDateType: 'eat_by',
+          remainingQuantity: 2.5,
+          quantityUsedForRate: null,
+          daysUntilTarget: null,
+          requiredDailyConsumption: null,
+          actualDailyConsumption: 0,
+        },
+      ],
+      priorityLots: [
+        {
+          foodMasterId: 'fm_first_count',
+          foodName: 'Sample food for first count',
+          stockLotId: 'stl_test_0001',
+          remainingQuantity: 2.5,
+          targetDate: '2026-10-11',
+          reasons: ['eat_by', 'deadline_passed'],
+        },
+      ],
+    })
+  })
+
+  it('uses the recent 14-day meal pace for delivery and deadline warnings', async () => {
+    const tx = getTx()
+    await seedFoodMasterWithoutNutrition(tx, {
+      id: 'fm_forecast',
+      name: 'Sample forecast food',
+    })
+    await seedStorageLocation(tx, {
+      id: 'sl_forecast',
+      name: 'Sample freezer',
+      capacity: 4,
+    })
+    await seedStockItem(tx, {
+      foodMasterId: 'fm_forecast',
+      storageLocationId: 'sl_forecast',
+      eatWithinDays: 7,
+    })
+    await seedStockLot(tx, {
+      id: 'stl_forecast',
+      foodMasterId: 'fm_forecast',
+      quantity: 1,
+      receivedDate: '2026-10-18',
+      bestBefore: '2026-10-21',
+      eatBy: '2026-10-25',
+    })
+    await seedStockMovement(tx, {
+      id: 'stm_forecast',
+      stockLotId: 'stl_forecast',
+      delta: 1,
+      reason: 'count',
+    })
+    await seedDelivery(tx, {
+      id: 'dly_forecast_a',
+      sourceRef: 'forecast-order-a',
+      status: 'planned',
+      expectedDate: '2026-10-21',
+      changeDeadline: '2026-10-20',
+    })
+    await seedStockLot(tx, {
+      id: 'stl_forecast_a',
+      foodMasterId: 'fm_forecast',
+      deliveryId: 'dly_forecast_a',
+      quantity: 2,
+    })
+    await seedDelivery(tx, {
+      id: 'dly_forecast_b',
+      sourceRef: 'forecast-order-b',
+      status: 'planned',
+      expectedDate: '2026-10-21',
+    })
+    await seedStockLot(tx, {
+      id: 'stl_forecast_b',
+      foodMasterId: 'fm_forecast',
+      deliveryId: 'dly_forecast_b',
+      quantity: 3,
+    })
+    await seedMealLog(tx, {
+      id: 'ml_forecast_start',
+      foodMasterId: 'fm_forecast',
+      eatenDate: toJstDateString(new Date('2026-10-05T03:00:00.000Z')),
+      mealType: 'lunch',
+      quantity: 2,
+    })
+    await seedMealLog(tx, {
+      id: 'ml_forecast_today',
+      foodMasterId: 'fm_forecast',
+      eatenDate: toJstDateString(new Date('2026-10-18T03:00:00.000Z')),
+      mealType: 'dinner',
+      quantity: 1.5,
+    })
+    await seedMealLog(tx, {
+      id: 'ml_forecast_outside_window',
+      foodMasterId: 'fm_forecast',
+      eatenDate: toJstDateString(new Date('2026-10-03T03:00:00.000Z')),
+      mealType: 'breakfast',
+      quantity: 9,
+    })
+    await seedMealLog(tx, {
+      id: 'ml_forecast_future',
+      foodMasterId: 'fm_forecast',
+      eatenDate: toJstDateString(new Date('2026-10-19T03:00:00.000Z')),
+      mealType: 'breakfast',
+      quantity: 8,
+    })
+
+    const status = (await stockService.getStockStatus())._unsafeUnwrap()
+
+    expect(status).toEqual({
+      stockItems: [
+        {
+          foodMasterId: 'fm_forecast',
+          foodName: 'Sample forecast food',
+          storageLocationId: 'sl_forecast',
+          storageLocation: { name: 'Sample freezer', capacity: 4 },
+          eatWithinDays: 7,
+          totalQuantity: 1,
+          lots: [
+            {
+              id: 'stl_forecast',
+              quantity: 1,
+              remainingQuantity: 1,
+              receivedDate: '2026-10-18',
+              bestBefore: '2026-10-21',
+              eatBy: '2026-10-25',
+            },
+          ],
+        },
+      ],
+      plannedDeliveries: [
+        {
+          id: 'dly_forecast_a',
+          sourceRef: 'forecast-order-a',
+          expectedDate: '2026-10-21',
+          changeDeadline: '2026-10-20',
+          items: [
+            {
+              foodMasterId: 'fm_forecast',
+              foodName: 'Sample forecast food',
+              quantity: 2,
+            },
+          ],
+        },
+        {
+          id: 'dly_forecast_b',
+          sourceRef: 'forecast-order-b',
+          expectedDate: '2026-10-21',
+          changeDeadline: null,
+          items: [
+            {
+              foodMasterId: 'fm_forecast',
+              foodName: 'Sample forecast food',
+              quantity: 3,
+            },
+          ],
+        },
+      ],
+      capacityWarnings: [
+        {
+          id: 'capacity-overflow:sl_forecast:2026-10-21',
+          storageLocationId: 'sl_forecast',
+          storageLocationName: 'Sample freezer',
+          expectedDate: '2026-10-21',
+          deliveries: [
+            { deliveryId: 'dly_forecast_a', changeDeadline: '2026-10-20' },
+            { deliveryId: 'dly_forecast_b', changeDeadline: null },
+          ],
+          projectedQuantity: 5.57,
+          capacity: 4,
+          excessQuantity: 1.57,
+        },
+      ],
+      eatByWarnings: [
+        {
+          id: 'eat-by-risk:stl_forecast:2026-10-21:consumption_rate_below_required',
+          riskType: 'consumption_rate_below_required',
+          stockLotId: 'stl_forecast',
+          foodMasterId: 'fm_forecast',
+          foodName: 'Sample forecast food',
+          targetDate: '2026-10-21',
+          targetDateType: 'best_before',
+          remainingQuantity: 1,
+          quantityUsedForRate: 1,
+          daysUntilTarget: 3,
+          requiredDailyConsumption: 0.33,
+          actualDailyConsumption: 0.14,
+        },
+      ],
+      priorityLots: [
+        {
+          foodMasterId: 'fm_forecast',
+          foodName: 'Sample forecast food',
+          stockLotId: 'stl_forecast',
+          remainingQuantity: 1,
+          targetDate: '2026-10-21',
+          reasons: ['best_before', 'consumption_rate_below_required'],
+        },
+      ],
+    })
+  })
+
+  it('returns recent meal logs only for tracked foods in the prior fourteen days', async () => {
+    const tx = getTx()
+    await seedFoodMasterWithoutNutrition(tx, {
+      id: 'fm_tracked_window',
+      name: 'Sample tracked food',
+    })
+    await seedFoodMasterWithoutNutrition(tx, {
+      id: 'fm_untracked_window',
+      name: 'Sample untracked food',
+    })
+    await seedStockItem(tx, { foodMasterId: 'fm_tracked_window' })
+    await seedStockLot(tx, {
+      id: 'stl_tracked_window',
+      foodMasterId: 'fm_tracked_window',
+      quantity: 6,
+      bestBefore: '2026-10-21',
+    })
+    await seedStockMovement(tx, {
+      id: 'stm_tracked_window',
+      stockLotId: 'stl_tracked_window',
+      delta: 6,
+      reason: 'count',
+    })
+
+    const meals = [
+      {
+        id: 'ml_window_today',
+        foodMasterId: 'fm_tracked_window',
+        eatenDate: toJstDateString(new Date('2026-10-18T03:00:00.000Z')),
+        quantity: 100,
+      },
+      {
+        id: 'ml_window_yesterday',
+        foodMasterId: 'fm_tracked_window',
+        eatenDate: toJstDateString(new Date('2026-10-17T03:00:00.000Z')),
+        quantity: 2,
+      },
+      {
+        id: 'ml_window_fourteen_days_ago',
+        foodMasterId: 'fm_tracked_window',
+        eatenDate: toJstDateString(new Date('2026-10-04T03:00:00.000Z')),
+        quantity: 3,
+      },
+      {
+        id: 'ml_window_fifteen_days_ago',
+        foodMasterId: 'fm_tracked_window',
+        eatenDate: toJstDateString(new Date('2026-10-03T03:00:00.000Z')),
+        quantity: 100,
+      },
+      {
+        id: 'ml_window_untracked_food',
+        foodMasterId: 'fm_untracked_window',
+        eatenDate: toJstDateString(new Date('2026-10-17T03:00:00.000Z')),
+        quantity: 1000,
+      },
+    ]
+    for (const meal of meals) {
+      await seedMealLog(tx, { ...meal, mealType: 'lunch' })
+    }
+
+    const snapshot = (
+      await createDrizzleStockRepository(tx, {
+        wrapInTransaction: false,
+      }).getStockStatus(toJstDateString(new Date('2026-10-18T03:00:00.000Z')))
+    )._unsafeUnwrap()
+
+    expect(snapshot).toEqual({
+      stockItems: [
+        {
+          foodMasterId: 'fm_tracked_window',
+          foodName: 'Sample tracked food',
+          storageLocationId: null,
+          storageLocation: null,
+          eatWithinDays: null,
+          totalQuantity: 6,
+          lots: [
+            {
+              id: 'stl_tracked_window',
+              quantity: 6,
+              remainingQuantity: 6,
+              receivedDate: null,
+              bestBefore: '2026-10-21',
+              eatBy: null,
+            },
+          ],
+        },
+      ],
+      plannedDeliveries: [],
+      recentConsumption: [{ foodMasterId: 'fm_tracked_window', quantity: 5 }],
     })
   })
 
@@ -411,12 +714,16 @@ describeIfDb('stock repository', () => {
         {
           foodMasterId: 'fm_planned_delivery',
           foodName: 'Sample planned delivery food',
+          storageLocationId: null,
           storageLocation: null,
           eatWithinDays: null,
           totalQuantity: 0,
           lots: [],
         },
       ],
+      capacityWarnings: [],
+      eatByWarnings: [],
+      priorityLots: [],
       plannedDeliveries: [
         {
           id: 'dly_test_0001',
@@ -516,6 +823,7 @@ describeIfDb('stock repository', () => {
           {
             foodMasterId: 'fm_cancelled_delivery',
             foodName: 'Sample cancelled delivery food',
+            storageLocationId: null,
             storageLocation: null,
             eatWithinDays: null,
             totalQuantity: 0,
@@ -523,6 +831,9 @@ describeIfDb('stock repository', () => {
           },
         ],
         plannedDeliveries: [],
+        capacityWarnings: [],
+        eatByWarnings: [],
+        priorityLots: [],
       },
       lots: [{ count: '0' }],
     })
@@ -631,6 +942,7 @@ describeIfDb('stock repository', () => {
         {
           foodMasterId: 'fm_delivery_missing',
           foodName: 'Sample missing delivery food',
+          storageLocationId: null,
           storageLocation: null,
           eatWithinDays: null,
           totalQuantity: 0,
@@ -639,6 +951,7 @@ describeIfDb('stock repository', () => {
         {
           foodMasterId: 'fm_delivery_received',
           foodName: 'Sample received delivery food',
+          storageLocationId: null,
           storageLocation: null,
           eatWithinDays: 10,
           totalQuantity: 1.5,
@@ -655,6 +968,18 @@ describeIfDb('stock repository', () => {
         },
       ],
       plannedDeliveries: [],
+      capacityWarnings: [],
+      eatByWarnings: [],
+      priorityLots: [
+        {
+          foodMasterId: 'fm_delivery_received',
+          foodName: 'Sample received delivery food',
+          stockLotId: 'stl_test_0002',
+          remainingQuantity: 1.5,
+          targetDate: '2026-10-31',
+          reasons: ['eat_by'],
+        },
+      ],
     })
   })
 
@@ -873,6 +1198,9 @@ describeIfDb('stock repository', () => {
     expect(status._unsafeUnwrap()).toEqual({
       stockItems: [],
       plannedDeliveries: [],
+      capacityWarnings: [],
+      eatByWarnings: [],
+      priorityLots: [],
     })
   })
 })

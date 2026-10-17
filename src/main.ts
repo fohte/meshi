@@ -99,7 +99,9 @@ export const main = async (): Promise<void> => {
     repository: createDrizzleMealSetRepository(sql),
     idGenerator: () => randomUUID(),
   })
-  const stockService = createStockService(createDrizzleStockRepository(sql))
+  const stockService = createStockService(createDrizzleStockRepository(sql), {
+    now: () => new Date(),
+  })
   const foodMatcher = createDrizzleFoodMatcher(sql)
   const foodSearchService = createFoodSearchService(sql, foodMatcher)
   const mealHistoryService = createMealHistoryService(sql)

@@ -2,6 +2,7 @@ import { errAsync } from 'neverthrow'
 import { z } from 'zod'
 
 import { StockDomainError } from '#domain/stock/errors'
+import { calculateStockStatus } from '#domain/stock/stock-status-calculator'
 import type {
   CountStockInput,
   ReceiveDeliveryInput,
@@ -10,11 +11,17 @@ import type {
   StockRepository,
   StockService,
 } from '#domain/stock/types'
+import { toJstDateString } from '#lib/jst-date'
 
 const validDate = z.iso.date()
 
+interface StockServiceDependencies {
+  readonly now?: () => Date
+}
+
 export const createStockService = (
   repository: StockRepository,
+  dependencies: StockServiceDependencies = {},
 ): StockService => ({
   setStockItem(input: SetStockItemInput) {
     const locationName = input.storageLocationName
@@ -176,7 +183,12 @@ export const createStockService = (
     })
   },
 
-  getStockStatus: () => repository.getStockStatus(),
+  getStockStatus() {
+    const today = toJstDateString(dependencies.now?.() ?? new Date())
+    return repository
+      .getStockStatus(today)
+      .map((snapshot) => calculateStockStatus(snapshot, today))
+  },
 })
 
 const validateDeliveryItems = (
