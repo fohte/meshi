@@ -9,7 +9,8 @@ import {
   toStockError,
 } from '#domain/stock/stock-repository-utils'
 import { stockItemRowSchema, toStockItem } from '#domain/stock/stock-rows'
-import type { StockStatus } from '#domain/stock/types'
+import type { StockStatusSnapshot } from '#domain/stock/types'
+import type { JstDate } from '#lib/jst-date'
 
 const stockLotStatusSchema = z.object({
   stock_lot_id: z.string(),
@@ -21,6 +22,7 @@ const stockLotStatusSchema = z.object({
 })
 
 const stockItemStatusSchema = stockItemRowSchema.extend({
+  storage_location_id: z.string().nullable(),
   total_quantity: numericString,
   lots: z.array(stockLotStatusSchema),
 })
@@ -39,14 +41,22 @@ const plannedDeliverySchema = z.object({
   items: z.array(deliveryItemSchema),
 })
 
+const recentConsumptionSchema = z.object({
+  food_master_id: z.string(),
+  quantity: numericString,
+})
+
 const stockStatusRowSchema = z.object({
   stock_items: z.array(stockItemStatusSchema),
   planned_deliveries: z.array(plannedDeliverySchema),
+  recent_consumption: z.array(recentConsumptionSchema),
 })
 
 export const createStockStatusReader =
-  (pgSql: Sql): (() => ResultAsync<StockStatus, StockDomainError>) =>
-  () =>
+  (
+    pgSql: Sql,
+  ): ((today: JstDate) => ResultAsync<StockStatusSnapshot, StockDomainError>) =>
+  (today) =>
     ResultAsync.fromPromise(
       pgSql<Record<string, unknown>[]>`
         WITH lot_balances AS (
@@ -63,6 +73,7 @@ export const createStockStatusReader =
           SELECT * FROM lot_balances WHERE remaining::numeric > 0
         ), stock_item_status AS (
           SELECT si.food_master_id, fm.name AS food_name,
+                 si.storage_location_id,
                  sl.name AS storage_location_name,
                  sl.capacity::text AS storage_location_capacity,
                  si.eat_within_days,
@@ -85,7 +96,8 @@ export const createStockStatusReader =
           JOIN food_masters fm ON fm.id = si.food_master_id
           LEFT JOIN storage_locations sl ON sl.id = si.storage_location_id
           LEFT JOIN active_lots al ON al.food_master_id = si.food_master_id
-          GROUP BY si.food_master_id, fm.name, sl.id, sl.name, sl.capacity,
+          GROUP BY si.food_master_id, fm.name, si.storage_location_id,
+                   sl.id, sl.name, sl.capacity,
                    si.eat_within_days
         ), planned_delivery_status AS (
           SELECT d.id, d.source_ref, d.expected_date::text AS expected_date,
@@ -105,6 +117,13 @@ export const createStockStatusReader =
           LEFT JOIN food_masters fm ON fm.id = sl.food_master_id
           WHERE d.status = 'planned'
           GROUP BY d.id
+        ), recent_consumption_status AS (
+          SELECT ml.food_master_id, SUM(ml.quantity)::text AS quantity
+          FROM meal_logs ml
+          JOIN stock_items si ON si.food_master_id = ml.food_master_id
+          WHERE ml.eaten_date >= ${today}::date - 13
+            AND ml.eaten_date <= ${today}::date
+          GROUP BY ml.food_master_id
         )
         SELECT
           COALESCE(
@@ -124,7 +143,19 @@ export const createStockStatusReader =
               FROM planned_delivery_status pd
             ),
             '[]'::jsonb
-          ) AS planned_deliveries
+          ) AS planned_deliveries,
+          COALESCE(
+            (
+              SELECT jsonb_agg(
+                jsonb_build_object(
+                  'food_master_id', rc.food_master_id,
+                  'quantity', rc.quantity
+                ) ORDER BY rc.food_master_id
+              )
+              FROM recent_consumption_status rc
+            ),
+            '[]'::jsonb
+          ) AS recent_consumption
       `,
       toStockError,
     ).andThen((rows) => {
@@ -143,6 +174,7 @@ export const createStockStatusReader =
       return okAsync({
         stockItems: row.stock_items.map((item) => ({
           ...toStockItem(item),
+          storageLocationId: item.storage_location_id,
           totalQuantity: item.total_quantity,
           lots: item.lots.map((lot) => ({
             id: lot.stock_lot_id,
@@ -163,6 +195,10 @@ export const createStockStatusReader =
             foodName: item.food_name,
             quantity: item.quantity,
           })),
+        })),
+        recentConsumption: row.recent_consumption.map((consumption) => ({
+          foodMasterId: consumption.food_master_id,
+          quantity: consumption.quantity,
         })),
       })
     })

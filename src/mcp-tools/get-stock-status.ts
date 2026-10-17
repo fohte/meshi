@@ -25,7 +25,7 @@ export const registerGetStockStatusTool = (
     'get_stock_status',
     {
       description:
-        '在庫管理の対象になっている食品の残数、入荷分ごとの日付、保存場所と容量、および受領前の入荷予定を返す。',
+        '在庫管理の対象になっている食品の残数、受領前の入荷予定、容量超過と食べ切り目標の警告、および先に食べたい入荷分を返す。',
       inputSchema: getStockStatusInput,
       outputSchema: getStockStatusStructuredOutput,
       annotations: { readOnlyHint: true },
@@ -56,6 +56,37 @@ export const registerGetStockStatusTool = (
               expected_date: delivery.expectedDate,
               change_deadline: delivery.changeDeadline,
               items: delivery.items.map(buildDeliveryItemPayload),
+            })),
+            capacity_warnings: status.capacityWarnings.map((warning) => ({
+              id: warning.id,
+              storage_location_id: warning.storageLocationId,
+              storage_location_name: warning.storageLocationName,
+              delivery_id: warning.deliveryId,
+              source_ref: warning.sourceRef,
+              expected_date: warning.expectedDate,
+              change_deadline: warning.changeDeadline,
+              projected_quantity: warning.projectedQuantity,
+              capacity: warning.capacity,
+              excess_quantity: warning.excessQuantity,
+            })),
+            eat_by_warnings: status.eatByWarnings.map((warning) => ({
+              id: warning.id,
+              stock_lot_id: warning.stockLotId,
+              food_master_id: warning.foodMasterId,
+              food_name: warning.foodName,
+              target_date: warning.targetDate,
+              target_date_type: warning.targetDateType,
+              remaining_quantity: warning.remainingQuantity,
+              required_daily_consumption: warning.requiredDailyConsumption,
+              actual_daily_consumption: warning.actualDailyConsumption,
+            })),
+            priority_lots: status.priorityLots.map((lot) => ({
+              food_master_id: lot.foodMasterId,
+              food_name: lot.foodName,
+              stock_lot_id: lot.stockLotId,
+              remaining_quantity: lot.remainingQuantity,
+              target_date: lot.targetDate,
+              reasons: lot.reasons,
             })),
           }
           logger.log(TOOL_SUCCEEDED, {

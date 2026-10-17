@@ -105,7 +105,13 @@ const createStockServiceStub = (
   },
   getStockStatus() {
     return okAsync(
-      overrides.status ?? { stockItems: [], plannedDeliveries: [] },
+      overrides.status ?? {
+        stockItems: [],
+        plannedDeliveries: [],
+        capacityWarnings: [],
+        eatByWarnings: [],
+        priorityLots: [],
+      },
     )
   },
 })
@@ -398,6 +404,7 @@ it('returns lot level stock status and planned deliveries', async () => {
           {
             foodMasterId: 'fm_status',
             foodName: 'Sample food status',
+            storageLocationId: 'sl_status',
             storageLocation: { name: 'Sample shelf', capacity: 6 },
             eatWithinDays: 14,
             totalQuantity: 1.5,
@@ -426,6 +433,43 @@ it('returns lot level stock status and planned deliveries', async () => {
                 quantity: 2,
               },
             ],
+          },
+        ],
+        capacityWarnings: [
+          {
+            id: 'capacity-overflow:dly_planned:sl_status',
+            storageLocationId: 'sl_status',
+            storageLocationName: 'Sample shelf',
+            deliveryId: 'dly_planned',
+            sourceRef: 'sample-order',
+            expectedDate: '2026-10-20',
+            changeDeadline: '2026-10-18',
+            projectedQuantity: 8,
+            capacity: 6,
+            excessQuantity: 2,
+          },
+        ],
+        eatByWarnings: [
+          {
+            id: 'eat-by-risk:stl_status',
+            stockLotId: 'stl_status',
+            foodMasterId: 'fm_status',
+            foodName: 'Sample food status',
+            targetDate: '2026-10-15',
+            targetDateType: 'eat_by',
+            remainingQuantity: 1.5,
+            requiredDailyConsumption: 1.5,
+            actualDailyConsumption: 0,
+          },
+        ],
+        priorityLots: [
+          {
+            foodMasterId: 'fm_status',
+            foodName: 'Sample food status',
+            stockLotId: 'stl_status',
+            remainingQuantity: 1.5,
+            targetDate: '2026-10-15',
+            reasons: ['eat_by', 'deadline_passed'],
           },
         ],
       },
@@ -477,6 +521,43 @@ it('returns lot level stock status and planned deliveries', async () => {
                 quantity: 2,
               },
             ],
+          },
+        ],
+        capacity_warnings: [
+          {
+            id: 'capacity-overflow:dly_planned:sl_status',
+            storage_location_id: 'sl_status',
+            storage_location_name: 'Sample shelf',
+            delivery_id: 'dly_planned',
+            source_ref: 'sample-order',
+            expected_date: '2026-10-20',
+            change_deadline: '2026-10-18',
+            projected_quantity: 8,
+            capacity: 6,
+            excess_quantity: 2,
+          },
+        ],
+        eat_by_warnings: [
+          {
+            id: 'eat-by-risk:stl_status',
+            stock_lot_id: 'stl_status',
+            food_master_id: 'fm_status',
+            food_name: 'Sample food status',
+            target_date: '2026-10-15',
+            target_date_type: 'eat_by',
+            remaining_quantity: 1.5,
+            required_daily_consumption: 1.5,
+            actual_daily_consumption: 0,
+          },
+        ],
+        priority_lots: [
+          {
+            food_master_id: 'fm_status',
+            food_name: 'Sample food status',
+            stock_lot_id: 'stl_status',
+            remaining_quantity: 1.5,
+            target_date: '2026-10-15',
+            reasons: ['eat_by', 'deadline_passed'],
           },
         ],
       },

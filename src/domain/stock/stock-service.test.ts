@@ -46,7 +46,8 @@ const repository: StockRepository = {
       changeDeadline: null,
       items: [],
     }),
-  getStockStatus: () => okAsync({ stockItems: [], plannedDeliveries: [] }),
+  getStockStatus: () =>
+    okAsync({ stockItems: [], plannedDeliveries: [], recentConsumption: [] }),
 }
 
 const stockService = createStockService(repository)
