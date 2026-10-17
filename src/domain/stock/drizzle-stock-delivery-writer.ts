@@ -36,7 +36,6 @@ export const createStockDeliveryWriter = (
       const sourceRef = input.sourceRef ?? null
       const items = input.status === 'cancelled' ? [] : input.items
       const foodMasterIds = items.map((item) => item.foodMasterId)
-      // Reject invalid foods before writing when transactions are disabled.
       if (foodMasterIds.length > 0) {
         const stockItemRows = parseRows(
           z.object({ food_master_id: z.string() }),
@@ -116,7 +115,7 @@ export const createStockDeliveryWriter = (
 
       let stockFoodRows: z.output<typeof stockFoodRowSchema>[] = []
       if (foodMasterIds.length > 0) {
-        // Lock stock items after the delivery row to match receipt's lock order.
+        // Keep the same lock order as receipt to avoid deadlocks.
         const parsedStockFoods = parseRows(
           stockFoodRowSchema,
           await tx<Record<string, unknown>[]>`
