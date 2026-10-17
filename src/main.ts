@@ -29,6 +29,10 @@ import { createDrizzleMealLogRepository } from '#domain/meal-log/drizzle-meal-lo
 import { createMealLogService } from '#domain/meal-log/meal-log-service'
 import { createDrizzleMealPhotoRepository } from '#domain/meal-photo/drizzle-meal-photo-repository'
 import { createMealPhotoService } from '#domain/meal-photo/meal-photo-service'
+import {
+  createDrizzleMealSetRepository,
+  createMealSetService,
+} from '#domain/meal-set/index'
 import { createDrizzleMealSkipRepository } from '#domain/meal-skip/drizzle-meal-skip-repository'
 import { createMealSkipService } from '#domain/meal-skip/meal-skip-service'
 import { createDrizzleNutrientDefinitionRepository } from '#domain/nutrient-definition/index'
@@ -91,6 +95,10 @@ export const main = async (): Promise<void> => {
     objectStore: createMealPhotoObjectStore(r2Client, env.R2_BUCKET_NAME),
     idGenerator: () => defaultIdGenerator('meal_photo'),
   })
+  const mealSetService = createMealSetService({
+    repository: createDrizzleMealSetRepository(sql),
+    idGenerator: () => randomUUID(),
+  })
   const stockService = createStockService(createDrizzleStockRepository(sql))
   const foodMatcher = createDrizzleFoodMatcher(sql)
   const foodSearchService = createFoodSearchService(sql, foodMatcher)
@@ -113,6 +121,7 @@ export const main = async (): Promise<void> => {
     profileService: userProfileService,
     foodSearchService,
     mealLogService,
+    mealSetService,
     mealSkipService,
     stockService,
     foodMasterService,

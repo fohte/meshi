@@ -1,4 +1,4 @@
-import { errAsync } from 'neverthrow'
+import { errAsync, okAsync } from 'neverthrow'
 
 import type { FoodSearchService } from '#domain/food-browse/food-search-service'
 import { FoodMasterDomainError } from '#domain/food-master/errors'
@@ -10,6 +10,8 @@ import {
 } from '#domain/meal-history/types'
 import { DomainError } from '#domain/meal-log/errors'
 import type { MealLogService } from '#domain/meal-log/meal-log-service'
+import { MealSetPersistenceError } from '#domain/meal-set/errors'
+import type { MealSetService } from '#domain/meal-set/meal-set-service'
 import { MealSkipPersistenceError } from '#domain/meal-skip/errors'
 import type { MealSkipService } from '#domain/meal-skip/meal-skip-service'
 import { StockDomainError } from '#domain/stock/errors'
@@ -62,6 +64,15 @@ const rejectingMealLogService: MealLogService = {
   deleteMany: () => errAsync(new DomainError('stub', 'test/unused')),
 }
 
+const rejectingMealSetService: MealSetService = {
+  register: () => errAsync(new MealSetPersistenceError('stub')),
+  list: () => errAsync(new MealSetPersistenceError('stub')),
+  getById: () => errAsync(new MealSetPersistenceError('stub')),
+  update: () => errAsync(new MealSetPersistenceError('stub')),
+  delete: () => errAsync(new MealSetPersistenceError('stub')),
+  searchByName: () => okAsync([]),
+}
+
 const rejectingMealSkipService: MealSkipService = {
   record: () => errAsync(new MealSkipPersistenceError('stub')),
   cancel: () => errAsync(new MealSkipPersistenceError('stub')),
@@ -81,6 +92,7 @@ export const createStubMcpDeps = (): MeshiToolDeps => ({
   mealHistoryService: rejectingMealHistoryService,
   profileService: rejectingProfileService,
   mealLogService: rejectingMealLogService,
+  mealSetService: rejectingMealSetService,
   mealSkipService: rejectingMealSkipService,
   stockService: rejectingStockService,
   foodSearchService: rejectingFoodSearchService,
