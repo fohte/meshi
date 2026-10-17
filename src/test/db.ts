@@ -83,6 +83,48 @@ export const setupTx = (): (() => postgres.Sql) => {
   }
 }
 
+export const addDrizzleNestedTransactions = (
+  tx: postgres.Sql,
+): postgres.Sql => {
+  let savepointSequence = 0
+  const nestedSql = tx
+
+  const runSavepoint = async <T>(
+    callbackOrName: string | ((client: postgres.Sql) => T | Promise<T>),
+    namedCallback?: (client: postgres.Sql) => T | Promise<T>,
+  ): Promise<T> => {
+    const callback =
+      typeof callbackOrName === 'string' ? namedCallback : callbackOrName
+    if (callback === undefined) {
+      return Promise.reject(new Error('savepoint callback is required'))
+    }
+
+    savepointSequence += 1
+    const savepointName = `drizzle_nested_${String(savepointSequence)}`
+    await tx.unsafe(`SAVEPOINT ${savepointName}`)
+    // eslint-disable-next-line no-restricted-syntax -- nested repository transactions use savepoints inside the per-test transaction, which must be rolled back when the callback rejects.
+    try {
+      const result = await callback(nestedSql)
+      await tx.unsafe(`RELEASE SAVEPOINT ${savepointName}`)
+      return result
+    } catch (caughtError) {
+      await tx.unsafe(`ROLLBACK TO SAVEPOINT ${savepointName}`)
+      await tx.unsafe(`RELEASE SAVEPOINT ${savepointName}`)
+      return Promise.reject(
+        caughtError instanceof Error
+          ? caughtError
+          : new Error('nested transaction failed', { cause: caughtError }),
+      )
+    }
+  }
+
+  Object.assign(tx, {
+    begin: runSavepoint,
+    savepoint: runSavepoint,
+  })
+  return tx
+}
+
 // For repositories that build a `drizzle(sql)` instance internally
 // (e.g. createDrizzleMealLogRepository). drizzle-orm's postgres-js session
 // reads `client.options.parsers`/`client.options.serializers` while
@@ -115,7 +157,7 @@ export const setupDrizzleTx = (): (() => postgres.Sql) => {
         serializers: { ...poolOptions.serializers },
       },
     })
-    return tx
+    return addDrizzleNestedTransactions(tx)
   }
 }
 

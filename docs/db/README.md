@@ -18,7 +18,7 @@
 | [public.meal_sets](public.meal_sets.md)                                   | 3       | Named groups of foods saved for repeated meal logging.                  | BASE TABLE |
 | [public.stock_items](public.stock_items.md)                               | 4       | Foods configured for stock tracking.                                    | BASE TABLE |
 | [public.stock_lots](public.stock_lots.md)                                 | 7       | Received or counted batches of stock for a food.                        | BASE TABLE |
-| [public.stock_movements](public.stock_movements.md)                       | 6       | Quantity changes recorded against stock lots.                           | BASE TABLE |
+| [public.stock_movements](public.stock_movements.md)                       | 7       | Quantity changes recorded against stock lots.                           | BASE TABLE |
 | [public.storage_locations](public.storage_locations.md)                   | 4       | Named places where stock items are stored.                              | BASE TABLE |
 | [public.meal_photos](public.meal_photos.md)                               | 6       | Photos attached to a meal on a specific date.                           | BASE TABLE |
 
@@ -84,6 +84,7 @@ erDiagram
 "public.stock_items" |o--|| "public.food_masters" : "FOREIGN KEY (food_master_id) REFERENCES food_masters(id) ON UPDATE CASCADE ON DELETE CASCADE"
 "public.stock_items" }o--o| "public.storage_locations" : "FOREIGN KEY (storage_location_id) REFERENCES storage_locations(id) ON UPDATE CASCADE ON DELETE SET NULL"
 "public.stock_lots" }o--|| "public.food_masters" : "FOREIGN KEY (food_master_id) REFERENCES food_masters(id) ON UPDATE CASCADE ON DELETE RESTRICT"
+"public.stock_movements" }o--o| "public.meal_logs" : "FOREIGN KEY (meal_log_id) REFERENCES meal_logs(id) ON UPDATE CASCADE ON DELETE CASCADE"
 "public.stock_movements" }o--|| "public.stock_lots" : "FOREIGN KEY (stock_lot_id) REFERENCES stock_lots(id) ON UPDATE CASCADE ON DELETE RESTRICT"
 
 "public.food_composition_nutrients" {
@@ -179,6 +180,7 @@ erDiagram
   text reason
   text note
   timestamp_with_time_zone created_at
+  text meal_log_id FK
 }
 "public.storage_locations" {
   text id

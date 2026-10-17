@@ -1832,6 +1832,7 @@ describe('update_meal_log', () => {
             eaten_date: '2026-04-18',
             meal_type: 'dinner',
             quantity: 2,
+            stock_shortfall: null,
             nutrition: { energy_kcal: 446 },
             is_estimated: true,
           },
@@ -1850,6 +1851,48 @@ describe('update_meal_log', () => {
           delete: [],
           deleteMany: [],
         },
+      })
+    } finally {
+      await h.close()
+    }
+  })
+
+  it('returns a stock shortfall after updating a meal log', async () => {
+    let captured: UpdateMealLogInput | undefined
+    const h = await start({
+      mealLogOverrides: {
+        update: (input) => {
+          captured = input
+          return okAsync({
+            ...initialMealLog,
+            quantity: 3,
+            stockShortfall: 1.25,
+          })
+        },
+      },
+    })
+    try {
+      const result = await h.client.callTool({
+        name: 'update_meal_log',
+        arguments: { meal_log_id: initialMealLog.id, quantity: 3 },
+      })
+
+      expect(observation({ result, captured })).toEqual({
+        result: {
+          content: [{ type: 'text', text: '食事ログを更新しました。' }],
+          structuredContent: {
+            meal_log_id: initialMealLog.id,
+            food_master_id: initialMealLog.foodMasterId,
+            food_name: '試験用食品 A',
+            eaten_date: initialMealLog.eatenDate,
+            meal_type: initialMealLog.mealType,
+            quantity: 3,
+            stock_shortfall: 1.25,
+            nutrition: initialMealLog.nutrition,
+            is_estimated: initialMealLog.isEstimated,
+          },
+        },
+        captured: { id: initialMealLog.id, quantity: 3 },
       })
     } finally {
       await h.close()
@@ -3357,7 +3400,12 @@ describe('register_food_without_nutrition', () => {
 
 describe('record_meal_log', () => {
   it('records resolved food IDs directly', async () => {
-    const h = await start()
+    const h = await start({
+      recordMealLogResults: recordedMealLogItems.map((item) => ({
+        ...item,
+        stockShortfall: 0.5,
+      })),
+    })
     try {
       const result = await h.client.callTool({
         name: 'record_meal_log',
@@ -3389,6 +3437,7 @@ describe('record_meal_log', () => {
                 food_master_id: 'fm_catalog_alpha',
                 food_name: 'item_token_alpha',
                 quantity: 2,
+                stock_shortfall: 0.5,
                 nutrition: { energy_kcal: 84, protein_g: 3 },
                 is_estimated: false,
                 nutrition_status: 'confirmed',
@@ -3458,6 +3507,7 @@ describe('record_meal_log', () => {
               food_master_id: 'fm_catalog_unknown',
               food_name: 'unknown menu',
               quantity: 1,
+              stock_shortfall: null,
               nutrition: {},
               is_estimated: false,
               nutrition_status: 'unknown',

@@ -112,6 +112,7 @@ export const recordMealSkipStructuredOutput = mealSkipIdentity.extend({
 export const cancelMealSkipStructuredOutput = mealSkipIdentity
 
 export const updateMealLogStructuredOutput = mealLogMutationOutput.extend({
+  stock_shortfall: z.number().nonnegative().nullable(),
   nutrition: nutritionMap,
   is_estimated: z.boolean(),
 })
@@ -359,6 +360,7 @@ export const recordMealLogStructuredOutput = z.object({
       food_master_id: z.string(),
       food_name: z.string(),
       quantity: z.number(),
+      stock_shortfall: z.number().nonnegative().nullable(),
       nutrition: nutritionMap,
       is_estimated: z.boolean(),
       nutrition_status: z.enum(NUTRITION_STATUSES),
