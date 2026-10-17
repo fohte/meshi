@@ -19,7 +19,7 @@ import type {
 } from '#domain/meal-photo/types'
 import { isValidJstCalendarDateString, type JstDate } from '#lib/jst-date'
 
-export interface UploadMealPhotoInput {
+interface UploadMealPhotoInput {
   readonly date: JstDate
   readonly mealType: MealType
   readonly contentType: MealPhotoContentType
