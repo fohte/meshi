@@ -16,14 +16,14 @@ import type { CountStockInput, StockCountResult } from '#domain/stock/types'
 
 const foodMasterRowSchema = z.object({ id: z.string() })
 const stockLotLockRowSchema = z.object({ id: z.string() })
-const stockTotalRowSchema = z.object({ quantity: z.string() })
 const stockLotBalanceRowSchema = z.object({
   stock_lot_id: z.string(),
   remaining: z.string(),
+  total_quantity: z.string(),
 })
-const numericDistributionRowSchema = z.object({
+const stockLotAllocationRowSchema = z.object({
+  stock_lot_id: z.string(),
   consumed: z.string(),
-  remaining: z.string(),
 })
 const eatByRowSchema = z.object({ eat_by: z.string().nullable() })
 
@@ -36,16 +36,34 @@ export const createStockCounter = (
 
   return (input: CountStockInput) =>
     runWrite(async (tx) => {
+      const foodMasterRows = parseRows(
+        foodMasterRowSchema,
+        await tx<Record<string, unknown>[]>`
+          SELECT id FROM food_masters
+          WHERE id = ${input.foodMasterId}
+          FOR UPDATE
+        `,
+        'lock food_master for count',
+      )
+      if (foodMasterRows.isErr()) return err(foodMasterRows.error)
+      if (foodMasterRows.value.length === 0) {
+        return err(
+          new StockDomainError(
+            'stock_item_not_found',
+            `food_master is not a stock_item: ${input.foodMasterId}`,
+            { foodMasterId: input.foodMasterId },
+          ),
+        )
+      }
+
       const stockItemRows = parseRows(
         foodMasterRowSchema,
         await tx<Record<string, unknown>[]>`
-          SELECT fm.id
-          FROM food_masters fm
-          JOIN stock_items si ON si.food_master_id = fm.id
-          WHERE fm.id = ${input.foodMasterId}
-          FOR UPDATE OF si
+          SELECT food_master_id AS id FROM stock_items
+          WHERE food_master_id = ${input.foodMasterId}
+          FOR UPDATE
         `,
-        'load stock_item for count',
+        'lock stock_item for count',
       )
       if (stockItemRows.isErr()) return err(stockItemRows.error)
       if (stockItemRows.value.length === 0) {
@@ -70,39 +88,31 @@ export const createStockCounter = (
       )
       if (lockedLots.isErr()) return err(lockedLots.error)
 
-      const totalRows = parseRows(
-        stockTotalRowSchema,
-        await tx<Record<string, unknown>[]>`
-          SELECT COALESCE(SUM(sm.delta), 0)::text AS quantity
-          FROM stock_lots sl
-          LEFT JOIN stock_movements sm ON sm.stock_lot_id = sl.id
-          WHERE sl.food_master_id = ${input.foodMasterId}
-        `,
-        'sum stock movements',
-      )
-      if (totalRows.isErr()) return err(totalRows.error)
-      const totalRow = firstRow(totalRows.value, 'sum stock movements')
-      if (totalRow.isErr()) return err(totalRow.error)
-
       const lotRows = parseRows(
         stockLotBalanceRowSchema,
         await tx<Record<string, unknown>[]>`
-          SELECT sl.id AS stock_lot_id,
-                 COALESCE(SUM(sm.delta), 0)::text AS remaining
-          FROM stock_lots sl
-          LEFT JOIN stock_movements sm ON sm.stock_lot_id = sl.id
-          WHERE sl.food_master_id = ${input.foodMasterId}
-          GROUP BY sl.id, sl.received_date, sl.created_at
-          ORDER BY sl.received_date ASC NULLS FIRST, sl.created_at ASC, sl.id ASC
+          WITH lot_balances AS (
+            SELECT sl.id AS stock_lot_id, sl.received_date, sl.created_at,
+                   COALESCE(SUM(sm.delta), 0)::numeric AS remaining
+            FROM stock_lots sl
+            LEFT JOIN stock_movements sm ON sm.stock_lot_id = sl.id
+            WHERE sl.food_master_id = ${input.foodMasterId}
+            GROUP BY sl.id, sl.received_date, sl.created_at
+          )
+          SELECT stock_lot_id, remaining::text AS remaining,
+                 COALESCE(SUM(remaining) OVER (), 0)::text AS total_quantity
+          FROM lot_balances
+          ORDER BY received_date ASC NULLS FIRST, created_at ASC, stock_lot_id ASC
         `,
         'load stock_lot balances',
       )
       if (lotRows.isErr()) return err(lotRows.error)
+      const previousQuantityValue = lotRows.value[0]?.total_quantity ?? '0'
 
       const differenceRows = parseRows(
         z.object({ difference: z.string() }),
         await tx<Record<string, unknown>[]>`
-          SELECT (${input.quantity}::numeric - ${totalRow.value.quantity}::numeric)::text
+          SELECT (${input.quantity}::numeric - ${previousQuantityValue}::numeric)::text
             AS difference
         `,
         'calculate stock count difference',
@@ -158,61 +168,49 @@ export const createStockCounter = (
           eatBy: eatByRow.value.eat_by,
         }
       } else if (isNegativeNumeric(difference)) {
-        const amountRows = parseRows(
-          z.object({ amount: z.string() }),
+        const allocationRows = parseRows(
+          stockLotAllocationRowSchema,
           await tx<Record<string, unknown>[]>`
-            SELECT (-${difference}::numeric)::text AS amount
+            WITH lot_balances AS (
+              SELECT sl.id AS stock_lot_id, sl.received_date, sl.created_at,
+                     COALESCE(SUM(sm.delta), 0)::numeric AS remaining
+              FROM stock_lots sl
+              LEFT JOIN stock_movements sm ON sm.stock_lot_id = sl.id
+              WHERE sl.food_master_id = ${input.foodMasterId}
+              GROUP BY sl.id, sl.received_date, sl.created_at
+            ), ordered_lots AS (
+              SELECT *, COALESCE(
+                SUM(remaining) OVER (
+                  ORDER BY received_date ASC NULLS FIRST, created_at ASC,
+                           stock_lot_id ASC
+                  ROWS BETWEEN UNBOUNDED PRECEDING AND 1 PRECEDING
+                ),
+                0
+              ) AS remaining_before
+              FROM lot_balances
+              WHERE remaining > 0
+            )
+            SELECT stock_lot_id,
+                   LEAST(
+                     remaining,
+                     GREATEST(-${difference}::numeric - remaining_before, 0)
+                   )::text AS consumed
+            FROM ordered_lots
+            WHERE LEAST(
+              remaining,
+              GREATEST(-${difference}::numeric - remaining_before, 0)
+            ) > 0
+            ORDER BY received_date ASC NULLS FIRST, created_at ASC, stock_lot_id ASC
           `,
-          'calculate stock reduction',
+          'allocate stock count reduction',
         )
-        if (amountRows.isErr()) return err(amountRows.error)
-        const amountRow = firstRow(
-          amountRows.value,
-          'calculate stock reduction',
+        if (allocationRows.isErr()) return err(allocationRows.error)
+        plannedMovements.push(
+          ...allocationRows.value.map((lot) => ({
+            stockLotId: lot.stock_lot_id,
+            delta: `-${lot.consumed}`,
+          })),
         )
-        if (amountRow.isErr()) return err(amountRow.error)
-        let remainingToRemove = amountRow.value.amount
-
-        for (const lot of lotRows.value) {
-          if (!isPositiveNumeric(remainingToRemove)) break
-          if (!isPositiveNumeric(lot.remaining)) continue
-          const distributionRows = parseRows(
-            numericDistributionRowSchema,
-            await tx<Record<string, unknown>[]>`
-              SELECT
-                LEAST(
-                  ${remainingToRemove}::numeric,
-                  ${lot.remaining}::numeric
-                )::text AS consumed,
-                GREATEST(
-                  ${remainingToRemove}::numeric - ${lot.remaining}::numeric,
-                  0
-                )::text AS remaining
-            `,
-            'allocate stock count reduction',
-          )
-          if (distributionRows.isErr()) return err(distributionRows.error)
-          const distribution = firstRow(
-            distributionRows.value,
-            'allocate stock count reduction',
-          )
-          if (distribution.isErr()) return err(distribution.error)
-          if (isPositiveNumeric(distribution.value.consumed)) {
-            plannedMovements.push({
-              stockLotId: lot.stock_lot_id,
-              delta: `-${distribution.value.consumed}`,
-            })
-          }
-          remainingToRemove = distribution.value.remaining
-        }
-        if (isPositiveNumeric(remainingToRemove)) {
-          return err(
-            new StockDomainError(
-              'persistence_failed',
-              'stock count reduction exceeded the available lot balances',
-            ),
-          )
-        }
       }
 
       if (newLot !== undefined) {
@@ -240,7 +238,7 @@ export const createStockCounter = (
         `
       }
 
-      const previousQuantity = numericString.safeParse(totalRow.value.quantity)
+      const previousQuantity = numericString.safeParse(previousQuantityValue)
       const parsedDifference = numericString.safeParse(difference)
       if (!previousQuantity.success || !parsedDifference.success) {
         return err(
@@ -255,7 +253,6 @@ export const createStockCounter = (
         previousQuantity: previousQuantity.data,
         countedQuantity: input.quantity,
         difference: parsedDifference.data,
-        remainingQuantity: input.quantity,
       } satisfies StockCountResult)
     })
 }

@@ -42,7 +42,6 @@ export const registerCountStockTool = (
               previous_quantity: result.previousQuantity,
               counted_quantity: result.countedQuantity,
               difference: result.difference,
-              remaining_quantity: result.remainingQuantity,
             }
             logger.log(TOOL_SUCCEEDED, { tool: 'count_stock' })
             return {

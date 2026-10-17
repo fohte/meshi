@@ -397,7 +397,6 @@ export const countStockStructuredOutput = z.object({
   previous_quantity: z.number(),
   counted_quantity: z.number(),
   difference: z.number(),
-  remaining_quantity: z.number(),
 })
 
 export const getStockStatusInput = z.object({}).strict()

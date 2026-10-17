@@ -33,7 +33,6 @@ export interface StockCountResult {
   readonly previousQuantity: number
   readonly countedQuantity: number
   readonly difference: number
-  readonly remainingQuantity: number
 }
 
 interface StockLotStatus {

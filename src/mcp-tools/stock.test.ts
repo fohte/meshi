@@ -11,6 +11,24 @@ import type {
 import { createMcpServer } from '#mcp'
 import { createStubMcpDeps } from '#test/mcp-stubs'
 
+const VALIDATION_ERROR_TEXT = '<schema validation error>'
+
+const normalizeValidationError = <
+  T extends { content?: { type: string }[]; [key: string]: unknown },
+>(
+  result: T,
+): T => {
+  if (!result.content) return result
+  return {
+    ...result,
+    content: result.content.map((content) =>
+      content.type === 'text'
+        ? { ...content, text: VALIDATION_ERROR_TEXT }
+        : content,
+    ),
+  }
+}
+
 const createStockServiceStub = (
   overrides: {
     readonly stockItem?: StockItem
@@ -41,7 +59,6 @@ const createStockServiceStub = (
       previousQuantity: 0,
       countedQuantity: input.quantity,
       difference: input.quantity,
-      remainingQuantity: input.quantity,
     })
   },
   getStockStatus() {
@@ -83,11 +100,14 @@ it('routes set_stock_item arguments and returns the saved settings', async () =>
       },
     })
 
-    expect(result.structuredContent).toEqual({
-      food_master_id: 'fm_sample_stock',
-      food_name: 'Sample stock food',
-      storage_location: { name: 'Sample freezer', capacity: 8 },
-      eat_within_days: 20,
+    expect(result).toEqual({
+      content: [{ type: 'text', text: '在庫管理の設定を保存しました。' }],
+      structuredContent: {
+        food_master_id: 'fm_sample_stock',
+        food_name: 'Sample stock food',
+        storage_location: { name: 'Sample freezer', capacity: 8 },
+        eat_within_days: 20,
+      },
     })
   } finally {
     await h.close()
@@ -131,12 +151,14 @@ it('returns the count_stock result', async () => {
       arguments: { food_master_id: 'fm_counted', quantity: 1.5 },
     })
 
-    expect(result.structuredContent).toEqual({
-      food_master_id: 'fm_counted',
-      previous_quantity: 0,
-      counted_quantity: 1.5,
-      difference: 1.5,
-      remaining_quantity: 1.5,
+    expect(result).toEqual({
+      content: [{ type: 'text', text: '棚卸し結果を保存しました。' }],
+      structuredContent: {
+        food_master_id: 'fm_counted',
+        previous_quantity: 0,
+        counted_quantity: 1.5,
+        difference: 1.5,
+      },
     })
   } finally {
     await h.close()
@@ -151,7 +173,10 @@ it('rejects negative count quantities before calling the service', async () => {
       arguments: { food_master_id: 'fm_sample_stock', quantity: -0.5 },
     })
 
-    expect(result.isError).toEqual(true)
+    expect(normalizeValidationError(result)).toEqual({
+      content: [{ type: 'text', text: VALIDATION_ERROR_TEXT }],
+      isError: true,
+    })
   } finally {
     await h.close()
   }
@@ -187,26 +212,29 @@ it('returns lot level stock status', async () => {
       arguments: {},
     })
 
-    expect(result.structuredContent).toEqual({
-      stock_items: [
-        {
-          food_master_id: 'fm_status',
-          food_name: 'Sample food status',
-          total_quantity: 1.5,
-          storage_location: { name: 'Sample shelf', capacity: 6 },
-          eat_within_days: 14,
-          lots: [
-            {
-              stock_lot_id: 'stl_status',
-              quantity: 2,
-              remaining_quantity: 1.5,
-              received_date: '2026-10-01',
-              best_before: '2026-11-01',
-              eat_by: '2026-10-15',
-            },
-          ],
-        },
-      ],
+    expect(result).toEqual({
+      content: [{ type: 'text', text: '1 件の在庫状況を取得しました。' }],
+      structuredContent: {
+        stock_items: [
+          {
+            food_master_id: 'fm_status',
+            food_name: 'Sample food status',
+            total_quantity: 1.5,
+            storage_location: { name: 'Sample shelf', capacity: 6 },
+            eat_within_days: 14,
+            lots: [
+              {
+                stock_lot_id: 'stl_status',
+                quantity: 2,
+                remaining_quantity: 1.5,
+                received_date: '2026-10-01',
+                best_before: '2026-11-01',
+                eat_by: '2026-10-15',
+              },
+            ],
+          },
+        ],
+      },
     })
   } finally {
     await h.close()

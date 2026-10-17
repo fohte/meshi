@@ -86,6 +86,61 @@ describeIfDb('stock repository', () => {
     })
   })
 
+  it('clears the assigned storage location', async () => {
+    const tx = getTx()
+    await seedFoodMasterWithoutNutrition(tx, {
+      id: 'fm_clear_location',
+      name: 'Sample food for clearing a location',
+    })
+    await stockService.setStockItem({
+      foodMasterId: 'fm_clear_location',
+      storageLocationName: 'Sample cupboard',
+      storageLocationCapacity: 5,
+      eatWithinDays: 9,
+    })
+
+    const result = (
+      await stockService.setStockItem({
+        foodMasterId: 'fm_clear_location',
+        storageLocationName: null,
+      })
+    )._unsafeUnwrap()
+
+    expect(result).toEqual({
+      foodMasterId: 'fm_clear_location',
+      foodName: 'Sample food for clearing a location',
+      storageLocation: null,
+      eatWithinDays: 9,
+    })
+  })
+
+  it('clears storage location capacity without clearing the location', async () => {
+    const tx = getTx()
+    await seedFoodMasterWithoutNutrition(tx, {
+      id: 'fm_clear_capacity',
+      name: 'Sample food for clearing capacity',
+    })
+    await stockService.setStockItem({
+      foodMasterId: 'fm_clear_capacity',
+      storageLocationName: 'Sample cabinet',
+      storageLocationCapacity: 7,
+    })
+
+    const result = (
+      await stockService.setStockItem({
+        foodMasterId: 'fm_clear_capacity',
+        storageLocationCapacity: null,
+      })
+    )._unsafeUnwrap()
+
+    expect(result).toEqual({
+      foodMasterId: 'fm_clear_capacity',
+      foodName: 'Sample food for clearing capacity',
+      storageLocation: { name: 'Sample cabinet', capacity: null },
+      eatWithinDays: null,
+    })
+  })
+
   it('creates a dated lot when the first count adds fractional stock', async () => {
     const tx = getTx()
     await seedFoodMasterWithoutNutrition(tx, {
@@ -148,7 +203,6 @@ describeIfDb('stock repository', () => {
       previousQuantity: 0,
       countedQuantity: 1.5,
       difference: 1.5,
-      remainingQuantity: 1.5,
     })
   })
 

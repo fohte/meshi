@@ -155,9 +155,10 @@ describeIfDb('schema migrations', () => {
 
   it('indexes every stock foreign key column', async () => {
     const sql = getTestSql()
-    const rows = await sql<{ indexname: string }[]>`
-      SELECT indexname FROM pg_indexes
+    const rows = await sql<{ indexname: string; indexdef: string }[]>`
+      SELECT indexname, indexdef FROM pg_indexes
       WHERE indexname IN (
+        'stock_items_pkey',
         'stock_items_storage_location_id_idx',
         'stock_lots_food_master_id_received_date_idx',
         'stock_movements_stock_lot_id_idx'
@@ -165,9 +166,26 @@ describeIfDb('schema migrations', () => {
       ORDER BY indexname
     `
     expect(rows).toEqual([
-      { indexname: 'stock_items_storage_location_id_idx' },
-      { indexname: 'stock_lots_food_master_id_received_date_idx' },
-      { indexname: 'stock_movements_stock_lot_id_idx' },
+      {
+        indexname: 'stock_items_pkey',
+        indexdef:
+          'CREATE UNIQUE INDEX stock_items_pkey ON public.stock_items USING btree (food_master_id)',
+      },
+      {
+        indexname: 'stock_items_storage_location_id_idx',
+        indexdef:
+          'CREATE INDEX stock_items_storage_location_id_idx ON public.stock_items USING btree (storage_location_id)',
+      },
+      {
+        indexname: 'stock_lots_food_master_id_received_date_idx',
+        indexdef:
+          'CREATE INDEX stock_lots_food_master_id_received_date_idx ON public.stock_lots USING btree (food_master_id, received_date)',
+      },
+      {
+        indexname: 'stock_movements_stock_lot_id_idx',
+        indexdef:
+          'CREATE INDEX stock_movements_stock_lot_id_idx ON public.stock_movements USING btree (stock_lot_id)',
+      },
     ])
   })
 

@@ -8,6 +8,7 @@ import {
   parseRows,
   toStockError,
 } from '#domain/stock/stock-repository-utils'
+import { stockItemRowSchema, toStockItem } from '#domain/stock/stock-rows'
 import type { StockItemStatus } from '#domain/stock/types'
 
 const stockLotStatusSchema = z.object({
@@ -19,12 +20,7 @@ const stockLotStatusSchema = z.object({
   eat_by: z.iso.date().nullable(),
 })
 
-const stockStatusRowSchema = z.object({
-  food_master_id: z.string(),
-  food_name: z.string(),
-  storage_location_name: z.string().nullable(),
-  storage_location_capacity: numericString.nullable(),
-  eat_within_days: z.number().int().nullable(),
+const stockStatusRowSchema = stockItemRowSchema.extend({
   total_quantity: numericString,
   lots: z.array(stockLotStatusSchema),
 })
@@ -82,16 +78,7 @@ export const createStockStatusReader =
       if (parsed.isErr()) return errAsync(parsed.error)
       return okAsync(
         parsed.value.map((row) => ({
-          foodMasterId: row.food_master_id,
-          foodName: row.food_name,
-          storageLocation:
-            row.storage_location_name === null
-              ? null
-              : {
-                  name: row.storage_location_name,
-                  capacity: row.storage_location_capacity,
-                },
-          eatWithinDays: row.eat_within_days,
+          ...toStockItem(row),
           totalQuantity: row.total_quantity,
           lots: row.lots.map((lot) => ({
             id: lot.stock_lot_id,
