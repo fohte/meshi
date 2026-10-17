@@ -11,6 +11,10 @@ import type {
   mealSetItems,
   mealSets,
   nutrientDefinitions,
+  stockItems,
+  stockLots,
+  stockMovements,
+  storageLocations,
 } from '#db/schema'
 
 export const seedNutrientDefinition = async (
@@ -192,5 +196,65 @@ export const seedFoodCompositionNutrient = async (
   await sql`
     INSERT INTO food_composition_nutrients (food_composition_code, nutrient_code, value)
     VALUES (${values.foodCompositionCode}, ${values.nutrientCode}, ${values.value})
+  `
+}
+
+export const seedStorageLocation = async (
+  sql: Sql,
+  values: Omit<
+    typeof storageLocations.$inferInsert,
+    'createdAt' | 'capacity'
+  > & {
+    capacity?: number | null
+  },
+): Promise<void> => {
+  await sql`
+    INSERT INTO storage_locations (id, name, capacity)
+    VALUES (${values.id}, ${values.name}, ${values.capacity ?? null})
+  `
+}
+
+export const seedStockItem = async (
+  sql: Sql,
+  values: Omit<typeof stockItems.$inferInsert, 'createdAt'>,
+): Promise<void> => {
+  await sql`
+    INSERT INTO stock_items (food_master_id, storage_location_id, eat_within_days)
+    VALUES (
+      ${values.foodMasterId}, ${values.storageLocationId ?? null},
+      ${values.eatWithinDays ?? null}
+    )
+  `
+}
+
+export const seedStockLot = async (
+  sql: Sql,
+  values: Omit<typeof stockLots.$inferInsert, 'createdAt' | 'quantity'> & {
+    quantity: number
+  },
+): Promise<void> => {
+  await sql`
+    INSERT INTO stock_lots (
+      id, food_master_id, quantity, received_date, best_before, eat_by
+    ) VALUES (
+      ${values.id}, ${values.foodMasterId}, ${values.quantity},
+      ${values.receivedDate ?? null}, ${values.bestBefore ?? null},
+      ${values.eatBy ?? null}
+    )
+  `
+}
+
+export const seedStockMovement = async (
+  sql: Sql,
+  values: Omit<typeof stockMovements.$inferInsert, 'createdAt' | 'delta'> & {
+    delta: number
+  },
+): Promise<void> => {
+  await sql`
+    INSERT INTO stock_movements (id, stock_lot_id, delta, reason, note)
+    VALUES (
+      ${values.id}, ${values.stockLotId}, ${values.delta},
+      ${values.reason}, ${values.note ?? null}
+    )
   `
 }

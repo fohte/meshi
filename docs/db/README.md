@@ -17,6 +17,10 @@
 | [public.meal_set_items](public.meal_set_items.md)                         | 3       | Foods and quantities included in a meal set.                            | BASE TABLE |
 | [public.meal_sets](public.meal_sets.md)                                   | 3       | Named groups of foods saved for repeated meal logging.                  | BASE TABLE |
 | [public.meal_photos](public.meal_photos.md)                               | 6       | Photos attached to a meal on a specific date.                           | BASE TABLE |
+| [public.stock_items](public.stock_items.md)                               | 4       | Foods configured for stock tracking.                                    | BASE TABLE |
+| [public.stock_lots](public.stock_lots.md)                                 | 7       | Received or counted batches of stock for a food.                        | BASE TABLE |
+| [public.stock_movements](public.stock_movements.md)                       | 6       | Quantity changes recorded against stock lots.                           | BASE TABLE |
+| [public.storage_locations](public.storage_locations.md)                   | 4       | Named places where stock items are stored.                              | BASE TABLE |
 
 ## Stored procedures and functions
 
@@ -77,6 +81,10 @@ erDiagram
 "public.food_master_nutrition" |o--|| "public.food_masters" : "FOREIGN KEY (food_master_id) REFERENCES food_masters(id) ON UPDATE CASCADE ON DELETE CASCADE"
 "public.meal_set_items" }o--|| "public.food_masters" : "FOREIGN KEY (food_master_id) REFERENCES food_masters(id) ON UPDATE CASCADE ON DELETE RESTRICT"
 "public.meal_set_items" }o--|| "public.meal_sets" : "FOREIGN KEY (meal_set_id) REFERENCES meal_sets(id) ON UPDATE CASCADE ON DELETE CASCADE"
+"public.stock_items" |o--|| "public.food_masters" : "FOREIGN KEY (food_master_id) REFERENCES food_masters(id) ON UPDATE CASCADE ON DELETE CASCADE"
+"public.stock_items" }o--o| "public.storage_locations" : "FOREIGN KEY (storage_location_id) REFERENCES storage_locations(id) ON UPDATE CASCADE ON DELETE SET NULL"
+"public.stock_lots" }o--|| "public.food_masters" : "FOREIGN KEY (food_master_id) REFERENCES food_masters(id) ON UPDATE CASCADE ON DELETE RESTRICT"
+"public.stock_movements" }o--|| "public.stock_lots" : "FOREIGN KEY (stock_lot_id) REFERENCES stock_lots(id) ON UPDATE CASCADE ON DELETE RESTRICT"
 
 "public.food_composition_nutrients" {
   text food_composition_code FK
@@ -155,6 +163,35 @@ erDiagram
   meal_type meal_type
   text object_key
   text content_type
+  timestamp_with_time_zone created_at
+}
+"public.stock_items" {
+  text food_master_id FK
+  text storage_location_id FK
+  integer eat_within_days
+  timestamp_with_time_zone created_at
+}
+"public.stock_lots" {
+  text id
+  text food_master_id FK
+  numeric quantity
+  date received_date
+  date best_before
+  date eat_by
+  timestamp_with_time_zone created_at
+}
+"public.stock_movements" {
+  text id
+  text stock_lot_id FK
+  numeric delta
+  text reason
+  text note
+  timestamp_with_time_zone created_at
+}
+"public.storage_locations" {
+  text id
+  text name
+  numeric capacity
   timestamp_with_time_zone created_at
 }
 ```
