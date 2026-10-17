@@ -458,6 +458,27 @@ it('suppresses a warning when the unrounded rates differ only within tolerance',
   })
 })
 
+it('does not warn when a capacity overflow rounds to the capacity', () => {
+  const snapshot = makeSnapshot(
+    [
+      makeStockItem({
+        foodMasterId: 'fm_sample',
+        storageLocationId: 'sl_sample',
+        capacity: 3,
+      }),
+    ],
+    [makeDelivery('dly_sample', '2026-10-18', 'fm_sample', 3.002)],
+  )
+
+  expect(calculateStockStatus(snapshot, TODAY)).toEqual({
+    stockItems: snapshot.stockItems,
+    plannedDeliveries: snapshot.plannedDeliveries,
+    capacityWarnings: [],
+    eatByWarnings: [],
+    priorityLots: [],
+  })
+})
+
 it('groups same-day deliveries by storage location and skips locations without capacity', () => {
   const snapshot = makeSnapshot(
     [

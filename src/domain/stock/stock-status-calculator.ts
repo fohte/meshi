@@ -288,7 +288,8 @@ const calculateCapacityWarnings = (
         today,
         dailyConsumptionByFood,
       )
-      if (projectedQuantity <= group.capacity) continue
+      const roundedProjectedQuantity = roundToTwoDecimals(projectedQuantity)
+      if (roundedProjectedQuantity <= group.capacity) continue
 
       warnings.push({
         id: ['capacity-overflow', group.storageLocationId, group.groupKey].join(
@@ -300,9 +301,11 @@ const calculateCapacityWarnings = (
         deliveries: [...group.deliveries.values()].sort((left, right) =>
           left.deliveryId.localeCompare(right.deliveryId),
         ),
-        projectedQuantity: roundToTwoDecimals(projectedQuantity),
+        projectedQuantity: roundedProjectedQuantity,
         capacity: group.capacity,
-        excessQuantity: roundToTwoDecimals(projectedQuantity - group.capacity),
+        excessQuantity: roundToTwoDecimals(
+          roundedProjectedQuantity - group.capacity,
+        ),
       })
     }
   }
