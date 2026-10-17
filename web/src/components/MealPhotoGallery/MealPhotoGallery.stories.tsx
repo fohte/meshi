@@ -31,10 +31,13 @@ const meta: Meta<typeof MealPhotoGallery> = {
   title: 'components/MealPhotoGallery',
   component: MealPhotoGallery,
   args: {
+    mealName: '朝食',
     photos: [],
     onUpload: () => undefined,
     onPhotoClick: () => undefined,
     onClosePreview: () => undefined,
+    onRequestDelete: () => undefined,
+    onCancelDeleteConfirmation: () => undefined,
     onDeletePhoto: () => undefined,
   },
 }
@@ -91,11 +94,21 @@ export const Deleting: Story = {
   },
 }
 
+export const ConfirmingDelete: Story = {
+  name: '削除前に確認を求めています',
+  args: {
+    photos: PHOTOS,
+    previewPhoto: FIRST_PHOTO,
+    isDeleteConfirmationOpen: true,
+  },
+}
+
 export const DeleteFailed: Story = {
   name: '写真の削除に失敗した理由を表示しています',
   args: {
     photos: PHOTOS,
     previewPhoto: FIRST_PHOTO,
+    isDeleteConfirmationOpen: true,
     deleteError: '写真を削除できませんでした。もう一度お試しください。',
   },
 }

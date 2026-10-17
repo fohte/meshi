@@ -4,7 +4,7 @@ import { fileURLToPath } from 'node:url'
 import { BLOCK_EXTERNAL_REQUESTS_ARGS } from '@fohte/storybook-addon/vitest-plugin'
 import { storybookTest } from '@storybook/addon-vitest/vitest-plugin'
 import { playwright } from '@vitest/browser-playwright'
-import { defineConfig, mergeConfig } from 'vitest/config'
+import { configDefaults, defineConfig, mergeConfig } from 'vitest/config'
 
 // The "#*" subpath import mapping (package.json "imports") only covers
 // src/, not sibling config files at the package root.
@@ -24,23 +24,14 @@ export default mergeConfig(
           extends: true,
           test: {
             name: 'unit',
-            exclude: [
-              '**/node_modules/**',
-              '**/dist/**',
-              '**/cypress/**',
-              '**/.{idea,git,cache,output,temp}/**',
-              '**/{karma,rollup,webpack,vite,vitest,jest,ava,babel,nyc,cypress,tsup,build}.config.*',
-              'src/components/MealPhotoGallery/MealPhotoGallery.test.tsx',
-            ],
+            exclude: [...configDefaults.exclude, 'src/**/*.test.tsx'],
           },
         },
         {
           extends: true,
           test: {
             name: 'component-browser',
-            include: [
-              'src/components/MealPhotoGallery/MealPhotoGallery.test.tsx',
-            ],
+            include: ['src/**/*.test.tsx'],
             browser: {
               enabled: true,
               provider: playwright(),

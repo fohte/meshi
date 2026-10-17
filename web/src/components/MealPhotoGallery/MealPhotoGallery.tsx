@@ -6,6 +6,7 @@ import styles from '#components/MealPhotoGallery/MealPhotoGallery.module.css'
 import { getMealPhotoFileError } from '#components/MealPhotoGallery/validate-meal-photo-file'
 
 export interface MealPhotoGalleryProps {
+  readonly mealName: string
   readonly photos: ReadonlyArray<MealPhoto>
   readonly isLoading?: boolean
   readonly loadError?: string
@@ -14,15 +15,19 @@ export interface MealPhotoGalleryProps {
   readonly isUploadDisabled?: boolean
   readonly uploadError?: string
   readonly previewPhoto?: MealPhoto | null
+  readonly isDeleteConfirmationOpen?: boolean
   readonly isDeleting?: boolean
   readonly deleteError?: string
   readonly onUpload: (file: File) => void
   readonly onPhotoClick: (photo: MealPhoto) => void
   readonly onClosePreview: () => void
+  readonly onRequestDelete: () => void
+  readonly onCancelDeleteConfirmation: () => void
   readonly onDeletePhoto: (id: string) => void
 }
 
 export const MealPhotoGallery = ({
+  mealName,
   photos,
   isLoading = false,
   loadError,
@@ -31,35 +36,58 @@ export const MealPhotoGallery = ({
   isUploadDisabled = false,
   uploadError,
   previewPhoto,
+  isDeleteConfirmationOpen = false,
   isDeleting = false,
   deleteError,
   onUpload,
   onPhotoClick,
   onClosePreview,
+  onRequestDelete,
+  onCancelDeleteConfirmation,
   onDeletePhoto,
 }: MealPhotoGalleryProps): React.JSX.Element => {
   const fileInputRef = useRef<HTMLInputElement>(null)
+  const addButtonRef = useRef<HTMLButtonElement>(null)
   const closeButtonRef = useRef<HTMLButtonElement>(null)
-  const onClosePreviewRef = useRef(onClosePreview)
+  const dialogRef = useRef<HTMLDialogElement>(null)
+  const previewTriggerRef = useRef<HTMLButtonElement | null>(null)
+  const focusAddAfterCloseRef = useRef(false)
   const [fileError, setFileError] = useState<string | undefined>()
 
-  useEffect(() => {
-    onClosePreviewRef.current = onClosePreview
-  }, [onClosePreview])
+  const isPreviewOpen = previewPhoto !== null && previewPhoto !== undefined
 
   useEffect(() => {
-    if (previewPhoto === null || previewPhoto === undefined) return
+    if (deleteError !== undefined) focusAddAfterCloseRef.current = false
+  }, [deleteError])
 
-    const handleKeyDown = (event: KeyboardEvent): void => {
-      if (event.key === 'Escape') onClosePreviewRef.current()
-    }
+  useEffect(() => {
+    if (!isPreviewOpen) return
+    const dialog = dialogRef.current
+    if (dialog === null || dialog.open) return
 
-    window.addEventListener('keydown', handleKeyDown)
+    const previousBodyOverflow = document.body.style.overflow
+    const previousDocumentOverflow = document.documentElement.style.overflow
+    dialog.showModal()
+    document.body.style.overflow = 'hidden'
+    document.documentElement.style.overflow = 'hidden'
     closeButtonRef.current?.focus()
     return () => {
-      window.removeEventListener('keydown', handleKeyDown)
+      if (dialog.open) dialog.close()
+      document.body.style.overflow = previousBodyOverflow
+      document.documentElement.style.overflow = previousDocumentOverflow
+      const trigger = previewTriggerRef.current
+      if (
+        focusAddAfterCloseRef.current ||
+        trigger === null ||
+        !trigger.isConnected
+      ) {
+        focusAddAfterCloseRef.current = false
+        addButtonRef.current?.focus()
+      } else {
+        trigger.focus()
+      }
     }
-  }, [previewPhoto?.id])
+  }, [isPreviewOpen])
 
   const handleFileChange = (
     event: React.ChangeEvent<HTMLInputElement>,
@@ -81,8 +109,9 @@ export const MealPhotoGallery = ({
             key={photo.id}
             type="button"
             className={styles.thumbnailButton}
-            aria-label={`写真 ${String(index + 1)} を拡大表示`}
-            onClick={() => {
+            aria-label={`${mealName}の写真 ${String(index + 1)} を拡大表示`}
+            onClick={(event) => {
+              previewTriggerRef.current = event.currentTarget
               onPhotoClick(photo)
             }}
           >
@@ -95,6 +124,7 @@ export const MealPhotoGallery = ({
           </button>
         ))}
         <button
+          ref={addButtonRef}
           type="button"
           className={styles.addButton}
           disabled={isUploadDisabled || isUploading}
@@ -111,7 +141,7 @@ export const MealPhotoGallery = ({
           ref={fileInputRef}
           type="file"
           accept={MEAL_PHOTO_ACCEPT}
-          aria-label="追加する写真を選択"
+          aria-label={`${mealName}に追加する写真を選択`}
           className={styles.fileInput}
           tabIndex={-1}
           onChange={handleFileChange}
@@ -139,52 +169,73 @@ export const MealPhotoGallery = ({
       )}
 
       {previewPhoto !== null && previewPhoto !== undefined && (
-        <div
-          className={styles.overlay}
+        <dialog
+          ref={dialogRef}
+          className={styles.previewDialog}
+          aria-label={`${mealName}の写真`}
+          onCancel={(event) => {
+            event.preventDefault()
+            onClosePreview()
+          }}
           onClick={(event) => {
             if (event.target === event.currentTarget) onClosePreview()
           }}
         >
-          <section
-            className={styles.previewDialog}
-            role="dialog"
-            aria-modal="true"
-            aria-label="食事の写真"
-          >
-            <div className={styles.previewActions}>
-              <button
-                ref={closeButtonRef}
-                type="button"
-                className={styles.closeButton}
-                onClick={onClosePreview}
-              >
-                閉じる
-              </button>
+          <div className={styles.previewActions}>
+            <button
+              ref={closeButtonRef}
+              type="button"
+              className={styles.closeButton}
+              onClick={onClosePreview}
+            >
+              閉じる
+            </button>
+          </div>
+          <img
+            className={styles.previewImage}
+            src={previewPhoto.contentUrl}
+            alt={`${mealName}の写真`}
+          />
+          {deleteError !== undefined && (
+            <div className={styles.error} role="alert">
+              {deleteError}
             </div>
-            <img
-              className={styles.previewImage}
-              src={previewPhoto.contentUrl}
-              alt="食事の写真"
-            />
-            {deleteError !== undefined && (
-              <div className={styles.error} role="alert">
-                {deleteError}
-              </div>
-            )}
-            <div className={styles.previewActions}>
+          )}
+          <div className={styles.previewActions}>
+            {isDeleteConfirmationOpen ? (
+              <>
+                <button
+                  type="button"
+                  className={styles.deleteButton}
+                  disabled={isDeleting}
+                  onClick={() => {
+                    focusAddAfterCloseRef.current = true
+                    onDeletePhoto(previewPhoto.id)
+                  }}
+                >
+                  {isDeleting ? '削除中...' : '本当に削除する'}
+                </button>
+                <button
+                  type="button"
+                  className={styles.closeButton}
+                  disabled={isDeleting}
+                  onClick={onCancelDeleteConfirmation}
+                >
+                  やめる
+                </button>
+              </>
+            ) : (
               <button
                 type="button"
                 className={styles.deleteButton}
                 disabled={isDeleting}
-                onClick={() => {
-                  onDeletePhoto(previewPhoto.id)
-                }}
+                onClick={onRequestDelete}
               >
                 {isDeleting ? '削除中...' : '削除'}
               </button>
-            </div>
-          </section>
-        </div>
+            )}
+          </div>
+        </dialog>
       )}
     </>
   )

@@ -25,7 +25,10 @@ import { toPromise } from '#api/to-promise'
 import { ErrorRetry } from '#components/ErrorRetry/ErrorRetry'
 import { getMealPhotoUploadErrorMessage } from '#components/MealPhotoGallery/meal-photo-upload-error-message'
 import { MealPhotoGallery } from '#components/MealPhotoGallery/MealPhotoGallery'
-import { buildMealTimelineGroups } from '#components/MealTimeline/build-meal-timeline-groups'
+import {
+  buildMealTimelineGroups,
+  MEAL_LABELS,
+} from '#components/MealTimeline/build-meal-timeline-groups'
 import { MealTimeline } from '#components/MealTimeline/MealTimeline'
 import { buildNutritionSummaryData } from '#components/NutritionSummary/build-nutrition-summary-data'
 import { NutritionSummary } from '#components/NutritionSummary/NutritionSummary'
@@ -177,6 +180,7 @@ const DayDetailContent = ({
     readonly mealType: MealType
     readonly photo: MealPhoto
   } | null>(null)
+  const [isConfirmingPhotoDelete, setIsConfirmingPhotoDelete] = useState(false)
 
   const breakfastPhotoQuery = useMealPhotoQuery(date, 'breakfast')
   const lunchPhotoQuery = useMealPhotoQuery(date, 'lunch')
@@ -228,11 +232,13 @@ const DayDetailContent = ({
         selectedPhoto.photo.id === id
       ) {
         setSelectedPhoto(null)
+        setIsConfirmingPhotoDelete(false)
       }
-      return queryClient.invalidateQueries({
-        queryKey: mealPhotosQueryKey(date, mealType),
-      })
     },
+    onSettled: (_result, _error, { date, mealType }) =>
+      queryClient.invalidateQueries({
+        queryKey: mealPhotosQueryKey(date, mealType),
+      }),
   })
 
   const getMealPhotoQuery = (mealType: MealType) => mealPhotoQueries[mealType]
@@ -261,6 +267,7 @@ const DayDetailContent = ({
 
     return (
       <MealPhotoGallery
+        mealName={MEAL_LABELS[mealType]}
         photos={photoQuery.data ?? []}
         isLoading={photoQuery.isPending}
         {...(photoQuery.isError
@@ -279,6 +286,7 @@ const DayDetailContent = ({
             }
           : {})}
         previewPhoto={previewPhoto}
+        isDeleteConfirmationOpen={isConfirmingPhotoDelete}
         isDeleting={
           deleteMealPhotoMutation.isPending &&
           deleteMealPhotoMutation.variables.date === date &&
@@ -295,10 +303,18 @@ const DayDetailContent = ({
           uploadMealPhotoMutation.mutate({ date, mealType, file })
         }}
         onPhotoClick={(photo) => {
+          setIsConfirmingPhotoDelete(false)
           setSelectedPhoto({ date, mealType, photo })
         }}
         onClosePreview={() => {
           setSelectedPhoto(null)
+          setIsConfirmingPhotoDelete(false)
+        }}
+        onRequestDelete={() => {
+          setIsConfirmingPhotoDelete(true)
+        }}
+        onCancelDeleteConfirmation={() => {
+          setIsConfirmingPhotoDelete(false)
         }}
         onDeletePhoto={(id) => {
           deleteMealPhotoMutation.reset()

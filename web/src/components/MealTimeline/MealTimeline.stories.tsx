@@ -121,10 +121,13 @@ export const WithMealPhoto: Story = {
     renderMealPhotos: (mealType) =>
       mealType === 'breakfast' ? (
         <MealPhotoGallery
+          mealName="朝食"
           photos={[MEAL_PHOTO]}
           onUpload={() => undefined}
           onPhotoClick={() => undefined}
           onClosePreview={() => undefined}
+          onRequestDelete={() => undefined}
+          onCancelDeleteConfirmation={() => undefined}
           onDeletePhoto={() => undefined}
         />
       ) : null,

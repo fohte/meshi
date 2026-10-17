@@ -60,6 +60,7 @@
 }
 
 .addButton:disabled,
+.closeButton:disabled,
 .deleteButton:disabled {
   cursor: default;
   opacity: 0.55;
@@ -92,27 +93,22 @@
   text-decoration: underline;
 }
 
-.overlay {
-  position: fixed;
-  inset: 0;
-  z-index: 90;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 20px;
-  background: rgba(0, 0, 0, 0.82);
-}
-
 .previewDialog {
   box-sizing: border-box;
   width: min(900px, 100%);
-  max-height: 100%;
+  max-height: calc(100vh - 40px);
   display: flex;
   flex-direction: column;
   gap: 12px;
+  margin: auto;
   padding: 12px;
   border: var(--border-width) solid var(--color-border);
   background: var(--color-bg);
+  overflow: auto;
+}
+
+.previewDialog::backdrop {
+  background: rgba(0, 0, 0, 0.82);
 }
 
 .previewImage {
@@ -144,11 +140,9 @@
 }
 
 @media (max-width: 480px) {
-  .overlay {
-    padding: 8px;
-  }
-
   .previewDialog {
+    width: calc(100% - 16px);
+    max-height: calc(100vh - 16px);
     padding: 8px;
   }
 }
