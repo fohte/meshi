@@ -16,11 +16,11 @@
 | [public.food_master_nutrition](public.food_master_nutrition.md)           | 5       | Nutrition source and estimation metadata for a food master.             | BASE TABLE |
 | [public.meal_set_items](public.meal_set_items.md)                         | 3       | Foods and quantities included in a meal set.                            | BASE TABLE |
 | [public.meal_sets](public.meal_sets.md)                                   | 3       | Named groups of foods saved for repeated meal logging.                  | BASE TABLE |
-| [public.meal_photos](public.meal_photos.md)                               | 6       | Photos attached to a meal on a specific date.                           | BASE TABLE |
 | [public.stock_items](public.stock_items.md)                               | 4       | Foods configured for stock tracking.                                    | BASE TABLE |
 | [public.stock_lots](public.stock_lots.md)                                 | 7       | Received or counted batches of stock for a food.                        | BASE TABLE |
 | [public.stock_movements](public.stock_movements.md)                       | 6       | Quantity changes recorded against stock lots.                           | BASE TABLE |
 | [public.storage_locations](public.storage_locations.md)                   | 4       | Named places where stock items are stored.                              | BASE TABLE |
+| [public.meal_photos](public.meal_photos.md)                               | 6       | Photos attached to a meal on a specific date.                           | BASE TABLE |
 
 ## Stored procedures and functions
 
@@ -157,14 +157,6 @@ erDiagram
   text name
   timestamp_with_time_zone created_at
 }
-"public.meal_photos" {
-  text id
-  date eaten_date
-  meal_type meal_type
-  text object_key
-  text content_type
-  timestamp_with_time_zone created_at
-}
 "public.stock_items" {
   text food_master_id FK
   text storage_location_id FK
@@ -192,6 +184,14 @@ erDiagram
   text id
   text name
   numeric capacity
+  timestamp_with_time_zone created_at
+}
+"public.meal_photos" {
+  text id
+  date eaten_date
+  meal_type meal_type
+  text object_key
+  text content_type
   timestamp_with_time_zone created_at
 }
 ```
