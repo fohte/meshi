@@ -8,6 +8,7 @@ import type {
   FoodMatchReason,
   SearchFoodInput,
 } from '#domain/food-matcher/food-matcher'
+import { jstDateSchema } from '#lib/jst-date'
 
 interface DrizzleFoodMatcherConfig {
   // A log eaten within this many days is treated as recent.
@@ -53,6 +54,8 @@ const rowSchema = z.object({
   matched_queries: z.array(z.string()),
   score: finiteNumeric,
   name_sim: finiteNumeric,
+  last_eaten_date: jstDateSchema.nullable(),
+  last_quantity: finiteNumeric.nullable(),
 })
 
 const rowsSchema = z.array(rowSchema)
@@ -151,6 +154,8 @@ export const createDrizzleFoodMatcher = (
           SELECT
             ml.food_master_id,
             COUNT(*)::int AS cnt,
+            MAX(ml.eaten_date)::text AS last_eaten_date,
+            (ARRAY_AGG(ml.quantity ORDER BY ml.eaten_date DESC, ml.created_at DESC))[1] AS last_quantity,
             (((CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Tokyo')::date) - MAX(ml.eaten_date)) AS days_since
           FROM meal_logs ml
           JOIN name_matches nm ON nm.id = ml.food_master_id
@@ -164,6 +169,8 @@ export const createDrizzleFoodMatcher = (
             nm.is_estimated,
             nm.matched_queries,
             nm.name_sim,
+            hs.last_eaten_date,
+            hs.last_quantity,
             CASE
               WHEN hs.cnt IS NULL THEN 'fuzzy_name'
               WHEN hs.days_since <= ${recentDays} THEN 'history_recent'
@@ -196,7 +203,9 @@ export const createDrizzleFoodMatcher = (
             matched_queries,
             'composition_table'::text AS reason,
             name_sim::float AS score,
-            name_sim::float AS name_sim
+            name_sim::float AS name_sim,
+            NULL::text AS last_eaten_date,
+            NULL::numeric AS last_quantity
           FROM (
             SELECT fc.code, fc.name,
                    MAX(GREATEST(similarity(fc.name, q), word_similarity(q, fc.name))) AS name_sim,
@@ -209,11 +218,13 @@ export const createDrizzleFoodMatcher = (
           WHERE ${origin} = 'homemade'
         )
         SELECT food_master_id, composition_code, name, is_estimated,
-               reason, score, name_sim, matched_queries
+               reason, score, name_sim, matched_queries,
+               last_eaten_date, last_quantity
         FROM master_candidates
         UNION ALL
         SELECT food_master_id, composition_code, name, is_estimated,
-               reason, score, name_sim, matched_queries
+               reason, score, name_sim, matched_queries,
+               last_eaten_date, last_quantity
         FROM composition_candidates
         ORDER BY score DESC, name ASC
         LIMIT ${limit}
@@ -234,6 +245,8 @@ export const createDrizzleFoodMatcher = (
             compositionCode: r.composition_code,
             name: r.name,
             isEstimated: r.is_estimated,
+            lastEatenDate: r.last_eaten_date,
+            lastQuantity: r.last_quantity,
             matchedQueries: r.matched_queries,
           })),
         )

@@ -157,6 +157,15 @@ export const searchFoodsStructuredOutput = z.object({
         ),
       is_estimated: z.boolean(),
       nutrition_status: z.enum(NUTRITION_STATUSES),
+      last_eaten_date: jstDateSchema
+        .nullable()
+        .describe('最後に食べた JST 日付。記録が無い候補と成分表候補は null'),
+      last_quantity: z
+        .number()
+        .nullable()
+        .describe(
+          '最後の記録の quantity (食品 1 つ分への倍率)。記録が無い候補と成分表候補は null',
+        ),
     }),
   ),
 })

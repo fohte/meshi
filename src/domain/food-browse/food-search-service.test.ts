@@ -3,11 +3,13 @@ import { expect, it } from 'vitest'
 import { createFoodSearchService } from '#domain/food-browse/food-search-service'
 import { createDrizzleFoodMatcher } from '#domain/food-matcher/index'
 import { describeIfDb, setupDrizzleTx } from '#test/db'
+import { jstDate } from '#test/jst-date'
 import {
   seedFoodComposition,
   seedFoodCompositionNutrient,
   seedFoodMaster,
   seedFoodMasterWithoutNutrition,
+  seedMealLog,
 } from '#test/seed'
 
 describeIfDb('createFoodSearchService', () => {
@@ -32,6 +34,13 @@ describeIfDb('createFoodSearchService', () => {
       id: 'fm_catalog_gamma',
       name: 'item_token_gamma',
     })
+    await seedMealLog(tx, {
+      id: 'ml_catalog_alpha',
+      foodMasterId: 'fm_catalog_alpha',
+      eatenDate: jstDate('2026-01-15'),
+      mealType: 'breakfast',
+      quantity: 1.5,
+    })
     await seedFoodComposition(tx, {
       code: 'comp_catalog_alpha',
       name: 'item_token_alpha',
@@ -53,6 +62,8 @@ describeIfDb('createFoodSearchService', () => {
         isEstimated: false,
         nutritionStatus: 'confirmed',
         energyKcalPerUnit: 42,
+        lastEatenDate: jstDate('2026-01-15'),
+        lastQuantity: 1.5,
       },
       {
         foodMasterId: 'fm_catalog_beta',
@@ -61,6 +72,8 @@ describeIfDb('createFoodSearchService', () => {
         isEstimated: true,
         nutritionStatus: 'estimated',
         energyKcalPerUnit: null,
+        lastEatenDate: null,
+        lastQuantity: null,
       },
       {
         foodMasterId: 'fm_catalog_gamma',
@@ -69,6 +82,8 @@ describeIfDb('createFoodSearchService', () => {
         isEstimated: false,
         nutritionStatus: 'unknown',
         energyKcalPerUnit: null,
+        lastEatenDate: null,
+        lastQuantity: null,
       },
     ])
   })
@@ -110,6 +125,8 @@ describeIfDb('createFoodSearchService', () => {
         isEstimated: false,
         nutritionStatus: 'confirmed',
         energyKcalPerUnit: 42,
+        lastEatenDate: null,
+        lastQuantity: null,
       },
       {
         foodMasterId: null,
@@ -118,6 +135,8 @@ describeIfDb('createFoodSearchService', () => {
         isEstimated: true,
         nutritionStatus: 'estimated',
         energyKcalPer100g: 88,
+        lastEatenDate: null,
+        lastQuantity: null,
       },
     ])
   })
@@ -142,6 +161,8 @@ describeIfDb('createFoodSearchService', () => {
         isEstimated: true,
         nutritionStatus: 'estimated',
         energyKcalPer100g: null,
+        lastEatenDate: null,
+        lastQuantity: null,
       },
     ])
   })
