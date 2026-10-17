@@ -4,6 +4,7 @@ import type {
   FoodMatcherInvalidRowError,
   FoodMatcherQueryError,
 } from '#domain/food-matcher/drizzle-food-matcher'
+import type { JstDate } from '#lib/jst-date'
 
 export type FoodMatchReason =
   'history_recent' | 'history_frequent' | 'fuzzy_name' | 'composition_table'
@@ -32,6 +33,8 @@ export interface FoodMatchCandidate {
   readonly compositionCode: string | null
   readonly name: string
   readonly isEstimated: boolean
+  readonly lastEatenDate: JstDate | null
+  readonly lastQuantity: number | null
   // Which of SearchFoodInput.queries matched this candidate (by name or by
   // alias), so a caller juggling several phrasings of the same food can tell
   // which one actually hit.

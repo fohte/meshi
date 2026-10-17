@@ -11,6 +11,7 @@ import type {
   FoodMatcherError,
   FoodOrigin,
 } from '#domain/food-matcher/food-matcher'
+import type { JstDate } from '#lib/jst-date'
 
 type FoodSearchResult =
   | {
@@ -20,6 +21,8 @@ type FoodSearchResult =
       readonly isEstimated: boolean
       readonly nutritionStatus: NutritionStatus
       readonly energyKcalPerUnit: number | null
+      readonly lastEatenDate: JstDate | null
+      readonly lastQuantity: number | null
     }
   | {
       readonly foodMasterId: null
@@ -28,6 +31,8 @@ type FoodSearchResult =
       readonly isEstimated: boolean
       readonly nutritionStatus: NutritionStatus
       readonly energyKcalPer100g: number | null
+      readonly lastEatenDate: null
+      readonly lastQuantity: null
     }
 
 class FoodSearchQueryError extends Error {
@@ -130,6 +135,8 @@ export const createFoodSearchService = (
                 energyKcalPerUnit:
                   masterEnrichment.get(match.candidate.foodMasterId)
                     ?.energyKcalPerUnit ?? null,
+                lastEatenDate: match.candidate.lastEatenDate,
+                lastQuantity: match.candidate.lastQuantity,
               }
             }
             return {
@@ -141,6 +148,8 @@ export const createFoodSearchService = (
               energyKcalPer100g:
                 compositionEnrichment.get(match.candidate.compositionCode) ??
                 null,
+              lastEatenDate: null,
+              lastQuantity: null,
             }
           }),
         )
