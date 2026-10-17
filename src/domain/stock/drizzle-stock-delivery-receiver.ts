@@ -73,6 +73,24 @@ export const createStockDeliveryReceiver = (
         )
       }
 
+      const stockItemRows = parseRows(
+        z.object({ food_master_id: z.string() }),
+        await tx<Record<string, unknown>[]>`
+          SELECT si.food_master_id
+          FROM stock_items si
+          WHERE si.food_master_id IN (
+            SELECT sl.food_master_id
+            FROM stock_lots sl
+            WHERE sl.delivery_id = ${input.deliveryId}
+          )
+          ORDER BY si.food_master_id
+          FOR UPDATE OF si
+        `,
+        'lock stock items for receipt',
+      )
+      if (stockItemRows.isErr()) return err(stockItemRows.error)
+
+      // Stock counters lock stock_items before stock_lots; keep the same order.
       const lotRows = parseRows(
         deliveryLotRowSchema,
         await tx<Record<string, unknown>[]>`
@@ -84,7 +102,7 @@ export const createStockDeliveryReceiver = (
           JOIN food_masters fm ON fm.id = sl.food_master_id
           WHERE sl.delivery_id = ${input.deliveryId}
           ORDER BY sl.food_master_id
-          FOR UPDATE OF si, sl
+          FOR UPDATE OF sl
         `,
         'lock delivery lots for receipt',
       )

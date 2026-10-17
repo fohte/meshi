@@ -34,7 +34,8 @@ export const createStockDeliveryWriter = (
   return (input: RegisterDeliveryInput) =>
     runWrite(async (tx) => {
       const sourceRef = input.sourceRef ?? null
-      const foodMasterIds = input.items.map((item) => item.foodMasterId)
+      const items = input.status === 'cancelled' ? [] : input.items
+      const foodMasterIds = items.map((item) => item.foodMasterId)
       // Reject invalid foods before writing when transactions are disabled.
       if (foodMasterIds.length > 0) {
         const stockItemRows = parseRows(
@@ -50,7 +51,7 @@ export const createStockDeliveryWriter = (
         const stockItemIds = new Set(
           stockItemRows.value.map((row) => row.food_master_id),
         )
-        const missingFood = input.items.find(
+        const missingFood = items.find(
           (item) => !stockItemIds.has(item.foodMasterId),
         )
         if (missingFood !== undefined) {
@@ -136,7 +137,7 @@ export const createStockDeliveryWriter = (
         stockFoodRows.map((food) => [food.food_master_id, food] as const),
       )
       const deliveryItemsResult = Result.combine(
-        input.items.map((item) => {
+        items.map((item) => {
           const food = stockFoodsById.get(item.foodMasterId)
           return food === undefined
             ? err(
@@ -165,7 +166,7 @@ export const createStockDeliveryWriter = (
         WHERE id = ${delivery.id}
       `
       await tx`DELETE FROM stock_lots WHERE delivery_id = ${delivery.id}`
-      for (const item of input.items) {
+      for (const item of items) {
         await tx`
           INSERT INTO stock_lots (id, food_master_id, delivery_id, quantity)
           VALUES (

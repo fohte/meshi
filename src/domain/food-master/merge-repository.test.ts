@@ -640,6 +640,74 @@ describeIfDb('mergeFoodMasters (merge-repository)', () => {
     })
   })
 
+  it('combines planned delivery lots when foods are merged', async () => {
+    await seedBasicPair()
+    const tx = getTx()
+    await seedStockItem(tx, { foodMasterId: 'fm_survivor' })
+    await seedStockItem(tx, { foodMasterId: 'fm_loser' })
+    await seedDelivery(tx, {
+      id: 'dly_planned_food_merge',
+      sourceRef: 'sample-planned-food-merge-order',
+      status: 'planned',
+      expectedDate: '2026-10-20',
+    })
+    await seedStockLot(tx, {
+      id: 'stl_planned_survivor',
+      foodMasterId: 'fm_survivor',
+      deliveryId: 'dly_planned_food_merge',
+      quantity: 3,
+    })
+    await seedStockLot(tx, {
+      id: 'stl_planned_loser',
+      foodMasterId: 'fm_loser',
+      deliveryId: 'dly_planned_food_merge',
+      quantity: 2,
+    })
+
+    ;(await repo.merge('fm_survivor', 'fm_loser', false))._unsafeUnwrap()
+
+    const result = await (async () => {
+      const lots = await tx<
+        {
+          id: string
+          food_master_id: string
+          delivery_id: string | null
+          quantity: string
+          received_date: string | null
+          best_before: string | null
+          eat_by: string | null
+        }[]
+      >`
+        SELECT id, food_master_id, delivery_id, quantity::text AS quantity,
+               received_date::text AS received_date,
+               best_before::text AS best_before, eat_by::text AS eat_by
+        FROM stock_lots
+        WHERE delivery_id = 'dly_planned_food_merge'
+      `
+      const movements = await tx<{ count: string }[]>`
+        SELECT count(*)::text AS count
+        FROM stock_movements
+        WHERE stock_lot_id IN ('stl_planned_survivor', 'stl_planned_loser')
+      `
+      return { lots, movements }
+    })()
+
+    expect(result).toEqual({
+      lots: [
+        {
+          id: 'stl_planned_survivor',
+          food_master_id: 'fm_survivor',
+          delivery_id: 'dly_planned_food_merge',
+          quantity: '5',
+          received_date: null,
+          best_before: null,
+          eat_by: null,
+        },
+      ],
+      movements: [{ count: '0' }],
+    })
+  })
+
   // A third food_master already owns the loser's name as an alias, so the
   // loser's name can't be added as a new alias on the survivor.
   const seedAliasNameConflictTrio = async (): Promise<void> => {
