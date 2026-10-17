@@ -3,6 +3,7 @@ import type { CallToolResult } from '@modelcontextprotocol/server'
 import { toMealHistoryPayload } from '#domain/meal-history/mealHistoryPayload'
 import type { MealHistoryAggregate } from '#domain/meal-history/types'
 import type { MealLogDeletionResult } from '#domain/meal-log/types'
+import type { MealSet } from '#domain/meal-set/types'
 import type { Delivery, DeliveryItem } from '#domain/stock/types'
 import type { UserProfile } from '#domain/user-profile/user-profile'
 import type { Logger } from '#logger'
@@ -68,6 +69,18 @@ export const buildDeliveryPayload = (delivery: Delivery) => ({
   received_date: delivery.receivedDate,
   change_deadline: delivery.changeDeadline,
   items: delivery.items.map(buildDeliveryItemPayload),
+})
+
+export const buildMealSetPayload = (
+  mealSet: MealSet,
+): Record<string, unknown> => ({
+  meal_set_id: mealSet.id,
+  name: mealSet.name,
+  items: mealSet.items.map((item) => ({
+    food_master_id: item.foodMasterId,
+    food_name: item.foodName,
+    quantity: item.quantity,
+  })),
 })
 
 export const buildProfilePayload = (

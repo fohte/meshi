@@ -1,6 +1,10 @@
 export interface Env {
   DATABASE_URL: string
   MCP_LISTEN_ADDR: string
+  R2_ACCOUNT_ID: string
+  R2_BUCKET_NAME: string
+  R2_ACCESS_KEY_ID: string
+  R2_SECRET_ACCESS_KEY: string
 }
 
 export class EnvError extends Error {
@@ -46,6 +50,10 @@ export const loadEnv = (
   const env: Env = {
     DATABASE_URL: requireString('DATABASE_URL'),
     MCP_LISTEN_ADDR: requireString('MCP_LISTEN_ADDR'),
+    R2_ACCOUNT_ID: requireString('R2_ACCOUNT_ID'),
+    R2_BUCKET_NAME: requireString('R2_BUCKET_NAME'),
+    R2_ACCESS_KEY_ID: requireString('R2_ACCESS_KEY_ID'),
+    R2_SECRET_ACCESS_KEY: requireString('R2_SECRET_ACCESS_KEY'),
   }
 
   if (issues.length > 0) {

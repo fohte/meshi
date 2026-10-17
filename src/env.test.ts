@@ -5,11 +5,19 @@ import { EnvError, loadEnv, requireDatabaseUrl } from '#env'
 const fullSource = {
   DATABASE_URL: 'postgres://localhost/meshi',
   MCP_LISTEN_ADDR: '0.0.0.0:8080',
+  R2_ACCOUNT_ID: '00000000000000000000000000000000',
+  R2_BUCKET_NAME: 'sample-meal-photos',
+  R2_ACCESS_KEY_ID: 'sample-access-key',
+  R2_SECRET_ACCESS_KEY: 'sample-secret-key',
 } as const
 
 const fullEnv = {
   DATABASE_URL: 'postgres://localhost/meshi',
   MCP_LISTEN_ADDR: '0.0.0.0:8080',
+  R2_ACCOUNT_ID: '00000000000000000000000000000000',
+  R2_BUCKET_NAME: 'sample-meal-photos',
+  R2_ACCESS_KEY_ID: 'sample-access-key',
+  R2_SECRET_ACCESS_KEY: 'sample-secret-key',
 } as const
 
 const captureIssues = (run: () => unknown): readonly string[] => {
@@ -31,6 +39,10 @@ describe('loadEnv', () => {
     expect(captureIssues(() => loadEnv({}))).toEqual([
       'missing required env: DATABASE_URL',
       'missing required env: MCP_LISTEN_ADDR',
+      'missing required env: R2_ACCOUNT_ID',
+      'missing required env: R2_BUCKET_NAME',
+      'missing required env: R2_ACCESS_KEY_ID',
+      'missing required env: R2_SECRET_ACCESS_KEY',
     ])
   })
 })

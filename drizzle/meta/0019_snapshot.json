@@ -1,6 +1,6 @@
 {
-  "id": "aa18c01f-e92a-4edd-b78d-0cc3fcc75f7b",
-  "prevId": "ded2144b-7b1f-4060-abf7-d8ea302789cd",
+  "id": "9f301e59-ec1c-460b-bb0e-39d735d4b42d",
+  "prevId": "75836e70-c296-412b-9351-dcb86c9fc418",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -683,6 +683,99 @@
         "meal_logs_quantity_positive": {
           "name": "meal_logs_quantity_positive",
           "value": "\"meal_logs\".\"quantity\" > 0"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.meal_photos": {
+      "name": "meal_photos",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "eaten_date": {
+          "name": "eaten_date",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "meal_type": {
+          "name": "meal_type",
+          "type": "meal_type",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "object_key": {
+          "name": "object_key",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "content_type": {
+          "name": "content_type",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "meal_photos_object_key_key": {
+          "name": "meal_photos_object_key_key",
+          "columns": [
+            {
+              "expression": "object_key",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "meal_photos_eaten_date_meal_type_idx": {
+          "name": "meal_photos_eaten_date_meal_type_idx",
+          "columns": [
+            {
+              "expression": "eaten_date",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "meal_type",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "meal_photos_content_type_check": {
+          "name": "meal_photos_content_type_check",
+          "value": "\"meal_photos\".\"content_type\" in ('image/jpeg', 'image/png', 'image/webp')"
         }
       },
       "isRLSEnabled": false

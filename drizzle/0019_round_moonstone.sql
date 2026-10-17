@@ -6,7 +6,9 @@ CREATE TABLE "deliveries" (
 	"expected_date" date NOT NULL,
 	"received_date" date,
 	"change_deadline" date,
-	"created_at" timestamp with time zone DEFAULT now() NOT NULL
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
+	CONSTRAINT "deliveries_received_date_matches_status" CHECK (("deliveries"."status" = 'received') = ("deliveries"."received_date" IS NOT NULL)),
+	CONSTRAINT "deliveries_source_ref_nonblank" CHECK ("deliveries"."source_ref" IS NULL OR btrim("deliveries"."source_ref") <> '')
 );
 --> statement-breakpoint
 ALTER TABLE "stock_lots" ADD COLUMN "delivery_id" text;--> statement-breakpoint

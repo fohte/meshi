@@ -20,6 +20,7 @@
 | [public.stock_lots](public.stock_lots.md)                                 | 8       | Received or counted batches of stock for a food.                        | BASE TABLE |
 | [public.stock_movements](public.stock_movements.md)                       | 6       | Quantity changes recorded against stock lots.                           | BASE TABLE |
 | [public.storage_locations](public.storage_locations.md)                   | 4       | Named places where stock items are stored.                              | BASE TABLE |
+| [public.meal_photos](public.meal_photos.md)                               | 6       | Photos attached to a meal on a specific date.                           | BASE TABLE |
 | [public.deliveries](public.deliveries.md)                                 | 7       | Expected deliveries and receipt status for stock inventory.             | BASE TABLE |
 
 ## Stored procedures and functions
@@ -187,6 +188,14 @@ erDiagram
   text id
   text name
   numeric capacity
+  timestamp_with_time_zone created_at
+}
+"public.meal_photos" {
+  text id
+  date eaten_date
+  meal_type meal_type
+  text object_key
+  text content_type
   timestamp_with_time_zone created_at
 }
 "public.deliveries" {

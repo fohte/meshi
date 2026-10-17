@@ -26,6 +26,7 @@ describeIfDb('schema migrations', () => {
       'food_master_nutrition',
       'food_masters',
       'meal_logs',
+      'meal_photos',
       'meal_set_items',
       'meal_sets',
       'meal_skips',
@@ -455,6 +456,11 @@ describeIfDb('schema migrations', () => {
       {
         conname: 'meal_logs_quantity_positive',
         table_name: 'meal_logs',
+        validated: true,
+      },
+      {
+        conname: 'meal_photos_content_type_check',
+        table_name: 'meal_photos',
         validated: true,
       },
       {

@@ -131,15 +131,15 @@
     {
       "idx": 18,
       "version": "7",
-      "when": 1792257904497,
-      "tag": "0018_late_junta",
+      "when": 1792257197884,
+      "tag": "0018_yielding_boomerang",
       "breakpoints": true
     },
     {
       "idx": 19,
       "version": "7",
-      "when": 1792259116717,
-      "tag": "0019_perfect_sprite",
+      "when": 1792259733128,
+      "tag": "0019_round_moonstone",
       "breakpoints": true
     }
   ]
