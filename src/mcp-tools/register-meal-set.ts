@@ -2,7 +2,12 @@ import type { McpServer } from '@modelcontextprotocol/server'
 
 import type { MealSetService } from '#domain/meal-set/meal-set-service'
 import type { Logger } from '#logger'
-import { errorResult, TOOL_CALLED, TOOL_SUCCEEDED } from '#mcp-tools/payloads'
+import {
+  buildMealSetPayload,
+  errorResult,
+  TOOL_CALLED,
+  TOOL_SUCCEEDED,
+} from '#mcp-tools/payloads'
 import {
   registerMealSetInput,
   registerMealSetStructuredOutput,
@@ -45,15 +50,7 @@ export const registerMealSetTool = (
               content: [
                 { type: 'text' as const, text: 'マイセットを登録しました。' },
               ],
-              structuredContent: {
-                meal_set_id: mealSet.id,
-                name: mealSet.name,
-                items: mealSet.items.map((item) => ({
-                  food_master_id: item.foodMasterId,
-                  food_name: item.foodName,
-                  quantity: item.quantity,
-                })),
-              },
+              structuredContent: buildMealSetPayload(mealSet),
             }
           },
           (error) =>

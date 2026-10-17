@@ -1,12 +1,18 @@
 import type { McpServer } from '@modelcontextprotocol/server'
-import { ResultAsync } from 'neverthrow'
+import { okAsync, ResultAsync } from 'neverthrow'
 
 import type { FoodSearchService } from '#domain/food-browse/food-search-service'
 import { MealLogItemValidationError } from '#domain/meal-log/errors'
 import type { MealLogService } from '#domain/meal-log/meal-log-service'
 import type { MealSetService } from '#domain/meal-set/meal-set-service'
+import type { MealSet } from '#domain/meal-set/types'
 import type { Logger } from '#logger'
-import { errorResult, TOOL_CALLED, TOOL_SUCCEEDED } from '#mcp-tools/payloads'
+import {
+  buildMealSetPayload,
+  errorResult,
+  TOOL_CALLED,
+  TOOL_SUCCEEDED,
+} from '#mcp-tools/payloads'
 import {
   recordMealLogInput,
   recordMealLogStructuredOutput,
@@ -45,15 +51,23 @@ export const registerMealLoggingTools = (
       )
       const mealSetResults = ResultAsync.combine(
         args.queries.map((query) => mealSetService.searchByName(query)),
-      ).map((mealSetsByQuery) =>
-        Array.from(
-          new Map(
-            mealSetsByQuery
-              .flat()
-              .map((mealSet) => [mealSet.id, mealSet] as const),
-          ).values(),
-        ),
       )
+        .map((mealSetsByQuery) =>
+          Array.from(
+            new Map(
+              mealSetsByQuery
+                .flat()
+                .map((mealSet) => [mealSet.id, mealSet] as const),
+            ).values(),
+          ),
+        )
+        .orElse((error) => {
+          logger.log('meshi.meal_set_search_failed', {
+            code: error.code,
+            message: error.message,
+          })
+          return okAsync<ReadonlyArray<MealSet>>([])
+        })
 
       return await ResultAsync.combine([foodResults, mealSetResults]).match(
         ([foods, mealSets]) => {
@@ -71,15 +85,7 @@ export const registerMealLoggingTools = (
               last_eaten_date: food.lastEatenDate,
               last_quantity: food.lastQuantity,
             })),
-            meal_sets: mealSets.map((mealSet) => ({
-              meal_set_id: mealSet.id,
-              name: mealSet.name,
-              items: mealSet.items.map((item) => ({
-                food_master_id: item.foodMasterId,
-                food_name: item.foodName,
-                quantity: item.quantity,
-              })),
-            })),
+            meal_sets: mealSets.map(buildMealSetPayload),
           }
           logger.log(TOOL_SUCCEEDED, {
             tool: 'search_foods',

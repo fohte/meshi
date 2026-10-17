@@ -2480,7 +2480,7 @@ describe('search_foods', () => {
   })
 
   it('returns matching meal sets once across all search terms', async () => {
-    const mealSet: MealSet = {
+    const firstMealSet: MealSet = {
       id: 'ms_fixture_beta',
       name: 'Sample meal set beta',
       items: [
@@ -2497,14 +2497,27 @@ describe('search_foods', () => {
       ],
       createdAt: new Date('2026-04-17T00:00:00.000Z'),
     }
+    const secondMealSet: MealSet = {
+      id: 'ms_fixture_delta',
+      name: 'Sample meal set delta',
+      items: [
+        {
+          foodMasterId: 'fm_fixture_protein',
+          foodName: 'Sample protein',
+          quantity: 2,
+        },
+      ],
+      createdAt: new Date('2026-04-17T00:00:00.000Z'),
+    }
     const h = await start({
       mealSetServiceOverrides: {
-        searchByName: (query) =>
-          okAsync(
-            ['sample meal set beta', 'sample set alias beta'].includes(query)
-              ? [mealSet]
-              : [],
-          ),
+        searchByName: (query) => {
+          if (query === 'sample meal set beta') return okAsync([firstMealSet])
+          if (query === 'sample set alias beta') {
+            return okAsync([firstMealSet, secondMealSet])
+          }
+          return okAsync([])
+        },
       },
     })
     try {
@@ -2525,7 +2538,7 @@ describe('search_foods', () => {
           content: [
             {
               type: 'text',
-              text: '登録済み食品を 1 件、マイセットを 1 件取得しました。',
+              text: '登録済み食品を 1 件、マイセットを 2 件取得しました。',
             },
           ],
           structuredContent: {
@@ -2558,10 +2571,61 @@ describe('search_foods', () => {
                   },
                 ],
               },
+              {
+                meal_set_id: 'ms_fixture_delta',
+                name: 'Sample meal set delta',
+                items: [
+                  {
+                    food_master_id: 'fm_fixture_protein',
+                    food_name: 'Sample protein',
+                    quantity: 2,
+                  },
+                ],
+              },
             ],
           },
         },
         mealSetSearchQueries: ['sample meal set beta', 'sample set alias beta'],
+      })
+    } finally {
+      await h.close()
+    }
+  })
+
+  it('returns food results when meal-set search fails', async () => {
+    const h = await start({
+      mealSetServiceOverrides: {
+        searchByName: () => errAsync(new MealSetPersistenceError('stub')),
+      },
+    })
+    try {
+      const result = await h.client.callTool({
+        name: 'search_foods',
+        arguments: { queries: ['item_token_alpha'] },
+      })
+
+      expect(result).toEqual({
+        content: [
+          {
+            type: 'text',
+            text: '登録済み食品を 1 件、マイセットを 0 件取得しました。',
+          },
+        ],
+        structuredContent: {
+          foods: [
+            {
+              food_master_id: 'fm_catalog_alpha',
+              composition_code: null,
+              name: 'item_token_alpha',
+              energy_kcal: 42,
+              is_estimated: false,
+              nutrition_status: 'confirmed',
+              last_eaten_date: '2026-01-02',
+              last_quantity: 1.5,
+            },
+          ],
+          meal_sets: [],
+        },
       })
     } finally {
       await h.close()
