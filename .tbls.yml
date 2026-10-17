@@ -106,7 +106,7 @@ comments:
       storage_location_id: 'Identifier of the optional storage location.'
       eat_within_days: 'Target number of days from receipt to consume the food.'
   - table: stock_lots
-    tableComment: 'Received or counted batches of stock for a food.'
+    tableComment: 'Planned delivery, received, or counted batches of stock for a food.'
     columnComments:
       food_master_id: 'Identifier of the food this batch belongs to.'
       delivery_id: 'Identifier of the delivery this batch belongs to, when scheduled.'

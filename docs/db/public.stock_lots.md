@@ -2,7 +2,7 @@
 
 ## Description
 
-Received or counted batches of stock for a food.
+Planned delivery, received, or counted batches of stock for a food.
 
 ## Columns
 
