@@ -4,9 +4,12 @@ import { expect, it } from 'vitest'
 
 import type {
   CountStockInput,
+  Delivery,
+  ReceiveDeliveryInput,
+  RegisterDeliveryInput,
   StockItem,
-  StockItemStatus,
   StockService,
+  StockStatus,
 } from '#domain/stock/types'
 import { createMcpServer } from '#mcp'
 import { createStubMcpDeps } from '#test/mcp-stubs'
@@ -32,9 +35,12 @@ const normalizeValidationError = <
 const createStockServiceStub = (
   overrides: {
     readonly stockItem?: StockItem
-    readonly status?: ReadonlyArray<StockItemStatus>
+    readonly status?: StockStatus
+    readonly delivery?: Delivery
   } = {},
   onCount?: (input: CountStockInput) => void,
+  onRegister?: (input: RegisterDeliveryInput) => void,
+  onReceive?: (input: ReceiveDeliveryInput) => void,
 ): StockService => ({
   setStockItem(input) {
     return okAsync(
@@ -61,8 +67,46 @@ const createStockServiceStub = (
       difference: input.quantity,
     })
   },
+  registerDelivery(input) {
+    onRegister?.(input)
+    return okAsync(
+      overrides.delivery ?? {
+        id: 'dly_sample',
+        sourceRef: input.sourceRef ?? null,
+        status: input.status,
+        expectedDate: input.expectedDate,
+        receivedDate: null,
+        changeDeadline: input.changeDeadline ?? null,
+        items: input.items.map((item) => ({
+          foodMasterId: item.foodMasterId,
+          foodName: 'Sample stock food',
+          quantity: item.quantity,
+        })),
+      },
+    )
+  },
+  receiveDelivery(input) {
+    onReceive?.(input)
+    return okAsync(
+      overrides.delivery ?? {
+        id: input.deliveryId,
+        sourceRef: 'source-sample',
+        status: 'received',
+        expectedDate: '2026-10-01',
+        receivedDate: input.receivedDate,
+        changeDeadline: null,
+        items: (input.items ?? []).map((item) => ({
+          foodMasterId: item.foodMasterId,
+          foodName: 'Sample stock food',
+          quantity: item.quantity,
+        })),
+      },
+    )
+  },
   getStockStatus() {
-    return okAsync(overrides.status ?? [])
+    return okAsync(
+      overrides.status ?? { stockItems: [], plannedDeliveries: [] },
+    )
   },
 })
 
@@ -182,28 +226,209 @@ it('rejects negative count quantities before calling the service', async () => {
   }
 })
 
-it('returns lot level stock status', async () => {
+it('routes register_delivery arguments', async () => {
+  const registerInputs: RegisterDeliveryInput[] = []
+  const h = await connect(
+    createStockServiceStub({}, undefined, (input) =>
+      registerInputs.push(input),
+    ),
+  )
+  try {
+    await h.client.callTool({
+      name: 'register_delivery',
+      arguments: {
+        source_ref: 'sample-order',
+        status: 'planned',
+        expected_date: '2026-10-20',
+        change_deadline: '2026-10-18',
+        items: [{ food_master_id: 'fm_sample_stock', quantity: 3 }],
+      },
+    })
+
+    expect(registerInputs).toEqual([
+      {
+        sourceRef: 'sample-order',
+        status: 'planned',
+        expectedDate: '2026-10-20',
+        changeDeadline: '2026-10-18',
+        items: [{ foodMasterId: 'fm_sample_stock', quantity: 3 }],
+      },
+    ])
+  } finally {
+    await h.close()
+  }
+})
+
+it('returns the saved register_delivery payload', async () => {
+  const delivery: Delivery = {
+    id: 'dly_sample',
+    sourceRef: 'sample-order',
+    status: 'planned',
+    expectedDate: '2026-10-20',
+    receivedDate: null,
+    changeDeadline: '2026-10-18',
+    items: [
+      {
+        foodMasterId: 'fm_sample_stock',
+        foodName: 'Sample stock food',
+        quantity: 3,
+      },
+    ],
+  }
+  const h = await connect(createStockServiceStub({ delivery }))
+  try {
+    const result = await h.client.callTool({
+      name: 'register_delivery',
+      arguments: {
+        source_ref: 'sample-order',
+        status: 'planned',
+        expected_date: '2026-10-20',
+        change_deadline: '2026-10-18',
+        items: [{ food_master_id: 'fm_sample_stock', quantity: 3 }],
+      },
+    })
+
+    expect(result).toEqual({
+      content: [{ type: 'text', text: '入荷予定を保存しました。' }],
+      structuredContent: {
+        delivery_id: 'dly_sample',
+        source_ref: 'sample-order',
+        status: 'planned',
+        expected_date: '2026-10-20',
+        received_date: null,
+        change_deadline: '2026-10-18',
+        items: [
+          {
+            food_master_id: 'fm_sample_stock',
+            food_name: 'Sample stock food',
+            quantity: 3,
+          },
+        ],
+      },
+    })
+  } finally {
+    await h.close()
+  }
+})
+
+it('routes receive_delivery actual quantities', async () => {
+  const receiveInputs: ReceiveDeliveryInput[] = []
+  const h = await connect(
+    createStockServiceStub({}, undefined, undefined, (input) =>
+      receiveInputs.push(input),
+    ),
+  )
+  try {
+    await h.client.callTool({
+      name: 'receive_delivery',
+      arguments: {
+        delivery_id: 'dly_sample',
+        received_date: '2026-10-21',
+        items: [{ food_master_id: 'fm_sample_stock', quantity: 2 }],
+      },
+    })
+
+    expect(receiveInputs).toEqual([
+      {
+        deliveryId: 'dly_sample',
+        receivedDate: '2026-10-21',
+        items: [{ foodMasterId: 'fm_sample_stock', quantity: 2 }],
+      },
+    ])
+  } finally {
+    await h.close()
+  }
+})
+
+it('returns the saved receive_delivery payload', async () => {
+  const delivery: Delivery = {
+    id: 'dly_sample',
+    sourceRef: 'sample-order',
+    status: 'received',
+    expectedDate: '2026-10-20',
+    receivedDate: '2026-10-21',
+    changeDeadline: '2026-10-18',
+    items: [
+      {
+        foodMasterId: 'fm_sample_stock',
+        foodName: 'Sample stock food',
+        quantity: 2,
+      },
+    ],
+  }
+  const h = await connect(createStockServiceStub({ delivery }))
+  try {
+    const result = await h.client.callTool({
+      name: 'receive_delivery',
+      arguments: {
+        delivery_id: 'dly_sample',
+        received_date: '2026-10-21',
+        items: [{ food_master_id: 'fm_sample_stock', quantity: 2 }],
+      },
+    })
+
+    expect(result).toEqual({
+      content: [{ type: 'text', text: '配送の受領を保存しました。' }],
+      structuredContent: {
+        delivery_id: 'dly_sample',
+        source_ref: 'sample-order',
+        status: 'received',
+        expected_date: '2026-10-20',
+        received_date: '2026-10-21',
+        change_deadline: '2026-10-18',
+        items: [
+          {
+            food_master_id: 'fm_sample_stock',
+            food_name: 'Sample stock food',
+            quantity: 2,
+          },
+        ],
+      },
+    })
+  } finally {
+    await h.close()
+  }
+})
+
+it('returns lot level stock status and planned deliveries', async () => {
   const h = await connect(
     createStockServiceStub({
-      status: [
-        {
-          foodMasterId: 'fm_status',
-          foodName: 'Sample food status',
-          storageLocation: { name: 'Sample shelf', capacity: 6 },
-          eatWithinDays: 14,
-          totalQuantity: 1.5,
-          lots: [
-            {
-              id: 'stl_status',
-              quantity: 2,
-              remainingQuantity: 1.5,
-              receivedDate: '2026-10-01',
-              bestBefore: '2026-11-01',
-              eatBy: '2026-10-15',
-            },
-          ],
-        },
-      ],
+      status: {
+        stockItems: [
+          {
+            foodMasterId: 'fm_status',
+            foodName: 'Sample food status',
+            storageLocation: { name: 'Sample shelf', capacity: 6 },
+            eatWithinDays: 14,
+            totalQuantity: 1.5,
+            lots: [
+              {
+                id: 'stl_status',
+                quantity: 2,
+                remainingQuantity: 1.5,
+                receivedDate: '2026-10-01',
+                bestBefore: '2026-11-01',
+                eatBy: '2026-10-15',
+              },
+            ],
+          },
+        ],
+        plannedDeliveries: [
+          {
+            id: 'dly_planned',
+            sourceRef: 'sample-order',
+            expectedDate: '2026-10-20',
+            changeDeadline: '2026-10-18',
+            items: [
+              {
+                foodMasterId: 'fm_status',
+                foodName: 'Sample food status',
+                quantity: 2,
+              },
+            ],
+          },
+        ],
+      },
     }),
   )
   try {
@@ -213,7 +438,12 @@ it('returns lot level stock status', async () => {
     })
 
     expect(result).toEqual({
-      content: [{ type: 'text', text: '1 件の在庫状況を取得しました。' }],
+      content: [
+        {
+          type: 'text',
+          text: '1 件の在庫状況と 1 件の入荷予定を取得しました。',
+        },
+      ],
       structuredContent: {
         stock_items: [
           {
@@ -230,6 +460,21 @@ it('returns lot level stock status', async () => {
                 received_date: '2026-10-01',
                 best_before: '2026-11-01',
                 eat_by: '2026-10-15',
+              },
+            ],
+          },
+        ],
+        planned_deliveries: [
+          {
+            delivery_id: 'dly_planned',
+            source_ref: 'sample-order',
+            expected_date: '2026-10-20',
+            change_deadline: '2026-10-18',
+            items: [
+              {
+                food_master_id: 'fm_status',
+                food_name: 'Sample food status',
+                quantity: 2,
               },
             ],
           },

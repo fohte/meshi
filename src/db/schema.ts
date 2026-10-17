@@ -40,6 +40,12 @@ export const mealTypeEnum = pgEnum('meal_type', [
   'snack',
 ])
 
+export const deliveryStatusEnum = pgEnum('delivery_status', [
+  'planned',
+  'received',
+  'cancelled',
+])
+
 export const nutrientDefinitions = pgTable(
   'nutrient_definitions',
   {
@@ -372,11 +378,42 @@ export const stockItems = pgTable(
   ],
 )
 
+export const deliveries = pgTable(
+  'deliveries',
+  {
+    id: text('id').primaryKey(),
+    sourceRef: text('source_ref'),
+    status: deliveryStatusEnum('status').notNull().default('planned'),
+    expectedDate: date('expected_date', { mode: 'string' }).notNull(),
+    receivedDate: date('received_date', { mode: 'string' }),
+    changeDeadline: date('change_deadline', { mode: 'string' }),
+    createdAt: timestamp('created_at', { withTimezone: true, mode: 'date' })
+      .notNull()
+      .default(sql`now()`),
+  },
+  (table) => [
+    uniqueIndex('deliveries_source_ref_key').on(table.sourceRef),
+    index('deliveries_status_expected_date_idx').on(
+      table.status,
+      table.expectedDate,
+    ),
+    check(
+      'deliveries_received_date_matches_status',
+      sql`(${table.status} = 'received') = (${table.receivedDate} IS NOT NULL)`,
+    ),
+    check(
+      'deliveries_source_ref_nonblank',
+      sql`${table.sourceRef} IS NULL OR btrim(${table.sourceRef}) <> ''`,
+    ),
+  ],
+)
+
 export const stockLots = pgTable(
   'stock_lots',
   {
     id: text('id').primaryKey(),
     foodMasterId: text('food_master_id').notNull(),
+    deliveryId: text('delivery_id'),
     quantity: numeric('quantity').notNull(),
     receivedDate: date('received_date', { mode: 'string' }),
     bestBefore: date('best_before', { mode: 'string' }),
@@ -393,9 +430,20 @@ export const stockLots = pgTable(
     })
       .onUpdate('cascade')
       .onDelete('restrict'),
+    foreignKey({
+      name: 'stock_lots_delivery_id_fk',
+      columns: [table.deliveryId],
+      foreignColumns: [deliveries.id],
+    })
+      .onUpdate('cascade')
+      .onDelete('restrict'),
     index('stock_lots_food_master_id_received_date_idx').on(
       table.foodMasterId,
       table.receivedDate,
+    ),
+    uniqueIndex('stock_lots_delivery_id_food_master_id_key').on(
+      table.deliveryId,
+      table.foodMasterId,
     ),
     check('stock_lots_quantity_positive', sql`${table.quantity} > 0`),
   ],

@@ -85,6 +85,7 @@ erDiagram
   date best_before
   date eat_by
   timestamp_with_time_zone created_at
+  text delivery_id FK
 }
 ```
 

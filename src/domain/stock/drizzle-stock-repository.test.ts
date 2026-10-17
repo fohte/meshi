@@ -7,6 +7,7 @@ import { captureDomainError } from '#test/capture-domain-error'
 import { describeIfDb, setupTx } from '#test/db'
 import { createCountingIdGenerator, type IdCounter } from '#test/id-counter'
 import {
+  seedDelivery,
   seedFoodMasterWithoutNutrition,
   seedStockItem,
   seedStockLot,
@@ -162,25 +163,28 @@ describeIfDb('stock repository', () => {
     count._unsafeUnwrap()
     const status = (await stockService.getStockStatus())._unsafeUnwrap()
 
-    expect(status).toEqual([
-      {
-        foodMasterId: 'fm_first_count',
-        foodName: 'Sample food for first count',
-        storageLocation: null,
-        eatWithinDays: 10,
-        totalQuantity: 2.5,
-        lots: [
-          {
-            id: 'stl_test_0001',
-            quantity: 2.5,
-            remainingQuantity: 2.5,
-            receivedDate: '2026-10-01',
-            bestBefore: '2026-11-01',
-            eatBy: '2026-10-11',
-          },
-        ],
-      },
-    ])
+    expect(status).toEqual({
+      stockItems: [
+        {
+          foodMasterId: 'fm_first_count',
+          foodName: 'Sample food for first count',
+          storageLocation: null,
+          eatWithinDays: 10,
+          totalQuantity: 2.5,
+          lots: [
+            {
+              id: 'stl_test_0001',
+              quantity: 2.5,
+              remainingQuantity: 2.5,
+              receivedDate: '2026-10-01',
+              bestBefore: '2026-11-01',
+              eatBy: '2026-10-11',
+            },
+          ],
+        },
+      ],
+      plannedDeliveries: [],
+    })
   })
 
   it('returns the previous and counted quantities', async () => {
@@ -286,6 +290,589 @@ describeIfDb('stock repository', () => {
     expect(error).toEqual({
       code: 'stock_item_not_found',
       details: { foodMasterId: 'fm_not_stock_item' },
+    })
+  })
+
+  it('updates an existing delivery by source reference and replaces its items', async () => {
+    const tx = getTx()
+    for (const [foodMasterId, name] of [
+      ['fm_delivery_a', 'Sample delivery food A'],
+      ['fm_delivery_b', 'Sample delivery food B'],
+      ['fm_delivery_c', 'Sample delivery food C'],
+    ] as const) {
+      await seedFoodMasterWithoutNutrition(tx, { id: foodMasterId, name })
+      await seedStockItem(tx, { foodMasterId })
+    }
+
+    const first = await stockService.registerDelivery({
+      sourceRef: 'sample-order',
+      status: 'planned',
+      expectedDate: '2026-10-20',
+      changeDeadline: '2026-10-18',
+      items: [
+        { foodMasterId: 'fm_delivery_a', quantity: 2 },
+        { foodMasterId: 'fm_delivery_b', quantity: 1 },
+      ],
+    })
+    first._unsafeUnwrap()
+    const second = await stockService.registerDelivery({
+      sourceRef: 'sample-order',
+      status: 'planned',
+      expectedDate: '2026-10-22',
+      items: [
+        { foodMasterId: 'fm_delivery_a', quantity: 3 },
+        { foodMasterId: 'fm_delivery_c', quantity: 4 },
+      ],
+    })
+
+    const result = await (async () => {
+      const updated = second._unsafeUnwrap()
+      const persistedItems = await tx<
+        {
+          id: string
+          status: string
+          expected_date: string
+          change_deadline: string | null
+          food_master_id: string
+          quantity: string
+        }[]
+      >`
+        SELECT d.id, d.status, d.expected_date::text AS expected_date,
+               d.change_deadline::text AS change_deadline,
+               sl.food_master_id, sl.quantity::text AS quantity
+        FROM deliveries d
+        JOIN stock_lots sl ON sl.delivery_id = d.id
+        WHERE d.source_ref = 'sample-order'
+        ORDER BY sl.food_master_id
+      `
+      return { updated, persistedItems }
+    })()
+
+    expect(result).toEqual({
+      updated: {
+        id: 'dly_test_0001',
+        sourceRef: 'sample-order',
+        status: 'planned',
+        expectedDate: '2026-10-22',
+        receivedDate: null,
+        changeDeadline: null,
+        items: [
+          {
+            foodMasterId: 'fm_delivery_a',
+            foodName: 'Sample delivery food A',
+            quantity: 3,
+          },
+          {
+            foodMasterId: 'fm_delivery_c',
+            foodName: 'Sample delivery food C',
+            quantity: 4,
+          },
+        ],
+      },
+      persistedItems: [
+        {
+          id: 'dly_test_0001',
+          status: 'planned',
+          expected_date: '2026-10-22',
+          change_deadline: null,
+          food_master_id: 'fm_delivery_a',
+          quantity: '3',
+        },
+        {
+          id: 'dly_test_0001',
+          status: 'planned',
+          expected_date: '2026-10-22',
+          change_deadline: null,
+          food_master_id: 'fm_delivery_c',
+          quantity: '4',
+        },
+      ],
+    })
+  })
+
+  it('keeps planned quantities out of stock totals', async () => {
+    const tx = getTx()
+    await seedFoodMasterWithoutNutrition(tx, {
+      id: 'fm_planned_delivery',
+      name: 'Sample planned delivery food',
+    })
+    await seedStockItem(tx, { foodMasterId: 'fm_planned_delivery' })
+    await stockService.registerDelivery({
+      sourceRef: 'sample-planned-order',
+      status: 'planned',
+      expectedDate: '2026-10-20',
+      items: [{ foodMasterId: 'fm_planned_delivery', quantity: 3 }],
+    })
+
+    const status = await stockService.getStockStatus()
+
+    expect(status._unsafeUnwrap()).toEqual({
+      stockItems: [
+        {
+          foodMasterId: 'fm_planned_delivery',
+          foodName: 'Sample planned delivery food',
+          storageLocation: null,
+          eatWithinDays: null,
+          totalQuantity: 0,
+          lots: [],
+        },
+      ],
+      plannedDeliveries: [
+        {
+          id: 'dly_test_0001',
+          sourceRef: 'sample-planned-order',
+          expectedDate: '2026-10-20',
+          changeDeadline: null,
+          items: [
+            {
+              foodMasterId: 'fm_planned_delivery',
+              foodName: 'Sample planned delivery food',
+              quantity: 3,
+            },
+          ],
+        },
+      ],
+    })
+  })
+
+  it('rejects delivery items outside stock management', async () => {
+    const tx = getTx()
+    await seedFoodMasterWithoutNutrition(tx, {
+      id: 'fm_not_stock_item',
+      name: 'Sample untracked delivery food',
+    })
+
+    const error = await captureDomainError(
+      stockService.registerDelivery({
+        sourceRef: 'sample-invalid-order',
+        status: 'planned',
+        expectedDate: '2026-10-20',
+        items: [{ foodMasterId: 'fm_not_stock_item', quantity: 1 }],
+      }),
+    )
+
+    expect(error).toEqual({
+      code: 'stock_item_not_found',
+      details: { foodMasterId: 'fm_not_stock_item' },
+    })
+  })
+
+  it('rolls back delivery registration when an item is not stock managed', async () => {
+    const tx = getTx()
+    await seedFoodMasterWithoutNutrition(tx, {
+      id: 'fm_untracked_delivery',
+      name: 'Sample untracked delivery food',
+    })
+    await captureDomainError(
+      stockService.registerDelivery({
+        sourceRef: 'sample-rollback-order',
+        status: 'planned',
+        expectedDate: '2026-10-20',
+        items: [{ foodMasterId: 'fm_untracked_delivery', quantity: 1 }],
+      }),
+    )
+    const deliveries = await tx<{ count: string }[]>`
+      SELECT count(*)::text AS count
+      FROM deliveries
+      WHERE source_ref = 'sample-rollback-order'
+    `
+
+    expect(deliveries).toEqual([{ count: '0' }])
+  })
+
+  it('cancels a delivery and removes it from planned status', async () => {
+    const tx = getTx()
+    await seedFoodMasterWithoutNutrition(tx, {
+      id: 'fm_cancelled_delivery',
+      name: 'Sample cancelled delivery food',
+    })
+    await seedStockItem(tx, { foodMasterId: 'fm_cancelled_delivery' })
+    await stockService.registerDelivery({
+      sourceRef: 'sample-cancel-order',
+      status: 'planned',
+      expectedDate: '2026-10-20',
+      items: [{ foodMasterId: 'fm_cancelled_delivery', quantity: 2 }],
+    })
+    await stockService.registerDelivery({
+      sourceRef: 'sample-cancel-order',
+      status: 'cancelled',
+      expectedDate: '2026-10-20',
+      items: [{ foodMasterId: 'fm_cancelled_delivery', quantity: 9 }],
+    })
+
+    const result = await (async () => {
+      const status = (await stockService.getStockStatus())._unsafeUnwrap()
+      const lots = await tx<{ count: string }[]>`
+        SELECT count(*)::text AS count
+        FROM stock_lots
+        WHERE delivery_id = 'dly_test_0001'
+      `
+      return { status, lots }
+    })()
+
+    expect(result).toEqual({
+      status: {
+        stockItems: [
+          {
+            foodMasterId: 'fm_cancelled_delivery',
+            foodName: 'Sample cancelled delivery food',
+            storageLocation: null,
+            eatWithinDays: null,
+            totalQuantity: 0,
+            lots: [],
+          },
+        ],
+        plannedDeliveries: [],
+      },
+      lots: [{ count: '0' }],
+    })
+  })
+
+  it('does not receive a cancelled delivery', async () => {
+    const tx = getTx()
+    await seedFoodMasterWithoutNutrition(tx, {
+      id: 'fm_cancelled_receipt',
+      name: 'Sample cancelled receipt food',
+    })
+    await seedStockItem(tx, { foodMasterId: 'fm_cancelled_receipt' })
+    await stockService.registerDelivery({
+      sourceRef: 'sample-cancelled-receipt-order',
+      status: 'planned',
+      expectedDate: '2026-10-20',
+      items: [{ foodMasterId: 'fm_cancelled_receipt', quantity: 2 }],
+    })
+    await stockService.registerDelivery({
+      sourceRef: 'sample-cancelled-receipt-order',
+      status: 'cancelled',
+      expectedDate: '2026-10-20',
+      items: [],
+    })
+
+    const result = await (async () => {
+      const error = await captureDomainError(
+        stockService.receiveDelivery({
+          deliveryId: 'dly_test_0001',
+          receivedDate: '2026-10-21',
+        }),
+      )
+      const deliveryRows = await tx<
+        {
+          status: string
+          received_date: string | null
+          lot_count: string
+          movement_count: string
+        }[]
+      >`
+        SELECT d.status, d.received_date::text AS received_date,
+               count(DISTINCT sl.id)::text AS lot_count,
+               count(DISTINCT sm.id)::text AS movement_count
+        FROM deliveries d
+        LEFT JOIN stock_lots sl ON sl.delivery_id = d.id
+        LEFT JOIN stock_movements sm ON sm.stock_lot_id = sl.id
+        WHERE d.id = 'dly_test_0001'
+        GROUP BY d.id
+      `
+      return { error, deliveryRows }
+    })()
+
+    expect(result).toEqual({
+      error: {
+        code: 'delivery_not_planned',
+        details: { deliveryId: 'dly_test_0001', status: 'cancelled' },
+      },
+      deliveryRows: [
+        {
+          status: 'cancelled',
+          received_date: null,
+          lot_count: '0',
+          movement_count: '0',
+        },
+      ],
+    })
+  })
+
+  it('adds received quantities to stock and derives eat-by dates', async () => {
+    const tx = getTx()
+    await seedFoodMasterWithoutNutrition(tx, {
+      id: 'fm_delivery_received',
+      name: 'Sample received delivery food',
+    })
+    await seedFoodMasterWithoutNutrition(tx, {
+      id: 'fm_delivery_missing',
+      name: 'Sample missing delivery food',
+    })
+    await seedStockItem(tx, {
+      foodMasterId: 'fm_delivery_received',
+      eatWithinDays: 10,
+    })
+    await seedStockItem(tx, { foodMasterId: 'fm_delivery_missing' })
+    await stockService.registerDelivery({
+      sourceRef: 'sample-receive-order',
+      status: 'planned',
+      expectedDate: '2026-10-20',
+      items: [
+        { foodMasterId: 'fm_delivery_received', quantity: 2.5 },
+        { foodMasterId: 'fm_delivery_missing', quantity: 1 },
+      ],
+    })
+    await stockService.receiveDelivery({
+      deliveryId: 'dly_test_0001',
+      receivedDate: '2026-10-21',
+      items: [
+        { foodMasterId: 'fm_delivery_received', quantity: 1.5 },
+        { foodMasterId: 'fm_delivery_missing', quantity: 0 },
+      ],
+    })
+
+    const status = await stockService.getStockStatus()
+
+    expect(status._unsafeUnwrap()).toEqual({
+      stockItems: [
+        {
+          foodMasterId: 'fm_delivery_missing',
+          foodName: 'Sample missing delivery food',
+          storageLocation: null,
+          eatWithinDays: null,
+          totalQuantity: 0,
+          lots: [],
+        },
+        {
+          foodMasterId: 'fm_delivery_received',
+          foodName: 'Sample received delivery food',
+          storageLocation: null,
+          eatWithinDays: 10,
+          totalQuantity: 1.5,
+          lots: [
+            {
+              id: 'stl_test_0002',
+              quantity: 1.5,
+              remainingQuantity: 1.5,
+              receivedDate: '2026-10-21',
+              bestBefore: null,
+              eatBy: '2026-10-31',
+            },
+          ],
+        },
+      ],
+      plannedDeliveries: [],
+    })
+  })
+
+  it('rejects received items that are not part of the delivery', async () => {
+    const tx = getTx()
+    await seedFoodMasterWithoutNutrition(tx, {
+      id: 'fm_delivery_item',
+      name: 'Sample delivery item food',
+    })
+    await seedFoodMasterWithoutNutrition(tx, {
+      id: 'fm_outside_delivery',
+      name: 'Sample unrelated delivery food',
+    })
+    await seedStockItem(tx, { foodMasterId: 'fm_delivery_item' })
+    await seedStockItem(tx, { foodMasterId: 'fm_outside_delivery' })
+    await stockService.registerDelivery({
+      sourceRef: 'sample-item-check-order',
+      status: 'planned',
+      expectedDate: '2026-10-20',
+      items: [{ foodMasterId: 'fm_delivery_item', quantity: 2 }],
+    })
+
+    const result = await (async () => {
+      const error = await captureDomainError(
+        stockService.receiveDelivery({
+          deliveryId: 'dly_test_0001',
+          receivedDate: '2026-10-21',
+          items: [{ foodMasterId: 'fm_outside_delivery', quantity: 1 }],
+        }),
+      )
+      const deliveryRows = await tx<
+        {
+          status: string
+          received_date: string | null
+          movement_count: string
+        }[]
+      >`
+        SELECT d.status, d.received_date::text AS received_date,
+               count(sm.id)::text AS movement_count
+        FROM deliveries d
+        LEFT JOIN stock_lots sl ON sl.delivery_id = d.id
+        LEFT JOIN stock_movements sm ON sm.stock_lot_id = sl.id
+        WHERE d.id = 'dly_test_0001'
+        GROUP BY d.id
+      `
+      return { error, deliveryRows }
+    })()
+
+    expect(result).toEqual({
+      error: {
+        code: 'delivery_item_not_found',
+        details: {
+          deliveryId: 'dly_test_0001',
+          foodMasterId: 'fm_outside_delivery',
+        },
+      },
+      deliveryRows: [
+        { status: 'planned', received_date: null, movement_count: '0' },
+      ],
+    })
+  })
+
+  it('records the receipt date and a receive movement', async () => {
+    const tx = getTx()
+    await seedFoodMasterWithoutNutrition(tx, {
+      id: 'fm_delivery_movement',
+      name: 'Sample delivery movement food',
+    })
+    await seedStockItem(tx, { foodMasterId: 'fm_delivery_movement' })
+    await stockService.registerDelivery({
+      sourceRef: 'sample-movement-order',
+      status: 'planned',
+      expectedDate: '2026-10-20',
+      items: [{ foodMasterId: 'fm_delivery_movement', quantity: 2 }],
+    })
+    await stockService.receiveDelivery({
+      deliveryId: 'dly_test_0001',
+      receivedDate: '2026-10-21',
+    })
+    const result = await (async () => {
+      const secondReceiptError = await captureDomainError(
+        stockService.receiveDelivery({
+          deliveryId: 'dly_test_0001',
+          receivedDate: '2026-10-21',
+        }),
+      )
+      const receiptRows = await tx<
+        {
+          status: string
+          received_date: string | null
+          lot_received_date: string | null
+          eat_by: string | null
+          delta: string
+          reason: string
+          movement_count: string
+        }[]
+      >`
+        SELECT d.status, d.received_date::text AS received_date,
+               sl.received_date::text AS lot_received_date,
+               sl.eat_by::text AS eat_by, min(sm.delta)::text AS delta,
+               min(sm.reason) AS reason, count(sm.id)::text AS movement_count
+        FROM deliveries d
+        JOIN stock_lots sl ON sl.delivery_id = d.id
+        JOIN stock_movements sm ON sm.stock_lot_id = sl.id
+        WHERE d.id = 'dly_test_0001'
+        GROUP BY d.id, sl.id
+      `
+      return { secondReceiptError, receiptRows }
+    })()
+
+    expect(result).toEqual({
+      secondReceiptError: {
+        code: 'delivery_not_planned',
+        details: { deliveryId: 'dly_test_0001', status: 'received' },
+      },
+      receiptRows: [
+        {
+          status: 'received',
+          received_date: '2026-10-21',
+          lot_received_date: '2026-10-21',
+          eat_by: null,
+          delta: '2',
+          reason: 'receive',
+          movement_count: '1',
+        },
+      ],
+    })
+  })
+
+  it('rejects re-registering a received delivery without changing its stock', async () => {
+    const tx = getTx()
+    await seedFoodMasterWithoutNutrition(tx, {
+      id: 'fm_received_delivery_update',
+      name: 'Sample received delivery update food',
+    })
+    await seedStockItem(tx, {
+      foodMasterId: 'fm_received_delivery_update',
+      eatWithinDays: 8,
+    })
+    await stockService.registerDelivery({
+      sourceRef: 'sample-received-update-order',
+      status: 'planned',
+      expectedDate: '2026-10-20',
+      items: [{ foodMasterId: 'fm_received_delivery_update', quantity: 2 }],
+    })
+    await stockService.receiveDelivery({
+      deliveryId: 'dly_test_0001',
+      receivedDate: '2026-10-21',
+      items: [{ foodMasterId: 'fm_received_delivery_update', quantity: 1.5 }],
+    })
+
+    const result = await (async () => {
+      const error = await captureDomainError(
+        stockService.registerDelivery({
+          sourceRef: 'sample-received-update-order',
+          status: 'planned',
+          expectedDate: '2026-10-25',
+          items: [{ foodMasterId: 'fm_received_delivery_update', quantity: 9 }],
+        }),
+      )
+      const rows = await tx<
+        {
+          status: string
+          expected_date: string
+          received_date: string | null
+          quantity: string
+          lot_received_date: string | null
+          eat_by: string | null
+          movement_count: string
+        }[]
+      >`
+        SELECT d.status, d.expected_date::text AS expected_date,
+               d.received_date::text AS received_date,
+               sl.quantity::text AS quantity,
+               sl.received_date::text AS lot_received_date,
+               sl.eat_by::text AS eat_by,
+               count(sm.id)::text AS movement_count
+        FROM deliveries d
+        JOIN stock_lots sl ON sl.delivery_id = d.id
+        LEFT JOIN stock_movements sm ON sm.stock_lot_id = sl.id
+        WHERE d.id = 'dly_test_0001'
+        GROUP BY d.id, sl.id
+      `
+      return { error, rows }
+    })()
+
+    expect(result).toEqual({
+      error: {
+        code: 'delivery_not_planned',
+        details: { deliveryId: 'dly_test_0001' },
+      },
+      rows: [
+        {
+          status: 'received',
+          expected_date: '2026-10-20',
+          received_date: '2026-10-21',
+          quantity: '1.5',
+          lot_received_date: '2026-10-21',
+          eat_by: '2026-10-29',
+          movement_count: '1',
+        },
+      ],
+    })
+  })
+
+  it('does not expose cancelled deliveries as planned', async () => {
+    const tx = getTx()
+    await seedDelivery(tx, {
+      id: 'dly_seeded_cancelled',
+      status: 'cancelled',
+      expectedDate: '2026-10-20',
+    })
+
+    const status = await stockService.getStockStatus()
+
+    expect(status._unsafeUnwrap()).toEqual({
+      stockItems: [],
+      plannedDeliveries: [],
     })
   })
 })

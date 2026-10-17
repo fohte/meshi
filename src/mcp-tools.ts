@@ -25,7 +25,9 @@ import {
   TOOL_SUCCEEDED,
 } from '#mcp-tools/payloads'
 import { registerQueryMealsTool } from '#mcp-tools/query-meals'
+import { registerReceiveDeliveryTool } from '#mcp-tools/receive-delivery'
 import { registerRecommendationContextTool } from '#mcp-tools/recommendation'
+import { registerRegisterDeliveryTool } from '#mcp-tools/register-delivery'
 import { registerFoodTool } from '#mcp-tools/register-food'
 import { registerFoodWithoutNutritionTool } from '#mcp-tools/register-food-without-nutrition'
 import { registerMealSetTool } from '#mcp-tools/register-meal-set'
@@ -90,6 +92,8 @@ export const registerMeshiTools = (
   })
   registerSetStockItemTool(server, { stockService, logger })
   registerCountStockTool(server, { stockService, logger })
+  registerRegisterDeliveryTool(server, { stockService, logger })
+  registerReceiveDeliveryTool(server, { stockService, logger })
   registerGetStockStatusTool(server, { stockService, logger })
 
   server.registerTool(

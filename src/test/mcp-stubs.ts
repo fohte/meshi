@@ -84,6 +84,10 @@ const rejectingStockService: StockService = {
     errAsync(new StockDomainError('persistence_failed', 'stub')),
   countStock: () =>
     errAsync(new StockDomainError('persistence_failed', 'stub')),
+  registerDelivery: () =>
+    errAsync(new StockDomainError('persistence_failed', 'stub')),
+  receiveDelivery: () =>
+    errAsync(new StockDomainError('persistence_failed', 'stub')),
   getStockStatus: () =>
     errAsync(new StockDomainError('persistence_failed', 'stub')),
 }

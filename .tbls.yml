@@ -106,13 +106,22 @@ comments:
       storage_location_id: 'Identifier of the optional storage location.'
       eat_within_days: 'Target number of days from receipt to consume the food.'
   - table: stock_lots
-    tableComment: 'Received or counted batches of stock for a food.'
+    tableComment: 'Planned delivery, received, or counted batches of stock for a food.'
     columnComments:
       food_master_id: 'Identifier of the food this batch belongs to.'
+      delivery_id: 'Identifier of the delivery this batch belongs to, when scheduled.'
       quantity: 'Quantity originally recorded for this batch in food units.'
       received_date: 'Date the batch was received, when known.'
       best_before: 'Best-before date shown for the batch, when known.'
       eat_by: 'Target date to consume the batch, when known.'
+  - table: deliveries
+    tableComment: 'Expected deliveries and receipt status for stock inventory.'
+    columnComments:
+      source_ref: 'External identifier used to deduplicate delivery updates.'
+      status: 'Lifecycle state of the delivery.'
+      expected_date: 'Date the delivery is expected to arrive.'
+      received_date: 'Date the delivery was received.'
+      change_deadline: 'Deadline for changing or cancelling the delivery, when known.'
   - table: stock_movements
     tableComment: 'Quantity changes recorded against stock lots.'
     columnComments:

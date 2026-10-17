@@ -4,6 +4,8 @@ import { z } from 'zod'
 import { StockDomainError } from '#domain/stock/errors'
 import type {
   CountStockInput,
+  ReceiveDeliveryInput,
+  RegisterDeliveryInput,
   SetStockItemInput,
   StockRepository,
   StockService,
@@ -95,5 +97,113 @@ export const createStockService = (
     return repository.countStock(input)
   },
 
+  registerDelivery(input: RegisterDeliveryInput) {
+    const sourceRef = input.sourceRef?.trim()
+    if (sourceRef === '') {
+      return errAsync(
+        new StockDomainError('invalid_input', 'source_ref must not be empty'),
+      )
+    }
+    if (!validDate.safeParse(input.expectedDate).success) {
+      return errAsync(
+        new StockDomainError(
+          'invalid_input',
+          'expected_date must be YYYY-MM-DD',
+        ),
+      )
+    }
+    if (
+      input.changeDeadline != null &&
+      !validDate.safeParse(input.changeDeadline).success
+    ) {
+      return errAsync(
+        new StockDomainError(
+          'invalid_input',
+          'change_deadline must be YYYY-MM-DD',
+        ),
+      )
+    }
+    if (input.status === 'planned' && input.items.length === 0) {
+      return errAsync(
+        new StockDomainError(
+          'invalid_input',
+          'planned deliveries must include at least one item',
+        ),
+      )
+    }
+    const items = input.items.map((item) => ({
+      ...item,
+      foodMasterId: item.foodMasterId.trim(),
+    }))
+    const itemError = validateDeliveryItems(items, false)
+    if (itemError !== undefined) {
+      return errAsync(new StockDomainError('invalid_input', itemError))
+    }
+    return repository.registerDelivery({
+      ...input,
+      ...(sourceRef === undefined ? {} : { sourceRef }),
+      items,
+    })
+  },
+
+  receiveDelivery(input: ReceiveDeliveryInput) {
+    const deliveryId = input.deliveryId.trim()
+    if (deliveryId === '') {
+      return errAsync(
+        new StockDomainError('invalid_input', 'delivery_id must not be empty'),
+      )
+    }
+    if (!validDate.safeParse(input.receivedDate).success) {
+      return errAsync(
+        new StockDomainError(
+          'invalid_input',
+          'received_date must be YYYY-MM-DD',
+        ),
+      )
+    }
+    const items = input.items?.map((item) => ({
+      ...item,
+      foodMasterId: item.foodMasterId.trim(),
+    }))
+    const itemError = validateDeliveryItems(items ?? [], true)
+    if (itemError !== undefined) {
+      return errAsync(new StockDomainError('invalid_input', itemError))
+    }
+    return repository.receiveDelivery({
+      ...input,
+      deliveryId,
+      ...(items === undefined ? {} : { items }),
+    })
+  },
+
   getStockStatus: () => repository.getStockStatus(),
 })
+
+const validateDeliveryItems = (
+  items: ReadonlyArray<{
+    readonly foodMasterId: string
+    readonly quantity: number
+  }>,
+  allowZeroQuantity: boolean,
+): string | undefined => {
+  const seenFoodMasterIds = new Set<string>()
+  for (const item of items) {
+    const foodMasterId = item.foodMasterId.trim()
+    if (foodMasterId === '') {
+      return 'food_master_id must not be empty'
+    }
+    if (seenFoodMasterIds.has(foodMasterId)) {
+      return 'items must not contain duplicate food_master_id values'
+    }
+    seenFoodMasterIds.add(foodMasterId)
+    if (
+      !Number.isFinite(item.quantity) ||
+      (allowZeroQuantity ? item.quantity < 0 : item.quantity <= 0)
+    ) {
+      return allowZeroQuantity
+        ? 'quantity must be greater than or equal to 0'
+        : 'quantity must be greater than 0'
+    }
+  }
+  return undefined
+}

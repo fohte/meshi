@@ -5,6 +5,13 @@ import { NUTRITION_STATUSES } from '#domain/food-master/types'
 import { hasDuplicateAfterTrim } from '#domain/food-master/validation'
 import { MEAL_TYPES } from '#domain/meal-log/types'
 import { jstDateSchema } from '#lib/jst-date'
+import { deliveryStructuredItemOutput } from '#mcp-tools/delivery-schemas'
+
+export {
+  deliveryStructuredOutput,
+  receiveDeliveryInput,
+  registerDeliveryInput,
+} from '#mcp-tools/delivery-schemas'
 
 // z.number() rejects NaN and Infinity by default in zod v4, so it is safe to
 // reuse this schema on the MCP input boundary (update_profile.daily_targets).
@@ -465,6 +472,15 @@ export const getStockStatusStructuredOutput = z.object({
           eat_by: z.iso.date().nullable(),
         }),
       ),
+    }),
+  ),
+  planned_deliveries: z.array(
+    z.object({
+      delivery_id: z.string(),
+      source_ref: z.string().nullable(),
+      expected_date: z.iso.date(),
+      change_deadline: z.iso.date().nullable(),
+      items: z.array(deliveryStructuredItemOutput),
     }),
   ),
 })
