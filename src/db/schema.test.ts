@@ -8,6 +8,7 @@ import {
   seedMealLog,
   seedMealSet,
   seedStockLot,
+  seedStockMovement,
 } from '#test/seed'
 
 const observation = <T extends object>(value: T): T => value
@@ -850,6 +851,13 @@ describeIfDb('schema runtime constraints', () => {
       mealType: 'lunch',
       quantity: 1,
     })
+    await seedStockMovement(tx, {
+      id: 'stm_meal_with_log',
+      stockLotId: 'stl_meal_movement_constraint',
+      delta: -0.5,
+      reason: 'meal',
+      mealLogId: 'ml_movement_constraint',
+    })
 
     await tx.unsafe('SAVEPOINT meal_movement_missing_log')
     const missingLogOutcome = await runOutcome(tx`
@@ -859,14 +867,22 @@ describeIfDb('schema runtime constraints', () => {
     await tx.unsafe('ROLLBACK TO SAVEPOINT meal_movement_missing_log')
     await tx.unsafe('RELEASE SAVEPOINT meal_movement_missing_log')
 
+    const mealMovements = await tx<{ meal_log_id: string | null }[]>`
+      SELECT meal_log_id
+      FROM stock_movements
+      WHERE id = 'stm_meal_with_log'
+    `
     const nonMealOutcome = await runOutcome(tx`
       INSERT INTO stock_movements (id, stock_lot_id, delta, reason, meal_log_id)
       VALUES ('stm_count_with_log', 'stl_meal_movement_constraint', 0.5, 'count', 'ml_movement_constraint')
     `)
 
-    expect(observation({ missingLogOutcome, nonMealOutcome })).toEqual({
+    expect(
+      observation({ missingLogOutcome, nonMealOutcome, mealMovements }),
+    ).toEqual({
       missingLogOutcome: { status: 'error', code: '23514' },
       nonMealOutcome: { status: 'error', code: '23514' },
+      mealMovements: [{ meal_log_id: 'ml_movement_constraint' }],
     })
   })
 })
