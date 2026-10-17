@@ -59,6 +59,7 @@ erDiagram
   text reason
   text note
   timestamp_with_time_zone created_at
+  text meal_log_id FK
 }
 "public.food_masters" {
   text id

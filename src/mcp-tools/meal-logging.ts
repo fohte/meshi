@@ -82,7 +82,7 @@ export const registerMealLoggingTools = (
     'record_meal_log',
     {
       description:
-        '食品 ID と量が確定した食事を記録する。quantity は食品 1 つ分への倍率。1 品目でも不正なら何も保存しない。',
+        '食品 ID と量が確定した食事を記録する。quantity は食品 1 つ分への倍率。在庫不足でも記録し、不足量を返す。1 品目でも不正なら何も保存しない。',
       inputSchema: recordMealLogInput,
       outputSchema: recordMealLogStructuredOutput,
     },
@@ -106,6 +106,7 @@ export const registerMealLoggingTools = (
                 food_master_id: item.foodMasterId,
                 food_name: item.foodName,
                 quantity: item.quantity,
+                stock_shortfall: item.stockShortfall ?? null,
                 nutrition: item.nutrition,
                 is_estimated: item.isEstimated,
                 nutrition_status: item.nutritionStatus,

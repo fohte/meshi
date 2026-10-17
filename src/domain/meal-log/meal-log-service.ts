@@ -280,7 +280,10 @@ export const createMealLogService = (
   },
 })
 
-const buildResult = (log: MealLogRow, food: FoodMasterRef): MealLogResult => ({
+const buildResult = (
+  log: MealLogRow & { readonly stockShortfall?: number },
+  food: FoodMasterRef,
+): MealLogResult => ({
   ...log,
   nutrition: scaleNutrition(food.nutritionPerUnit, log.quantity),
   isEstimated: food.isEstimated,

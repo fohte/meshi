@@ -16,6 +16,7 @@ import {
   foodMasters,
   mealLogs,
 } from '#db/schema'
+import { defaultIdGenerator, type IdGenerator } from '#domain/food-master/id'
 import { nutritionStatusFromIsEstimated } from '#domain/food-master/types'
 import {
   DomainError,
@@ -27,6 +28,7 @@ import type {
   FoundMealLog,
   InsertMealLogInput,
   MealLogRepository,
+  MealLogWriteResult,
   UpdateMealLogPatch,
 } from '#domain/meal-log/meal-log-repository'
 import type {
@@ -35,6 +37,10 @@ import type {
   MealLogRow,
   MealType,
 } from '#domain/meal-log/types'
+import {
+  clearMealStockMovements,
+  consumeStockForMealLog,
+} from '#domain/stock/drizzle-meal-stock-sync'
 import type { JstDate } from '#lib/jst-date'
 
 type Db = ReturnType<typeof drizzle>
@@ -43,6 +49,7 @@ type DbSession = Db | Transaction
 
 export interface DrizzleMealLogRepositoryOptions {
   readonly wrapDeleteManyInTransaction?: boolean
+  readonly generateId?: IdGenerator
 }
 
 const loadNutrition = async (
@@ -123,8 +130,48 @@ export const createDrizzleMealLogRepository = (
   options: DrizzleMealLogRepositoryOptions = {},
 ): MealLogRepository => {
   const db = drizzle(sql)
+  const generateId = options.generateId ?? defaultIdGenerator
   const wrapDeleteManyInTransaction =
     options.wrapDeleteManyInTransaction ?? true
+
+  const runInTransaction = <T>(
+    operation: (session: Transaction) => Promise<Result<T, DomainError>>,
+    failureMessage: string,
+  ): ResultAsync<T, DomainError> =>
+    ResultAsync.fromPromise(
+      db.transaction(async (session) => {
+        const result = await operation(session)
+        if (result.isErr()) return Promise.reject(result.error)
+        return result.value
+      }),
+      (caughtErr) =>
+        caughtErr instanceof DomainError
+          ? caughtErr
+          : new MealLogPersistenceError(failureMessage, caughtErr),
+    )
+
+  const consumeMealStock = async (
+    session: Transaction,
+    input: {
+      readonly mealLogId: string
+      readonly foodMasterId: string
+      readonly quantity: number
+    },
+  ): Promise<Result<number | null, DomainError>> => {
+    const result = await consumeStockForMealLog(session, input, generateId)
+    return result.mapErr(
+      (error) =>
+        new MealLogPersistenceError('failed to sync stock for meal_log', error),
+    )
+  }
+
+  const withStockShortfall = (
+    row: MealLogRow,
+    stockShortfall: number | null,
+  ): MealLogWriteResult => ({
+    ...row,
+    ...(stockShortfall === null ? {} : { stockShortfall }),
+  })
 
   const deleteMealLogs = async (
     session: DbSession,
@@ -186,94 +233,146 @@ export const createDrizzleMealLogRepository = (
 
     insertMealLog: (
       input: InsertMealLogInput,
-    ): ResultAsync<MealLogRow, DomainError> =>
-      ResultAsync.fromPromise(
-        (async (): Promise<Result<MealLogRow, DomainError>> => {
-          const [inserted] = await db
-            .insert(mealLogs)
-            .values({
-              id: input.id,
-              foodMasterId: input.foodMasterId,
-              eatenDate: input.eatenDate,
-              mealType: input.mealType,
-              quantity: input.quantity.toString(),
-            })
-            .returning()
-          if (inserted === undefined) {
-            return err(
-              new MealLogPersistenceError('meal_logs insert returned no rows'),
-            )
-          }
-          return ok(toRow(inserted))
-        })(),
-        (caughtErr) =>
-          new MealLogPersistenceError('failed to insert meal_log', caughtErr),
-      ).andThen((result) => result),
+    ): ResultAsync<MealLogWriteResult, DomainError> =>
+      runInTransaction(async (session) => {
+        const [inserted] = await session
+          .insert(mealLogs)
+          .values({
+            id: input.id,
+            foodMasterId: input.foodMasterId,
+            eatenDate: input.eatenDate,
+            mealType: input.mealType,
+            quantity: input.quantity.toString(),
+          })
+          .returning()
+        if (inserted === undefined) {
+          return err(
+            new MealLogPersistenceError('meal_logs insert returned no rows'),
+          )
+        }
+        const row = toRow(inserted)
+        const stockResult = await consumeMealStock(session, {
+          mealLogId: row.id,
+          foodMasterId: row.foodMasterId,
+          quantity: row.quantity,
+        })
+        return stockResult.map((shortfall) =>
+          withStockShortfall(row, shortfall),
+        )
+      }, 'failed to insert meal_log'),
 
     insertMealLogs: (
       inputs: ReadonlyArray<InsertMealLogInput>,
-    ): ResultAsync<ReadonlyArray<MealLogRow>, DomainError> =>
-      ResultAsync.fromPromise(
-        (async (): Promise<Result<ReadonlyArray<MealLogRow>, DomainError>> => {
-          if (inputs.length === 0) return ok([])
-          const inserted = await db
-            .insert(mealLogs)
-            .values(
-              inputs.map((input) => ({
-                id: input.id,
-                foodMasterId: input.foodMasterId,
-                eatenDate: input.eatenDate,
-                mealType: input.mealType,
-                quantity: input.quantity.toString(),
-              })),
+    ): ResultAsync<ReadonlyArray<MealLogWriteResult>, DomainError> =>
+      inputs.length === 0
+        ? okAsync([])
+        : runInTransaction(async (session) => {
+            const inserted = await session
+              .insert(mealLogs)
+              .values(
+                inputs.map((input) => ({
+                  id: input.id,
+                  foodMasterId: input.foodMasterId,
+                  eatenDate: input.eatenDate,
+                  mealType: input.mealType,
+                  quantity: input.quantity.toString(),
+                })),
+              )
+              .returning()
+            if (inserted.length !== inputs.length) {
+              return err(
+                new MealLogPersistenceError(
+                  'meal_logs bulk insert returned an unexpected number of rows',
+                ),
+              )
+            }
+            const rowsById = new Map(
+              inserted.map((row) => [row.id, row] as const),
             )
-            .returning()
-          if (inserted.length !== inputs.length) {
-            return err(
-              new MealLogPersistenceError(
-                'meal_logs bulk insert returned an unexpected number of rows',
-              ),
-            )
-          }
-          return ok(inserted.map(toRow))
-        })(),
-        (caughtErr) =>
-          new MealLogPersistenceError('failed to insert meal_logs', caughtErr),
-      ).andThen((result) => result),
+            const writtenRows: MealLogWriteResult[] = []
+            for (const input of inputs) {
+              const insertedRow = rowsById.get(input.id)
+              if (insertedRow === undefined) {
+                return err(
+                  new MealLogPersistenceError(
+                    'meal_logs bulk insert returned incomplete rows',
+                  ),
+                )
+              }
+              const row = toRow(insertedRow)
+              const stockResult = await consumeMealStock(session, {
+                mealLogId: row.id,
+                foodMasterId: row.foodMasterId,
+                quantity: row.quantity,
+              })
+              if (stockResult.isErr()) return err(stockResult.error)
+              writtenRows.push(withStockShortfall(row, stockResult.value))
+            }
+            return ok(writtenRows)
+          }, 'failed to insert meal_logs'),
 
     updateMealLog: (
       input: UpdateMealLogPatch,
-    ): ResultAsync<MealLogRow, DomainError> =>
-      ResultAsync.fromPromise(
-        (async (): Promise<Result<MealLogRow, DomainError>> => {
-          const [updated] = await db
-            .update(mealLogs)
-            .set({
-              ...(input.foodMasterId === undefined
-                ? {}
-                : { foodMasterId: input.foodMasterId }),
-              ...(input.eatenDate === undefined
-                ? {}
-                : { eatenDate: input.eatenDate }),
-              ...(input.mealType === undefined
-                ? {}
-                : { mealType: input.mealType }),
-              ...(input.quantity === undefined
-                ? {}
-                : { quantity: input.quantity.toString() }),
-            })
-            .where(eq(mealLogs.id, input.id))
-            .returning()
-          if (updated === undefined) {
-            return err(
-              new MealLogPersistenceError('meal_logs update returned no rows'),
-            )
-          }
-          return ok(toRow(updated))
-        })(),
-        (caughtErr) =>
-          new MealLogPersistenceError('failed to update meal_log', caughtErr),
-      ).andThen((result) => result),
+    ): ResultAsync<MealLogWriteResult, DomainError> =>
+      runInTransaction(async (session) => {
+        const [existing] = await session
+          .select({
+            foodMasterId: mealLogs.foodMasterId,
+            quantity: mealLogs.quantity,
+          })
+          .from(mealLogs)
+          .where(eq(mealLogs.id, input.id))
+          .for('update')
+        if (existing === undefined) {
+          return err(
+            new MealLogPersistenceError('meal_logs update returned no rows'),
+          )
+        }
+
+        const foodMasterId = input.foodMasterId ?? existing.foodMasterId
+        const quantity = input.quantity ?? Number(existing.quantity)
+        const shouldSyncStock =
+          foodMasterId !== existing.foodMasterId ||
+          quantity !== Number(existing.quantity)
+        if (shouldSyncStock) {
+          await clearMealStockMovements(session, input.id)
+        }
+
+        const [updated] = await session
+          .update(mealLogs)
+          .set({
+            ...(input.foodMasterId === undefined
+              ? {}
+              : { foodMasterId: input.foodMasterId }),
+            ...(input.eatenDate === undefined
+              ? {}
+              : { eatenDate: input.eatenDate }),
+            ...(input.mealType === undefined
+              ? {}
+              : { mealType: input.mealType }),
+            ...(input.quantity === undefined
+              ? {}
+              : { quantity: input.quantity.toString() }),
+          })
+          .where(eq(mealLogs.id, input.id))
+          .returning()
+        if (updated === undefined) {
+          return err(
+            new MealLogPersistenceError('meal_logs update returned no rows'),
+          )
+        }
+        const row = toRow(updated)
+        if (!shouldSyncStock) return ok(withStockShortfall(row, null))
+
+        const stockResult = await consumeMealStock(session, {
+          mealLogId: row.id,
+          foodMasterId: row.foodMasterId,
+          quantity: row.quantity,
+        })
+        return stockResult.map((shortfall) =>
+          withStockShortfall(row, shortfall),
+        )
+      }, 'failed to update meal_log'),
 
     deleteMealLog: (id: string): ResultAsync<boolean, DomainError> =>
       ResultAsync.fromPromise(
@@ -296,11 +395,14 @@ export const createDrizzleMealLogRepository = (
           ),
         )
       }
-      const operation = wrapDeleteManyInTransaction
-        ? db.transaction((tx) => deleteMealLogs(tx, ids))
-        : deleteMealLogs(db, ids)
+      if (wrapDeleteManyInTransaction) {
+        return runInTransaction(
+          (tx) => deleteMealLogs(tx, ids),
+          'failed to delete meal_logs',
+        )
+      }
       return ResultAsync.fromPromise(
-        operation,
+        deleteMealLogs(db, ids),
         (caughtErr) =>
           new MealLogPersistenceError('failed to delete meal_logs', caughtErr),
       ).andThen((result) => result)

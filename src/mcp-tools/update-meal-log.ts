@@ -75,6 +75,7 @@ export const registerUpdateMealLogTool = (
           ],
           structuredContent: {
             ...buildMealLogMutationPayload({ ...mealLog, foodName: food.name }),
+            stock_shortfall: mealLog.stockShortfall ?? null,
             nutrition: mealLog.nutrition,
             is_estimated: mealLog.isEstimated,
           },

@@ -169,6 +169,7 @@ describeIfDb('schema migrations', () => {
         'stock_items_pkey',
         'stock_items_storage_location_id_idx',
         'stock_lots_food_master_id_received_date_idx',
+        'stock_movements_meal_log_id_idx',
         'stock_movements_stock_lot_id_idx'
       )
       ORDER BY indexname
@@ -188,6 +189,11 @@ describeIfDb('schema migrations', () => {
         indexname: 'stock_lots_food_master_id_received_date_idx',
         indexdef:
           'CREATE INDEX stock_lots_food_master_id_received_date_idx ON public.stock_lots USING btree (food_master_id, received_date)',
+      },
+      {
+        indexname: 'stock_movements_meal_log_id_idx',
+        indexdef:
+          'CREATE INDEX stock_movements_meal_log_id_idx ON public.stock_movements USING btree (meal_log_id)',
       },
       {
         indexname: 'stock_movements_stock_lot_id_idx',
@@ -369,6 +375,13 @@ describeIfDb('schema migrations', () => {
         ref_table: 'food_masters',
         on_update: 'c',
         on_delete: 'r',
+      },
+      {
+        conname: 'stock_movements_meal_log_id_fk',
+        table_name: 'stock_movements',
+        ref_table: 'meal_logs',
+        on_update: 'c',
+        on_delete: 'c',
       },
       {
         conname: 'stock_movements_stock_lot_id_fk',
