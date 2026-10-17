@@ -67,11 +67,11 @@ pnpm dev                   # tsx watch, no build step
 
 To create `meshi_dev`, run `mise run db:up` once before starting the app in a container. The source is bind-mounted, so it hot-reloads the same way:
 
-Set the required `R2_*` variables before starting the server. `pnpm dev` reads them from `.env.local` through mise, and Compose reads them from `.env` and passes them to the app. The access key needs object read, write, and delete permissions on the selected bucket; objects are stored under `meal-photos/`.
-
 ```sh
 docker compose up app
 ```
+
+Set the required `R2_*` variables before starting the server. `pnpm dev` reads them from `.env.local` through mise, and Compose reads them from `.env` and passes them to the app. The access key needs object read, write, and delete permissions on the selected bucket; objects are stored under `meal-photos/`.
 
 It's published to a random host port; find it with `docker compose port app 8080`.
 
