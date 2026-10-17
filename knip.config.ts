@@ -7,11 +7,13 @@ export const project = [
   '!scripts/**/*.test.ts!',
 ]
 
+export const mealSetEntry = 'src/domain/meal-set/index.ts!'
+
 export default {
   treatConfigHintsAsErrors: true,
   workspaces: {
     '.': {
-      entry: ['src/domain/meal-set/index.ts!'],
+      entry: [mealSetEntry],
       project,
     },
   },
