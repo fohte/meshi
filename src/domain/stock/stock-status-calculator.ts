@@ -34,6 +34,9 @@ const daysBetween = (from: string, to: string): number => {
   return Math.round((toMilliseconds - fromMilliseconds) / 86_400_000)
 }
 
+const effectiveArrivalDate = (expectedDate: string, today: JstDate): string =>
+  expectedDate < today ? today : expectedDate
+
 const roundRate = (rate: number): number =>
   Math.round((rate + Number.EPSILON) * 100) / 100
 
@@ -152,8 +155,7 @@ const projectLocationQuantityAtDate = (
   const arrivalsByDate = new Map<string, Map<string, number>>()
 
   for (const delivery of snapshot.plannedDeliveries) {
-    const arrivalDate =
-      delivery.expectedDate < today ? today : delivery.expectedDate
+    const arrivalDate = effectiveArrivalDate(delivery.expectedDate, today)
     if (arrivalDate > targetDate) continue
 
     for (const item of delivery.items) {
@@ -200,8 +202,8 @@ const projectLocationQuantityAtDate = (
 interface CapacityWarningGroup {
   readonly storageLocationId: string
   readonly storageLocationName: string
-  readonly expectedDate: string
   readonly forecastDate: string
+  readonly groupKey: string
   readonly capacity: number
   readonly deliveries: Map<
     string,
@@ -227,9 +229,9 @@ const calculateCapacityWarnings = (
 
   const groupsByLocation = new Map<string, Map<string, CapacityWarningGroup>>()
   for (const delivery of snapshot.plannedDeliveries) {
-    const forecastDate =
-      delivery.expectedDate < today ? today : delivery.expectedDate
+    const forecastDate = effectiveArrivalDate(delivery.expectedDate, today)
     if (daysBetween(today, forecastDate) > WARNING_WINDOW_DAYS) continue
+    const groupKey = forecastDate === today ? 'due' : forecastDate
 
     const locationIds = new Set(
       delivery.items.flatMap((item) => {
@@ -256,11 +258,11 @@ const calculateCapacityWarnings = (
       const datesForLocation =
         groupsByLocation.get(locationId) ??
         new Map<string, CapacityWarningGroup>()
-      const group = datesForLocation.get(delivery.expectedDate) ?? {
+      const group = datesForLocation.get(groupKey) ?? {
         storageLocationId: locationId,
         storageLocationName: location.name,
-        expectedDate: delivery.expectedDate,
         forecastDate,
+        groupKey,
         capacity,
         deliveries: new Map(),
       }
@@ -268,7 +270,7 @@ const calculateCapacityWarnings = (
         deliveryId: delivery.id,
         changeDeadline: delivery.changeDeadline,
       })
-      datesForLocation.set(delivery.expectedDate, group)
+      datesForLocation.set(groupKey, group)
       groupsByLocation.set(locationId, datesForLocation)
     }
   }
@@ -289,14 +291,12 @@ const calculateCapacityWarnings = (
       if (projectedQuantity <= group.capacity) continue
 
       warnings.push({
-        id: [
-          'capacity-overflow',
-          group.storageLocationId,
-          group.expectedDate,
-        ].join(':'),
+        id: ['capacity-overflow', group.storageLocationId, group.groupKey].join(
+          ':',
+        ),
         storageLocationId: group.storageLocationId,
         storageLocationName: group.storageLocationName,
-        expectedDate: group.expectedDate,
+        expectedDate: group.forecastDate,
         deliveries: [...group.deliveries.values()].sort((left, right) =>
           left.deliveryId.localeCompare(right.deliveryId),
         ),

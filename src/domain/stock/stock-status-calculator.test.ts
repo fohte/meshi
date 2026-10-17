@@ -361,7 +361,7 @@ it('groups same-day deliveries by storage location and skips locations without c
     plannedDeliveries: snapshot.plannedDeliveries,
     capacityWarnings: [
       {
-        id: 'capacity-overflow:sl_second:2026-10-18',
+        id: 'capacity-overflow:sl_second:due',
         storageLocationId: 'sl_second',
         storageLocationName: 'Sample pantry',
         expectedDate: '2026-10-18',
@@ -389,7 +389,7 @@ it('groups same-day deliveries by storage location and skips locations without c
   })
 })
 
-it('keeps an overdue delivery warning stable across days', () => {
+it('groups overdue and due-today deliveries under a stable warning id', () => {
   const snapshot = makeSnapshot(
     [
       makeStockItem({
@@ -398,25 +398,50 @@ it('keeps an overdue delivery warning stable across days', () => {
         capacity: 4,
       }),
     ],
-    [makeDelivery('dly_overdue', '2026-10-15', 'fm_sample', 5, '2026-10-14')],
+    [
+      makeDelivery('dly_overdue', '2026-10-15', 'fm_sample', 5, '2026-10-14'),
+      makeDelivery('dly_today', '2026-10-18', 'fm_sample', 2, '2026-10-17'),
+    ],
   )
   const tomorrow = toJstDateString(new Date('2026-10-19T03:00:00.000Z'))
 
-  const expected = {
+  const expectedToday = {
     stockItems: snapshot.stockItems,
     plannedDeliveries: snapshot.plannedDeliveries,
     capacityWarnings: [
       {
-        id: 'capacity-overflow:sl_sample:2026-10-15',
+        id: 'capacity-overflow:sl_sample:due',
         storageLocationId: 'sl_sample',
         storageLocationName: 'Sample shelf',
-        expectedDate: '2026-10-15',
+        expectedDate: '2026-10-18',
         deliveries: [
           { deliveryId: 'dly_overdue', changeDeadline: '2026-10-14' },
+          { deliveryId: 'dly_today', changeDeadline: '2026-10-17' },
         ],
-        projectedQuantity: 5,
+        projectedQuantity: 7,
         capacity: 4,
-        excessQuantity: 1,
+        excessQuantity: 3,
+      },
+    ],
+    eatByWarnings: [],
+    priorityLots: [],
+  }
+  const expectedTomorrow = {
+    stockItems: snapshot.stockItems,
+    plannedDeliveries: snapshot.plannedDeliveries,
+    capacityWarnings: [
+      {
+        id: 'capacity-overflow:sl_sample:due',
+        storageLocationId: 'sl_sample',
+        storageLocationName: 'Sample shelf',
+        expectedDate: '2026-10-19',
+        deliveries: [
+          { deliveryId: 'dly_overdue', changeDeadline: '2026-10-14' },
+          { deliveryId: 'dly_today', changeDeadline: '2026-10-17' },
+        ],
+        projectedQuantity: 7,
+        capacity: 4,
+        excessQuantity: 3,
       },
     ],
     eatByWarnings: [],
@@ -427,7 +452,10 @@ it('keeps an overdue delivery warning stable across days', () => {
     today: calculateStockStatus(snapshot, TODAY),
     tomorrow: calculateStockStatus(snapshot, tomorrow),
   })
-  const expectedAcrossDays = { today: expected, tomorrow: expected }
+  const expectedAcrossDays = {
+    today: expectedToday,
+    tomorrow: expectedTomorrow,
+  }
 
   expect(getResults()).toEqual(expectedAcrossDays)
 })
