@@ -113,6 +113,13 @@
       "when": 1791764551297,
       "tag": "0015_handy_multiple_man",
       "breakpoints": true
+    },
+    {
+      "idx": 16,
+      "version": "7",
+      "when": 1792252286641,
+      "tag": "0016_yielding_boomerang",
+      "breakpoints": true
     }
   ]
 }

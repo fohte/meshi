@@ -5,6 +5,8 @@ import { getRequestListener } from '@hono/node-server'
 import * as Sentry from '@sentry/node'
 
 import { createDrizzleUserProfileRepository } from '#adapters/db/drizzle-user-profile-repository'
+import { createR2Client } from '#adapters/r2/client'
+import { createMealPhotoObjectStore } from '#adapters/r2/meal-photo-object-store'
 import { createApp } from '#app'
 import { observability } from '#bootstrap'
 import { createSql, pingDb } from '#db/index'
@@ -16,6 +18,7 @@ import {
   createFoodSearchService,
 } from '#domain/food-browse/index'
 import { createFoodDetailService } from '#domain/food-detail/index'
+import { defaultIdGenerator } from '#domain/food-master/id'
 import {
   createFoodMasterRepository,
   createFoodMasterService,
@@ -24,6 +27,8 @@ import { createDrizzleFoodMatcher } from '#domain/food-matcher/index'
 import { createMealHistoryService } from '#domain/meal-history/index'
 import { createDrizzleMealLogRepository } from '#domain/meal-log/drizzle-meal-log-repository'
 import { createMealLogService } from '#domain/meal-log/meal-log-service'
+import { createDrizzleMealPhotoRepository } from '#domain/meal-photo/drizzle-meal-photo-repository'
+import { createMealPhotoService } from '#domain/meal-photo/meal-photo-service'
 import { createDrizzleMealSkipRepository } from '#domain/meal-skip/drizzle-meal-skip-repository'
 import { createMealSkipService } from '#domain/meal-skip/meal-skip-service'
 import { createDrizzleNutrientDefinitionRepository } from '#domain/nutrient-definition/index'
@@ -60,6 +65,7 @@ const isMcpRequest = (url: string | undefined): boolean =>
 export const main = async (): Promise<void> => {
   const env = loadEnv()
   const sql = createSql(env.DATABASE_URL)
+  const r2Client = createR2Client(env)
   await pingDb(sql)
   await runMigrations(sql)
   await seedNutrientDefinitions(sql)
@@ -77,6 +83,11 @@ export const main = async (): Promise<void> => {
     repository: createDrizzleMealSkipRepository(sql),
     idGenerator: () => randomUUID(),
     now: () => new Date(),
+  })
+  const mealPhotoService = createMealPhotoService({
+    repository: createDrizzleMealPhotoRepository(sql),
+    objectStore: createMealPhotoObjectStore(r2Client, env.R2_BUCKET_NAME),
+    idGenerator: () => defaultIdGenerator('meal_photo'),
   })
   const foodMatcher = createDrizzleFoodMatcher(sql)
   const foodSearchService = createFoodSearchService(sql, foodMatcher)
@@ -115,6 +126,7 @@ export const main = async (): Promise<void> => {
     mealLogService,
     foodMasterService,
     mealSkipService,
+    mealPhotoService,
   })
   const honoListener = getRequestListener(app.fetch)
 
@@ -141,7 +153,12 @@ export const main = async (): Promise<void> => {
       // no listener remains. Awaiting the same handle here can't fully win
       // that race, but it stops this handler's own process.exit() from
       // cutting the flush short in the common case where it finishes first.
-      void Promise.allSettled([sql.end({ timeout: 5 })])
+      void Promise.allSettled([
+        sql.end({ timeout: 5 }),
+        Promise.resolve().then(() => {
+          r2Client.destroy()
+        }),
+      ])
         .then(async (results) => {
           for (const result of results) {
             if (result.status === 'rejected') {

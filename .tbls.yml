@@ -58,6 +58,13 @@ comments:
       id: 'Opaque identifier exposed in API responses.'
       date: 'Asia/Tokyo calendar date for the skipped meal.'
       meal_type: 'Meal category marked as skipped.'
+  - table: meal_photos
+    tableComment: 'Photos attached to a meal on a specific date.'
+    columnComments:
+      eaten_date: 'Asia/Tokyo calendar date of the meal.'
+      meal_type: 'Meal category the photos belong to.'
+      object_key: 'Unique key of the photo object in R2.'
+      content_type: 'Image media type: JPEG, PNG, or WebP.'
   - table: food_compositions
     tableComment: 'MEXT food composition reference entries.'
     columnComments:

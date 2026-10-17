@@ -14,6 +14,7 @@
 | [public.user_profiles](public.user_profiles.md)                           | 7       | The singleton user profile for preferences and daily nutrition targets. | BASE TABLE |
 | [public.meal_skips](public.meal_skips.md)                                 | 4       | Meals marked as skipped for a date and meal type.                       | BASE TABLE |
 | [public.food_master_nutrition](public.food_master_nutrition.md)           | 5       | Nutrition source and estimation metadata for a food master.             | BASE TABLE |
+| [public.meal_photos](public.meal_photos.md)                               | 6       | Photos attached to a meal on a specific date.                           | BASE TABLE |
 
 ## Stored procedures and functions
 
