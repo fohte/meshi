@@ -180,6 +180,145 @@ it('warns on the current day and exactly three days before a best-before date', 
   })
 })
 
+it('reports eat-by, best-before, and the earlier of both target dates', () => {
+  const snapshot = makeSnapshot([
+    makeStockItem({
+      foodMasterId: 'fm_eat_by_only',
+      lots: [makeLot('stl_eat_by_only', 2, { eatBy: '2026-10-20' })],
+    }),
+    makeStockItem({
+      foodMasterId: 'fm_best_before_only',
+      lots: [makeLot('stl_best_before_only', 3, { bestBefore: '2026-10-21' })],
+    }),
+    makeStockItem({
+      foodMasterId: 'fm_both_dates',
+      lots: [
+        makeLot('stl_both_dates', 4, {
+          bestBefore: '2026-10-21',
+          eatBy: '2026-10-19',
+        }),
+      ],
+    }),
+  ])
+
+  expect(calculateStockStatus(snapshot, TODAY)).toEqual({
+    stockItems: snapshot.stockItems,
+    plannedDeliveries: [],
+    capacityWarnings: [],
+    eatByWarnings: [
+      {
+        id: 'eat-by-risk:stl_both_dates:2026-10-19:consumption_rate_below_required',
+        riskType: 'consumption_rate_below_required',
+        stockLotId: 'stl_both_dates',
+        foodMasterId: 'fm_both_dates',
+        foodName: 'Sample food',
+        targetDate: '2026-10-19',
+        targetDateType: 'eat_by',
+        remainingQuantity: 4,
+        quantityUsedForRate: 4,
+        daysUntilTarget: 1,
+        requiredDailyConsumption: 4,
+        actualDailyConsumption: 0,
+      },
+      {
+        id: 'eat-by-risk:stl_eat_by_only:2026-10-20:consumption_rate_below_required',
+        riskType: 'consumption_rate_below_required',
+        stockLotId: 'stl_eat_by_only',
+        foodMasterId: 'fm_eat_by_only',
+        foodName: 'Sample food',
+        targetDate: '2026-10-20',
+        targetDateType: 'eat_by',
+        remainingQuantity: 2,
+        quantityUsedForRate: 2,
+        daysUntilTarget: 2,
+        requiredDailyConsumption: 1,
+        actualDailyConsumption: 0,
+      },
+      {
+        id: 'eat-by-risk:stl_best_before_only:2026-10-21:consumption_rate_below_required',
+        riskType: 'consumption_rate_below_required',
+        stockLotId: 'stl_best_before_only',
+        foodMasterId: 'fm_best_before_only',
+        foodName: 'Sample food',
+        targetDate: '2026-10-21',
+        targetDateType: 'best_before',
+        remainingQuantity: 3,
+        quantityUsedForRate: 3,
+        daysUntilTarget: 3,
+        requiredDailyConsumption: 1,
+        actualDailyConsumption: 0,
+      },
+    ],
+    priorityLots: [
+      {
+        foodMasterId: 'fm_both_dates',
+        foodName: 'Sample food',
+        stockLotId: 'stl_both_dates',
+        remainingQuantity: 4,
+        targetDate: '2026-10-19',
+        reasons: ['eat_by', 'consumption_rate_below_required'],
+      },
+      {
+        foodMasterId: 'fm_eat_by_only',
+        foodName: 'Sample food',
+        stockLotId: 'stl_eat_by_only',
+        remainingQuantity: 2,
+        targetDate: '2026-10-20',
+        reasons: ['eat_by', 'consumption_rate_below_required'],
+      },
+      {
+        foodMasterId: 'fm_best_before_only',
+        foodName: 'Sample food',
+        stockLotId: 'stl_best_before_only',
+        remainingQuantity: 3,
+        targetDate: '2026-10-21',
+        reasons: ['best_before', 'consumption_rate_below_required'],
+      },
+    ],
+  })
+})
+
+it('reports null required consumption for a passed deadline', () => {
+  const snapshot = makeSnapshot([
+    makeStockItem({
+      foodMasterId: 'fm_expired',
+      lots: [makeLot('stl_expired', 2, { eatBy: '2026-10-17' })],
+    }),
+  ])
+
+  expect(calculateStockStatus(snapshot, TODAY)).toEqual({
+    stockItems: snapshot.stockItems,
+    plannedDeliveries: [],
+    capacityWarnings: [],
+    eatByWarnings: [
+      {
+        id: 'eat-by-risk:stl_expired:2026-10-17:deadline_passed',
+        riskType: 'deadline_passed',
+        stockLotId: 'stl_expired',
+        foodMasterId: 'fm_expired',
+        foodName: 'Sample food',
+        targetDate: '2026-10-17',
+        targetDateType: 'eat_by',
+        remainingQuantity: 2,
+        quantityUsedForRate: null,
+        daysUntilTarget: null,
+        requiredDailyConsumption: null,
+        actualDailyConsumption: 0,
+      },
+    ],
+    priorityLots: [
+      {
+        foodMasterId: 'fm_expired',
+        foodName: 'Sample food',
+        stockLotId: 'stl_expired',
+        remainingQuantity: 2,
+        targetDate: '2026-10-17',
+        reasons: ['eat_by', 'deadline_passed'],
+      },
+    ],
+  })
+})
+
 it('includes lots with the same or earlier target date in the required pace', () => {
   const snapshot = makeSnapshot(
     [

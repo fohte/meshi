@@ -37,8 +37,8 @@ const daysBetween = (from: string, to: string): number => {
 const effectiveArrivalDate = (expectedDate: string, today: JstDate): string =>
   expectedDate < today ? today : expectedDate
 
-const roundRate = (rate: number): number =>
-  Math.round((rate + Number.EPSILON) * 100) / 100
+const roundToTwoDecimals = (value: number): number =>
+  Math.round((value + Number.EPSILON) * 100) / 100
 
 const getTargetDate = (lot: StockLot): LotTarget | null => {
   if (lot.bestBefore !== null && lot.eatBy !== null) {
@@ -300,9 +300,9 @@ const calculateCapacityWarnings = (
         deliveries: [...group.deliveries.values()].sort((left, right) =>
           left.deliveryId.localeCompare(right.deliveryId),
         ),
-        projectedQuantity,
+        projectedQuantity: roundToTwoDecimals(projectedQuantity),
         capacity: group.capacity,
-        excessQuantity: projectedQuantity - group.capacity,
+        excessQuantity: roundToTwoDecimals(projectedQuantity - group.capacity),
       })
     }
   }
@@ -342,8 +342,10 @@ const calculateEatByWarnings = (
           requiredDailyConsumption:
             assessment.requiredDailyConsumption === null
               ? null
-              : roundRate(assessment.requiredDailyConsumption),
-          actualDailyConsumption: roundRate(assessment.actualDailyConsumption),
+              : roundToTwoDecimals(assessment.requiredDailyConsumption),
+          actualDailyConsumption: roundToTwoDecimals(
+            assessment.actualDailyConsumption,
+          ),
         },
       ]
     })

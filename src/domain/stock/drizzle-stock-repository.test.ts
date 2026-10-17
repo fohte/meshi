@@ -364,9 +364,9 @@ describeIfDb('stock repository', () => {
             { deliveryId: 'dly_forecast_a', changeDeadline: '2026-10-20' },
             { deliveryId: 'dly_forecast_b', changeDeadline: null },
           ],
-          projectedQuantity: 5.571428571428571,
+          projectedQuantity: 5.57,
           capacity: 4,
-          excessQuantity: 1.5714285714285712,
+          excessQuantity: 1.57,
         },
       ],
       eatByWarnings: [
@@ -398,7 +398,7 @@ describeIfDb('stock repository', () => {
     })
   })
 
-  it('uses meal logs from yesterday through fourteen days ago for tracked foods', async () => {
+  it('returns recent meal logs only for tracked foods in the prior fourteen days', async () => {
     const tx = getTx()
     await seedFoodMasterWithoutNutrition(tx, {
       id: 'fm_tracked_window',
@@ -458,7 +458,13 @@ describeIfDb('stock repository', () => {
       await seedMealLog(tx, { ...meal, mealType: 'lunch' })
     }
 
-    expect((await stockService.getStockStatus())._unsafeUnwrap()).toEqual({
+    const snapshot = (
+      await createDrizzleStockRepository(tx, {
+        wrapInTransaction: false,
+      }).getStockStatus(toJstDateString(new Date('2026-10-18T03:00:00.000Z')))
+    )._unsafeUnwrap()
+
+    expect(snapshot).toEqual({
       stockItems: [
         {
           foodMasterId: 'fm_tracked_window',
@@ -480,33 +486,7 @@ describeIfDb('stock repository', () => {
         },
       ],
       plannedDeliveries: [],
-      capacityWarnings: [],
-      eatByWarnings: [
-        {
-          id: 'eat-by-risk:stl_tracked_window:2026-10-21:consumption_rate_below_required',
-          riskType: 'consumption_rate_below_required',
-          stockLotId: 'stl_tracked_window',
-          foodMasterId: 'fm_tracked_window',
-          foodName: 'Sample tracked food',
-          targetDate: '2026-10-21',
-          targetDateType: 'best_before',
-          remainingQuantity: 6,
-          quantityUsedForRate: 6,
-          daysUntilTarget: 3,
-          requiredDailyConsumption: 2,
-          actualDailyConsumption: 0.36,
-        },
-      ],
-      priorityLots: [
-        {
-          foodMasterId: 'fm_tracked_window',
-          foodName: 'Sample tracked food',
-          stockLotId: 'stl_tracked_window',
-          remainingQuantity: 6,
-          targetDate: '2026-10-21',
-          reasons: ['best_before', 'consumption_rate_below_required'],
-        },
-      ],
+      recentConsumption: [{ foodMasterId: 'fm_tracked_window', quantity: 5 }],
     })
   })
 
