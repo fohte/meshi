@@ -21,6 +21,7 @@ const CREATED_AT = new Date('2099-03-15T00:00:00.000Z')
 const createHarness = (
   options: {
     readonly insertFails?: boolean
+    readonly restorationFails?: boolean
     readonly storageDeleteFails?: boolean
   } = {},
 ) => {
@@ -30,10 +31,15 @@ const createHarness = (
     { readonly contentType: MealPhotoContentType; readonly bytes: Uint8Array }
   >()
   let generatedIds = 0
+  let insertCalls = 0
 
   const repository: MealPhotoRepository = {
     insert(input) {
-      if (options.insertFails === true) {
+      insertCalls += 1
+      if (
+        options.insertFails === true ||
+        (options.restorationFails === true && insertCalls > 1)
+      ) {
         return errAsync(new MealPhotoPersistenceError('insert failed'))
       }
       const row: MealPhotoRow = {
@@ -200,6 +206,39 @@ describe('createMealPhotoService', () => {
     })
   })
 
+  it('reports a consistency error when upload cleanup also fails', async () => {
+    const harness = createHarness({
+      insertFails: true,
+      storageDeleteFails: true,
+    })
+    const result = await harness.service.upload({
+      date: PHOTO_DATE,
+      mealType: 'lunch',
+      contentType: 'image/jpeg',
+      bytes: new Uint8Array([1, 2, 3]),
+    })
+
+    expect(captureUploadState(result, harness)).toEqual({
+      result: {
+        status: 'error',
+        code: 'meal_photo/consistency_failed',
+        message:
+          'failed to remove the uploaded object after metadata insert failed',
+      },
+      metadata: [],
+      objects: [
+        {
+          objectKey: 'meal-photos/meal_photo_fixture',
+          contentType: 'image/jpeg',
+          bytes: [1, 2, 3],
+        },
+      ],
+      generatedIds: 1,
+      metadataCount: 0,
+      objectCount: 1,
+    })
+  })
+
   it('returns photo bytes from the object store', async () => {
     const harness = createHarness()
     const uploaded = await harness.service.upload({
@@ -274,6 +313,32 @@ describe('createMealPhotoService', () => {
         },
       ],
       metadataCount: 1,
+      objectCount: 1,
+    })
+  })
+
+  it('reports a consistency error when metadata restoration also fails', async () => {
+    const harness = createHarness({
+      restorationFails: true,
+      storageDeleteFails: true,
+    })
+    await harness.service.upload({
+      date: PHOTO_DATE,
+      mealType: 'snack',
+      contentType: 'image/png',
+      bytes: new Uint8Array([3, 2, 1]),
+    })
+    const result = await harness.service.delete('meal_photo_fixture')
+
+    expect(captureDeleteState(result, harness)).toEqual({
+      result: {
+        status: 'error',
+        code: 'meal_photo/consistency_failed',
+        message:
+          'failed to restore photo metadata after object deletion failed',
+      },
+      metadata: [],
+      metadataCount: 0,
       objectCount: 1,
     })
   })

@@ -25,6 +25,36 @@ const captureDeleteResults = (
 describeIfDb('createDrizzleMealPhotoRepository', () => {
   const getTx = setupDrizzleTx()
 
+  it('inserts and returns a meal photo', async () => {
+    const tx = getTx()
+    const repository = createDrizzleMealPhotoRepository(tx)
+    const result = await repository.insert({
+      id: 'meal_photo_inserted',
+      date: jstDate('2099-03-15'),
+      mealType: 'breakfast',
+      objectKey: 'meal-photos/inserted',
+      contentType: 'image/png',
+      createdAt: new Date('2099-03-15T04:00:00.000Z'),
+    })
+
+    expect(
+      result.match(
+        (row) => ({ status: 'ok', row }),
+        (error) => ({ status: 'error', code: error.code }),
+      ),
+    ).toEqual({
+      status: 'ok',
+      row: {
+        id: 'meal_photo_inserted',
+        date: jstDate('2099-03-15'),
+        mealType: 'breakfast',
+        objectKey: 'meal-photos/inserted',
+        contentType: 'image/png',
+        createdAt: new Date('2099-03-15T04:00:00.000Z'),
+      },
+    })
+  })
+
   it('lists only photos for the requested meal in creation order', async () => {
     const tx = getTx()
     const repository = createDrizzleMealPhotoRepository(tx)

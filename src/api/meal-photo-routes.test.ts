@@ -3,7 +3,10 @@ import { errAsync, okAsync } from 'neverthrow'
 import { describe, expect, it } from 'vitest'
 
 import { mountMealPhotoRoutes } from '#api/meal-photo-routes'
-import { MealPhotoPersistenceError } from '#domain/meal-photo/errors'
+import {
+  MealPhotoNotFoundError,
+  MealPhotoPersistenceError,
+} from '#domain/meal-photo/errors'
 import type { MealPhotoService } from '#domain/meal-photo/meal-photo-service'
 import type { MealPhotoContent, MealPhotoRow } from '#domain/meal-photo/types'
 import { jstDate } from '#test/jst-date'
@@ -223,6 +226,20 @@ describe('GET /api/meal-photos/:id/content', () => {
       bytes: [80, 78, 71],
     })
   })
+
+  it('returns 404 when the photo does not exist', async () => {
+    const app = buildApp({
+      ...notStubbed(),
+      getContent: () => errAsync(new MealPhotoNotFoundError('missing_photo')),
+    })
+
+    const response = await app.request('/api/meal-photos/missing_photo/content')
+
+    expect(await captureJsonResponse(response)).toEqual({
+      status: 404,
+      body: { error: 'meal_photo not found: missing_photo' },
+    })
+  })
 })
 
 describe('DELETE /api/meal-photos/:id', () => {
@@ -243,6 +260,22 @@ describe('DELETE /api/meal-photos/:id', () => {
     expect(captureStatusResponseWith(response, { captured })).toEqual({
       status: 204,
       captured: 'meal_photo_fixture',
+    })
+  })
+
+  it('returns 404 when the photo does not exist', async () => {
+    const app = buildApp({
+      ...notStubbed(),
+      delete: () => errAsync(new MealPhotoNotFoundError('missing_photo')),
+    })
+
+    const response = await app.request('/api/meal-photos/missing_photo', {
+      method: 'DELETE',
+    })
+
+    expect(await captureJsonResponse(response)).toEqual({
+      status: 404,
+      body: { error: 'meal_photo not found: missing_photo' },
     })
   })
 })

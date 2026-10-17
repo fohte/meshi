@@ -135,6 +135,14 @@ erDiagram
   text source_url
   text source_composition_code FK
 }
+"public.meal_photos" {
+  text id
+  date eaten_date
+  meal_type meal_type
+  text object_key
+  text content_type
+  timestamp_with_time_zone created_at
+}
 ```
 
 ---
