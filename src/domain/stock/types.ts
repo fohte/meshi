@@ -164,15 +164,13 @@ export const PRIORITY_LOT_REASONS = [
   'consumption_rate_below_required',
 ] as const
 
-export type PriorityLotReason = (typeof PRIORITY_LOT_REASONS)[number]
-
 export interface PriorityLot {
   readonly foodMasterId: string
   readonly foodName: string
   readonly stockLotId: string
   readonly remainingQuantity: number
   readonly targetDate: string | null
-  readonly reasons: ReadonlyArray<PriorityLotReason>
+  readonly reasons: ReadonlyArray<(typeof PRIORITY_LOT_REASONS)[number]>
 }
 
 export interface StockRepository {
