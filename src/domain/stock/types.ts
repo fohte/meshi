@@ -135,18 +135,25 @@ export interface EatByWarning {
   readonly foodMasterId: string
   readonly foodName: string
   readonly targetDate: string
-  readonly targetDateType: 'best_before' | 'eat_by'
+  readonly targetDateType: TargetDateType
   readonly remainingQuantity: number
   readonly requiredDailyConsumption: number
   readonly actualDailyConsumption: number
 }
 
-export type PriorityLotReason =
-  | 'best_before'
-  | 'eat_by'
-  | 'oldest_received'
-  | 'deadline_passed'
-  | 'consumption_rate_below_required'
+export const TARGET_DATE_TYPES = ['best_before', 'eat_by'] as const
+
+export type TargetDateType = (typeof TARGET_DATE_TYPES)[number]
+
+export const PRIORITY_LOT_REASONS = [
+  'best_before',
+  'eat_by',
+  'oldest_received',
+  'deadline_passed',
+  'consumption_rate_below_required',
+] as const
+
+export type PriorityLotReason = (typeof PRIORITY_LOT_REASONS)[number]
 
 export interface PriorityLot {
   readonly foodMasterId: string

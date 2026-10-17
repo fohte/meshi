@@ -1,5 +1,6 @@
 import { z } from 'zod'
 
+import { PRIORITY_LOT_REASONS, TARGET_DATE_TYPES } from '#domain/stock/types'
 import { deliveryStructuredItemOutput } from '#mcp-tools/delivery-schemas'
 
 export const getStockStatusInput = z.object({}).strict()
@@ -59,7 +60,7 @@ export const getStockStatusStructuredOutput = z.object({
       food_master_id: z.string(),
       food_name: z.string(),
       target_date: z.iso.date(),
-      target_date_type: z.enum(['best_before', 'eat_by']),
+      target_date_type: z.enum(TARGET_DATE_TYPES),
       remaining_quantity: z.number(),
       required_daily_consumption: z.number(),
       actual_daily_consumption: z.number(),
@@ -72,15 +73,7 @@ export const getStockStatusStructuredOutput = z.object({
       stock_lot_id: z.string(),
       remaining_quantity: z.number(),
       target_date: z.iso.date(),
-      reasons: z.array(
-        z.enum([
-          'best_before',
-          'eat_by',
-          'oldest_received',
-          'deadline_passed',
-          'consumption_rate_below_required',
-        ]),
-      ),
+      reasons: z.array(z.enum(PRIORITY_LOT_REASONS)),
     }),
   ),
 })
