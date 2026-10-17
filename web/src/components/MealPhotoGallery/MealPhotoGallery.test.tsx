@@ -170,13 +170,25 @@ describe('MealPhotoGallery', () => {
       const fileInputLabel = container
         .querySelector<HTMLInputElement>('input[type="file"]')
         ?.getAttribute('aria-label')
-
-      const closeButton = Array.from(
-        container.querySelectorAll<HTMLButtonElement>('button'),
-      ).find((button) => button.textContent === '閉じる')
+      let staysOpenAfterPaddingClick = false
+      let cancelEventWasPrevented = false
       await performAct(() => {
-        closeButton?.click()
+        const dialogRect = dialog?.getBoundingClientRect()
+        if (dialogRect !== undefined) {
+          dialog?.dispatchEvent(
+            new MouseEvent('click', {
+              bubbles: true,
+              clientX: dialogRect.left + 1,
+              clientY: dialogRect.top + 1,
+            }),
+          )
+        }
+        staysOpenAfterPaddingClick = dialog?.open ?? false
+        cancelEventWasPrevented =
+          dialog?.dispatchEvent(new Event('cancel', { cancelable: true })) ===
+          false
       })
+
       await performAct(() => {
         renderGallery(root, events, null)
       })
@@ -187,6 +199,8 @@ describe('MealPhotoGallery', () => {
         isModal,
         bodyOverflowWhileOpen,
         documentOverflowWhileOpen,
+        staysOpenAfterPaddingClick,
+        cancelEventWasPrevented,
         isDialogClosed: dialog?.open === false,
         focusReturnedToThumbnail: document.activeElement === thumbnail,
         bodyOverflowAfterClose: document.body.style.overflow,
@@ -198,6 +212,8 @@ describe('MealPhotoGallery', () => {
         isModal: true,
         bodyOverflowWhileOpen: 'hidden',
         documentOverflowWhileOpen: 'hidden',
+        staysOpenAfterPaddingClick: true,
+        cancelEventWasPrevented: true,
         isDialogClosed: true,
         focusReturnedToThumbnail: true,
         bodyOverflowAfterClose: originalBodyOverflow,

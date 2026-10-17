@@ -179,8 +179,8 @@ const DayDetailContent = ({
     readonly date: string
     readonly mealType: MealType
     readonly photo: MealPhoto
+    readonly isConfirmingDelete: boolean
   } | null>(null)
-  const [isConfirmingPhotoDelete, setIsConfirmingPhotoDelete] = useState(false)
 
   const breakfastPhotoQuery = useMealPhotoQuery(date, 'breakfast')
   const lunchPhotoQuery = useMealPhotoQuery(date, 'lunch')
@@ -232,7 +232,6 @@ const DayDetailContent = ({
         selectedPhoto.photo.id === id
       ) {
         setSelectedPhoto(null)
-        setIsConfirmingPhotoDelete(false)
       }
     },
     onSettled: (_result, _error, { date, mealType }) =>
@@ -256,10 +255,11 @@ const DayDetailContent = ({
     const isUploadingThisDate =
       uploadMealPhotoMutation.isPending &&
       uploadMealPhotoMutation.variables.date === date
-    const previewPhoto =
+    const selectedPhotoForMeal =
       selectedPhoto?.date === date && selectedPhoto.mealType === mealType
-        ? selectedPhoto.photo
+        ? selectedPhoto
         : null
+    const previewPhoto = selectedPhotoForMeal?.photo ?? null
     const deleteFailedForPhoto =
       deleteMealPhotoMutation.isError &&
       deleteMealPhotoMutation.variables.date === date &&
@@ -286,7 +286,9 @@ const DayDetailContent = ({
             }
           : {})}
         previewPhoto={previewPhoto}
-        isDeleteConfirmationOpen={isConfirmingPhotoDelete}
+        isDeleteConfirmationOpen={
+          selectedPhotoForMeal?.isConfirmingDelete ?? false
+        }
         isDeleting={
           deleteMealPhotoMutation.isPending &&
           deleteMealPhotoMutation.variables.date === date &&
@@ -303,18 +305,24 @@ const DayDetailContent = ({
           uploadMealPhotoMutation.mutate({ date, mealType, file })
         }}
         onPhotoClick={(photo) => {
-          setIsConfirmingPhotoDelete(false)
-          setSelectedPhoto({ date, mealType, photo })
+          setSelectedPhoto({ date, mealType, photo, isConfirmingDelete: false })
         }}
         onClosePreview={() => {
           setSelectedPhoto(null)
-          setIsConfirmingPhotoDelete(false)
         }}
         onRequestDelete={() => {
-          setIsConfirmingPhotoDelete(true)
+          setSelectedPhoto((selected) =>
+            selected?.date === date && selected.mealType === mealType
+              ? { ...selected, isConfirmingDelete: true }
+              : selected,
+          )
         }}
         onCancelDeleteConfirmation={() => {
-          setIsConfirmingPhotoDelete(false)
+          setSelectedPhoto((selected) =>
+            selected?.date === date && selected.mealType === mealType
+              ? { ...selected, isConfirmingDelete: false }
+              : selected,
+          )
         }}
         onDeletePhoto={(id) => {
           deleteMealPhotoMutation.reset()

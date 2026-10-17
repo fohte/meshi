@@ -178,7 +178,14 @@ export const MealPhotoGallery = ({
             onClosePreview()
           }}
           onClick={(event) => {
-            if (event.target === event.currentTarget) onClosePreview()
+            if (event.target !== event.currentTarget) return
+            const rect = event.currentTarget.getBoundingClientRect()
+            const clickedInsideDialog =
+              event.clientX >= rect.left &&
+              event.clientX <= rect.right &&
+              event.clientY >= rect.top &&
+              event.clientY <= rect.bottom
+            if (!clickedInsideDialog) onClosePreview()
           }}
         >
           <div className={styles.previewActions}>
