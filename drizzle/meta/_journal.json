@@ -134,6 +134,13 @@
       "when": 1792257904497,
       "tag": "0018_late_junta",
       "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "7",
+      "when": 1792259116717,
+      "tag": "0019_perfect_sprite",
+      "breakpoints": true
     }
   ]
 }

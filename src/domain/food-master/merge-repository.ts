@@ -33,6 +33,10 @@ const foodMasterRowSchema = z.object({ id: z.string(), name: z.string() })
 const aliasRowSchema = z.object({ alias: z.string() })
 const idRowSchema = z.object({ id: z.string() })
 const existsRowSchema = z.object({ conflicts: z.boolean() })
+const stockLotMergeRowSchema = z.object({
+  survivor_lot_id: z.string(),
+  loser_lot_id: z.string(),
+})
 const nutrientRowSchema = z.object({
   nutrient_code: z.string(),
   value: z.string(),
@@ -223,6 +227,41 @@ const applyMerge = async (
     UPDATE stock_items SET food_master_id = ${survivorId}
     WHERE food_master_id = ${loserId}
   `
+  const deliveryLotRows = parseRows(
+    stockLotMergeRowSchema,
+    await tx<Record<string, unknown>[]>`
+      SELECT survivor.id AS survivor_lot_id, loser.id AS loser_lot_id
+      FROM stock_lots survivor
+      JOIN stock_lots loser
+        ON survivor.delivery_id = loser.delivery_id
+      WHERE survivor.delivery_id IS NOT NULL
+        AND survivor.food_master_id = ${survivorId}
+        AND loser.food_master_id = ${loserId}
+      ORDER BY survivor.delivery_id
+      FOR UPDATE OF survivor, loser
+    `,
+  )
+  if (deliveryLotRows.isErr()) return err(deliveryLotRows.error)
+  for (const lot of deliveryLotRows.value) {
+    await tx`
+      UPDATE stock_lots AS survivor
+      SET quantity = survivor.quantity + loser.quantity,
+          received_date = LEAST(survivor.received_date, loser.received_date),
+          best_before = LEAST(survivor.best_before, loser.best_before),
+          eat_by = LEAST(survivor.eat_by, loser.eat_by)
+      FROM stock_lots AS loser
+      WHERE survivor.id = ${lot.survivor_lot_id}
+        AND loser.id = ${lot.loser_lot_id}
+    `
+    await tx`
+      UPDATE stock_movements
+      SET stock_lot_id = ${lot.survivor_lot_id}
+      WHERE stock_lot_id = ${lot.loser_lot_id}
+    `
+    await tx`
+      DELETE FROM stock_lots WHERE id = ${lot.loser_lot_id}
+    `
+  }
   await tx`
     UPDATE stock_lots SET food_master_id = ${survivorId}
     WHERE food_master_id = ${loserId}

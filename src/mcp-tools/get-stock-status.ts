@@ -2,7 +2,12 @@ import type { McpServer } from '@modelcontextprotocol/server'
 
 import type { StockService } from '#domain/stock/types'
 import type { Logger } from '#logger'
-import { errorResult, TOOL_CALLED, TOOL_SUCCEEDED } from '#mcp-tools/payloads'
+import {
+  buildDeliveryItemPayload,
+  errorResult,
+  TOOL_CALLED,
+  TOOL_SUCCEEDED,
+} from '#mcp-tools/payloads'
 import {
   getStockStatusInput,
   getStockStatusStructuredOutput,
@@ -50,11 +55,7 @@ export const registerGetStockStatusTool = (
               source_ref: delivery.sourceRef,
               expected_date: delivery.expectedDate,
               change_deadline: delivery.changeDeadline,
-              items: delivery.items.map((item) => ({
-                food_master_id: item.foodMasterId,
-                food_name: item.foodName,
-                quantity: item.quantity,
-              })),
+              items: delivery.items.map(buildDeliveryItemPayload),
             })),
           }
           logger.log(TOOL_SUCCEEDED, {

@@ -3,6 +3,7 @@ import type { CallToolResult } from '@modelcontextprotocol/server'
 import { toMealHistoryPayload } from '#domain/meal-history/mealHistoryPayload'
 import type { MealHistoryAggregate } from '#domain/meal-history/types'
 import type { MealLogDeletionResult } from '#domain/meal-log/types'
+import type { Delivery, DeliveryItem } from '#domain/stock/types'
 import type { UserProfile } from '#domain/user-profile/user-profile'
 import type { Logger } from '#logger'
 
@@ -51,6 +52,22 @@ export const buildMealLogMutationPayload = (
   eaten_date: record.eatenDate,
   meal_type: record.mealType,
   quantity: record.quantity,
+})
+
+export const buildDeliveryItemPayload = (item: DeliveryItem) => ({
+  food_master_id: item.foodMasterId,
+  food_name: item.foodName,
+  quantity: item.quantity,
+})
+
+export const buildDeliveryPayload = (delivery: Delivery) => ({
+  delivery_id: delivery.id,
+  source_ref: delivery.sourceRef,
+  status: delivery.status,
+  expected_date: delivery.expectedDate,
+  received_date: delivery.receivedDate,
+  change_deadline: delivery.changeDeadline,
+  items: delivery.items.map(buildDeliveryItemPayload),
 })
 
 export const buildProfilePayload = (

@@ -369,6 +369,14 @@ export const deliveries = pgTable(
       table.status,
       table.expectedDate,
     ),
+    check(
+      'deliveries_received_date_matches_status',
+      sql`(${table.status} = 'received') = (${table.receivedDate} IS NOT NULL)`,
+    ),
+    check(
+      'deliveries_source_ref_nonblank',
+      sql`${table.sourceRef} IS NULL OR btrim(${table.sourceRef}) <> ''`,
+    ),
   ],
 )
 

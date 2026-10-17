@@ -17,9 +17,10 @@
 | [public.meal_set_items](public.meal_set_items.md)                         | 3       | Foods and quantities included in a meal set.                            | BASE TABLE |
 | [public.meal_sets](public.meal_sets.md)                                   | 3       | Named groups of foods saved for repeated meal logging.                  | BASE TABLE |
 | [public.stock_items](public.stock_items.md)                               | 4       | Foods configured for stock tracking.                                    | BASE TABLE |
-| [public.stock_lots](public.stock_lots.md)                                 | 7       | Received or counted batches of stock for a food.                        | BASE TABLE |
+| [public.stock_lots](public.stock_lots.md)                                 | 8       | Received or counted batches of stock for a food.                        | BASE TABLE |
 | [public.stock_movements](public.stock_movements.md)                       | 6       | Quantity changes recorded against stock lots.                           | BASE TABLE |
 | [public.storage_locations](public.storage_locations.md)                   | 4       | Named places where stock items are stored.                              | BASE TABLE |
+| [public.deliveries](public.deliveries.md)                                 | 7       | Expected deliveries and receipt status for stock inventory.             | BASE TABLE |
 
 ## Stored procedures and functions
 
@@ -59,11 +60,12 @@
 
 ## Enums
 
-| Name                 | Values                                                             |
-| -------------------- | ------------------------------------------------------------------ |
-| public.food_source   | composition_table_estimate, model_estimate, user_input, web_search |
-| public.meal_type     | breakfast, dinner, lunch, snack                                    |
-| public.nutrient_unit | g, kcal, mg, µg                                                    |
+| Name                   | Values                                                             |
+| ---------------------- | ------------------------------------------------------------------ |
+| public.delivery_status | cancelled, planned, received                                       |
+| public.food_source     | composition_table_estimate, model_estimate, user_input, web_search |
+| public.meal_type       | breakfast, dinner, lunch, snack                                    |
+| public.nutrient_unit   | g, kcal, mg, µg                                                    |
 
 ## Relations
 
@@ -83,6 +85,7 @@ erDiagram
 "public.stock_items" |o--|| "public.food_masters" : "FOREIGN KEY (food_master_id) REFERENCES food_masters(id) ON UPDATE CASCADE ON DELETE CASCADE"
 "public.stock_items" }o--o| "public.storage_locations" : "FOREIGN KEY (storage_location_id) REFERENCES storage_locations(id) ON UPDATE CASCADE ON DELETE SET NULL"
 "public.stock_lots" }o--|| "public.food_masters" : "FOREIGN KEY (food_master_id) REFERENCES food_masters(id) ON UPDATE CASCADE ON DELETE RESTRICT"
+"public.stock_lots" }o--o| "public.deliveries" : "FOREIGN KEY (delivery_id) REFERENCES deliveries(id) ON UPDATE CASCADE ON DELETE RESTRICT"
 "public.stock_movements" }o--|| "public.stock_lots" : "FOREIGN KEY (stock_lot_id) REFERENCES stock_lots(id) ON UPDATE CASCADE ON DELETE RESTRICT"
 
 "public.food_composition_nutrients" {
@@ -170,6 +173,7 @@ erDiagram
   date best_before
   date eat_by
   timestamp_with_time_zone created_at
+  text delivery_id FK
 }
 "public.stock_movements" {
   text id
@@ -183,6 +187,15 @@ erDiagram
   text id
   text name
   numeric capacity
+  timestamp_with_time_zone created_at
+}
+"public.deliveries" {
+  text id
+  text source_ref
+  delivery_status status
+  date expected_date
+  date received_date
+  date change_deadline
   timestamp_with_time_zone created_at
 }
 ```

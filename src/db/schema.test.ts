@@ -413,6 +413,16 @@ describeIfDb('schema migrations', () => {
     `
     expect(rows).toEqual([
       {
+        conname: 'deliveries_received_date_matches_status',
+        table_name: 'deliveries',
+        validated: true,
+      },
+      {
+        conname: 'deliveries_source_ref_nonblank',
+        table_name: 'deliveries',
+        validated: true,
+      },
+      {
         conname: 'food_composition_nutrients_value_nonneg',
         table_name: 'food_composition_nutrients',
         validated: true,

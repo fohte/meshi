@@ -2,7 +2,12 @@ import type { McpServer } from '@modelcontextprotocol/server'
 
 import type { StockService } from '#domain/stock/types'
 import type { Logger } from '#logger'
-import { errorResult, TOOL_CALLED, TOOL_SUCCEEDED } from '#mcp-tools/payloads'
+import {
+  buildDeliveryPayload,
+  errorResult,
+  TOOL_CALLED,
+  TOOL_SUCCEEDED,
+} from '#mcp-tools/payloads'
 import {
   deliveryStructuredOutput,
   receiveDeliveryInput,
@@ -42,19 +47,7 @@ export const registerReceiveDeliveryTool = (
         })
         .match(
           (delivery) => {
-            const payload = {
-              delivery_id: delivery.id,
-              source_ref: delivery.sourceRef,
-              status: delivery.status,
-              expected_date: delivery.expectedDate,
-              received_date: delivery.receivedDate,
-              change_deadline: delivery.changeDeadline,
-              items: delivery.items.map((item) => ({
-                food_master_id: item.foodMasterId,
-                food_name: item.foodName,
-                quantity: item.quantity,
-              })),
-            }
+            const payload = buildDeliveryPayload(delivery)
             logger.log(TOOL_SUCCEEDED, {
               tool: 'receive_delivery',
               delivery_id: delivery.id,

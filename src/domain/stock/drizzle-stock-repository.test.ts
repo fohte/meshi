@@ -541,6 +541,65 @@ describeIfDb('stock repository', () => {
     })
   })
 
+  it('rejects received items that are not part of the delivery', async () => {
+    const tx = getTx()
+    await seedFoodMasterWithoutNutrition(tx, {
+      id: 'fm_delivery_item',
+      name: 'Sample delivery item food',
+    })
+    await seedFoodMasterWithoutNutrition(tx, {
+      id: 'fm_outside_delivery',
+      name: 'Sample unrelated delivery food',
+    })
+    await seedStockItem(tx, { foodMasterId: 'fm_delivery_item' })
+    await seedStockItem(tx, { foodMasterId: 'fm_outside_delivery' })
+    await stockService.registerDelivery({
+      sourceRef: 'sample-item-check-order',
+      status: 'planned',
+      expectedDate: '2026-10-20',
+      items: [{ foodMasterId: 'fm_delivery_item', quantity: 2 }],
+    })
+
+    const result = await (async () => {
+      const error = await captureDomainError(
+        stockService.receiveDelivery({
+          deliveryId: 'dly_test_0001',
+          receivedDate: '2026-10-21',
+          items: [{ foodMasterId: 'fm_outside_delivery', quantity: 1 }],
+        }),
+      )
+      const deliveryRows = await tx<
+        {
+          status: string
+          received_date: string | null
+          movement_count: string
+        }[]
+      >`
+        SELECT d.status, d.received_date::text AS received_date,
+               count(sm.id)::text AS movement_count
+        FROM deliveries d
+        LEFT JOIN stock_lots sl ON sl.delivery_id = d.id
+        LEFT JOIN stock_movements sm ON sm.stock_lot_id = sl.id
+        WHERE d.id = 'dly_test_0001'
+        GROUP BY d.id
+      `
+      return { error, deliveryRows }
+    })()
+
+    expect(result).toEqual({
+      error: {
+        code: 'delivery_item_not_found',
+        details: {
+          deliveryId: 'dly_test_0001',
+          foodMasterId: 'fm_outside_delivery',
+        },
+      },
+      deliveryRows: [
+        { status: 'planned', received_date: null, movement_count: '0' },
+      ],
+    })
+  })
+
   it('records the receipt date and a receive movement', async () => {
     const tx = getTx()
     await seedFoodMasterWithoutNutrition(tx, {
@@ -558,41 +617,50 @@ describeIfDb('stock repository', () => {
       deliveryId: 'dly_test_0001',
       receivedDate: '2026-10-21',
     })
-    await captureDomainError(
-      stockService.receiveDelivery({
-        deliveryId: 'dly_test_0001',
-        receivedDate: '2026-10-21',
-      }),
-    )
-    const receiptRows = await tx<
-      {
-        status: string
-        received_date: string | null
-        lot_received_date: string | null
-        eat_by: string | null
-        delta: string
-        reason: string
-      }[]
-    >`
-      SELECT d.status, d.received_date::text AS received_date,
-             sl.received_date::text AS lot_received_date,
-             sl.eat_by::text AS eat_by, sm.delta::text AS delta, sm.reason
-      FROM deliveries d
-      JOIN stock_lots sl ON sl.delivery_id = d.id
-      JOIN stock_movements sm ON sm.stock_lot_id = sl.id
-      WHERE d.id = 'dly_test_0001'
-    `
+    const result = await (async () => {
+      const secondReceiptError = await captureDomainError(
+        stockService.receiveDelivery({
+          deliveryId: 'dly_test_0001',
+          receivedDate: '2026-10-21',
+        }),
+      )
+      const receiptRows = await tx<
+        {
+          status: string
+          received_date: string | null
+          lot_received_date: string | null
+          eat_by: string | null
+          delta: string
+          reason: string
+        }[]
+      >`
+        SELECT d.status, d.received_date::text AS received_date,
+               sl.received_date::text AS lot_received_date,
+               sl.eat_by::text AS eat_by, sm.delta::text AS delta, sm.reason
+        FROM deliveries d
+        JOIN stock_lots sl ON sl.delivery_id = d.id
+        JOIN stock_movements sm ON sm.stock_lot_id = sl.id
+        WHERE d.id = 'dly_test_0001'
+      `
+      return { secondReceiptError, receiptRows }
+    })()
 
-    expect(receiptRows).toEqual([
-      {
-        status: 'received',
-        received_date: '2026-10-21',
-        lot_received_date: '2026-10-21',
-        eat_by: null,
-        delta: '2',
-        reason: 'receive',
+    expect(result).toEqual({
+      secondReceiptError: {
+        code: 'delivery_not_planned',
+        details: { deliveryId: 'dly_test_0001', status: 'received' },
       },
-    ])
+      receiptRows: [
+        {
+          status: 'received',
+          received_date: '2026-10-21',
+          lot_received_date: '2026-10-21',
+          eat_by: null,
+          delta: '2',
+          reason: 'receive',
+        },
+      ],
+    })
   })
 
   it('does not expose cancelled deliveries as planned', async () => {

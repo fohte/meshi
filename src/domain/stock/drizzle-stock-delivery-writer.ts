@@ -1,4 +1,4 @@
-import { err, ok } from 'neverthrow'
+import { err, ok, Result } from 'neverthrow'
 import { z } from 'zod'
 
 import type { Sql } from '#db/index'
@@ -35,6 +35,7 @@ export const createStockDeliveryWriter = (
     runWrite(async (tx) => {
       const sourceRef = input.sourceRef ?? null
       const foodMasterIds = input.items.map((item) => item.foodMasterId)
+      // Reject invalid foods before writing when transactions are disabled.
       if (foodMasterIds.length > 0) {
         const stockItemRows = parseRows(
           z.object({ food_master_id: z.string() }),
@@ -114,6 +115,7 @@ export const createStockDeliveryWriter = (
 
       let stockFoodRows: z.output<typeof stockFoodRowSchema>[] = []
       if (foodMasterIds.length > 0) {
+        // Lock stock items after the delivery row to match receipt's lock order.
         const parsedStockFoods = parseRows(
           stockFoodRowSchema,
           await tx<Record<string, unknown>[]>`
@@ -131,39 +133,28 @@ export const createStockDeliveryWriter = (
       }
 
       const stockFoodsById = new Map(
-        stockFoodRows.map((food) => [food.food_master_id, food.food_name]),
+        stockFoodRows.map((food) => [food.food_master_id, food] as const),
       )
-      const missingFood = input.items.find(
-        (item) => !stockFoodsById.has(item.foodMasterId),
+      const deliveryItemsResult = Result.combine(
+        input.items.map((item) => {
+          const food = stockFoodsById.get(item.foodMasterId)
+          return food === undefined
+            ? err(
+                new StockDomainError(
+                  'stock_item_not_found',
+                  `food_master is not a stock_item: ${item.foodMasterId}`,
+                  { foodMasterId: item.foodMasterId },
+                ),
+              )
+            : ok({
+                foodMasterId: item.foodMasterId,
+                foodName: food.food_name,
+                quantity: item.quantity,
+              } satisfies DeliveryItem)
+        }),
       )
-      if (missingFood !== undefined) {
-        return err(
-          new StockDomainError(
-            'stock_item_not_found',
-            `food_master is not a stock_item: ${missingFood.foodMasterId}`,
-            { foodMasterId: missingFood.foodMasterId },
-          ),
-        )
-      }
-
-      const deliveryItems: DeliveryItem[] = []
-      for (const item of input.items) {
-        const foodName = stockFoodsById.get(item.foodMasterId)
-        if (foodName === undefined) {
-          return err(
-            new StockDomainError(
-              'persistence_failed',
-              'validated delivery food was not found',
-              { foodMasterId: item.foodMasterId },
-            ),
-          )
-        }
-        deliveryItems.push({
-          foodMasterId: item.foodMasterId,
-          foodName,
-          quantity: item.quantity,
-        })
-      }
+      if (deliveryItemsResult.isErr()) return err(deliveryItemsResult.error)
+      const deliveryItems = deliveryItemsResult.value
 
       await tx`
         UPDATE deliveries

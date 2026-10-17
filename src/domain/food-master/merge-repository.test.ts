@@ -7,6 +7,7 @@ import { describeIfDb, setupTx } from '#test/db'
 import { createCountingIdGenerator, type IdCounter } from '#test/id-counter'
 import { jstDate } from '#test/jst-date'
 import {
+  seedDelivery,
   seedFoodMaster,
   seedFoodMasterAlias,
   seedMealLog,
@@ -534,6 +535,109 @@ describeIfDb('mergeFoodMasters (merge-repository)', () => {
         quantity: 3.75,
       },
     ])
+  })
+
+  it('combines stock lots when both foods are in the same delivery', async () => {
+    await seedBasicPair()
+    const tx = getTx()
+    await seedStockItem(tx, { foodMasterId: 'fm_survivor' })
+    await seedStockItem(tx, { foodMasterId: 'fm_loser' })
+    await seedDelivery(tx, {
+      id: 'dly_food_merge',
+      sourceRef: 'sample-food-merge-order',
+      status: 'received',
+      expectedDate: '2026-10-20',
+      receivedDate: '2026-10-21',
+    })
+    await seedStockLot(tx, {
+      id: 'stl_delivery_survivor',
+      foodMasterId: 'fm_survivor',
+      deliveryId: 'dly_food_merge',
+      quantity: 3,
+      receivedDate: '2026-10-21',
+      bestBefore: '2026-11-05',
+      eatBy: '2026-10-31',
+    })
+    await seedStockLot(tx, {
+      id: 'stl_delivery_loser',
+      foodMasterId: 'fm_loser',
+      deliveryId: 'dly_food_merge',
+      quantity: 2,
+      receivedDate: '2026-10-21',
+      bestBefore: '2026-11-01',
+      eatBy: '2026-10-29',
+    })
+    await seedStockMovement(tx, {
+      id: 'stm_delivery_survivor',
+      stockLotId: 'stl_delivery_survivor',
+      delta: 3,
+      reason: 'receive',
+    })
+    await seedStockMovement(tx, {
+      id: 'stm_delivery_loser',
+      stockLotId: 'stl_delivery_loser',
+      delta: 2,
+      reason: 'receive',
+    })
+
+    ;(await repo.merge('fm_survivor', 'fm_loser', false))._unsafeUnwrap()
+
+    const result = await (async () => {
+      const lots = await tx<
+        {
+          id: string
+          food_master_id: string
+          delivery_id: string | null
+          quantity: string
+          received_date: string | null
+          best_before: string | null
+          eat_by: string | null
+        }[]
+      >`
+        SELECT id, food_master_id, delivery_id, quantity::text AS quantity,
+               received_date::text AS received_date,
+               best_before::text AS best_before, eat_by::text AS eat_by
+        FROM stock_lots
+        WHERE delivery_id = 'dly_food_merge'
+      `
+      const movements = await tx<
+        { id: string; stock_lot_id: string; delta: string; reason: string }[]
+      >`
+        SELECT id, stock_lot_id, delta::text AS delta, reason
+        FROM stock_movements
+        WHERE id IN ('stm_delivery_survivor', 'stm_delivery_loser')
+        ORDER BY id
+      `
+      return { lots, movements }
+    })()
+
+    expect(result).toEqual({
+      lots: [
+        {
+          id: 'stl_delivery_survivor',
+          food_master_id: 'fm_survivor',
+          delivery_id: 'dly_food_merge',
+          quantity: '5',
+          received_date: '2026-10-21',
+          best_before: '2026-11-01',
+          eat_by: '2026-10-29',
+        },
+      ],
+      movements: [
+        {
+          id: 'stm_delivery_loser',
+          stock_lot_id: 'stl_delivery_survivor',
+          delta: '2',
+          reason: 'receive',
+        },
+        {
+          id: 'stm_delivery_survivor',
+          stock_lot_id: 'stl_delivery_survivor',
+          delta: '3',
+          reason: 'receive',
+        },
+      ],
+    })
   })
 
   // A third food_master already owns the loser's name as an alias, so the
