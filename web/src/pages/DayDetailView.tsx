@@ -1,8 +1,19 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useState } from 'react'
 import { Link } from 'react-router'
 
-import type { DayDetailEntry, MealType } from '#api/day-detail'
-import { fetchDayDetail } from '#api/day-detail'
+import {
+  type DayDetailEntry,
+  fetchDayDetail,
+  type MealType,
+} from '#api/day-detail'
+import type { MealPhoto } from '#api/meal-photos'
+import {
+  deleteMealPhoto,
+  fetchMealPhotos,
+  mealPhotosQueryKey,
+  uploadMealPhoto,
+} from '#api/meal-photos'
 import { deleteMealSkip, putMealSkip } from '#api/meal-skips'
 import type { NutrientDefinition } from '#api/nutrient-definitions'
 import {
@@ -12,6 +23,8 @@ import {
 import { fetchUserProfile, PROFILE_QUERY_KEY } from '#api/profile'
 import { toPromise } from '#api/to-promise'
 import { ErrorRetry } from '#components/ErrorRetry/ErrorRetry'
+import { getMealPhotoUploadErrorMessage } from '#components/MealPhotoGallery/meal-photo-upload-error-message'
+import { MealPhotoGallery } from '#components/MealPhotoGallery/MealPhotoGallery'
 import { buildMealTimelineGroups } from '#components/MealTimeline/build-meal-timeline-groups'
 import { MealTimeline } from '#components/MealTimeline/MealTimeline'
 import { buildNutritionSummaryData } from '#components/NutritionSummary/build-nutrition-summary-data'
@@ -29,6 +42,12 @@ import styles from '#pages/DayDetailView.module.css'
 export interface DayDetailViewProps {
   readonly date: string
 }
+
+const useMealPhotoQuery = (date: string, mealType: MealType) =>
+  useQuery({
+    queryKey: mealPhotosQueryKey(date, mealType),
+    queryFn: () => toPromise(fetchMealPhotos(date, mealType)),
+  })
 
 export const DayDetailView = ({
   date,
@@ -152,6 +171,21 @@ const DayDetailContent = ({
 }: DayDetailContentProps): React.JSX.Element => {
   const { openEdit } = useMealLogSheet()
   const queryClient = useQueryClient()
+  const [selectedPhoto, setSelectedPhoto] = useState<{
+    readonly mealType: MealType
+    readonly photo: MealPhoto
+  } | null>(null)
+
+  const breakfastPhotoQuery = useMealPhotoQuery(date, 'breakfast')
+  const lunchPhotoQuery = useMealPhotoQuery(date, 'lunch')
+  const dinnerPhotoQuery = useMealPhotoQuery(date, 'dinner')
+  const snackPhotoQuery = useMealPhotoQuery(date, 'snack')
+  const mealPhotoQueries = {
+    breakfast: breakfastPhotoQuery,
+    lunch: lunchPhotoQuery,
+    dinner: dinnerPhotoQuery,
+    snack: snackPhotoQuery,
+  }
 
   const invalidateDayDetail = (): void => {
     void queryClient.invalidateQueries({ queryKey: ['day-detail'] })
@@ -166,6 +200,89 @@ const DayDetailContent = ({
       toPromise(deleteMealSkip(date, mealType)),
     onSuccess: invalidateDayDetail,
   })
+
+  const uploadMealPhotoMutation = useMutation({
+    mutationFn: ({ mealType, file }: { mealType: MealType; file: File }) =>
+      toPromise(uploadMealPhoto(date, mealType, file)),
+    onSuccess: (_photo, { mealType }) =>
+      queryClient.invalidateQueries({
+        queryKey: mealPhotosQueryKey(date, mealType),
+      }),
+  })
+  const deleteMealPhotoMutation = useMutation({
+    mutationFn: ({ id }: { id: string; mealType: MealType }) =>
+      toPromise(deleteMealPhoto(id)),
+    onSuccess: (_result, { mealType }) => {
+      setSelectedPhoto(null)
+      return queryClient.invalidateQueries({
+        queryKey: mealPhotosQueryKey(date, mealType),
+      })
+    },
+  })
+
+  const getMealPhotoQuery = (mealType: MealType) => mealPhotoQueries[mealType]
+
+  const renderMealPhotos = (mealType: MealType): React.JSX.Element => {
+    const photoQuery = getMealPhotoQuery(mealType)
+    const uploadFailedForMeal =
+      uploadMealPhotoMutation.isError &&
+      uploadMealPhotoMutation.variables.mealType === mealType
+    const isUploadingThisMeal =
+      uploadMealPhotoMutation.isPending &&
+      uploadMealPhotoMutation.variables.mealType === mealType
+    const previewPhoto =
+      selectedPhoto?.mealType === mealType ? selectedPhoto.photo : null
+    const deleteFailedForPhoto =
+      deleteMealPhotoMutation.isError &&
+      deleteMealPhotoMutation.variables.id === previewPhoto?.id
+
+    return (
+      <MealPhotoGallery
+        photos={photoQuery.data ?? []}
+        isLoading={photoQuery.isPending}
+        {...(photoQuery.isError
+          ? { loadError: '写真を読み込めませんでした。' }
+          : {})}
+        onRetry={() => {
+          void photoQuery.refetch()
+        }}
+        isUploading={isUploadingThisMeal}
+        isUploadDisabled={uploadMealPhotoMutation.isPending}
+        {...(uploadFailedForMeal
+          ? {
+              uploadError: getMealPhotoUploadErrorMessage(
+                uploadMealPhotoMutation.error,
+              ),
+            }
+          : {})}
+        previewPhoto={previewPhoto}
+        isDeleting={
+          deleteMealPhotoMutation.isPending &&
+          deleteMealPhotoMutation.variables.id === previewPhoto?.id
+        }
+        {...(deleteFailedForPhoto
+          ? {
+              deleteError:
+                '写真を削除できませんでした。もう一度お試しください。',
+            }
+          : {})}
+        onUpload={(file) => {
+          uploadMealPhotoMutation.reset()
+          uploadMealPhotoMutation.mutate({ mealType, file })
+        }}
+        onPhotoClick={(photo) => {
+          setSelectedPhoto({ mealType, photo })
+        }}
+        onClosePreview={() => {
+          setSelectedPhoto(null)
+        }}
+        onDeletePhoto={(id) => {
+          deleteMealPhotoMutation.reset()
+          deleteMealPhotoMutation.mutate({ id, mealType })
+        }}
+      />
+    )
+  }
 
   return (
     <div className={styles.content}>
@@ -182,6 +299,7 @@ const DayDetailContent = ({
       />
       <MealTimeline
         groups={buildMealTimelineGroups(entries, skippedMealTypes)}
+        renderMealPhotos={renderMealPhotos}
         onItemClick={(id) => {
           const entry = entries.find((e) => e.id === id)
           if (entry !== undefined) openEdit(entry)
