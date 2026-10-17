@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import { ApiRequestError } from '#api/errors'
-import { deleteMealLog, patchMealLog, postMealLog } from '#api/meal-logs'
+import { deleteMealLog, mealLogsApi, patchMealLog } from '#api/meal-logs'
 
 const mockFetchOk = (body: unknown): ReturnType<typeof vi.fn> => {
   const fetchMock = vi.fn().mockResolvedValue({
@@ -37,11 +37,11 @@ const SAMPLE_JSON = {
   createdAt: '2026-07-29T03:00:01.000Z',
 }
 
-describe('postMealLog', () => {
+describe('mealLogsApi.postMealLog', () => {
   it('posts to /api/meal-logs with a JSON body and resolves with the result', async () => {
     const fetchMock = mockFetchOk(SAMPLE_JSON)
 
-    const result = await postMealLog({
+    const result = await mealLogsApi.postMealLog({
       foodMasterId: 'fm_unknown',
       eatenDate: '2026-07-29',
       mealType: 'breakfast',
@@ -62,7 +62,7 @@ describe('postMealLog', () => {
   })
 })
 
-describe('postMealLog with batch input', () => {
+describe('mealLogsApi.postMealLogs', () => {
   it('posts multiple meal logs and resolves with the result array', async () => {
     const secondResult = {
       ...SAMPLE_JSON,
@@ -72,7 +72,7 @@ describe('postMealLog with batch input', () => {
     }
     const fetchMock = mockFetchOk([SAMPLE_JSON, secondResult])
 
-    const result = await postMealLog({
+    const result = await mealLogsApi.postMealLogs({
       eatenDate: '2026-07-29',
       mealType: 'breakfast',
       items: [

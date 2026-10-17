@@ -32,7 +32,7 @@ type RecordMealLogItemInput = Pick<
   'foodMasterId' | 'quantity'
 >
 
-export interface RecordMealLogsInput {
+interface RecordMealLogsInput {
   readonly eatenDate: string
   readonly mealType: MealType
   readonly items: ReadonlyArray<RecordMealLogItemInput>
@@ -45,24 +45,25 @@ export interface UpdateMealLogInput {
   readonly quantity?: number
 }
 
-export function postMealLog(
+const postMealLog = (
   input: RecordMealLogInput,
-): ResultAsync<MealLogResult, ApiRequestError>
-export function postMealLog(
-  input: RecordMealLogsInput,
-): ResultAsync<ReadonlyArray<MealLogResult>, ApiRequestError>
-export function postMealLog(
-  input: RecordMealLogInput | RecordMealLogsInput,
-): ResultAsync<MealLogResult | ReadonlyArray<MealLogResult>, ApiRequestError> {
-  const responseSchema =
-    'items' in input ? z.array(mealLogResultSchema) : mealLogResultSchema
-
-  return requestJson('/api/meal-logs', responseSchema, {
+): ResultAsync<MealLogResult, ApiRequestError> =>
+  requestJson('/api/meal-logs', mealLogResultSchema, {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify(input),
   })
-}
+
+const postMealLogs = (
+  input: RecordMealLogsInput,
+): ResultAsync<ReadonlyArray<MealLogResult>, ApiRequestError> =>
+  requestJson('/api/meal-logs', z.array(mealLogResultSchema), {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify(input),
+  })
+
+export const mealLogsApi = { postMealLog, postMealLogs }
 
 export const patchMealLog = (
   id: string,
