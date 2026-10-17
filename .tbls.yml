@@ -26,6 +26,16 @@ comments:
     tableComment: 'Foods available for meal logging.'
     columnComments:
       name: 'Food name.'
+  - table: meal_sets
+    tableComment: 'Named groups of foods saved for repeated meal logging.'
+    columnComments:
+      name: 'Name of the meal set.'
+  - table: meal_set_items
+    tableComment: 'Foods and quantities included in a meal set.'
+    columnComments:
+      meal_set_id: 'Identifier of the meal set containing this food.'
+      food_master_id: 'Identifier of a food included in the meal set.'
+      quantity: "Multiplier applied to the food master's nutrient values."
   - table: food_master_aliases
     tableComment: 'Alternate names used to find food master entries.'
     columnComments:

@@ -6,11 +6,11 @@ Foods available for meal logging.
 
 ## Columns
 
-| Name       | Type                     | Default | Nullable | Children                                                                                                                                                            | Parents | Comment    |
-| ---------- | ------------------------ | ------- | -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------- | ---------- |
-| id         | text                     |         | false    | [public.food_master_aliases](public.food_master_aliases.md) [public.meal_logs](public.meal_logs.md) [public.food_master_nutrition](public.food_master_nutrition.md) |         |            |
-| name       | text                     |         | false    |                                                                                                                                                                     |         | Food name. |
-| created_at | timestamp with time zone | now()   | false    |                                                                                                                                                                     |         |            |
+| Name       | Type                     | Default | Nullable | Children                                                                                                                                                                                                              | Parents | Comment    |
+| ---------- | ------------------------ | ------- | -------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------- | ---------- |
+| id         | text                     |         | false    | [public.food_master_aliases](public.food_master_aliases.md) [public.meal_logs](public.meal_logs.md) [public.food_master_nutrition](public.food_master_nutrition.md) [public.meal_set_items](public.meal_set_items.md) |         |            |
+| name       | text                     |         | false    |                                                                                                                                                                                                                       |         | Food name. |
+| created_at | timestamp with time zone | now()   | false    |                                                                                                                                                                                                                       |         |            |
 
 ## Constraints
 
@@ -37,6 +37,7 @@ erDiagram
 "public.food_master_aliases" }o--|| "public.food_masters" : "FOREIGN KEY (food_master_id) REFERENCES food_masters(id) ON UPDATE CASCADE ON DELETE CASCADE"
 "public.meal_logs" }o--|| "public.food_masters" : "FOREIGN KEY (food_master_id) REFERENCES food_masters(id) ON UPDATE CASCADE ON DELETE RESTRICT"
 "public.food_master_nutrition" |o--|| "public.food_masters" : "FOREIGN KEY (food_master_id) REFERENCES food_masters(id) ON UPDATE CASCADE ON DELETE CASCADE"
+"public.meal_set_items" }o--|| "public.food_masters" : "FOREIGN KEY (food_master_id) REFERENCES food_masters(id) ON UPDATE CASCADE ON DELETE RESTRICT"
 
 "public.food_masters" {
   text id
@@ -62,6 +63,11 @@ erDiagram
   food_source source
   text source_url
   text source_composition_code FK
+}
+"public.meal_set_items" {
+  text meal_set_id FK
+  text food_master_id FK
+  numeric quantity
 }
 ```
 

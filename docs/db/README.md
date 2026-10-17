@@ -14,6 +14,8 @@
 | [public.user_profiles](public.user_profiles.md)                           | 7       | The singleton user profile for preferences and daily nutrition targets. | BASE TABLE |
 | [public.meal_skips](public.meal_skips.md)                                 | 4       | Meals marked as skipped for a date and meal type.                       | BASE TABLE |
 | [public.food_master_nutrition](public.food_master_nutrition.md)           | 5       | Nutrition source and estimation metadata for a food master.             | BASE TABLE |
+| [public.meal_set_items](public.meal_set_items.md)                         | 3       | Foods and quantities included in a meal set.                            | BASE TABLE |
+| [public.meal_sets](public.meal_sets.md)                                   | 3       | Named groups of foods saved for repeated meal logging.                  | BASE TABLE |
 | [public.meal_photos](public.meal_photos.md)                               | 6       | Photos attached to a meal on a specific date.                           | BASE TABLE |
 
 ## Stored procedures and functions
@@ -73,6 +75,8 @@ erDiagram
 "public.meal_logs" }o--|| "public.food_masters" : "FOREIGN KEY (food_master_id) REFERENCES food_masters(id) ON UPDATE CASCADE ON DELETE RESTRICT"
 "public.food_master_nutrition" }o--o| "public.food_compositions" : "FOREIGN KEY (source_composition_code) REFERENCES food_compositions(code) ON UPDATE CASCADE ON DELETE RESTRICT"
 "public.food_master_nutrition" |o--|| "public.food_masters" : "FOREIGN KEY (food_master_id) REFERENCES food_masters(id) ON UPDATE CASCADE ON DELETE CASCADE"
+"public.meal_set_items" }o--|| "public.food_masters" : "FOREIGN KEY (food_master_id) REFERENCES food_masters(id) ON UPDATE CASCADE ON DELETE RESTRICT"
+"public.meal_set_items" }o--|| "public.meal_sets" : "FOREIGN KEY (meal_set_id) REFERENCES meal_sets(id) ON UPDATE CASCADE ON DELETE CASCADE"
 
 "public.food_composition_nutrients" {
   text food_composition_code FK
@@ -134,6 +138,16 @@ erDiagram
   food_source source
   text source_url
   text source_composition_code FK
+}
+"public.meal_set_items" {
+  text meal_set_id FK
+  text food_master_id FK
+  numeric quantity
+}
+"public.meal_sets" {
+  text id
+  text name
+  timestamp_with_time_zone created_at
 }
 "public.meal_photos" {
   text id

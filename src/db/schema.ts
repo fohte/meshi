@@ -74,6 +74,56 @@ export const foodMasters = pgTable(
   ],
 )
 
+export const mealSets = pgTable(
+  'meal_sets',
+  {
+    id: text('id').primaryKey(),
+    name: text('name').notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true, mode: 'date' })
+      .notNull()
+      .default(sql`now()`),
+  },
+  (table) => [
+    uniqueIndex('meal_sets_name_key').on(table.name),
+    index('meal_sets_name_trgm_idx').using(
+      'gin',
+      sql`${table.name} gin_trgm_ops`,
+    ),
+    check('meal_sets_name_nonblank', sql`btrim(${table.name}) <> ''`),
+  ],
+)
+
+export const mealSetItems = pgTable(
+  'meal_set_items',
+  {
+    mealSetId: text('meal_set_id').notNull(),
+    foodMasterId: text('food_master_id').notNull(),
+    quantity: numeric('quantity').notNull(),
+  },
+  (table) => [
+    primaryKey({
+      name: 'meal_set_items_pkey',
+      columns: [table.mealSetId, table.foodMasterId],
+    }),
+    foreignKey({
+      name: 'meal_set_items_meal_set_id_fk',
+      columns: [table.mealSetId],
+      foreignColumns: [mealSets.id],
+    })
+      .onUpdate('cascade')
+      .onDelete('cascade'),
+    foreignKey({
+      name: 'meal_set_items_food_master_id_fk',
+      columns: [table.foodMasterId],
+      foreignColumns: [foodMasters.id],
+    })
+      .onUpdate('cascade')
+      .onDelete('restrict'),
+    index('meal_set_items_food_master_id_idx').on(table.foodMasterId),
+    check('meal_set_items_quantity_positive', sql`${table.quantity} > 0`),
+  ],
+)
+
 export const foodMasterNutrition = pgTable(
   'food_master_nutrition',
   {
