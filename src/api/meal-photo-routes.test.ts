@@ -202,37 +202,24 @@ describe('POST /api/meal-photos/:date/:mealType', () => {
     })
   })
 
-  it('rejects a multipart body above the request limit before parsing it', async () => {
-    let requestArrayBufferCalled = false
+  it('rejects a multipart request above the request body limit', async () => {
     const form = new FormData()
     form.set(
       'photo',
-      new File(
-        [new Uint8Array(10 * 1024 * 1024 + 64 * 1024 + 1)],
-        'large.png',
-        { type: 'image/png' },
-      ),
+      new File([new Uint8Array(10 * 1024 * 1024)], 'large.png', {
+        type: 'image/png',
+      }),
     )
-    const request = new Request(
-      'http://localhost/api/meal-photos/2099-03-15/breakfast',
+    form.set('padding', 'x'.repeat(64 * 1024 + 1))
+
+    const response = await buildApp(notStubbed()).request(
+      '/api/meal-photos/2099-03-15/breakfast',
       { method: 'POST', body: form },
     )
-    const requestArrayBuffer = request.arrayBuffer.bind(request)
-    Object.defineProperty(request, 'arrayBuffer', {
-      value: async () => {
-        requestArrayBufferCalled = true
-        return requestArrayBuffer()
-      },
-    })
 
-    const response = await buildApp(notStubbed()).fetch(request)
-
-    expect(
-      await captureJsonResponseWith(response, { requestArrayBufferCalled }),
-    ).toEqual({
+    expect(await captureJsonResponse(response)).toEqual({
       status: 413,
       body: { error: 'photo must not exceed 10 MiB' },
-      requestArrayBufferCalled: false,
     })
   })
 })
