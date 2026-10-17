@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 
 import type { MealPhoto } from '#api/meal-photos'
+import { MEAL_PHOTO_ACCEPT } from '#components/MealPhotoGallery/meal-photo-constraints'
 import styles from '#components/MealPhotoGallery/MealPhotoGallery.module.css'
 import { getMealPhotoFileError } from '#components/MealPhotoGallery/validate-meal-photo-file'
 
@@ -109,7 +110,7 @@ export const MealPhotoGallery = ({
         <input
           ref={fileInputRef}
           type="file"
-          accept="image/jpeg,image/png,image/webp"
+          accept={MEAL_PHOTO_ACCEPT}
           aria-label="追加する写真を選択"
           className={styles.fileInput}
           tabIndex={-1}

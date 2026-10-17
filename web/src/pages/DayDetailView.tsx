@@ -131,6 +131,7 @@ export const DayDetailView = ({
 
       {!isPending && !isError && (
         <DayDetailContent
+          key={date}
           date={date}
           entries={dayDetailQuery.data.entries}
           totals={dayDetailQuery.data.totals}
@@ -172,6 +173,7 @@ const DayDetailContent = ({
   const { openEdit } = useMealLogSheet()
   const queryClient = useQueryClient()
   const [selectedPhoto, setSelectedPhoto] = useState<{
+    readonly date: string
     readonly mealType: MealType
     readonly photo: MealPhoto
   } | null>(null)
@@ -202,18 +204,31 @@ const DayDetailContent = ({
   })
 
   const uploadMealPhotoMutation = useMutation({
-    mutationFn: ({ mealType, file }: { mealType: MealType; file: File }) =>
-      toPromise(uploadMealPhoto(date, mealType, file)),
-    onSuccess: (_photo, { mealType }) =>
+    mutationFn: ({
+      date,
+      mealType,
+      file,
+    }: {
+      date: string
+      mealType: MealType
+      file: File
+    }) => toPromise(uploadMealPhoto(date, mealType, file)),
+    onSuccess: (_photo, { date, mealType }) =>
       queryClient.invalidateQueries({
         queryKey: mealPhotosQueryKey(date, mealType),
       }),
   })
   const deleteMealPhotoMutation = useMutation({
-    mutationFn: ({ id }: { id: string; mealType: MealType }) =>
+    mutationFn: ({ id }: { id: string; date: string; mealType: MealType }) =>
       toPromise(deleteMealPhoto(id)),
-    onSuccess: (_result, { mealType }) => {
-      setSelectedPhoto(null)
+    onSuccess: (_result, { date, id, mealType }) => {
+      if (
+        selectedPhoto?.date === date &&
+        selectedPhoto.mealType === mealType &&
+        selectedPhoto.photo.id === id
+      ) {
+        setSelectedPhoto(null)
+      }
       return queryClient.invalidateQueries({
         queryKey: mealPhotosQueryKey(date, mealType),
       })
@@ -226,14 +241,22 @@ const DayDetailContent = ({
     const photoQuery = getMealPhotoQuery(mealType)
     const uploadFailedForMeal =
       uploadMealPhotoMutation.isError &&
+      uploadMealPhotoMutation.variables.date === date &&
       uploadMealPhotoMutation.variables.mealType === mealType
     const isUploadingThisMeal =
       uploadMealPhotoMutation.isPending &&
+      uploadMealPhotoMutation.variables.date === date &&
       uploadMealPhotoMutation.variables.mealType === mealType
+    const isUploadingThisDate =
+      uploadMealPhotoMutation.isPending &&
+      uploadMealPhotoMutation.variables.date === date
     const previewPhoto =
-      selectedPhoto?.mealType === mealType ? selectedPhoto.photo : null
+      selectedPhoto?.date === date && selectedPhoto.mealType === mealType
+        ? selectedPhoto.photo
+        : null
     const deleteFailedForPhoto =
       deleteMealPhotoMutation.isError &&
+      deleteMealPhotoMutation.variables.date === date &&
       deleteMealPhotoMutation.variables.id === previewPhoto?.id
 
     return (
@@ -247,7 +270,7 @@ const DayDetailContent = ({
           void photoQuery.refetch()
         }}
         isUploading={isUploadingThisMeal}
-        isUploadDisabled={uploadMealPhotoMutation.isPending}
+        isUploadDisabled={isUploadingThisDate}
         {...(uploadFailedForMeal
           ? {
               uploadError: getMealPhotoUploadErrorMessage(
@@ -258,6 +281,7 @@ const DayDetailContent = ({
         previewPhoto={previewPhoto}
         isDeleting={
           deleteMealPhotoMutation.isPending &&
+          deleteMealPhotoMutation.variables.date === date &&
           deleteMealPhotoMutation.variables.id === previewPhoto?.id
         }
         {...(deleteFailedForPhoto
@@ -268,17 +292,17 @@ const DayDetailContent = ({
           : {})}
         onUpload={(file) => {
           uploadMealPhotoMutation.reset()
-          uploadMealPhotoMutation.mutate({ mealType, file })
+          uploadMealPhotoMutation.mutate({ date, mealType, file })
         }}
         onPhotoClick={(photo) => {
-          setSelectedPhoto({ mealType, photo })
+          setSelectedPhoto({ date, mealType, photo })
         }}
         onClosePreview={() => {
           setSelectedPhoto(null)
         }}
         onDeletePhoto={(id) => {
           deleteMealPhotoMutation.reset()
-          deleteMealPhotoMutation.mutate({ id, mealType })
+          deleteMealPhotoMutation.mutate({ id, date, mealType })
         }}
       />
     )

@@ -9,6 +9,11 @@ export const requestJson = <Schema extends z.ZodType>(
   path: string,
   schema: Schema,
   init?: RequestInit,
+  mapHttpError: (response: Response) => ApiRequestError = (response) =>
+    new ApiRequestError(
+      `${path} responded with ${String(response.status)}`,
+      undefined,
+    ),
 ): ResultAsync<z.infer<Schema>, ApiRequestError> =>
   ResultAsync.fromPromise(
     fetch(path, init),
@@ -16,12 +21,7 @@ export const requestJson = <Schema extends z.ZodType>(
   )
     .andThen((res) => {
       if (!res.ok) {
-        return errAsync(
-          new ApiRequestError(
-            `${path} responded with ${String(res.status)}`,
-            undefined,
-          ),
-        )
+        return errAsync(mapHttpError(res))
       }
       return ResultAsync.fromPromise(
         res.json() as Promise<unknown>,

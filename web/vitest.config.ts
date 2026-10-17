@@ -24,6 +24,29 @@ export default mergeConfig(
           extends: true,
           test: {
             name: 'unit',
+            exclude: [
+              '**/node_modules/**',
+              '**/dist/**',
+              '**/cypress/**',
+              '**/.{idea,git,cache,output,temp}/**',
+              '**/{karma,rollup,webpack,vite,vitest,jest,ava,babel,nyc,cypress,tsup,build}.config.*',
+              'src/components/MealPhotoGallery/MealPhotoGallery.test.tsx',
+            ],
+          },
+        },
+        {
+          extends: true,
+          test: {
+            name: 'component-browser',
+            include: [
+              'src/components/MealPhotoGallery/MealPhotoGallery.test.tsx',
+            ],
+            browser: {
+              enabled: true,
+              provider: playwright(),
+              headless: true,
+              instances: [{ browser: 'chromium' }],
+            },
           },
         },
         {

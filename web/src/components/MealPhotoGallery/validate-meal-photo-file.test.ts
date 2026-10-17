@@ -9,6 +9,12 @@ describe('getMealPhotoFileError', () => {
     )
   })
 
+  it('rejects an empty file', () => {
+    expect(getMealPhotoFileError({ size: 0, type: 'image/jpeg' })).toEqual(
+      'ファイルに画像データがありません。別の写真を選択してください。',
+    )
+  })
+
   it('rejects an image larger than 10 MiB', () => {
     expect(
       getMealPhotoFileError({ size: 10 * 1024 * 1024 + 1, type: 'image/jpeg' }),

@@ -57,30 +57,12 @@ export const uploadMealPhoto = (
   const body = new FormData()
   body.set('photo', photo)
 
-  return ResultAsync.fromPromise(
-    fetch(path, { method: 'POST', body }),
-    (cause) => new ApiRequestError(`request to ${path} failed`, cause),
-  ).andThen((response) => {
-    if (!response.ok) {
-      return errAsync(new MealPhotoRequestError(path, response.status))
-    }
-    return ResultAsync.fromPromise(
-      response.json() as Promise<unknown>,
-      (cause) =>
-        new ApiRequestError(`failed to parse ${path} response as JSON`, cause),
-    ).andThen((result) => {
-      const parsed = mealPhotoSchema.safeParse(result)
-      if (!parsed.success) {
-        return errAsync(
-          new ApiRequestError(
-            `${path} response did not match the expected schema`,
-            parsed.error,
-          ),
-        )
-      }
-      return okAsync(parsed.data)
-    })
-  })
+  return requestJson(
+    path,
+    mealPhotoSchema,
+    { method: 'POST', body },
+    (res) => new MealPhotoRequestError(path, res.status),
+  )
 }
 
 export const deleteMealPhoto = (
