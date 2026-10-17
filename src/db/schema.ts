@@ -292,6 +292,34 @@ export const mealSkips = pgTable(
   ],
 )
 
+export const mealPhotos = pgTable(
+  'meal_photos',
+  {
+    id: text('id').primaryKey(),
+    // JST calendar date, no time component — see src/lib/jst-date.ts.
+    eatenDate: date('eaten_date', { mode: 'string' })
+      .$type<JstDate>()
+      .notNull(),
+    mealType: mealTypeEnum('meal_type').notNull(),
+    objectKey: text('object_key').notNull(),
+    contentType: text('content_type').notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true, mode: 'date' })
+      .notNull()
+      .default(sql`now()`),
+  },
+  (table) => [
+    uniqueIndex('meal_photos_object_key_key').on(table.objectKey),
+    index('meal_photos_eaten_date_meal_type_idx').on(
+      table.eatenDate,
+      table.mealType,
+    ),
+    check(
+      'meal_photos_content_type_check',
+      sql`${table.contentType} in ('image/jpeg', 'image/png', 'image/webp')`,
+    ),
+  ],
+)
+
 export const storageLocations = pgTable(
   'storage_locations',
   {
