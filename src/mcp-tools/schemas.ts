@@ -344,3 +344,90 @@ export const recordMealLogStructuredOutput = z.object({
     })
     .nullable(),
 })
+
+export const setStockItemInput = z
+  .object({
+    food_master_id: z.string().min(1),
+    storage_location_name: z
+      .string()
+      .trim()
+      .min(1)
+      .nullable()
+      .optional()
+      .describe('保存場所名。省略すると維持し、null で解除する'),
+    storage_location_capacity: z
+      .number()
+      .positive()
+      .nullable()
+      .optional()
+      .describe('保存場所の容量。null で容量を解除する'),
+    eat_within_days: z
+      .number()
+      .int()
+      .positive()
+      .nullable()
+      .optional()
+      .describe('受領日から食べ切りたい日数。null で解除する'),
+  })
+  .strict()
+  .refine(
+    (input) =>
+      input.storage_location_capacity === undefined ||
+      input.storage_location_name !== null,
+    {
+      message: 'storage_location_capacity requires a storage location',
+      path: ['storage_location_capacity'],
+    },
+  )
+
+const stockStorageLocationOutput = z.object({
+  name: z.string(),
+  capacity: z.number().nullable(),
+})
+
+export const setStockItemStructuredOutput = z.object({
+  food_master_id: z.string(),
+  food_name: z.string(),
+  storage_location: stockStorageLocationOutput.nullable(),
+  eat_within_days: z.number().int().nullable(),
+})
+
+export const countStockInput = z
+  .object({
+    food_master_id: z.string().min(1),
+    quantity: z.number().min(0),
+    received_date: z.iso.date().nullable().optional(),
+    best_before: z.iso.date().nullable().optional(),
+  })
+  .strict()
+
+export const countStockStructuredOutput = z.object({
+  food_master_id: z.string(),
+  previous_quantity: z.number(),
+  counted_quantity: z.number(),
+  difference: z.number(),
+})
+
+export const getStockStatusInput = z.object({}).strict()
+
+export const getStockStatusStructuredOutput = z.object({
+  stock_items: z.array(
+    z.object({
+      food_master_id: z.string(),
+      food_name: z.string(),
+      total_quantity: z.number(),
+      storage_location: stockStorageLocationOutput.nullable(),
+      eat_within_days: z.number().int().nullable(),
+      lots: z.array(
+        z.object({
+          stock_lot_id: z.string(),
+          quantity: z.number(),
+          remaining_quantity: z.number(),
+          received_date: z.iso.date().nullable(),
+          best_before: z.iso.date().nullable(),
+          eat_by: z.iso.date().nullable(),
+        }),
+      ),
+    }),
+  ),
+})

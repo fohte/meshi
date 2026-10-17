@@ -6,11 +6,14 @@ import type { FoodMasterService } from '#domain/food-master/service'
 import type { MealHistoryService } from '#domain/meal-history/types'
 import type { MealLogService } from '#domain/meal-log/meal-log-service'
 import type { MealSkipService } from '#domain/meal-skip/meal-skip-service'
+import type { StockService } from '#domain/stock/types'
 import type { UserProfileService } from '#domain/user-profile/user-profile-service'
 import type { Logger } from '#logger'
+import { registerCountStockTool } from '#mcp-tools/count-stock'
 import { registerDeleteMealLogTool } from '#mcp-tools/delete-meal-log'
 import { registerFillFoodNutritionTool } from '#mcp-tools/fill-food-nutrition'
 import { registerFoodFromCompositionTool } from '#mcp-tools/food-composition'
+import { registerGetStockStatusTool } from '#mcp-tools/get-stock-status'
 import { registerMealLoggingTools } from '#mcp-tools/meal-logging'
 import { registerMealSkipTools } from '#mcp-tools/meal-skip'
 import { registerMergeFoodMasterTool } from '#mcp-tools/merge-food-master'
@@ -25,6 +28,7 @@ import { registerRecommendationContextTool } from '#mcp-tools/recommendation'
 import { registerFoodTool } from '#mcp-tools/register-food'
 import { registerFoodWithoutNutritionTool } from '#mcp-tools/register-food-without-nutrition'
 import { profileStructuredOutput, updateProfileInput } from '#mcp-tools/schemas'
+import { registerSetStockItemTool } from '#mcp-tools/set-stock-item'
 import { registerUpdateMealLogTool } from '#mcp-tools/update-meal-log'
 
 export interface MeshiToolDeps {
@@ -33,6 +37,7 @@ export interface MeshiToolDeps {
   readonly foodSearchService: FoodSearchService
   readonly mealLogService: MealLogService
   readonly mealSkipService: MealSkipService
+  readonly stockService: StockService
   readonly foodMasterService: FoodMasterService
   readonly logger: Logger
 }
@@ -48,6 +53,7 @@ export const registerMeshiTools = (
     foodMasterService,
     mealLogService,
     mealSkipService,
+    stockService,
     logger,
   } = deps
 
@@ -76,6 +82,9 @@ export const registerMeshiTools = (
     profileService,
     logger,
   })
+  registerSetStockItemTool(server, { stockService, logger })
+  registerCountStockTool(server, { stockService, logger })
+  registerGetStockStatusTool(server, { stockService, logger })
 
   server.registerTool(
     'get_profile',

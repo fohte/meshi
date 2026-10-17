@@ -211,8 +211,24 @@ const applyMerge = async (
   `
   await tx`DELETE FROM meal_set_items WHERE food_master_id = ${loserId}`
 
-  // meal_logs is fully repointed above, so this DELETE never trips the
-  // meal_logs or meal_set_items FK's ON DELETE RESTRICT. Alias and nutrition
+  await tx`
+    DELETE FROM stock_items AS loser_item
+    WHERE loser_item.food_master_id = ${loserId}
+      AND EXISTS (
+        SELECT 1 FROM stock_items AS survivor_item
+        WHERE survivor_item.food_master_id = ${survivorId}
+      )
+  `
+  await tx`
+    UPDATE stock_items SET food_master_id = ${survivorId}
+    WHERE food_master_id = ${loserId}
+  `
+  await tx`
+    UPDATE stock_lots SET food_master_id = ${survivorId}
+    WHERE food_master_id = ${loserId}
+  `
+
+  // Referencing rows have been repointed or removed above; aliases and nutrition
   // rows cascade away whatever was deliberately left under loserId.
   await tx`DELETE FROM food_masters WHERE id = ${loserId}`
 

@@ -5,6 +5,7 @@ import {
   seedFoodComposition,
   seedFoodMasterWithoutNutrition,
   seedMealSet,
+  seedStockLot,
 } from '#test/seed'
 
 describeIfDb('schema migrations', () => {
@@ -28,6 +29,10 @@ describeIfDb('schema migrations', () => {
       'meal_sets',
       'meal_skips',
       'nutrient_definitions',
+      'stock_items',
+      'stock_lots',
+      'stock_movements',
+      'storage_locations',
       'user_profiles',
     ])
   })
@@ -152,6 +157,42 @@ describeIfDb('schema migrations', () => {
       {
         indexdef:
           'CREATE INDEX nutrient_definitions_major_sort_idx ON public.nutrient_definitions USING btree (is_major, sort_order) WHERE (is_major = true)',
+      },
+    ])
+  })
+
+  it('indexes every stock foreign key column', async () => {
+    const sql = getTestSql()
+    const rows = await sql<{ indexname: string; indexdef: string }[]>`
+      SELECT indexname, indexdef FROM pg_indexes
+      WHERE indexname IN (
+        'stock_items_pkey',
+        'stock_items_storage_location_id_idx',
+        'stock_lots_food_master_id_received_date_idx',
+        'stock_movements_stock_lot_id_idx'
+      )
+      ORDER BY indexname
+    `
+    expect(rows).toEqual([
+      {
+        indexname: 'stock_items_pkey',
+        indexdef:
+          'CREATE UNIQUE INDEX stock_items_pkey ON public.stock_items USING btree (food_master_id)',
+      },
+      {
+        indexname: 'stock_items_storage_location_id_idx',
+        indexdef:
+          'CREATE INDEX stock_items_storage_location_id_idx ON public.stock_items USING btree (storage_location_id)',
+      },
+      {
+        indexname: 'stock_lots_food_master_id_received_date_idx',
+        indexdef:
+          'CREATE INDEX stock_lots_food_master_id_received_date_idx ON public.stock_lots USING btree (food_master_id, received_date)',
+      },
+      {
+        indexname: 'stock_movements_stock_lot_id_idx',
+        indexdef:
+          'CREATE INDEX stock_movements_stock_lot_id_idx ON public.stock_movements USING btree (stock_lot_id)',
       },
     ])
   })
@@ -308,6 +349,34 @@ describeIfDb('schema migrations', () => {
         on_update: 'c',
         on_delete: 'c',
       },
+      {
+        conname: 'stock_items_food_master_id_fk',
+        table_name: 'stock_items',
+        ref_table: 'food_masters',
+        on_update: 'c',
+        on_delete: 'c',
+      },
+      {
+        conname: 'stock_items_storage_location_id_fk',
+        table_name: 'stock_items',
+        ref_table: 'storage_locations',
+        on_update: 'c',
+        on_delete: 'n',
+      },
+      {
+        conname: 'stock_lots_food_master_id_fk',
+        table_name: 'stock_lots',
+        ref_table: 'food_masters',
+        on_update: 'c',
+        on_delete: 'r',
+      },
+      {
+        conname: 'stock_movements_stock_lot_id_fk',
+        table_name: 'stock_movements',
+        ref_table: 'stock_lots',
+        on_update: 'c',
+        on_delete: 'r',
+      },
     ])
   })
 
@@ -368,6 +437,31 @@ describeIfDb('schema migrations', () => {
       {
         conname: 'meal_sets_name_nonblank',
         table_name: 'meal_sets',
+        validated: true,
+      },
+      {
+        conname: 'stock_items_eat_within_days_positive',
+        table_name: 'stock_items',
+        validated: true,
+      },
+      {
+        conname: 'stock_lots_quantity_positive',
+        table_name: 'stock_lots',
+        validated: true,
+      },
+      {
+        conname: 'stock_movements_delta_nonzero',
+        table_name: 'stock_movements',
+        validated: true,
+      },
+      {
+        conname: 'stock_movements_reason_valid',
+        table_name: 'stock_movements',
+        validated: true,
+      },
+      {
+        conname: 'storage_locations_capacity_positive',
+        table_name: 'storage_locations',
         validated: true,
       },
       {
@@ -632,5 +726,81 @@ describeIfDb('schema runtime constraints', () => {
     expect(
       await runOutcome(tx`DELETE FROM food_masters WHERE id = 'fm_d'`),
     ).toEqual({ status: 'error', code: '23001' })
+  })
+
+  it('rejects nonpositive storage location capacity', async () => {
+    const tx = getTx()
+    expect(
+      await runOutcome(tx`
+        INSERT INTO storage_locations (id, name, capacity)
+        VALUES ('sl_invalid_capacity', 'Sample storage', 0)
+      `),
+    ).toEqual({ status: 'error', code: '23514' })
+  })
+
+  it('rejects nonpositive stock item eat_within_days', async () => {
+    const tx = getTx()
+    await seedFoodMasterWithoutNutrition(tx, {
+      id: 'fm_invalid_eat_days',
+      name: 'Sample food for invalid eat days',
+    })
+    expect(
+      await runOutcome(tx`
+        INSERT INTO stock_items (food_master_id, eat_within_days)
+        VALUES ('fm_invalid_eat_days', 0)
+      `),
+    ).toEqual({ status: 'error', code: '23514' })
+  })
+
+  it('rejects nonpositive stock lot quantity', async () => {
+    const tx = getTx()
+    await seedFoodMasterWithoutNutrition(tx, {
+      id: 'fm_invalid_lot_quantity',
+      name: 'Sample food for invalid lot quantity',
+    })
+    expect(
+      await runOutcome(tx`
+        INSERT INTO stock_lots (id, food_master_id, quantity)
+        VALUES ('stl_invalid_quantity', 'fm_invalid_lot_quantity', 0)
+      `),
+    ).toEqual({ status: 'error', code: '23514' })
+  })
+
+  it('rejects zero stock movement delta', async () => {
+    const tx = getTx()
+    await seedFoodMasterWithoutNutrition(tx, {
+      id: 'fm_invalid_movement',
+      name: 'Sample food for invalid movement',
+    })
+    await seedStockLot(tx, {
+      id: 'stl_invalid_movement',
+      foodMasterId: 'fm_invalid_movement',
+      quantity: 1,
+    })
+    expect(
+      await runOutcome(tx`
+        INSERT INTO stock_movements (id, stock_lot_id, delta, reason)
+        VALUES ('stm_zero_delta', 'stl_invalid_movement', 0, 'count')
+      `),
+    ).toEqual({ status: 'error', code: '23514' })
+  })
+
+  it('rejects stock movement reasons outside the supported set', async () => {
+    const tx = getTx()
+    await seedFoodMasterWithoutNutrition(tx, {
+      id: 'fm_invalid_reason',
+      name: 'Sample food for invalid reason',
+    })
+    await seedStockLot(tx, {
+      id: 'stl_invalid_reason',
+      foodMasterId: 'fm_invalid_reason',
+      quantity: 1,
+    })
+    expect(
+      await runOutcome(tx`
+        INSERT INTO stock_movements (id, stock_lot_id, delta, reason)
+        VALUES ('stm_invalid_reason', 'stl_invalid_reason', 1, 'correction')
+      `),
+    ).toEqual({ status: 'error', code: '23514' })
   })
 })
