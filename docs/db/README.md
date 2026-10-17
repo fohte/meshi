@@ -17,7 +17,7 @@
 | [public.meal_set_items](public.meal_set_items.md)                         | 3       | Foods and quantities included in a meal set.                            | BASE TABLE |
 | [public.meal_sets](public.meal_sets.md)                                   | 3       | Named groups of foods saved for repeated meal logging.                  | BASE TABLE |
 | [public.stock_items](public.stock_items.md)                               | 4       | Foods configured for stock tracking.                                    | BASE TABLE |
-| [public.stock_lots](public.stock_lots.md)                                 | 8       | Received or counted batches of stock for a food.                        | BASE TABLE |
+| [public.stock_lots](public.stock_lots.md)                                 | 8       | Planned delivery, received, or counted batches of stock for a food.     | BASE TABLE |
 | [public.stock_movements](public.stock_movements.md)                       | 7       | Quantity changes recorded against stock lots.                           | BASE TABLE |
 | [public.storage_locations](public.storage_locations.md)                   | 4       | Named places where stock items are stored.                              | BASE TABLE |
 | [public.meal_photos](public.meal_photos.md)                               | 6       | Photos attached to a meal on a specific date.                           | BASE TABLE |
