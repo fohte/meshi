@@ -30,9 +30,8 @@ export class BatchMealLogRequestError extends ApiRequestError {
   constructor(
     message: string,
     readonly itemIndex: number | null,
-    cause: unknown,
   ) {
-    super(message, cause)
+    super(message, undefined)
   }
 }
 
@@ -84,7 +83,6 @@ const parseBatchMealLogError = (
       new BatchMealLogRequestError(
         parsed.data.error,
         parsed.data.itemIndex ?? null,
-        undefined,
       ),
     )
   })

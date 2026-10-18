@@ -71,7 +71,11 @@ const clickButton = async (
 ): Promise<void> => {
   const button = Array.from(
     container.querySelectorAll<HTMLButtonElement>('button'),
-  ).find((candidate) => candidate.textContent.includes(label))
+  ).find(
+    (candidate) =>
+      candidate.textContent.includes(label) ||
+      candidate.getAttribute('aria-label')?.includes(label) === true,
+  )
   if (button === undefined) throw new Error(`button not found: ${label}`)
   await performAct(() => {
     button.click()
@@ -258,10 +262,23 @@ describe('MealLogSheetProvider meal set recording', () => {
       await waitFor(
         () => setup.container.querySelector('[role="alert"]') !== null,
       )
+      await clickButton(setup.container, '架空食品 A を削除')
+      await waitFor(
+        () =>
+          setup.container.querySelector(
+            'input[aria-label="架空食品 B の量"]',
+          ) !== null,
+      )
 
       const output = () => ({
         requests: setup.requests,
         error: setup.container.querySelector('[role="alert"]')?.textContent,
+        remainingItems: Array.from(
+          setup.container.querySelectorAll<HTMLInputElement>(
+            'input[aria-label$=" の量"]',
+          ),
+          (input) => input.getAttribute('aria-label'),
+        ),
       })
 
       expect(output()).toEqual({
@@ -286,6 +303,7 @@ describe('MealLogSheetProvider meal set recording', () => {
           },
         ],
         error: '「架空食品 B」の記録に失敗しました: invalid quantity',
+        remainingItems: ['架空食品 B の量'],
       })
     } finally {
       await cleanupSheet(setup.container, setup.root, setup.queryClient)

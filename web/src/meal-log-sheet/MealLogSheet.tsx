@@ -13,6 +13,29 @@ import {
   type SheetState,
 } from '#meal-log-sheet/sheet-state'
 
+const sheetTitle = (state: SheetState): string => {
+  if (state.mode === 'edit') return '記録を編集'
+  if (state.mode === 'meal-set') return 'マイセットを記録'
+  return '食事を記録'
+}
+
+const sheetStepText = (state: SheetState): string => {
+  if (state.mode === 'create') {
+    if (state.phase === 'search') return '1 / 2 食品を選ぶ'
+    return '2 / 2 詳細を入力'
+  }
+  if (state.mode !== 'meal-set') return ''
+  if (state.pendingSelection === null) return '品目を確認'
+  if (state.pendingSelection.type === 'add') return '品目を追加'
+  return '品目を変更'
+}
+
+const saveButtonLabel = (state: SheetState): string => {
+  if (state.mode === 'meal-set') return 'まとめて記録'
+  if (state.mode === 'edit') return '更新'
+  return '保存'
+}
+
 export interface MealLogSheetProps {
   readonly state: SheetState
   readonly close: () => void
@@ -34,7 +57,6 @@ export interface MealLogSheetProps {
   readonly removeMealSetItem: (itemId: number) => void
   readonly replaceMealSetItem: (itemId: number) => void
   readonly addMealSetItem: () => void
-  readonly backToMealSet: () => void
   readonly save: () => void
   readonly saveAndContinue: () => void
   readonly isSaving: boolean
@@ -53,24 +75,18 @@ export const MealLogSheet = (props: MealLogSheetProps): React.JSX.Element => {
   const isDetail = isMealSet
     ? state.pendingSelection === null
     : state.phase === 'detail'
-  const title =
-    state.mode === 'edit'
-      ? '記録を編集'
-      : isMealSet
-        ? 'マイセットを記録'
-        : '食事を記録'
-  const stepText =
-    state.mode === 'create'
-      ? state.phase === 'search'
-        ? '1 / 2 食品を選ぶ'
-        : '2 / 2 詳細を入力'
-      : isMealSet
-        ? state.pendingSelection === null
-          ? '品目を確認'
-          : state.pendingSelection.type === 'add'
-            ? '品目を追加'
-            : '品目を変更'
-        : ''
+  const title = sheetTitle(state)
+  const stepText = sheetStepText(state)
+  const foodSearchStep = (
+    <FoodSearchStep
+      query={state.query}
+      setQuery={props.setQuery}
+      selectFood={props.selectFood}
+      selectComposition={props.selectComposition}
+      isRegisteringComposition={props.isRegisteringComposition}
+      compositionError={props.compositionError}
+    />
+  )
   const canSave =
     (isMealSet ? buildMealSetSavePayload(state) : buildSavePayload(state)) !==
       null && !props.isSaving
@@ -126,18 +142,11 @@ export const MealLogSheet = (props: MealLogSheetProps): React.JSX.Element => {
                       ? '追加する食品を選んでください'
                       : '差し替える食品を選んでください'}
                   </span>
-                  <button type="button" onClick={props.backToMealSet}>
+                  <button type="button" onClick={props.backToSearch}>
                     マイセットに戻る
                   </button>
                 </div>
-                <FoodSearchStep
-                  query={state.query}
-                  setQuery={props.setQuery}
-                  selectFood={props.selectFood}
-                  selectComposition={props.selectComposition}
-                  isRegisteringComposition={props.isRegisteringComposition}
-                  compositionError={props.compositionError}
-                />
+                {foodSearchStep}
               </>
             )
           ) : state.phase === 'search' ? (
@@ -180,14 +189,7 @@ export const MealLogSheet = (props: MealLogSheetProps): React.JSX.Element => {
                   onSelect={props.selectMealSet}
                 />
               ) : (
-                <FoodSearchStep
-                  query={state.query}
-                  setQuery={props.setQuery}
-                  selectFood={props.selectFood}
-                  selectComposition={props.selectComposition}
-                  isRegisteringComposition={props.isRegisteringComposition}
-                  compositionError={props.compositionError}
-                />
+                foodSearchStep
               )}
             </>
           ) : (
@@ -229,11 +231,7 @@ export const MealLogSheet = (props: MealLogSheetProps): React.JSX.Element => {
               disabled={!canSave}
               onClick={props.save}
             >
-              {isMealSet
-                ? 'まとめて記録'
-                : state.mode === 'edit'
-                  ? '更新'
-                  : '保存'}
+              {saveButtonLabel(state)}
             </button>
           )}
           {showContinue && (

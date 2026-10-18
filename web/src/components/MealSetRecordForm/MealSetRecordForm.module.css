@@ -129,31 +129,6 @@
   font-size: 13px;
 }
 
-.mealOptions {
-  display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  border: var(--border-width) solid var(--color-border);
-}
-
-.mealOption,
-.mealOptionActive {
-  all: unset;
-  cursor: pointer;
-  box-sizing: border-box;
-  padding: 9px 0;
-  text-align: center;
-  font-size: 13px;
-}
-
-.mealOption {
-  color: var(--color-text-secondary);
-}
-
-.mealOptionActive {
-  background: var(--color-text);
-  color: var(--color-bg);
-}
-
 .dateInput {
   width: 100%;
   padding: 9px 11px;
@@ -166,14 +141,6 @@
   padding: 12px;
   color: var(--color-accent);
   font-size: 13px;
-}
-
-.actionButton:disabled,
-.addButton:disabled,
-.mealOption:disabled,
-.mealOptionActive:disabled {
-  cursor: not-allowed;
-  opacity: 0.5;
 }
 
 @media (width < 420px) {

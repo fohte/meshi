@@ -116,7 +116,7 @@ export const previewKcal = (state: SingleSheetState): number | null => {
 }
 
 // New composition foods default to 100 because that is their registered unit.
-export const applyFoodSelection = (
+const applyFoodSelection = (
   state: CreateSheetState,
   food: SelectedFood,
   isNew: boolean,
@@ -128,7 +128,7 @@ export const applyFoodSelection = (
   quantity: isNew ? '100' : state.quantity,
 })
 
-export const backToSearch = (state: CreateSheetState): CreateSheetState => ({
+const backToSearch = (state: CreateSheetState): CreateSheetState => ({
   ...state,
   phase: 'search',
   selectedFood: null,
@@ -165,11 +165,17 @@ export const beginMealSetFoodSelection = (
   selection: MealSetFoodSelection,
 ): MealSetRecordState => ({ ...state, pendingSelection: selection, query: '' })
 
-export const cancelMealSetFoodSelection = (
+const cancelMealSetFoodSelection = (
   state: MealSetRecordState,
 ): MealSetRecordState => ({ ...state, pendingSelection: null, query: '' })
 
-export const applyMealSetFoodSelection = (
+export const backToFoodSearch = (state: SheetState): SheetState => {
+  if (state.mode === 'meal-set') return cancelMealSetFoodSelection(state)
+  if (state.mode === 'create') return backToSearch(state)
+  return state
+}
+
+const applyMealSetFoodSelection = (
   state: MealSetRecordState,
   food: SelectedFood,
 ): MealSetRecordState => {
@@ -210,6 +216,36 @@ export const applyMealSetFoodSelection = (
       },
     ],
   }
+}
+
+export function applySelectedFoodToSheet(
+  state: CreateSheetState,
+  food: SelectedFood,
+  isNew: boolean,
+): CreateSheetState
+export function applySelectedFoodToSheet(
+  state: MealSetRecordState,
+  food: SelectedFood,
+  isNew: boolean,
+): MealSetRecordState
+export function applySelectedFoodToSheet(
+  state: EditSheetState,
+  food: SelectedFood,
+  isNew: boolean,
+): EditSheetState
+export function applySelectedFoodToSheet(
+  state: SheetState,
+  food: SelectedFood,
+  isNew: boolean,
+): SheetState
+export function applySelectedFoodToSheet(
+  state: SheetState,
+  food: SelectedFood,
+  isNew: boolean,
+): SheetState {
+  if (state.mode === 'meal-set') return applyMealSetFoodSelection(state, food)
+  if (state.mode === 'create') return applyFoodSelection(state, food, isNew)
+  return state
 }
 
 export const setMealSetItemQuantity = (

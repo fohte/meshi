@@ -3,9 +3,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { DayDetailEntry } from '#api/day-detail'
 import type { MealSet } from '#api/meal-sets'
 import {
-  applyFoodSelection,
-  applyMealSetFoodSelection,
-  backToSearch,
+  applySelectedFoodToSheet,
+  backToFoodSearch,
   beginMealSetFoodSelection,
   buildContinueState,
   buildCreateState,
@@ -171,7 +170,7 @@ describe('applyFoodSelection', () => {
   it('moves to the detail phase and keeps quantity for an existing food', () => {
     const state = { ...buildCreateState(), quantity: '2' }
 
-    expect(applyFoodSelection(state, RICE, false)).toEqual({
+    expect(applySelectedFoodToSheet(state, RICE, false)).toEqual({
       ...state,
       selectedFood: RICE,
       isNewFood: false,
@@ -183,7 +182,7 @@ describe('applyFoodSelection', () => {
   it('resets quantity to 100 for a newly-registered composition food', () => {
     const state = { ...buildCreateState(), quantity: '2' }
 
-    expect(applyFoodSelection(state, RICE, true)).toEqual({
+    expect(applySelectedFoodToSheet(state, RICE, true)).toEqual({
       ...state,
       selectedFood: RICE,
       isNewFood: true,
@@ -202,7 +201,7 @@ describe('backToSearch', () => {
       phase: 'detail',
     }
 
-    expect(backToSearch(state)).toEqual({
+    expect(backToFoodSearch(state)).toEqual({
       ...state,
       phase: 'search',
       selectedFood: null,
@@ -294,7 +293,7 @@ describe('applyMealSetFoodSelection', () => {
       { type: 'replace', itemId: 0 },
     )
 
-    expect(applyMealSetFoodSelection(state, ALTERNATE_FOOD)).toEqual({
+    expect(applySelectedFoodToSheet(state, ALTERNATE_FOOD, false)).toEqual({
       ...state,
       pendingSelection: null,
       query: '',
@@ -316,7 +315,7 @@ describe('applyMealSetFoodSelection', () => {
       { type: 'add' },
     )
 
-    expect(applyMealSetFoodSelection(state, ALTERNATE_FOOD)).toEqual({
+    expect(applySelectedFoodToSheet(state, ALTERNATE_FOOD, false)).toEqual({
       ...state,
       pendingSelection: null,
       query: '',
@@ -342,36 +341,57 @@ describe('applyMealSetFoodSelection', () => {
 })
 
 describe('meal set item editing', () => {
-  it('updates one item quantity and removes one item', () => {
+  it('updates one item quantity', () => {
     const initial = buildMealSetRecordState(MEAL_SET, '2026-01-02')
-    const withAddedFood = applyMealSetFoodSelection(
-      beginMealSetFoodSelection(initial, { type: 'add' }),
-      ALTERNATE_FOOD,
-    )
-
-    expect(
-      removeMealSetItem(setMealSetItemQuantity(withAddedFood, 1, '2.25'), 0),
-    ).toEqual({
-      ...withAddedFood,
+    expect(setMealSetItemQuantity(initial, 0, '2.25')).toEqual({
+      ...initial,
       items: [
         {
-          id: 1,
-          foodMasterId: 'fm_demo_beta',
-          foodName: '架空食品 B',
+          id: 0,
+          foodMasterId: 'fm_demo_alpha',
+          foodName: '架空食品 A',
           quantity: '2.25',
-          energyKcalPerUnit: 80,
+          energyKcalPerUnit: 120,
         },
       ],
     })
+  })
+
+  it('removes one item', () => {
+    const initial = buildMealSetRecordState(MEAL_SET, '2026-01-02')
+
+    expect(removeMealSetItem(initial, 0)).toEqual({
+      ...initial,
+      items: [],
+    })
+  })
+})
+
+describe('backToFoodSearch', () => {
+  it('cancels meal set food selection and preserves existing items', () => {
+    const initial = buildMealSetRecordState(MEAL_SET, '2026-01-02')
+    const selecting = {
+      ...beginMealSetFoodSelection(initial, { type: 'replace', itemId: 0 }),
+      query: '架空食品',
+    }
+    const expected = {
+      ...selecting,
+      pendingSelection: null,
+      query: '',
+      items: initial.items,
+    }
+
+    expect(backToFoodSearch(selecting)).toEqual(expected)
   })
 })
 
 describe('buildMealSetSavePayload', () => {
   it('builds a batch payload with the selected meal type and edited quantities', () => {
     const initial = buildMealSetRecordState(MEAL_SET, '2026-01-02')
-    const withAddedFood = applyMealSetFoodSelection(
+    const withAddedFood = applySelectedFoodToSheet(
       beginMealSetFoodSelection(initial, { type: 'add' }),
       ALTERNATE_FOOD,
+      false,
     )
     const state = {
       ...withAddedFood,
@@ -404,6 +424,16 @@ describe('buildMealSetSavePayload', () => {
           energyKcalPerUnit: 120,
         },
       ],
+    }
+
+    expect(buildMealSetSavePayload(state)).toBeNull()
+  })
+
+  it('does not build a batch payload when every item has been removed', () => {
+    const state = {
+      ...buildMealSetRecordState(MEAL_SET, '2026-01-02'),
+      mealType: 'dinner' as const,
+      items: [],
     }
 
     expect(buildMealSetSavePayload(state)).toBeNull()

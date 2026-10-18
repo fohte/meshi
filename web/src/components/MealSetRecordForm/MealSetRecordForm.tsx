@@ -1,13 +1,7 @@
 import type { MealType } from '#api/day-detail'
 import styles from '#components/MealSetRecordForm/MealSetRecordForm.module.css'
+import { MealTypeSelector } from '#components/MealTypeSelector/MealTypeSelector'
 import type { MealSetRecordItem } from '#meal-log-sheet/sheet-state'
-
-const MEAL_OPTIONS: ReadonlyArray<{ value: MealType; label: string }> = [
-  { value: 'breakfast', label: '朝食' },
-  { value: 'lunch', label: '昼食' },
-  { value: 'dinner', label: '夕食' },
-  { value: 'snack', label: '間食' },
-]
 
 export interface MealSetRecordFormProps {
   readonly mealSetName: string
@@ -116,26 +110,11 @@ export const MealSetRecordForm = ({
 
     <div className={styles.field}>
       <div className={styles.label}>食事区分</div>
-      <div className={styles.mealOptions}>
-        {MEAL_OPTIONS.map((option) => (
-          <button
-            key={option.value}
-            type="button"
-            aria-pressed={mealType === option.value}
-            className={
-              mealType === option.value
-                ? styles.mealOptionActive
-                : styles.mealOption
-            }
-            disabled={isSaving}
-            onClick={() => {
-              onMealTypeChange(option.value)
-            }}
-          >
-            {option.label}
-          </button>
-        ))}
-      </div>
+      <MealTypeSelector
+        value={mealType}
+        disabled={isSaving}
+        onChange={onMealTypeChange}
+      />
     </div>
 
     <label className={styles.field}>
