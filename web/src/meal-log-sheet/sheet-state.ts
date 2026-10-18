@@ -40,7 +40,7 @@ export interface EditSheetState extends SingleSheetStateFields {
   readonly mealLogId: string
 }
 
-export interface MealSetRecordItem {
+interface MealSetRecordItem {
   readonly id: number
   readonly foodMasterId: string
   readonly foodName: string

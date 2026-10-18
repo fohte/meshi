@@ -1,11 +1,17 @@
 import type { MealType } from '#api/day-detail'
 import styles from '#components/MealSetRecordForm/MealSetRecordForm.module.css'
 import { MealTypeSelector } from '#components/MealTypeSelector/MealTypeSelector'
-import type { MealSetRecordItem } from '#meal-log-sheet/sheet-state'
+
+interface MealSetRecordFormItem {
+  readonly id: number
+  readonly foodName: string
+  readonly quantity: string
+  readonly energyKcalPerUnit: number | null
+}
 
 export interface MealSetRecordFormProps {
   readonly mealSetName: string
-  readonly items: ReadonlyArray<MealSetRecordItem>
+  readonly items: ReadonlyArray<MealSetRecordFormItem>
   readonly date: string
   readonly mealType: MealType | null
   readonly isSaving: boolean
@@ -18,7 +24,7 @@ export interface MealSetRecordFormProps {
   readonly onDateChange: (date: string) => void
 }
 
-const itemKcalText = (item: MealSetRecordItem): string => {
+const itemKcalText = (item: MealSetRecordFormItem): string => {
   if (item.energyKcalPerUnit === null) return '—'
   const quantity = Number(item.quantity)
   if (!Number.isFinite(quantity) || quantity <= 0) return '—'

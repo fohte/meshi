@@ -1,19 +1,17 @@
 import type { Meta, StoryObj } from '@storybook/react-vite'
 
+import type { MealSetRecordFormProps } from '#components/MealSetRecordForm/MealSetRecordForm'
 import { MealSetRecordForm } from '#components/MealSetRecordForm/MealSetRecordForm'
-import type { MealSetRecordItem } from '#meal-log-sheet/sheet-state'
 
-const ITEMS: ReadonlyArray<MealSetRecordItem> = [
+const ITEMS: MealSetRecordFormProps['items'] = [
   {
     id: 0,
-    foodMasterId: 'fm_demo_alpha',
     foodName: '架空食品 A',
     quantity: '1',
     energyKcalPerUnit: 120,
   },
   {
     id: 1,
-    foodMasterId: 'fm_demo_beta',
     foodName: '架空食品 B',
     quantity: '2',
     energyKcalPerUnit: null,

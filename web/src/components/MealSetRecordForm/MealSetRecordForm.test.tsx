@@ -2,12 +2,11 @@ import { act } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
+import type { MealSetRecordFormProps } from '#components/MealSetRecordForm/MealSetRecordForm'
 import { MealSetRecordForm } from '#components/MealSetRecordForm/MealSetRecordForm'
-import type { MealSetRecordItem } from '#meal-log-sheet/sheet-state'
 
-const ITEM: MealSetRecordItem = {
+const ITEM: MealSetRecordFormProps['items'][number] = {
   id: 3,
-  foodMasterId: 'fm_demo_alpha',
   foodName: '架空食品 A',
   quantity: '1',
   energyKcalPerUnit: 120,
