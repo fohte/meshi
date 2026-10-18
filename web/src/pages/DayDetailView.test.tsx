@@ -6,6 +6,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { z } from 'zod'
 
 import { DayDetailView } from '#pages/DayDetailView'
+import { performAct, setInputValue } from '#test/test-helpers'
 
 interface RequestRecord {
   readonly method: string
@@ -97,27 +98,8 @@ const waitFor = async (condition: () => boolean): Promise<void> => {
   }
 }
 
-const performAct = (callback: () => void): Promise<void> =>
-  act(async () => {
-    callback()
-    await Promise.resolve()
-  })
-
-const setInputValue = async (
-  input: HTMLInputElement,
-  value: string,
-): Promise<void> =>
-  performAct(() => {
-    const setter = Object.getOwnPropertyDescriptor(
-      HTMLInputElement.prototype,
-      'value',
-    )?.set?.bind(input)
-    if (setter !== undefined) setter(value)
-    input.dispatchEvent(new Event('input', { bubbles: true }))
-  })
-
 const setupPage = (
-  saveResponse: (body: unknown) => Response,
+  saveResponse: (body: unknown) => Response | Promise<Response>,
   requests: Array<RequestRecord>,
 ): {
   readonly container: HTMLDivElement
@@ -224,6 +206,20 @@ const saveOutput = (
   },
 })
 
+const readSaveLifecycleOutput = (
+  requestsDuringSave: ReadonlyArray<RequestRecord>,
+  submitDisabledDuringSave: boolean | null,
+  statusDuringSave: string | null,
+  requestsAfterSave: ReadonlyArray<RequestRecord>,
+  statusAfterSave: string | null,
+) => ({
+  requestsDuringSave,
+  submitDisabledDuringSave,
+  statusDuringSave,
+  requestsAfterSave,
+  statusAfterSave,
+})
+
 const cleanupPage = async (
   container: HTMLElement,
   root: Root,
@@ -296,6 +292,118 @@ describe('DayDetailView', () => {
           status: '「テストセット_001」をマイセットに保存しました。',
           formOpen: true,
         },
+      })
+    } finally {
+      await cleanupPage(container, root, queryClient)
+    }
+  })
+
+  it('prevents another save while the request is pending', async () => {
+    const requests: Array<RequestRecord> = []
+    let resolveSave: (response: Response) => void = () => undefined
+    const pendingSave = new Promise<Response>((resolve) => {
+      resolveSave = resolve
+    })
+    const { container, root, queryClient } = setupPage(
+      () => pendingSave,
+      requests,
+    )
+
+    try {
+      await performAct(() => {
+        renderPage(root, queryClient)
+      })
+      await waitFor(
+        () =>
+          container.querySelector(
+            'button[aria-label="朝食をマイセットとして保存"]',
+          ) !== null,
+      )
+      await submitMealSet(container, 'テストセット_001')
+
+      const submitButton = container.querySelector<HTMLButtonElement>(
+        '#meal-set-save-breakfast button[type="submit"]',
+      )
+      await waitFor(() => submitButton?.disabled === true)
+      await performAct(() => {
+        submitButton?.click()
+      })
+
+      const requestsDuringSave = requests.filter(
+        (request) =>
+          request.method === 'POST' && request.path === '/api/meal-sets',
+      )
+      const submitDisabledDuringSave = submitButton?.disabled ?? null
+      const statusDuringSave =
+        container.querySelector('[role="status"]')?.textContent ?? null
+
+      resolveSave(
+        jsonResponse(
+          {
+            id: 'meal_set_fixture_001',
+            name: 'テストセット_001',
+            items: [
+              {
+                foodMasterId: 'food_fixture_001',
+                foodName: 'テスト食品_001',
+                quantity: 3.25,
+                energyKcalPerUnit: null,
+              },
+              {
+                foodMasterId: 'food_fixture_002',
+                foodName: 'テスト食品_002',
+                quantity: 0.5,
+                energyKcalPerUnit: null,
+              },
+            ],
+            createdAt: '2093-04-12T00:00:00.000Z',
+          },
+          201,
+        ),
+      )
+      await waitFor(() => container.querySelector('[role="status"]') !== null)
+
+      expect(
+        readSaveLifecycleOutput(
+          requestsDuringSave,
+          submitDisabledDuringSave,
+          statusDuringSave,
+          requests.filter(
+            (request) =>
+              request.method === 'POST' && request.path === '/api/meal-sets',
+          ),
+          container.querySelector('[role="status"]')?.textContent ?? null,
+        ),
+      ).toEqual({
+        requestsDuringSave: [
+          {
+            method: 'POST',
+            path: '/api/meal-sets',
+            body: {
+              name: 'テストセット_001',
+              items: [
+                { foodMasterId: 'food_fixture_001', quantity: 3.25 },
+                { foodMasterId: 'food_fixture_002', quantity: 0.5 },
+              ],
+            },
+          },
+        ],
+        submitDisabledDuringSave: true,
+        statusDuringSave: null,
+        requestsAfterSave: [
+          {
+            method: 'POST',
+            path: '/api/meal-sets',
+            body: {
+              name: 'テストセット_001',
+              items: [
+                { foodMasterId: 'food_fixture_001', quantity: 3.25 },
+                { foodMasterId: 'food_fixture_002', quantity: 0.5 },
+              ],
+            },
+          },
+        ],
+        statusAfterSave: '「テストセット_001」をマイセットに保存しました。',
       })
     } finally {
       await cleanupPage(container, root, queryClient)

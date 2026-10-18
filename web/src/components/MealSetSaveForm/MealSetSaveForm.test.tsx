@@ -1,28 +1,12 @@
-import { act } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import { MealSetSaveForm } from '#components/MealSetSaveForm/MealSetSaveForm'
+import { performAct, setInputValue } from '#test/test-helpers'
 
 afterEach(() => {
   vi.unstubAllGlobals()
 })
-
-const performAct = (callback: () => void): Promise<void> =>
-  act(async () => {
-    callback()
-    await Promise.resolve()
-  })
-
-const setName = async (input: HTMLInputElement, value: string): Promise<void> =>
-  performAct(() => {
-    const setter = Object.getOwnPropertyDescriptor(
-      HTMLInputElement.prototype,
-      'value',
-    )?.set?.bind(input)
-    if (setter !== undefined) setter(value)
-    input.dispatchEvent(new Event('input', { bubbles: true }))
-  })
 
 const readFormErrorOutput = (container: HTMLElement) => ({
   title: container.querySelector('h3')?.textContent,
@@ -39,7 +23,7 @@ const readSubmissionOutput = (name: string, events: ReadonlyArray<string>) => ({
 })
 
 describe('MealSetSaveForm', () => {
-  it('submits the entered name and cancels the form', async () => {
+  it('submits the entered name', async () => {
     vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true)
     const container = document.createElement('div')
     document.body.append(container)
@@ -71,7 +55,7 @@ describe('MealSetSaveForm', () => {
       const input = container.querySelector<HTMLInputElement>(
         '#meal-set-save-breakfast-name',
       )
-      if (input !== null) await setName(input, 'テストセット_001')
+      if (input !== null) await setInputValue(input, 'テストセット_001')
       await performAct(render)
       await performAct(() => {
         container
@@ -80,16 +64,47 @@ describe('MealSetSaveForm', () => {
             new Event('submit', { bubbles: true, cancelable: true }),
           )
       })
+      expect(readSubmissionOutput(name, events)).toEqual({
+        name: 'テストセット_001',
+        events: ['name:テストセット_001', 'save:テストセット_001'],
+      })
+    } finally {
+      await performAct(() => {
+        root.unmount()
+      })
+      container.remove()
+    }
+  })
+
+  it('cancels the form', async () => {
+    vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true)
+    const container = document.createElement('div')
+    document.body.append(container)
+    const root: Root = createRoot(container)
+    const events: Array<string> = []
+
+    try {
+      await performAct(() => {
+        root.render(
+          <MealSetSaveForm
+            id="meal-set-save-breakfast"
+            mealLabel="朝食"
+            name=""
+            onNameChange={() => undefined}
+            onSave={() => undefined}
+            onCancel={() => {
+              events.push('cancel')
+            }}
+          />,
+        )
+      })
       await performAct(() => {
         Array.from(container.querySelectorAll<HTMLButtonElement>('button'))
           .find((button) => button.textContent === 'キャンセル')
           ?.click()
       })
 
-      expect(readSubmissionOutput(name, events)).toEqual({
-        name: 'テストセット_001',
-        events: ['name:テストセット_001', 'save:テストセット_001', 'cancel'],
-      })
+      expect(events).toEqual(['cancel'])
     } finally {
       await performAct(() => {
         root.unmount()

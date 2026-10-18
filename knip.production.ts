@@ -12,5 +12,11 @@ export default {
       ],
       project,
     },
+    web: {
+      project: [
+        '**/*.{js,mjs,cjs,jsx,ts,tsx,mts,cts}!',
+        '!src/**/test-helpers.ts!',
+      ],
+    },
   },
 }
