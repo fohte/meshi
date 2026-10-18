@@ -31,15 +31,6 @@ export interface SaveMealSetInput {
   }>
 }
 
-class MealSetApiError extends ApiRequestError {
-  readonly status: number
-
-  constructor(message: string, status: number) {
-    super(message, undefined)
-    this.status = status
-  }
-}
-
 const parseApiError = (
   path: string,
   response: Response,
@@ -48,7 +39,7 @@ const parseApiError = (
     response.json() as Promise<unknown>,
     (cause) =>
       new ApiRequestError(
-        `failed to parse ${path} error response as JSON`,
+        `${path} responded with ${String(response.status)}`,
         cause,
       ),
   ).andThen((body) => {
@@ -61,7 +52,7 @@ const parseApiError = (
         ),
       )
     }
-    return errAsync(new MealSetApiError(parsed.data.error, response.status))
+    return errAsync(new ApiRequestError(parsed.data.error, undefined))
   })
 
 const requestMealSetJson = <Schema extends z.ZodType>(

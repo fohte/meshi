@@ -33,15 +33,12 @@ describe('requestJson', () => {
   it('resolves with the parsed body on a matching 2xx response', async () => {
     vi.stubGlobal(
       'fetch',
-      vi.fn().mockResolvedValue(jsonResponse({ name: 'Example item' })),
+      vi.fn().mockResolvedValue(jsonResponse({ name: 'ramen' })),
     )
 
     const result = await requestJson('/api/thing', schema)
 
-    expect(outcomeOf(result)).toEqual({
-      ok: true,
-      value: { name: 'Example item' },
-    })
+    expect(outcomeOf(result)).toEqual({ ok: true, value: { name: 'ramen' } })
   })
 
   it('fails when fetch itself rejects', async () => {

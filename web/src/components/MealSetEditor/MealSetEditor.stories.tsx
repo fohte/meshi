@@ -51,11 +51,20 @@ export const Creating: Story = {
 }
 
 export const Searching: Story = {
-  name: '食品名で検索した結果を表示しています',
+  name: '食品名で検索しています',
   args: {
     foodQuery: '架空食品',
     isSearching: true,
-    searchResults: [FOOD_ALPHA],
+    isFoodSearchLoading: true,
+  },
+}
+
+export const SearchFailed: Story = {
+  name: '食品検索に失敗した理由を表示しています',
+  args: {
+    foodQuery: '架空食品',
+    isSearching: true,
+    foodSearchError: '食品を検索できませんでした。',
   },
 }
 
@@ -75,5 +84,15 @@ export const SaveFailed: Story = {
     name: '作業用セット',
     items: [ITEM_ALPHA],
     error: '同じ名前のマイセットがすでにあります。',
+  },
+}
+
+export const Saving: Story = {
+  name: 'マイセットを保存しています',
+  args: {
+    mode: 'edit',
+    name: '作業用セット',
+    items: [ITEM_ALPHA],
+    isSaving: true,
   },
 }

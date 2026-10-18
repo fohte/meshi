@@ -41,8 +41,6 @@ const mockFetchOk = (body: unknown, status = 200): ReturnType<typeof vi.fn> => {
 const normalizedApiError = (error: ApiRequestError) => ({
   name: error.name,
   message: error.message,
-  status:
-    'status' in error && typeof error.status === 'number' ? error.status : null,
 })
 
 afterEach(() => {
@@ -103,7 +101,7 @@ describe('postMealSet', () => {
     expect(result._unsafeUnwrap()).toEqual(SAMPLE_SET)
   })
 
-  it('returns the API error message and status for a conflicting name', async () => {
+  it('returns the API error message for a conflicting name', async () => {
     vi.stubGlobal(
       'fetch',
       vi.fn().mockResolvedValue({
@@ -122,9 +120,30 @@ describe('postMealSet', () => {
     })
 
     expect(normalizedApiError(result._unsafeUnwrapErr())).toEqual({
-      name: 'MealSetApiError',
+      name: 'ApiRequestError',
       message: 'A meal set with this name already exists',
-      status: 409,
+    })
+  })
+
+  it('falls back to the HTTP status when the error body is not JSON', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue(
+        new Response('Bad Gateway', {
+          status: 502,
+          headers: { 'content-type': 'text/plain' },
+        }),
+      ),
+    )
+
+    const result = await postMealSet({
+      name: 'Example meal',
+      items: [{ foodMasterId: 'food_example_01', quantity: 1 }],
+    })
+
+    expect(normalizedApiError(result._unsafeUnwrapErr())).toEqual({
+      name: 'ApiRequestError',
+      message: '/api/meal-sets responded with 502',
     })
   })
 })
@@ -198,7 +217,6 @@ describe('meal set response validation', () => {
     expect(normalizedApiError(result._unsafeUnwrapErr())).toEqual({
       name: 'ApiRequestError',
       message: '/api/meal-sets response did not match the expected schema',
-      status: null,
     })
   })
 })
