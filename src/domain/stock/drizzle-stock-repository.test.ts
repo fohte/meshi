@@ -91,11 +91,15 @@ describeIfDb('stock repository', () => {
     })
   })
 
-  it('backfills an existing received lot when eat-within days are omitted', async () => {
+  it('backfills an existing received lot on a storage-only update', async () => {
     const tx = getTx()
     await seedFoodMasterWithoutNutrition(tx, {
       id: 'fm_eat_by_backfill_status',
       name: 'Backfill status food',
+    })
+    await seedStorageLocation(tx, {
+      id: 'sl_eat_by_backfill_status',
+      name: 'Backfill pantry',
     })
     await seedStockItem(tx, {
       foodMasterId: 'fm_eat_by_backfill_status',
@@ -116,6 +120,7 @@ describeIfDb('stock repository', () => {
 
     await stockService.setStockItem({
       foodMasterId: 'fm_eat_by_backfill_status',
+      storageLocationName: 'Backfill pantry',
     })
     const status = (await stockService.getStockStatus())._unsafeUnwrap()
 
@@ -124,8 +129,8 @@ describeIfDb('stock repository', () => {
         {
           foodMasterId: 'fm_eat_by_backfill_status',
           foodName: 'Backfill status food',
-          storageLocationId: null,
-          storageLocation: null,
+          storageLocationId: 'sl_eat_by_backfill_status',
+          storageLocation: { name: 'Backfill pantry', capacity: null },
           eatWithinDays: 2,
           totalQuantity: 2,
           lots: [
