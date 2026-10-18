@@ -20,7 +20,7 @@ export const registerSetStockItemTool = (
     'set_stock_item',
     {
       description:
-        'food_master_id の食品を在庫管理の対象にする。保存場所は名前で指定し、未登録なら作成する。eat_within_days は受領日から食べ切りたい日数。値を省略すると既存の設定を維持し、null で解除する。',
+        'food_master_id の食品を在庫管理の対象にする。保存場所は名前で指定し、未登録なら作成する。eat_within_days は受領日から食べ切りたい日数。値を省略すると既存の設定を維持し、null で解除する。eat_within_days が設定済みの場合、呼び出し時に受領日があり eat_by が未設定の入荷分へ期限を補完する。',
       inputSchema: setStockItemInput,
       outputSchema: setStockItemStructuredOutput,
       annotations: { readOnlyHint: false },

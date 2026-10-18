@@ -91,6 +91,192 @@ describeIfDb('stock repository', () => {
     })
   })
 
+  it('backfills an existing received lot on a storage-only update', async () => {
+    const tx = getTx()
+    await seedFoodMasterWithoutNutrition(tx, {
+      id: 'fm_eat_by_backfill_status',
+      name: 'Backfill status food',
+    })
+    await seedStorageLocation(tx, {
+      id: 'sl_eat_by_backfill_status',
+      name: 'Backfill pantry',
+    })
+    await seedStockItem(tx, {
+      foodMasterId: 'fm_eat_by_backfill_status',
+      eatWithinDays: 2,
+    })
+    await seedStockLot(tx, {
+      id: 'stl_eat_by_backfill_status',
+      foodMasterId: 'fm_eat_by_backfill_status',
+      quantity: 2,
+      receivedDate: '2026-10-18',
+    })
+    await seedStockMovement(tx, {
+      id: 'stm_eat_by_backfill_status',
+      stockLotId: 'stl_eat_by_backfill_status',
+      delta: 2,
+      reason: 'receive',
+    })
+
+    await stockService.setStockItem({
+      foodMasterId: 'fm_eat_by_backfill_status',
+      storageLocationName: 'Backfill pantry',
+    })
+    const status = (await stockService.getStockStatus())._unsafeUnwrap()
+
+    expect(status).toEqual({
+      stockItems: [
+        {
+          foodMasterId: 'fm_eat_by_backfill_status',
+          foodName: 'Backfill status food',
+          storageLocationId: 'sl_eat_by_backfill_status',
+          storageLocation: { name: 'Backfill pantry', capacity: null },
+          eatWithinDays: 2,
+          totalQuantity: 2,
+          lots: [
+            {
+              id: 'stl_eat_by_backfill_status',
+              quantity: 2,
+              remainingQuantity: 2,
+              receivedDate: '2026-10-18',
+              bestBefore: null,
+              eatBy: '2026-10-20',
+            },
+          ],
+        },
+      ],
+      plannedDeliveries: [],
+      capacityWarnings: [],
+      eatByWarnings: [
+        {
+          id: 'eat-by-risk:stl_eat_by_backfill_status:2026-10-20:consumption_rate_below_required',
+          riskType: 'consumption_rate_below_required',
+          stockLotId: 'stl_eat_by_backfill_status',
+          foodMasterId: 'fm_eat_by_backfill_status',
+          foodName: 'Backfill status food',
+          targetDate: '2026-10-20',
+          targetDateType: 'eat_by',
+          remainingQuantity: 2,
+          quantityUsedForRate: 2,
+          daysUntilTarget: 2,
+          requiredDailyConsumption: 1,
+          actualDailyConsumption: 0,
+        },
+      ],
+      priorityLots: [
+        {
+          foodMasterId: 'fm_eat_by_backfill_status',
+          foodName: 'Backfill status food',
+          stockLotId: 'stl_eat_by_backfill_status',
+          remainingQuantity: 2,
+          targetDate: '2026-10-20',
+          reasons: ['eat_by', 'consumption_rate_below_required'],
+        },
+      ],
+    })
+  })
+
+  it('backfills only received lots with a missing eat-by date, including empty lots', async () => {
+    const tx = getTx()
+    await seedFoodMasterWithoutNutrition(tx, {
+      id: 'fm_eat_by_backfill_conditions',
+      name: 'Backfill conditions food',
+    })
+    await seedStockItem(tx, {
+      foodMasterId: 'fm_eat_by_backfill_conditions',
+      eatWithinDays: 3,
+    })
+    await seedFoodMasterWithoutNutrition(tx, {
+      id: 'fm_eat_by_backfill_other_food',
+      name: 'Unrelated backfill food',
+    })
+    await seedStockLot(tx, {
+      id: 'stl_eat_by_backfill_empty',
+      foodMasterId: 'fm_eat_by_backfill_conditions',
+      quantity: 1,
+      receivedDate: '2026-10-01',
+    })
+    await seedStockMovement(tx, {
+      id: 'stm_eat_by_backfill_empty_in',
+      stockLotId: 'stl_eat_by_backfill_empty',
+      delta: 1,
+      reason: 'receive',
+    })
+    await seedStockMovement(tx, {
+      id: 'stm_eat_by_backfill_empty_out',
+      stockLotId: 'stl_eat_by_backfill_empty',
+      delta: -1,
+      reason: 'count',
+    })
+    await seedStockLot(tx, {
+      id: 'stl_eat_by_backfill_manual',
+      foodMasterId: 'fm_eat_by_backfill_conditions',
+      quantity: 1,
+      receivedDate: '2026-10-02',
+      eatBy: '2026-10-30',
+    })
+    await seedStockLot(tx, {
+      id: 'stl_eat_by_backfill_undated',
+      foodMasterId: 'fm_eat_by_backfill_conditions',
+      quantity: 1,
+      eatBy: null,
+    })
+    await seedStockLot(tx, {
+      id: 'stl_eat_by_backfill_other_food',
+      foodMasterId: 'fm_eat_by_backfill_other_food',
+      quantity: 1,
+      receivedDate: '2026-10-03',
+    })
+
+    await stockService.setStockItem({
+      foodMasterId: 'fm_eat_by_backfill_conditions',
+      eatWithinDays: 9,
+    })
+    const result = await tx<
+      {
+        id: string
+        food_master_id: string
+        received_date: string | null
+        eat_by: string | null
+      }[]
+    >`
+      SELECT id, food_master_id, received_date::text AS received_date,
+             eat_by::text AS eat_by
+      FROM stock_lots
+      WHERE food_master_id IN (
+        'fm_eat_by_backfill_conditions', 'fm_eat_by_backfill_other_food'
+      )
+      ORDER BY food_master_id, id
+    `
+
+    expect(result).toEqual([
+      {
+        id: 'stl_eat_by_backfill_empty',
+        food_master_id: 'fm_eat_by_backfill_conditions',
+        received_date: '2026-10-01',
+        eat_by: '2026-10-10',
+      },
+      {
+        id: 'stl_eat_by_backfill_manual',
+        food_master_id: 'fm_eat_by_backfill_conditions',
+        received_date: '2026-10-02',
+        eat_by: '2026-10-30',
+      },
+      {
+        id: 'stl_eat_by_backfill_undated',
+        food_master_id: 'fm_eat_by_backfill_conditions',
+        received_date: null,
+        eat_by: null,
+      },
+      {
+        id: 'stl_eat_by_backfill_other_food',
+        food_master_id: 'fm_eat_by_backfill_other_food',
+        received_date: '2026-10-03',
+        eat_by: null,
+      },
+    ])
+  })
+
   it('clears the assigned storage location', async () => {
     const tx = getTx()
     await seedFoodMasterWithoutNutrition(tx, {
