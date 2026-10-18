@@ -1,4 +1,4 @@
-import config, { project } from '#knip-config'
+import config, { project, testHelperExclusions } from '#knip-config'
 
 export default {
   ...config,
@@ -15,7 +15,7 @@ export default {
     web: {
       project: [
         '**/*.{js,mjs,cjs,jsx,ts,tsx,mts,cts}!',
-        '!src/**/test-helpers.ts!',
+        ...testHelperExclusions,
       ],
     },
   },

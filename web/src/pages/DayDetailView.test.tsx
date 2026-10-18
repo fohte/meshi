@@ -90,6 +90,25 @@ const jsonResponse = (body: unknown, status = 200): Response =>
     headers: { 'content-type': 'application/json' },
   })
 
+const mealSetPosts = (
+  requests: ReadonlyArray<RequestRecord>,
+): ReadonlyArray<RequestRecord> =>
+  requests.filter(
+    (request) => request.method === 'POST' && request.path === '/api/meal-sets',
+  )
+
+const expectedMealSetPost = (name: string): RequestRecord => ({
+  method: 'POST',
+  path: '/api/meal-sets',
+  body: {
+    name,
+    items: [
+      { foodMasterId: 'food_fixture_001', quantity: 3.25 },
+      { foodMasterId: 'food_fixture_002', quantity: 0.5 },
+    ],
+  },
+})
+
 const waitFor = async (condition: () => boolean): Promise<void> => {
   for (let attempt = 0; attempt < 40 && !condition(); attempt += 1) {
     await act(async () => {
@@ -195,29 +214,17 @@ const submitMealSet = async (
 const saveOutput = (
   requests: ReadonlyArray<RequestRecord>,
   container: HTMLElement,
+  submitButton?: HTMLButtonElement | null,
 ) => ({
-  requests: requests.filter(
-    (request) => request.method === 'POST' && request.path === '/api/meal-sets',
-  ),
+  requests: mealSetPosts(requests),
   output: {
     error: container.querySelector('[role="alert"]')?.textContent ?? null,
     status: container.querySelector('[role="status"]')?.textContent ?? null,
     formOpen: container.querySelector('#meal-set-save-breakfast') !== null,
+    ...(submitButton === undefined
+      ? {}
+      : { submitDisabled: submitButton?.disabled ?? null }),
   },
-})
-
-const readSaveLifecycleOutput = (
-  requestsDuringSave: ReadonlyArray<RequestRecord>,
-  submitDisabledDuringSave: boolean | null,
-  statusDuringSave: string | null,
-  requestsAfterSave: ReadonlyArray<RequestRecord>,
-  statusAfterSave: string | null,
-) => ({
-  requestsDuringSave,
-  submitDisabledDuringSave,
-  statusDuringSave,
-  requestsAfterSave,
-  statusAfterSave,
 })
 
 const cleanupPage = async (
@@ -274,19 +281,7 @@ describe('DayDetailView', () => {
       await waitFor(() => container.querySelector('[role="status"]') !== null)
 
       expect(saveOutput(requests, container)).toEqual({
-        requests: [
-          {
-            method: 'POST',
-            path: '/api/meal-sets',
-            body: {
-              name: 'テストセット_001',
-              items: [
-                { foodMasterId: 'food_fixture_001', quantity: 3.25 },
-                { foodMasterId: 'food_fixture_002', quantity: 0.5 },
-              ],
-            },
-          },
-        ],
+        requests: [expectedMealSetPost('テストセット_001')],
         output: {
           error: null,
           status: '「テストセット_001」をマイセットに保存しました。',
@@ -329,13 +324,15 @@ describe('DayDetailView', () => {
         submitButton?.click()
       })
 
-      const requestsDuringSave = requests.filter(
-        (request) =>
-          request.method === 'POST' && request.path === '/api/meal-sets',
-      )
-      const submitDisabledDuringSave = submitButton?.disabled ?? null
-      const statusDuringSave =
-        container.querySelector('[role="status"]')?.textContent ?? null
+      expect(saveOutput(requests, container, submitButton)).toEqual({
+        requests: [expectedMealSetPost('テストセット_001')],
+        output: {
+          error: null,
+          status: null,
+          formOpen: true,
+          submitDisabled: true,
+        },
+      })
 
       resolveSave(
         jsonResponse(
@@ -362,49 +359,6 @@ describe('DayDetailView', () => {
         ),
       )
       await waitFor(() => container.querySelector('[role="status"]') !== null)
-
-      expect(
-        readSaveLifecycleOutput(
-          requestsDuringSave,
-          submitDisabledDuringSave,
-          statusDuringSave,
-          requests.filter(
-            (request) =>
-              request.method === 'POST' && request.path === '/api/meal-sets',
-          ),
-          container.querySelector('[role="status"]')?.textContent ?? null,
-        ),
-      ).toEqual({
-        requestsDuringSave: [
-          {
-            method: 'POST',
-            path: '/api/meal-sets',
-            body: {
-              name: 'テストセット_001',
-              items: [
-                { foodMasterId: 'food_fixture_001', quantity: 3.25 },
-                { foodMasterId: 'food_fixture_002', quantity: 0.5 },
-              ],
-            },
-          },
-        ],
-        submitDisabledDuringSave: true,
-        statusDuringSave: null,
-        requestsAfterSave: [
-          {
-            method: 'POST',
-            path: '/api/meal-sets',
-            body: {
-              name: 'テストセット_001',
-              items: [
-                { foodMasterId: 'food_fixture_001', quantity: 3.25 },
-                { foodMasterId: 'food_fixture_002', quantity: 0.5 },
-              ],
-            },
-          },
-        ],
-        statusAfterSave: '「テストセット_001」をマイセットに保存しました。',
-      })
     } finally {
       await cleanupPage(container, root, queryClient)
     }
@@ -440,19 +394,7 @@ describe('DayDetailView', () => {
       await waitFor(() => container.querySelector('[role="alert"]') !== null)
 
       expect(saveOutput(requests, container)).toEqual({
-        requests: [
-          {
-            method: 'POST',
-            path: '/api/meal-sets',
-            body: {
-              name: 'テストセット_001',
-              items: [
-                { foodMasterId: 'food_fixture_001', quantity: 3.25 },
-                { foodMasterId: 'food_fixture_002', quantity: 0.5 },
-              ],
-            },
-          },
-        ],
+        requests: [expectedMealSetPost('テストセット_001')],
         output: {
           error:
             '保存できませんでした: meal_set with name already exists: テストセット_001',
