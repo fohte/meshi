@@ -5,6 +5,7 @@ import { DayPage } from '#pages/DayPage'
 import { FoodDetailPage } from '#pages/FoodDetailPage'
 import { FoodsPage } from '#pages/FoodsPage'
 import { HistoryPage } from '#pages/HistoryPage'
+import { MealSetsPage } from '#pages/MealSetsPage'
 import { SettingsPage } from '#pages/SettingsPage'
 import { TodayPage } from '#pages/TodayPage'
 import { AppShell } from '#shell/AppShell'
@@ -16,6 +17,7 @@ export const App = (): React.JSX.Element => (
         <Route index element={<TodayPage />} />
         <Route path="days/:date" element={<DayPage />} />
         <Route path="history" element={<HistoryPage />} />
+        <Route path="meal-sets" element={<MealSetsPage />} />
         <Route path="foods" element={<FoodsPage />} />
         <Route path="foods/:id" element={<FoodDetailPage />} />
         <Route path="settings" element={<SettingsPage />} />

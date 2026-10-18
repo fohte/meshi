@@ -6,6 +6,7 @@ export interface NavItem {
 export const NAV_ITEMS: readonly NavItem[] = [
   { label: '今日', path: '/' },
   { label: '履歴', path: '/history' },
+  { label: 'マイセット', path: '/meal-sets' },
   { label: '食品', path: '/foods' },
   { label: '設定', path: '/settings' },
 ]

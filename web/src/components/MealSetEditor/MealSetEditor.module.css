@@ -1,0 +1,313 @@
+.editor {
+  border: var(--border-width) solid var(--color-border);
+  background: var(--color-surface);
+  padding: 20px;
+}
+
+.header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 20px;
+}
+
+.title {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  margin: 0;
+  font-size: 16px;
+}
+
+.sectionMarker,
+.searchPrompt {
+  color: var(--color-accent);
+  font-family: var(--font-mono);
+  font-size: 12px;
+}
+
+.closeButton,
+.clearButton {
+  all: unset;
+  cursor: pointer;
+  color: var(--color-muted);
+  font-family: var(--font-mono);
+}
+
+.closeButton {
+  font-size: 18px;
+  line-height: 1;
+}
+
+.fieldLabel {
+  display: block;
+  margin-bottom: 8px;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.textInput,
+.searchInput,
+.quantityInput {
+  box-sizing: border-box;
+  border: var(--border-width) solid var(--color-border);
+  border-radius: 0;
+  background: var(--color-bg);
+  color: var(--color-text);
+  font: inherit;
+}
+
+.textInput {
+  width: 100%;
+  min-height: 42px;
+  padding: 9px 12px;
+  margin-bottom: 22px;
+}
+
+.itemsHeader {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.itemsHeader .fieldLabel {
+  margin-bottom: 8px;
+}
+
+.hint,
+.validationHint {
+  color: var(--color-muted);
+  font-size: 12px;
+}
+
+.emptyItems,
+.emptySearch,
+.searchStatus {
+  border: var(--border-width) solid var(--color-border);
+  padding: 14px;
+  color: var(--color-muted);
+  font-size: 13px;
+}
+
+.selectedItems,
+.foodList {
+  padding: 0;
+  margin: 0 0 20px;
+  list-style: none;
+}
+
+.selectedItems {
+  border: var(--border-width) solid var(--color-border);
+}
+
+.selectedItem {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 52px;
+  padding: 8px 12px;
+  border-bottom: var(--border-width) solid var(--color-border);
+}
+
+.selectedItem:last-child {
+  border-bottom: 0;
+}
+
+.itemName {
+  flex: 1;
+  min-width: 0;
+  font-size: 14px;
+}
+
+.quantityField {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  color: var(--color-muted);
+  font-family: var(--font-mono);
+  font-size: 13px;
+}
+
+.quantityInput {
+  width: 78px;
+  padding: 6px 8px;
+  text-align: right;
+}
+
+.removeButton {
+  all: unset;
+  cursor: pointer;
+  color: var(--color-muted);
+  font-size: 12px;
+}
+
+.searchBox {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 40px;
+  box-sizing: border-box;
+  border: var(--border-width) solid var(--color-border);
+  padding: 7px 10px;
+  margin-bottom: 12px;
+}
+
+.searchInput {
+  min-width: 0;
+  flex: 1;
+  border: 0;
+  background: transparent;
+  outline: none;
+  font-size: 13px;
+}
+
+.clearButton {
+  font-size: 11px;
+}
+
+.foodSection {
+  margin-bottom: 16px;
+}
+
+.foodSectionTitle {
+  margin: 0 0 7px;
+  color: var(--color-muted);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.foodList {
+  margin-bottom: 0;
+  border: var(--border-width) solid var(--color-border);
+}
+
+.foodList li + li {
+  border-top: var(--border-width) solid var(--color-border);
+}
+
+.foodOption {
+  all: unset;
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  width: 100%;
+  min-height: 44px;
+  padding: 8px 11px;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.foodOption:hover,
+.foodOption:focus-visible {
+  background: #202020;
+}
+
+.foodName {
+  min-width: 0;
+  font-size: 13px;
+}
+
+.estimated {
+  margin-left: 8px;
+  color: var(--color-muted);
+  font-size: 11px;
+}
+
+.foodKcal {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  color: var(--color-muted);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  white-space: nowrap;
+}
+
+.addMark {
+  color: var(--color-accent);
+  font-size: 16px;
+}
+
+.error {
+  color: #fca5a5;
+  font-size: 13px;
+}
+
+.validationHint {
+  margin: 8px 0 0;
+}
+
+.actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 22px;
+}
+
+.primaryButton,
+.secondaryButton {
+  min-height: 38px;
+  border: var(--border-width) solid var(--color-border);
+  border-radius: 0;
+  padding: 7px 13px;
+  cursor: pointer;
+  font: inherit;
+  font-size: 13px;
+}
+
+.primaryButton {
+  border-color: var(--color-accent);
+  background: var(--color-accent);
+  color: white;
+}
+
+.secondaryButton {
+  background: transparent;
+  color: var(--color-text);
+}
+
+.primaryButton:disabled,
+.secondaryButton:disabled,
+.removeButton:disabled,
+.closeButton:disabled,
+.clearButton:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+.srOnly {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+@media (max-width: 520px) {
+  .editor {
+    padding: 15px;
+  }
+
+  .itemsHeader {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 0;
+  }
+
+  .selectedItem {
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  .itemName {
+    flex-basis: 100%;
+  }
+}
