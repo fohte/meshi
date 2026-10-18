@@ -6,6 +6,7 @@ export interface MealSetItemInput {
 
 export interface MealSetItem extends MealSetItemInput {
   readonly foodName: string
+  readonly energyKcalPerUnit: number | null
 }
 
 export interface MealSet {

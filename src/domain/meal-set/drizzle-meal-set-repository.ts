@@ -1,4 +1,4 @@
-import { asc, desc, eq, inArray, type SQL, sql } from 'drizzle-orm'
+import { and, asc, desc, eq, inArray, type SQL, sql } from 'drizzle-orm'
 import { drizzle } from 'drizzle-orm/postgres-js'
 import { err, ok, okAsync, type Result, ResultAsync } from 'neverthrow'
 import { z } from 'zod'
@@ -6,7 +6,12 @@ import { z } from 'zod'
 import type { Sql } from '#db/index'
 import { numericValueSchema } from '#db/numeric-value-schema'
 import { getConstraintName, isUniqueViolation } from '#db/pg-error'
-import { foodMasters, mealSetItems, mealSets } from '#db/schema'
+import {
+  foodMasterNutrients,
+  foodMasters,
+  mealSetItems,
+  mealSets,
+} from '#db/schema'
 import {
   DuplicateMealSetNameError,
   type MealSetDomainError,
@@ -18,7 +23,11 @@ import type {
   MealSetRepository,
   MealSetWrite,
 } from '#domain/meal-set/meal-set-repository'
-import type { MealSet, MealSetItem } from '#domain/meal-set/types'
+import type {
+  MealSet,
+  MealSetItem,
+  MealSetItemInput,
+} from '#domain/meal-set/types'
 
 type Db = ReturnType<typeof drizzle>
 type Transaction = Parameters<Parameters<Db['transaction']>[0]>[0]
@@ -36,6 +45,7 @@ const mealSetRowsSchema = z.array(
     foodMasterId: z.string(),
     foodName: z.string(),
     quantity: numericValueSchema.pipe(z.number().positive()),
+    energyKcal: numericValueSchema.nullable(),
   }),
 )
 
@@ -66,6 +76,7 @@ const toMealSets = (
       foodMasterId: row.foodMasterId,
       foodName: row.foodName,
       quantity: row.quantity,
+      energyKcalPerUnit: row.energyKcal,
     }
     if (existing === undefined) {
       groups.set(row.id, {
@@ -91,19 +102,27 @@ const selectMealSetRows = (session: DbSession, where?: SQL) =>
       foodMasterId: mealSetItems.foodMasterId,
       foodName: foodMasters.name,
       quantity: mealSetItems.quantity,
+      energyKcal: foodMasterNutrients.value,
     })
     .from(mealSets)
     .innerJoin(mealSetItems, eq(mealSetItems.mealSetId, mealSets.id))
     .innerJoin(foodMasters, eq(foodMasters.id, mealSetItems.foodMasterId))
+    .leftJoin(
+      foodMasterNutrients,
+      and(
+        eq(foodMasterNutrients.foodMasterId, foodMasters.id),
+        eq(foodMasterNutrients.nutrientCode, 'energy_kcal'),
+      ),
+    )
     .where(where)
     .orderBy(asc(mealSets.name), asc(foodMasters.name), asc(foodMasters.id))
 
 const findItems = async (
   session: DbSession,
   input: MealSetWrite,
-): Promise<Result<ReadonlyArray<MealSetItem>, MealSetDomainError>> => {
+): Promise<Result<ReadonlyArray<MealSetItemInput>, MealSetDomainError>> => {
   const foodRows = await session
-    .select({ id: foodMasters.id, name: foodMasters.name })
+    .select({ id: foodMasters.id })
     .from(foodMasters)
     .where(
       inArray(
@@ -113,9 +132,9 @@ const findItems = async (
     )
     .for('key share', { of: foodMasters })
 
-  const foodsById = new Map(foodRows.map((food) => [food.id, food.name]))
+  const foundFoodMasterIds = new Set(foodRows.map((food) => food.id))
   const missingFoodMaster = input.items.find(
-    (item) => !foodsById.has(item.foodMasterId),
+    (item) => !foundFoodMasterIds.has(item.foodMasterId),
   )
   if (missingFoodMaster !== undefined) {
     return err(
@@ -123,18 +142,13 @@ const findItems = async (
     )
   }
 
-  return ok(
-    input.items.map((item) => ({
-      ...item,
-      foodName: foodsById.get(item.foodMasterId) ?? '',
-    })),
-  )
+  return ok(input.items)
 }
 
 const insertMealSetItems = (
   session: DbSession,
   mealSetId: string,
-  items: ReadonlyArray<MealSetItem>,
+  items: MealSetWrite['items'],
 ) =>
   session.insert(mealSetItems).values(
     items.map((item) => ({

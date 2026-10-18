@@ -43,7 +43,7 @@ export const mountApiRoutes = (app: Hono, deps: ApiDeps): void => {
     foodDetailService: deps.foodDetailService,
   })
   mountMealLogRoutes(app, deps.mealLogService)
-  mountMealSetRoutes(app, deps.mealSetService, deps.foodMasterService)
+  mountMealSetRoutes(app, deps.mealSetService)
   mountFoodMasterRoutes(app, deps.foodMasterService)
   mountMealSkipRoutes(app, deps.mealSkipService)
 }

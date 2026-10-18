@@ -3,9 +3,6 @@ import { errAsync, okAsync } from 'neverthrow'
 import { describe, expect, it } from 'vitest'
 
 import { mountMealSetRoutes } from '#api/meal-set-routes'
-import { FoodMasterDomainError } from '#domain/food-master/errors'
-import type { FoodMasterService } from '#domain/food-master/service'
-import type { FoodMaster } from '#domain/food-master/types'
 import {
   DuplicateMealSetFoodMasterError,
   DuplicateMealSetNameError,
@@ -18,51 +15,41 @@ import {
 } from '#domain/meal-set/errors'
 import type { MealSet, MealSetService } from '#domain/meal-set/index'
 
-type FoodMasterLookup = Pick<FoodMasterService, 'getById'>
-
 const SAMPLE_MEAL_SET: MealSet = {
   id: 'ms_sample',
   name: 'Example set',
   items: [
-    { foodMasterId: 'fm_alpha', foodName: 'Alpha food', quantity: 1.5 },
-    { foodMasterId: 'fm_beta', foodName: 'Beta food', quantity: 2 },
+    {
+      foodMasterId: 'fm_alpha',
+      foodName: 'Alpha food',
+      quantity: 1.5,
+      energyKcalPerUnit: 42,
+    },
+    {
+      foodMasterId: 'fm_beta',
+      foodName: 'Beta food',
+      quantity: 2,
+      energyKcalPerUnit: null,
+    },
   ],
   createdAt: new Date('2026-08-01T00:00:00.000Z'),
 }
 
 const SINGLE_ITEM_MEAL_SET: MealSet = {
   ...SAMPLE_MEAL_SET,
-  items: [{ foodMasterId: 'fm_alpha', foodName: 'Alpha food', quantity: 1.5 }],
+  items: [
+    {
+      foodMasterId: 'fm_alpha',
+      foodName: 'Alpha food',
+      quantity: 1.5,
+      energyKcalPerUnit: 42,
+    },
+  ],
 }
 
-const foodMaster = (
-  id: string,
-  nutrition: FoodMaster['nutrition'],
-): FoodMaster => ({
-  id,
-  name: 'Example food',
-  aliases: [],
-  isEstimated: false,
-  nutritionStatus: 'confirmed',
-  source: null,
-  sourceUrl: null,
-  sourceCompositionCode: null,
-  nutrition,
-  createdAt: new Date('2026-08-01T00:00:00.000Z'),
-})
-
-const foodMasterLookup = (
-  lookup: (id: string) => FoodMaster | null,
-): FoodMasterLookup => ({
-  getById: (id) => okAsync(lookup(id)),
-})
-
-const buildApp = (
-  mealSetService: MealSetService,
-  foodMasterService: FoodMasterLookup = foodMasterLookup(() => null),
-): Hono => {
+const buildApp = (mealSetService: MealSetService): Hono => {
   const app = new Hono()
-  mountMealSetRoutes(app, mealSetService, foodMasterService)
+  mountMealSetRoutes(app, mealSetService)
   return app
 }
 
@@ -99,17 +86,10 @@ const responseWithCaptured = async (res: Response, captured: unknown) => ({
 
 describe('GET /api/meal-sets', () => {
   it('returns saved sets with food names and per-unit kcal', async () => {
-    const app = buildApp(
-      {
-        ...notStubbed('service'),
-        list: () => okAsync([SAMPLE_MEAL_SET]),
-      },
-      foodMasterLookup((id) =>
-        id === 'fm_alpha'
-          ? foodMaster(id, { energy_kcal: 42 })
-          : foodMaster(id, {}),
-      ),
-    )
+    const app = buildApp({
+      ...notStubbed('service'),
+      list: () => okAsync([SAMPLE_MEAL_SET]),
+    })
 
     const res = await app.request('/api/meal-sets')
 
@@ -139,25 +119,17 @@ describe('GET /api/meal-sets', () => {
     })
   })
 
-  it('returns a server error when kcal lookup fails', async () => {
-    const app = buildApp(
-      {
-        ...notStubbed('service'),
-        list: () => okAsync([SAMPLE_MEAL_SET]),
-      },
-      {
-        getById: () =>
-          errAsync(
-            new FoodMasterDomainError('persistence_failed', 'lookup failed'),
-          ),
-      },
-    )
+  it('returns a server error when listing sets fails', async () => {
+    const app = buildApp({
+      ...notStubbed('service'),
+      list: () => errAsync(new MealSetPersistenceError('database unavailable')),
+    })
 
     const res = await app.request('/api/meal-sets')
 
     expect(await responseSnapshot(res)).toEqual({
       status: 500,
-      body: { error: 'lookup failed' },
+      body: { error: 'database unavailable' },
     })
   })
 })
@@ -165,16 +137,13 @@ describe('GET /api/meal-sets', () => {
 describe('POST /api/meal-sets', () => {
   it('creates a set and returns its enriched response', async () => {
     let captured: unknown
-    const app = buildApp(
-      {
-        ...notStubbed('service'),
-        register: (input) => {
-          captured = input
-          return okAsync(SINGLE_ITEM_MEAL_SET)
-        },
+    const app = buildApp({
+      ...notStubbed('service'),
+      register: (input) => {
+        captured = input
+        return okAsync(SINGLE_ITEM_MEAL_SET)
       },
-      foodMasterLookup((id) => foodMaster(id, { energy_kcal: 42 })),
-    )
+    })
 
     const res = await app.request(
       jsonRequest('/api/meal-sets', 'POST', {
@@ -281,7 +250,7 @@ describe('PATCH /api/meal-sets/:id', () => {
               foodMasterId: 'fm_alpha',
               foodName: 'Alpha food',
               quantity: 1.5,
-              energyKcalPerUnit: null,
+              energyKcalPerUnit: 42,
             },
           ],
           createdAt: '2026-08-01T00:00:00.000Z',
@@ -333,6 +302,22 @@ describe('DELETE /api/meal-sets/:id', () => {
     expect(await responseWithCaptured(res, captured)).toEqual({
       response: { status: 204, body: null },
       captured: 'ms_sample',
+    })
+  })
+
+  it('returns 404 when the set does not exist', async () => {
+    const app = buildApp({
+      ...notStubbed('service'),
+      delete: () => errAsync(new MealSetNotFoundError('ms_missing')),
+    })
+
+    const res = await app.request(
+      jsonRequest('/api/meal-sets/ms_missing', 'DELETE'),
+    )
+
+    expect(await responseSnapshot(res)).toEqual({
+      status: 404,
+      body: { error: 'meal_set not found: ms_missing' },
     })
   })
 })
