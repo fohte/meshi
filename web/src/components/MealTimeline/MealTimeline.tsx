@@ -13,6 +13,10 @@ export interface MealTimelineProps {
   readonly onMarkSkipped?: (mealType: MealType) => void
   readonly onCancelSkip?: (mealType: MealType) => void
   readonly isSkipActionPending?: boolean
+  readonly saveMealSetFormMealType?: MealType | null
+  readonly onToggleMealSetSave?: (mealType: MealType) => void
+  readonly renderMealSetSaveForm?: (mealType: MealType) => React.ReactNode
+  readonly isMealSetSavePending?: boolean
 }
 
 export const MealTimeline = ({
@@ -22,6 +26,10 @@ export const MealTimeline = ({
   onMarkSkipped,
   onCancelSkip,
   isSkipActionPending,
+  saveMealSetFormMealType = null,
+  onToggleMealSetSave,
+  renderMealSetSaveForm,
+  isMealSetSavePending = false,
 }: MealTimelineProps): React.JSX.Element => (
   <div className={styles.timeline}>
     {groups.map((group) => (
@@ -30,7 +38,23 @@ export const MealTimeline = ({
           <span className={styles.groupMark}>##</span>
           <span className={styles.groupLabel}>{group.label}</span>
           {group.status === 'eaten' && (
-            <span className={styles.groupKcal}>{group.kcalText}</span>
+            <div className={styles.groupActions}>
+              <span className={styles.groupKcal}>{group.kcalText}</span>
+              <button
+                type="button"
+                className={styles.groupSaveAction}
+                aria-label={`${group.label}をマイセットとして保存`}
+                aria-expanded={saveMealSetFormMealType === group.mealType}
+                disabled={isMealSetSavePending}
+                onClick={() => {
+                  onToggleMealSetSave?.(group.mealType)
+                }}
+              >
+                {saveMealSetFormMealType === group.mealType
+                  ? '入力を閉じる'
+                  : 'マイセットとして保存'}
+              </button>
+            </div>
           )}
           {group.status === 'skipped' && (
             <div className={styles.groupStatus}>
@@ -64,6 +88,7 @@ export const MealTimeline = ({
           )}
         </div>
         {renderMealPhotos?.(group.mealType)}
+        {group.status === 'eaten' && renderMealSetSaveForm?.(group.mealType)}
         {group.status === 'eaten' && (
           <div className={styles.items}>
             {group.items.map((item) => (
