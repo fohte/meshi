@@ -1,16 +1,24 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { DayDetailEntry } from '#api/day-detail'
+import type { MealSet } from '#api/meal-sets'
 import {
   applyFoodSelection,
+  applyMealSetFoodSelection,
   backToSearch,
+  beginMealSetFoodSelection,
   buildContinueState,
   buildCreateState,
   buildEditState,
+  buildMealSetRecordState,
+  buildMealSetSavePayload,
   buildSavePayload,
+  type CreateSheetState,
   previewKcal,
+  removeMealSetItem,
   type SelectedFood,
-  type SheetState,
+  setMealSetItemQuantity,
+  type SingleSheetState,
 } from '#meal-log-sheet/sheet-state'
 
 const RICE: SelectedFood = {
@@ -30,6 +38,27 @@ const ENTRY: DayDetailEntry = {
   kcal: 234,
   isEstimated: false,
   nutritionStatus: 'confirmed',
+}
+
+const MEAL_SET: MealSet = {
+  id: 'ms_demo_alpha',
+  name: '作業用セット',
+  items: [
+    {
+      foodMasterId: 'fm_demo_alpha',
+      foodName: '架空食品 A',
+      quantity: 1.5,
+      energyKcalPerUnit: 120,
+    },
+  ],
+  createdAt: '2026-01-01T00:00:00.000Z',
+}
+
+const ALTERNATE_FOOD: SelectedFood = {
+  foodMasterId: 'fm_demo_beta',
+  name: '架空食品 B',
+  isEstimated: false,
+  energyKcalPerUnit: 80,
 }
 
 describe('buildCreateState', () => {
@@ -61,13 +90,14 @@ describe('buildCreateState', () => {
       mealType: null,
       date: '2026-07-29',
       justSaved: false,
+      activeTab: 'food',
     })
   })
 })
 
 describe('buildContinueState', () => {
   it('resets to search but keeps date and marks justSaved', () => {
-    const previous: SheetState = {
+    const previous: CreateSheetState = {
       ...buildCreateState(),
       date: '2026-07-20',
       selectedFood: RICE,
@@ -85,6 +115,7 @@ describe('buildContinueState', () => {
       mealType: null,
       date: '2026-07-20',
       justSaved: true,
+      activeTab: 'food',
     })
   })
 })
@@ -164,7 +195,7 @@ describe('applyFoodSelection', () => {
 
 describe('backToSearch', () => {
   it('clears the selected food and returns to the search phase', () => {
-    const state: SheetState = {
+    const state: CreateSheetState = {
       ...buildCreateState(),
       selectedFood: RICE,
       isNewFood: true,
@@ -216,7 +247,7 @@ describe('buildSavePayload', () => {
   )
 
   it('builds a payload with the chosen mealType', () => {
-    const state: SheetState = {
+    const state: SingleSheetState = {
       ...buildCreateState(),
       selectedFood: RICE,
       quantity: '150',
@@ -230,5 +261,160 @@ describe('buildSavePayload', () => {
       mealType: 'dinner',
       quantity: 150,
     })
+  })
+})
+
+describe('buildMealSetRecordState', () => {
+  it('copies set items into an editable recording state', () => {
+    expect(buildMealSetRecordState(MEAL_SET, '2026-01-02')).toEqual({
+      mode: 'meal-set',
+      mealSetName: '作業用セット',
+      items: [
+        {
+          id: 0,
+          foodMasterId: 'fm_demo_alpha',
+          foodName: '架空食品 A',
+          quantity: '1.5',
+          energyKcalPerUnit: 120,
+        },
+      ],
+      nextItemId: 1,
+      query: '',
+      pendingSelection: null,
+      mealType: null,
+      date: '2026-01-02',
+    })
+  })
+})
+
+describe('applyMealSetFoodSelection', () => {
+  it('replaces only the selected item and keeps its quantity', () => {
+    const state = beginMealSetFoodSelection(
+      buildMealSetRecordState(MEAL_SET, '2026-01-02'),
+      { type: 'replace', itemId: 0 },
+    )
+
+    expect(applyMealSetFoodSelection(state, ALTERNATE_FOOD)).toEqual({
+      ...state,
+      pendingSelection: null,
+      query: '',
+      items: [
+        {
+          id: 0,
+          foodMasterId: 'fm_demo_beta',
+          foodName: '架空食品 B',
+          quantity: '1.5',
+          energyKcalPerUnit: 80,
+        },
+      ],
+    })
+  })
+
+  it('adds the selected food with its default quantity', () => {
+    const state = beginMealSetFoodSelection(
+      buildMealSetRecordState(MEAL_SET, '2026-01-02'),
+      { type: 'add' },
+    )
+
+    expect(applyMealSetFoodSelection(state, ALTERNATE_FOOD)).toEqual({
+      ...state,
+      pendingSelection: null,
+      query: '',
+      nextItemId: 2,
+      items: [
+        {
+          id: 0,
+          foodMasterId: 'fm_demo_alpha',
+          foodName: '架空食品 A',
+          quantity: '1.5',
+          energyKcalPerUnit: 120,
+        },
+        {
+          id: 1,
+          foodMasterId: 'fm_demo_beta',
+          foodName: '架空食品 B',
+          quantity: '1',
+          energyKcalPerUnit: 80,
+        },
+      ],
+    })
+  })
+})
+
+describe('meal set item editing', () => {
+  it('updates one item quantity and removes one item', () => {
+    const initial = buildMealSetRecordState(MEAL_SET, '2026-01-02')
+    const withAddedFood = applyMealSetFoodSelection(
+      beginMealSetFoodSelection(initial, { type: 'add' }),
+      ALTERNATE_FOOD,
+    )
+
+    expect(
+      removeMealSetItem(setMealSetItemQuantity(withAddedFood, 1, '2.25'), 0),
+    ).toEqual({
+      ...withAddedFood,
+      items: [
+        {
+          id: 1,
+          foodMasterId: 'fm_demo_beta',
+          foodName: '架空食品 B',
+          quantity: '2.25',
+          energyKcalPerUnit: 80,
+        },
+      ],
+    })
+  })
+})
+
+describe('buildMealSetSavePayload', () => {
+  it('builds a batch payload with the selected meal type and edited quantities', () => {
+    const initial = buildMealSetRecordState(MEAL_SET, '2026-01-02')
+    const withAddedFood = applyMealSetFoodSelection(
+      beginMealSetFoodSelection(initial, { type: 'add' }),
+      ALTERNATE_FOOD,
+    )
+    const state = {
+      ...withAddedFood,
+      items: withAddedFood.items.map((item) =>
+        item.id === 1 ? { ...item, quantity: '2.25' } : item,
+      ),
+      mealType: 'dinner' as const,
+    }
+
+    expect(buildMealSetSavePayload(state)).toEqual({
+      eatenDate: '2026-01-02',
+      mealType: 'dinner',
+      items: [
+        { foodMasterId: 'fm_demo_alpha', quantity: 1.5 },
+        { foodMasterId: 'fm_demo_beta', quantity: 2.25 },
+      ],
+    })
+  })
+
+  it('does not build a batch payload when any item quantity is invalid', () => {
+    const state = {
+      ...buildMealSetRecordState(MEAL_SET, '2026-01-02'),
+      mealType: 'dinner' as const,
+      items: [
+        {
+          id: 0,
+          foodMasterId: 'fm_demo_alpha',
+          foodName: '架空食品 A',
+          quantity: '0',
+          energyKcalPerUnit: 120,
+        },
+      ],
+    }
+
+    expect(buildMealSetSavePayload(state)).toBeNull()
+  })
+
+  it('does not build a batch payload while a food is being selected', () => {
+    const state = beginMealSetFoodSelection(
+      buildMealSetRecordState(MEAL_SET, '2026-01-02'),
+      { type: 'add' },
+    )
+
+    expect(buildMealSetSavePayload({ ...state, mealType: 'dinner' })).toBeNull()
   })
 })

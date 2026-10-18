@@ -1,6 +1,6 @@
 import type { MealType } from '#api/day-detail'
 import styles from '#meal-log-sheet/MealLogDetailForm.module.css'
-import { previewKcal, type SheetState } from '#meal-log-sheet/sheet-state'
+import { previewKcal, type SingleSheetState } from '#meal-log-sheet/sheet-state'
 
 const MEAL_OPTIONS: ReadonlyArray<{ value: MealType; label: string }> = [
   { value: 'breakfast', label: '朝食' },
@@ -10,7 +10,7 @@ const MEAL_OPTIONS: ReadonlyArray<{ value: MealType; label: string }> = [
 ]
 
 export interface MealLogDetailFormProps {
-  readonly state: SheetState
+  readonly state: SingleSheetState
   readonly backToSearch: () => void
   readonly setQuantity: (quantity: string) => void
   readonly setMealType: (mealType: MealType) => void

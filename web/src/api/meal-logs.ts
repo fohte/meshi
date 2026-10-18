@@ -18,13 +18,38 @@ const mealLogResultSchema = z.object({
   createdAt: z.iso.datetime(),
 })
 
+const mealLogBatchErrorSchema = z.object({
+  error: z.string(),
+  itemIndex: z.number().int().positive().optional(),
+})
+
 export type MealLogResult = z.infer<typeof mealLogResultSchema>
+export type RecordMealLogBatchResult = ReadonlyArray<MealLogResult>
+
+export class BatchMealLogRequestError extends ApiRequestError {
+  constructor(
+    message: string,
+    readonly itemIndex: number | null,
+    cause: unknown,
+  ) {
+    super(message, cause)
+  }
+}
 
 export interface RecordMealLogInput {
   readonly foodMasterId: string
   readonly eatenDate: string
   readonly mealType: MealType
   readonly quantity: number
+}
+
+export interface RecordBatchMealLogInput {
+  readonly eatenDate: string
+  readonly mealType: MealType
+  readonly items: ReadonlyArray<{
+    readonly foodMasterId: string
+    readonly quantity: number
+  }>
 }
 
 export interface UpdateMealLogInput {
@@ -34,6 +59,36 @@ export interface UpdateMealLogInput {
   readonly quantity?: number
 }
 
+const parseBatchMealLogError = (
+  path: string,
+  response: Response,
+): ResultAsync<never, ApiRequestError> =>
+  ResultAsync.fromPromise(
+    response.json() as Promise<unknown>,
+    (cause) =>
+      new ApiRequestError(
+        `${path} responded with ${String(response.status)}`,
+        cause,
+      ),
+  ).andThen((body) => {
+    const parsed = mealLogBatchErrorSchema.safeParse(body)
+    if (!parsed.success) {
+      return errAsync(
+        new ApiRequestError(
+          `${path} responded with ${String(response.status)}`,
+          parsed.error,
+        ),
+      )
+    }
+    return errAsync(
+      new BatchMealLogRequestError(
+        parsed.data.error,
+        parsed.data.itemIndex ?? null,
+        undefined,
+      ),
+    )
+  })
+
 export const postMealLog = (
   input: RecordMealLogInput,
 ): ResultAsync<MealLogResult, ApiRequestError> =>
@@ -42,6 +97,20 @@ export const postMealLog = (
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify(input),
   })
+
+export const postMealLogs = (
+  input: RecordBatchMealLogInput,
+): ResultAsync<RecordMealLogBatchResult, ApiRequestError> =>
+  requestJson(
+    '/api/meal-logs',
+    z.array(mealLogResultSchema),
+    {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify(input),
+    },
+    (response) => parseBatchMealLogError('/api/meal-logs', response),
+  )
 
 export const patchMealLog = (
   id: string,

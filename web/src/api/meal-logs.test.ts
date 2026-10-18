@@ -1,7 +1,13 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import { ApiRequestError } from '#api/errors'
-import { deleteMealLog, patchMealLog, postMealLog } from '#api/meal-logs'
+import {
+  BatchMealLogRequestError,
+  deleteMealLog,
+  patchMealLog,
+  postMealLog,
+  postMealLogs,
+} from '#api/meal-logs'
 
 const mockFetchOk = (body: unknown): ReturnType<typeof vi.fn> => {
   const fetchMock = vi.fn().mockResolvedValue({
@@ -51,6 +57,108 @@ describe('postMealLog', () => {
       }),
     })
     expect(result._unsafeUnwrap()).toEqual(SAMPLE_JSON)
+  })
+})
+
+describe('postMealLogs', () => {
+  it('posts a batch and parses the result array', async () => {
+    const fetchMock = mockFetchOk([SAMPLE_JSON])
+    const input = {
+      eatenDate: '2026-07-29',
+      mealType: 'breakfast' as const,
+      items: [
+        { foodMasterId: 'fm_demo_alpha', quantity: 1.5 },
+        { foodMasterId: 'fm_demo_beta', quantity: 2 },
+      ],
+    }
+
+    const result = await postMealLogs(input)
+
+    const snapshot = () => ({
+      request: fetchMock.mock.calls,
+      result: result._unsafeUnwrap(),
+    })
+
+    expect(snapshot()).toEqual({
+      request: [
+        [
+          '/api/meal-logs',
+          {
+            method: 'POST',
+            headers: { 'content-type': 'application/json' },
+            body: JSON.stringify(input),
+          },
+        ],
+      ],
+      result: [SAMPLE_JSON],
+    })
+  })
+
+  it('preserves the invalid item index from a batch error response', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue({
+        ok: false,
+        status: 400,
+        json: () =>
+          Promise.resolve({
+            error: 'invalid quantity',
+            itemIndex: 2,
+          }),
+      }),
+    )
+
+    const result = await postMealLogs({
+      eatenDate: '2026-07-29',
+      mealType: 'breakfast',
+      items: [{ foodMasterId: 'fm_demo_alpha', quantity: 1 }],
+    })
+    const error = result._unsafeUnwrapErr()
+
+    const snapshot = () => ({
+      name: error.name,
+      message: error.message,
+      itemIndex:
+        error instanceof BatchMealLogRequestError ? error.itemIndex : null,
+    })
+
+    expect(snapshot()).toEqual({
+      name: 'BatchMealLogRequestError',
+      message: 'invalid quantity',
+      itemIndex: 2,
+    })
+  })
+
+  it('rejects an error response that does not match the schema', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue({
+        ok: false,
+        status: 400,
+        json: () =>
+          Promise.resolve({ error: 'invalid quantity', itemIndex: 'second' }),
+      }),
+    )
+
+    const result = await postMealLogs({
+      eatenDate: '2026-07-29',
+      mealType: 'breakfast',
+      items: [{ foodMasterId: 'fm_demo_alpha', quantity: 1 }],
+    })
+    const error = result._unsafeUnwrapErr()
+
+    const snapshot = () => ({
+      name: error.name,
+      message: error.message,
+      itemIndex:
+        error instanceof BatchMealLogRequestError ? error.itemIndex : null,
+    })
+
+    expect(snapshot()).toEqual({
+      name: 'ApiRequestError',
+      message: '/api/meal-logs responded with 400',
+      itemIndex: null,
+    })
   })
 })
 

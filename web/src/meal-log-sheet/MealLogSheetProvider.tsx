@@ -1,26 +1,38 @@
-import { useMutation, useQueryClient } from '@tanstack/react-query'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useRef, useState } from 'react'
 
 import type { DayDetailEntry, MealType } from '#api/day-detail'
 import type { RegisteredFoodMaster } from '#api/food-masters'
 import { registerFoodMasterFromComposition } from '#api/food-masters'
 import {
+  BatchMealLogRequestError,
   deleteMealLog,
   type MealLogResult,
   patchMealLog,
   postMealLog,
+  postMealLogs,
 } from '#api/meal-logs'
+import type { MealSet } from '#api/meal-sets'
+import { fetchMealSets } from '#api/meal-sets'
 import { toPromise } from '#api/to-promise'
 import { MealLogSheet } from '#meal-log-sheet/MealLogSheet'
 import { MealLogSheetContext } from '#meal-log-sheet/MealLogSheetContext'
 import {
   applyFoodSelection,
+  applyMealSetFoodSelection,
   backToSearch as applyBackToSearch,
+  beginMealSetFoodSelection,
   buildContinueState,
   buildCreateState,
   buildEditState,
+  buildMealSetRecordState,
+  buildMealSetSavePayload,
   buildSavePayload,
+  cancelMealSetFoodSelection,
+  removeMealSetItem as removeMealSetRecordItem,
   type SelectedFood,
+  setCreateTab as changeCreateTab,
+  setMealSetItemQuantity as changeMealSetItemQuantity,
   type SheetState,
 } from '#meal-log-sheet/sheet-state'
 
@@ -56,6 +68,12 @@ export const MealLogSheetProvider = ({
   // clobbering whatever sheet is open by then.
   const sheetIdRef = useRef(0)
 
+  const mealSetsQuery = useQuery({
+    queryKey: ['meal-sets'],
+    queryFn: () => toPromise(fetchMealSets()),
+    enabled: sheet?.mode === 'create' && sheet.activeTab === 'meal-set',
+  })
+
   const invalidateMealLogQueries = (): void => {
     void queryClient.invalidateQueries({ queryKey: ['day-detail'] })
     void queryClient.invalidateQueries({ queryKey: ['foods'] })
@@ -72,20 +90,41 @@ export const MealLogSheetProvider = ({
       if (sheetId !== sheetIdRef.current) return
       const food = toSelectedFood(foodMaster)
       setSheet((prev) =>
-        prev === null ? prev : applyFoodSelection(prev, food, true),
+        prev === null
+          ? prev
+          : prev.mode === 'meal-set'
+            ? applyMealSetFoodSelection(prev, food)
+            : prev.mode === 'create'
+              ? applyFoodSelection(prev, food, true)
+              : prev,
       )
       void queryClient.invalidateQueries({ queryKey: ['foods'] })
     },
   })
 
-  const saveMutation = useMutation<MealLogResult, Error, SaveVariables>({
+  const saveMutation = useMutation<
+    MealLogResult | ReadonlyArray<MealLogResult>,
+    Error,
+    SaveVariables
+  >({
     mutationFn: async () => {
-      const payload = sheet === null ? null : buildSavePayload(sheet)
-      if (sheet === null || payload === null) {
+      if (sheet === null) {
+        return Promise.reject(new Error('no food selected'))
+      }
+      if (sheet.mode === 'meal-set') {
+        const payload = buildMealSetSavePayload(sheet)
+        if (payload === null) {
+          return Promise.reject(new Error('meal set is not ready to save'))
+        }
+        return toPromise(postMealLogs(payload))
+      }
+
+      const payload = buildSavePayload(sheet)
+      if (payload === null) {
         return Promise.reject(new Error('no food selected'))
       }
       return toPromise(
-        sheet.mode === 'edit' && sheet.mealLogId !== null
+        sheet.mode === 'edit'
           ? patchMealLog(sheet.mealLogId, payload)
           : postMealLog(payload),
       )
@@ -96,7 +135,7 @@ export const MealLogSheetProvider = ({
       setSheet((prev) =>
         prev === null
           ? prev
-          : continueCreating
+          : continueCreating && prev.mode === 'create'
             ? buildContinueState(prev)
             : null,
       )
@@ -141,10 +180,6 @@ export const MealLogSheetProvider = ({
     setSheet(null)
   }
 
-  const patchSheet = (patch: Partial<SheetState>): void => {
-    setSheet((prev) => (prev === null ? prev : { ...prev, ...patch }))
-  }
-
   if (sheet === null) {
     return (
       <MealLogSheetContext.Provider value={{ openCreate, openEdit }}>
@@ -153,6 +188,20 @@ export const MealLogSheetProvider = ({
     )
   }
 
+  const saveError = saveMutation.isError
+    ? sheet.mode === 'meal-set' &&
+      saveMutation.error instanceof BatchMealLogRequestError &&
+      saveMutation.error.itemIndex !== null
+      ? (() => {
+          const itemIndex = saveMutation.error.itemIndex
+          const item = sheet.items[itemIndex - 1]
+          return item === undefined
+            ? `品目 ${String(itemIndex)} の記録に失敗しました: ${saveMutation.error.message}`
+            : `「${item.foodName}」の記録に失敗しました: ${saveMutation.error.message}`
+        })()
+      : '保存に失敗しました。入力内容を確認して再度お試しください。'
+    : null
+
   return (
     <MealLogSheetContext.Provider value={{ openCreate, openEdit }}>
       {children}
@@ -160,11 +209,17 @@ export const MealLogSheetProvider = ({
         state={sheet}
         close={close}
         setQuery={(query) => {
-          patchSheet({ query })
+          setSheet((prev) => (prev === null ? prev : { ...prev, query }))
         }}
         selectFood={(food) => {
           setSheet((prev) =>
-            prev === null ? prev : applyFoodSelection(prev, food, false),
+            prev === null
+              ? prev
+              : prev.mode === 'meal-set'
+                ? applyMealSetFoodSelection(prev, food)
+                : prev.mode === 'create'
+                  ? applyFoodSelection(prev, food, false)
+                  : prev,
           )
         }}
         selectComposition={(compositionCode) => {
@@ -176,16 +231,80 @@ export const MealLogSheetProvider = ({
         isRegisteringComposition={compositionMutation.isPending}
         compositionError={compositionMutation.isError}
         backToSearch={() => {
-          setSheet((prev) => (prev === null ? prev : applyBackToSearch(prev)))
+          setSheet((prev) =>
+            prev === null
+              ? prev
+              : prev.mode === 'meal-set'
+                ? cancelMealSetFoodSelection(prev)
+                : prev.mode === 'create'
+                  ? applyBackToSearch(prev)
+                  : prev,
+          )
         }}
         setQuantity={(quantity) => {
-          patchSheet({ quantity })
+          setSheet((prev) =>
+            prev === null || prev.mode === 'meal-set'
+              ? prev
+              : { ...prev, quantity },
+          )
         }}
         setMealType={(mealType: MealType) => {
-          patchSheet({ mealType })
+          setSheet((prev) => (prev === null ? prev : { ...prev, mealType }))
         }}
         setDate={(date) => {
-          patchSheet({ date })
+          setSheet((prev) => (prev === null ? prev : { ...prev, date }))
+        }}
+        setCreateTab={(tab) => {
+          setSheet((prev) =>
+            prev?.mode === 'create' ? changeCreateTab(prev, tab) : prev,
+          )
+        }}
+        mealSets={mealSetsQuery.data ?? []}
+        isMealSetsLoading={mealSetsQuery.isLoading}
+        mealSetsError={
+          mealSetsQuery.isError
+            ? 'マイセットを取得できませんでした。再度お試しください。'
+            : undefined
+        }
+        selectMealSet={(mealSet: MealSet) => {
+          setSheet((prev) =>
+            prev?.mode === 'create'
+              ? buildMealSetRecordState(mealSet, prev.date)
+              : prev,
+          )
+        }}
+        setMealSetItemQuantity={(itemId, quantity) => {
+          setSheet((prev) =>
+            prev?.mode === 'meal-set'
+              ? changeMealSetItemQuantity(prev, itemId, quantity)
+              : prev,
+          )
+        }}
+        removeMealSetItem={(itemId) => {
+          setSheet((prev) =>
+            prev?.mode === 'meal-set'
+              ? removeMealSetRecordItem(prev, itemId)
+              : prev,
+          )
+        }}
+        replaceMealSetItem={(itemId) => {
+          setSheet((prev) =>
+            prev?.mode === 'meal-set'
+              ? beginMealSetFoodSelection(prev, { type: 'replace', itemId })
+              : prev,
+          )
+        }}
+        addMealSetItem={() => {
+          setSheet((prev) =>
+            prev?.mode === 'meal-set'
+              ? beginMealSetFoodSelection(prev, { type: 'add' })
+              : prev,
+          )
+        }}
+        backToMealSet={() => {
+          setSheet((prev) =>
+            prev?.mode === 'meal-set' ? cancelMealSetFoodSelection(prev) : prev,
+          )
         }}
         save={() => {
           saveMutation.mutate({
@@ -200,7 +319,7 @@ export const MealLogSheetProvider = ({
           })
         }}
         isSaving={saveMutation.isPending}
-        saveError={saveMutation.isError}
+        saveError={saveError}
         confirmingDelete={confirmingDelete}
         requestDelete={() => {
           setConfirmingDelete(true)
@@ -210,7 +329,7 @@ export const MealLogSheetProvider = ({
           setConfirmingDelete(false)
         }}
         confirmDelete={() => {
-          if (sheet.mealLogId !== null) {
+          if (sheet.mode === 'edit') {
             deleteMutation.mutate({
               id: sheet.mealLogId,
               sheetId: sheetIdRef.current,

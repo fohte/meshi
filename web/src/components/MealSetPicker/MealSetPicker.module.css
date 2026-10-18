@@ -1,0 +1,50 @@
+.list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 0;
+  margin: 0;
+  list-style: none;
+}
+
+.option {
+  all: unset;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  width: 100%;
+  padding: 12px;
+  border: var(--border-width) solid var(--color-border);
+  cursor: pointer;
+  transition: border-color 0.15s;
+}
+
+.option:hover,
+.option:focus-visible {
+  border-color: var(--color-accent);
+}
+
+.name {
+  color: var(--color-text);
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.items {
+  color: var(--color-muted);
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+.status,
+.error {
+  border: var(--border-width) solid var(--color-border);
+  padding: 14px;
+  color: var(--color-muted);
+  font-size: 13px;
+}
+
+.error {
+  color: #fca5a5;
+}
