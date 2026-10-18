@@ -4,6 +4,7 @@ import { createStockCounter } from '#domain/stock/drizzle-stock-counter'
 import { createStockDeliveryReceiver } from '#domain/stock/drizzle-stock-delivery-receiver'
 import { createStockDeliveryWriter } from '#domain/stock/drizzle-stock-delivery-writer'
 import { createStockItemWriter } from '#domain/stock/drizzle-stock-item-writer'
+import { createStockLotUpdater } from '#domain/stock/drizzle-stock-lot-updater'
 import { createStockStatusReader } from '#domain/stock/drizzle-stock-status-reader'
 import type { StockRepository } from '#domain/stock/types'
 
@@ -22,6 +23,7 @@ export const createDrizzleStockRepository = (
   return {
     setStockItem: createStockItemWriter(pgSql, generateId, wrapInTransaction),
     countStock: createStockCounter(pgSql, generateId, wrapInTransaction),
+    updateStockLot: createStockLotUpdater(pgSql, wrapInTransaction),
     registerDelivery: createStockDeliveryWriter(
       pgSql,
       generateId,

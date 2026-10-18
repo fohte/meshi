@@ -673,7 +673,7 @@ const start = async (config: HarnessConfig = {}): Promise<Harness> => {
 }
 
 describe('MeshiMcpServer tools/list', () => {
-  it('exposes the twenty-one public tools with stable names', async () => {
+  it('exposes the twenty-two public tools with stable names', async () => {
     const h = await start()
     try {
       const result = await h.client.listTools()
@@ -700,6 +700,7 @@ describe('MeshiMcpServer tools/list', () => {
         'set_stock_item',
         'update_meal_log',
         'update_profile',
+        'update_stock_lot',
       ])
     } finally {
       await h.close()
@@ -844,6 +845,7 @@ describe('MeshiMcpServer tools/list', () => {
           'storage_location_capacity',
           'storage_location_name',
         ],
+        update_stock_lot: ['best_before', 'eat_by', 'stock_lot_id'],
         register_food: [
           'aliases',
           'confirmed_distinct_from_master_ids',
@@ -913,6 +915,20 @@ describe('MeshiMcpServer tools/list', () => {
         receive_delivery: ['delivery_id', 'received_date'],
         register_delivery: ['status', 'expected_date', 'items'],
       })
+    } finally {
+      await h.close()
+    }
+  })
+
+  it('requires the stock lot ID for stock lot date updates', async () => {
+    const h = await start()
+    try {
+      const result = await h.client.listTools()
+      const tool = result.tools.find(
+        (candidate) => candidate.name === 'update_stock_lot',
+      )
+
+      expect(tool?.inputSchema.required).toEqual(['stock_lot_id'])
     } finally {
       await h.close()
     }

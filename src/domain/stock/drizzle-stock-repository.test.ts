@@ -5,7 +5,7 @@ import { createStockService } from '#domain/stock/stock-service'
 import type { StockService } from '#domain/stock/types'
 import { toJstDateString } from '#lib/jst-date'
 import { captureDomainError } from '#test/capture-domain-error'
-import { describeIfDb, setupTx } from '#test/db'
+import { describeIfDb, setupDrizzleTx } from '#test/db'
 import { createCountingIdGenerator, type IdCounter } from '#test/id-counter'
 import {
   seedDelivery,
@@ -18,7 +18,7 @@ import {
 } from '#test/seed'
 
 describeIfDb('stock repository', () => {
-  const getTx = setupTx()
+  const getTx = setupDrizzleTx()
   let stockService: StockService
 
   beforeEach(() => {
@@ -88,6 +88,162 @@ describeIfDb('stock repository', () => {
       foodName: 'Sample food with partial settings',
       storageLocation: { name: 'Sample pantry', capacity: 4 },
       eatWithinDays: null,
+    })
+  })
+
+  it('updates lot dates in stock status and recalculates warnings', async () => {
+    const tx = getTx()
+    await seedFoodMasterWithoutNutrition(tx, {
+      id: 'fm_lot_date_patch',
+      name: 'Sample lot date food',
+    })
+    await seedStockItem(tx, { foodMasterId: 'fm_lot_date_patch' })
+    await seedStockLot(tx, {
+      id: 'stl_lot_date_patch',
+      foodMasterId: 'fm_lot_date_patch',
+      quantity: 3,
+      receivedDate: '2031-04-20',
+      bestBefore: '2031-06-20',
+      eatBy: '2031-06-25',
+    })
+    await seedStockMovement(tx, {
+      id: 'stm_lot_date_patch',
+      stockLotId: 'stl_lot_date_patch',
+      delta: 2,
+      reason: 'count',
+    })
+    stockService = createStockService(
+      createDrizzleStockRepository(tx, { wrapInTransaction: false }),
+      { now: () => new Date('2031-05-08T03:00:00.000Z') },
+    )
+    await stockService
+      .updateStockLot({
+        stockLotId: 'stl_lot_date_patch',
+        bestBefore: '2031-05-10',
+        eatBy: '2031-05-12',
+      })
+      .then((result) => result._unsafeUnwrap())
+    const status = (await stockService.getStockStatus())._unsafeUnwrap()
+
+    expect(status).toEqual({
+      stockItems: [
+        {
+          foodMasterId: 'fm_lot_date_patch',
+          foodName: 'Sample lot date food',
+          storageLocationId: null,
+          storageLocation: null,
+          eatWithinDays: null,
+          totalQuantity: 2,
+          lots: [
+            {
+              id: 'stl_lot_date_patch',
+              quantity: 3,
+              remainingQuantity: 2,
+              receivedDate: '2031-04-20',
+              bestBefore: '2031-05-10',
+              eatBy: '2031-05-12',
+            },
+          ],
+        },
+      ],
+      plannedDeliveries: [],
+      capacityWarnings: [],
+      eatByWarnings: [
+        {
+          id: 'eat-by-risk:stl_lot_date_patch:2031-05-10:consumption_rate_below_required',
+          riskType: 'consumption_rate_below_required',
+          stockLotId: 'stl_lot_date_patch',
+          foodMasterId: 'fm_lot_date_patch',
+          foodName: 'Sample lot date food',
+          targetDate: '2031-05-10',
+          targetDateType: 'best_before',
+          remainingQuantity: 2,
+          quantityUsedForRate: 2,
+          daysUntilTarget: 2,
+          requiredDailyConsumption: 1,
+          actualDailyConsumption: 0,
+        },
+      ],
+      priorityLots: [
+        {
+          foodMasterId: 'fm_lot_date_patch',
+          foodName: 'Sample lot date food',
+          stockLotId: 'stl_lot_date_patch',
+          remainingQuantity: 2,
+          targetDate: '2031-05-10',
+          reasons: ['best_before', 'consumption_rate_below_required'],
+        },
+      ],
+    })
+  })
+
+  it('preserves omitted eat_by and clears best_before when passed null', async () => {
+    const tx = getTx()
+    await seedFoodMasterWithoutNutrition(tx, {
+      id: 'fm_lot_date_clear',
+      name: 'Sample food with editable lot dates',
+    })
+    await seedStockLot(tx, {
+      id: 'stl_lot_date_clear',
+      foodMasterId: 'fm_lot_date_clear',
+      quantity: 1,
+      bestBefore: '2031-06-20',
+      eatBy: '2031-06-25',
+    })
+
+    const result = (
+      await stockService.updateStockLot({
+        stockLotId: 'stl_lot_date_clear',
+        bestBefore: null,
+      })
+    )._unsafeUnwrap()
+
+    expect(result).toEqual({
+      id: 'stl_lot_date_clear',
+      bestBefore: null,
+      eatBy: '2031-06-25',
+    })
+  })
+
+  it('preserves omitted best_before and clears eat_by when passed null', async () => {
+    const tx = getTx()
+    await seedFoodMasterWithoutNutrition(tx, {
+      id: 'fm_lot_eat_by_clear',
+      name: 'Sample food with an editable target date',
+    })
+    await seedStockLot(tx, {
+      id: 'stl_lot_eat_by_clear',
+      foodMasterId: 'fm_lot_eat_by_clear',
+      quantity: 1,
+      bestBefore: '2031-06-20',
+      eatBy: '2031-06-25',
+    })
+
+    const result = (
+      await stockService.updateStockLot({
+        stockLotId: 'stl_lot_eat_by_clear',
+        eatBy: null,
+      })
+    )._unsafeUnwrap()
+
+    expect(result).toEqual({
+      id: 'stl_lot_eat_by_clear',
+      bestBefore: '2031-06-20',
+      eatBy: null,
+    })
+  })
+
+  it('rejects updates for missing stock lots', async () => {
+    const error = await captureDomainError(
+      stockService.updateStockLot({
+        stockLotId: 'stl_missing',
+        eatBy: '2031-05-12',
+      }),
+    )
+
+    expect(error).toEqual({
+      code: 'stock_lot_not_found',
+      details: { stockLotId: 'stl_missing' },
     })
   })
 

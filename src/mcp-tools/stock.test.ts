@@ -1,7 +1,8 @@
 import { Client, InMemoryTransport } from '@modelcontextprotocol/client'
-import { okAsync } from 'neverthrow'
+import { errAsync, okAsync } from 'neverthrow'
 import { expect, it } from 'vitest'
 
+import { StockDomainError } from '#domain/stock/errors'
 import type {
   CountStockInput,
   Delivery,
@@ -10,6 +11,8 @@ import type {
   StockItem,
   StockService,
   StockStatus,
+  UpdatedStockLot,
+  UpdateStockLotInput,
 } from '#domain/stock/types'
 import { createMcpServer } from '#mcp'
 import { createStubMcpDeps } from '#test/mcp-stubs'
@@ -41,6 +44,7 @@ const createStockServiceStub = (
   onCount?: (input: CountStockInput) => void,
   onRegister?: (input: RegisterDeliveryInput) => void,
   onReceive?: (input: ReceiveDeliveryInput) => void,
+  onUpdateStockLot?: (input: UpdateStockLotInput) => void,
 ): StockService => ({
   setStockItem(input) {
     return okAsync(
@@ -66,6 +70,15 @@ const createStockServiceStub = (
       countedQuantity: input.quantity,
       difference: input.quantity,
     })
+  },
+  updateStockLot(input) {
+    onUpdateStockLot?.(input)
+    const lot: UpdatedStockLot = {
+      id: input.stockLotId,
+      bestBefore: input.bestBefore ?? null,
+      eatBy: input.eatBy ?? null,
+    }
+    return okAsync(lot)
   },
   registerDelivery(input) {
     onRegister?.(input)
@@ -209,6 +222,105 @@ it('returns the count_stock result', async () => {
         counted_quantity: 1.5,
         difference: 1.5,
       },
+    })
+  } finally {
+    await h.close()
+  }
+})
+
+it('routes update_stock_lot arguments without turning omitted dates into null', async () => {
+  const updateInputs: UpdateStockLotInput[] = []
+  const h = await connect(
+    createStockServiceStub({}, undefined, undefined, undefined, (input) =>
+      updateInputs.push(input),
+    ),
+  )
+  try {
+    await h.client.callTool({
+      name: 'update_stock_lot',
+      arguments: {
+        stock_lot_id: 'stl_editable',
+        best_before: null,
+      },
+    })
+
+    expect(updateInputs).toEqual([
+      {
+        stockLotId: 'stl_editable',
+        bestBefore: null,
+      },
+    ])
+  } finally {
+    await h.close()
+  }
+})
+
+it('returns the updated update_stock_lot dates', async () => {
+  const h = await connect(createStockServiceStub())
+  try {
+    const result = await h.client.callTool({
+      name: 'update_stock_lot',
+      arguments: {
+        stock_lot_id: 'stl_editable',
+        best_before: '2031-05-10',
+        eat_by: '2031-05-12',
+      },
+    })
+
+    expect(result).toEqual({
+      content: [{ type: 'text', text: '入荷分の日付を更新しました。' }],
+      structuredContent: {
+        stock_lot_id: 'stl_editable',
+        best_before: '2031-05-10',
+        eat_by: '2031-05-12',
+      },
+    })
+  } finally {
+    await h.close()
+  }
+})
+
+it('returns a tool error when update_stock_lot cannot find the lot', async () => {
+  const h = await connect({
+    ...createStockServiceStub(),
+    updateStockLot: () =>
+      errAsync(
+        new StockDomainError(
+          'stock_lot_not_found',
+          'stock_lot not found: stl_unknown',
+          { stockLotId: 'stl_unknown' },
+        ),
+      ),
+  })
+  try {
+    const result = await h.client.callTool({
+      name: 'update_stock_lot',
+      arguments: {
+        stock_lot_id: 'stl_unknown',
+        eat_by: '2031-05-12',
+      },
+    })
+
+    expect(result).toEqual({
+      isError: true,
+      content: [{ type: 'text', text: 'stock_lot not found: stl_unknown' }],
+    })
+  } finally {
+    await h.close()
+  }
+})
+
+it('requires at least one date for update_stock_lot', async () => {
+  const h = await connect(createStockServiceStub())
+  try {
+    const result = await h.client.callTool({
+      name: 'update_stock_lot',
+      arguments: { stock_lot_id: 'stl_editable' },
+    })
+
+    expect(normalizeValidationError(result)).toEqual({
+      content: [{ type: 'text', text: VALIDATION_ERROR_TEXT }],
+      isError: true,
     })
   } finally {
     await h.close()
