@@ -181,6 +181,10 @@ describeIfDb('stock repository', () => {
       foodMasterId: 'fm_eat_by_backfill_conditions',
       eatWithinDays: 3,
     })
+    await seedFoodMasterWithoutNutrition(tx, {
+      id: 'fm_eat_by_backfill_other_food',
+      name: 'Unrelated backfill food',
+    })
     await seedStockLot(tx, {
       id: 'stl_eat_by_backfill_empty',
       foodMasterId: 'fm_eat_by_backfill_conditions',
@@ -212,34 +216,57 @@ describeIfDb('stock repository', () => {
       quantity: 1,
       eatBy: null,
     })
+    await seedStockLot(tx, {
+      id: 'stl_eat_by_backfill_other_food',
+      foodMasterId: 'fm_eat_by_backfill_other_food',
+      quantity: 1,
+      receivedDate: '2026-10-03',
+    })
 
     await stockService.setStockItem({
       foodMasterId: 'fm_eat_by_backfill_conditions',
       eatWithinDays: 9,
     })
     const result = await tx<
-      { id: string; received_date: string | null; eat_by: string | null }[]
+      {
+        id: string
+        food_master_id: string
+        received_date: string | null
+        eat_by: string | null
+      }[]
     >`
-      SELECT id, received_date::text AS received_date, eat_by::text AS eat_by
+      SELECT id, food_master_id, received_date::text AS received_date,
+             eat_by::text AS eat_by
       FROM stock_lots
-      WHERE food_master_id = 'fm_eat_by_backfill_conditions'
-      ORDER BY id
+      WHERE food_master_id IN (
+        'fm_eat_by_backfill_conditions', 'fm_eat_by_backfill_other_food'
+      )
+      ORDER BY food_master_id, id
     `
 
     expect(result).toEqual([
       {
         id: 'stl_eat_by_backfill_empty',
+        food_master_id: 'fm_eat_by_backfill_conditions',
         received_date: '2026-10-01',
         eat_by: '2026-10-10',
       },
       {
         id: 'stl_eat_by_backfill_manual',
+        food_master_id: 'fm_eat_by_backfill_conditions',
         received_date: '2026-10-02',
         eat_by: '2026-10-30',
       },
       {
         id: 'stl_eat_by_backfill_undated',
+        food_master_id: 'fm_eat_by_backfill_conditions',
         received_date: null,
+        eat_by: null,
+      },
+      {
+        id: 'stl_eat_by_backfill_other_food',
+        food_master_id: 'fm_eat_by_backfill_other_food',
+        received_date: '2026-10-03',
         eat_by: null,
       },
     ])
