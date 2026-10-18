@@ -1,0 +1,199 @@
+.pageHeader {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 24px;
+  margin-bottom: 24px;
+}
+
+.heading {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin: 0;
+  font-family: var(--font-mono);
+  font-size: 24px;
+  font-weight: 700;
+}
+
+.hash {
+  color: var(--color-accent);
+}
+
+.description {
+  margin: 8px 0 0;
+  color: var(--color-muted);
+  font-size: 13px;
+}
+
+.primaryButton,
+.secondaryButton,
+.deleteButton {
+  min-height: 38px;
+  border: var(--border-width) solid var(--color-border);
+  border-radius: 0;
+  padding: 7px 12px;
+  cursor: pointer;
+  font: inherit;
+  font-size: 13px;
+}
+
+.primaryButton {
+  flex: none;
+  border-color: var(--color-accent);
+  background: var(--color-accent);
+  color: white;
+}
+
+.secondaryButton {
+  background: transparent;
+  color: var(--color-text);
+}
+
+.deleteButton {
+  background: transparent;
+  color: #fca5a5;
+}
+
+.primaryButton:disabled,
+.secondaryButton:disabled,
+.deleteButton:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+.list {
+  display: grid;
+  gap: 12px;
+}
+
+.card {
+  border: var(--border-width) solid var(--color-border);
+  background: var(--color-surface);
+  padding: 16px;
+}
+
+.cardHeader {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 12px;
+}
+
+.cardTitle {
+  min-width: 0;
+  margin: 0;
+  font-size: 16px;
+}
+
+.energy {
+  flex: none;
+  margin: 0;
+  color: var(--color-muted);
+  font-family: var(--font-mono);
+  font-size: 12px;
+}
+
+.itemList {
+  padding: 0;
+  margin: 0;
+  list-style: none;
+}
+
+.cardItem {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 16px;
+  border-top: var(--border-width) solid var(--color-border);
+  padding: 9px 0;
+  font-size: 13px;
+}
+
+.quantity {
+  flex: none;
+  color: var(--color-muted);
+  font-family: var(--font-mono);
+  font-size: 12px;
+}
+
+.cardActions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  border-top: var(--border-width) solid var(--color-border);
+  padding-top: 12px;
+  margin-top: 4px;
+}
+
+.deleteConfirmation {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  border-top: var(--border-width) solid var(--color-border);
+  padding-top: 12px;
+  margin-top: 12px;
+}
+
+.deleteConfirmation p {
+  flex: 1;
+  margin: 0;
+  color: var(--color-muted);
+  font-size: 13px;
+}
+
+.emptyState,
+.status,
+.error {
+  border: var(--border-width) solid var(--color-border);
+  padding: 20px;
+  font-size: 13px;
+}
+
+.emptyState {
+  color: var(--color-muted);
+  text-align: center;
+}
+
+.emptyState p {
+  margin: 2px 0;
+}
+
+.status {
+  color: var(--color-muted);
+}
+
+.error {
+  color: #fca5a5;
+}
+
+.error p {
+  margin: 0 0 12px;
+}
+
+.editorPanel {
+  margin-top: 20px;
+}
+
+@media (max-width: 640px) {
+  .pageHeader {
+    flex-direction: column;
+    gap: 14px;
+  }
+
+  .cardHeader {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 4px;
+  }
+
+  .deleteConfirmation {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .deleteConfirmation p {
+    margin-bottom: 4px;
+  }
+}
