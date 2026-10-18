@@ -3,6 +3,7 @@ import { errAsync, okAsync } from 'neverthrow'
 import type { ApiDeps } from '#api/index'
 import { FoodMasterDomainError } from '#domain/food-master/errors'
 import { MealLogPersistenceError } from '#domain/meal-log/errors'
+import { MealPhotoPersistenceError } from '#domain/meal-photo/errors'
 import { MealSetPersistenceError } from '#domain/meal-set/errors'
 import { MealSkipPersistenceError } from '#domain/meal-skip/errors'
 import { DEFAULT_USER_PROFILE } from '#domain/user-profile/user-profile'
@@ -141,5 +142,22 @@ export const createStubApiDeps = (): ApiDeps => ({
         new MealSkipPersistenceError('mealSkipService.cancel not stubbed'),
       ),
     findForDate: () => okAsync([]),
+  },
+  mealPhotoService: {
+    upload: () =>
+      errAsync(
+        new MealPhotoPersistenceError('mealPhotoService.upload not stubbed'),
+      ),
+    listForMeal: () => okAsync([]),
+    getContent: () =>
+      errAsync(
+        new MealPhotoPersistenceError(
+          'mealPhotoService.getContent not stubbed',
+        ),
+      ),
+    delete: () =>
+      errAsync(
+        new MealPhotoPersistenceError('mealPhotoService.delete not stubbed'),
+      ),
   },
 })

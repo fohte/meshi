@@ -68,6 +68,13 @@ comments:
       id: 'Opaque identifier exposed in API responses.'
       date: 'Asia/Tokyo calendar date for the skipped meal.'
       meal_type: 'Meal category marked as skipped.'
+  - table: meal_photos
+    tableComment: 'Photos attached to a meal on a specific date.'
+    columnComments:
+      eaten_date: 'Asia/Tokyo calendar date of the meal.'
+      meal_type: 'Meal category the photos belong to.'
+      object_key: 'Unique key of the photo object in R2.'
+      content_type: 'Image media type: JPEG, PNG, or WebP.'
   - table: food_compositions
     tableComment: 'MEXT food composition reference entries.'
     columnComments:
@@ -87,3 +94,39 @@ comments:
       allergies: 'User allergy entries.'
       constraints: 'User dietary constraint entries.'
       daily_targets: 'Daily nutrition target values keyed by nutrient code.'
+  - table: storage_locations
+    tableComment: 'Named places where stock items are stored.'
+    columnComments:
+      name: 'Unique name of the storage location.'
+      capacity: 'Optional maximum stock capacity in food units.'
+  - table: stock_items
+    tableComment: 'Foods configured for stock tracking.'
+    columnComments:
+      food_master_id: 'Identifier of the food tracked in stock.'
+      storage_location_id: 'Identifier of the optional storage location.'
+      eat_within_days: 'Target number of days from receipt to consume the food.'
+  - table: stock_lots
+    tableComment: 'Planned delivery, received, or counted batches of stock for a food.'
+    columnComments:
+      food_master_id: 'Identifier of the food this batch belongs to.'
+      delivery_id: 'Identifier of the delivery this batch belongs to, when scheduled.'
+      quantity: 'Quantity originally recorded for this batch in food units.'
+      received_date: 'Date the batch was received, when known.'
+      best_before: 'Best-before date shown for the batch, when known.'
+      eat_by: 'Target date to consume the batch, when known.'
+  - table: deliveries
+    tableComment: 'Expected deliveries and receipt status for stock inventory.'
+    columnComments:
+      source_ref: 'External identifier used to deduplicate delivery updates.'
+      status: 'Lifecycle state of the delivery.'
+      expected_date: 'Date the delivery is expected to arrive.'
+      received_date: 'Date the delivery was received.'
+      change_deadline: 'Deadline for changing or cancelling the delivery, when known.'
+  - table: stock_movements
+    tableComment: 'Quantity changes recorded against stock lots.'
+    columnComments:
+      stock_lot_id: 'Identifier of the stock batch affected by this movement.'
+      delta: 'Signed quantity change in food units.'
+      reason: 'Reason for the quantity change: receive, meal, or count.'
+      note: 'Optional note explaining the quantity change.'
+      meal_log_id: 'Identifier of the meal log that caused this movement.'

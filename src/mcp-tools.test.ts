@@ -34,6 +34,12 @@ import type {
   UpdateMealLogInput,
 } from '#domain/meal-log/types'
 import {
+  EmptyMealSetItemsError,
+  MealSetPersistenceError,
+} from '#domain/meal-set/errors'
+import type { MealSetService } from '#domain/meal-set/meal-set-service'
+import type { MealSet, RegisterMealSetInput } from '#domain/meal-set/types'
+import {
   FutureMealSkipDateError,
   type MealSkipDomainError,
   MealSkipNotFoundError,
@@ -49,6 +55,7 @@ import type { UserProfileService } from '#domain/user-profile/user-profile-servi
 import type { Logger } from '#logger'
 import { createMcpServer } from '#mcp'
 import { jstDate } from '#test/jst-date'
+import { createStubMcpDeps } from '#test/mcp-stubs'
 
 const VALIDATION_ERROR_TEXT = '<schema validation error>'
 
@@ -240,6 +247,8 @@ interface DirectMealToolCalls {
     origin: 'retail' | 'homemade'
   }>
   recordMealLogs: RecordMealLogsInput[]
+  mealSetSearchQueries: string[]
+  registerMealSets: RegisterMealSetInput[]
 }
 
 interface FoodMasterCalls {
@@ -551,6 +560,7 @@ interface HarnessConfig {
   }
   profile?: UserProfile
   foodSearchServiceResult?: ReturnType<FoodSearchService['search']>
+  mealSetServiceOverrides?: Partial<MealSetService>
   recordMealLogResults?: ReadonlyArray<RecordMealLogItemResult>
   foodMasterRegistrationResult?: ReturnType<
     FoodMasterService['registerFromComposition']
@@ -584,6 +594,8 @@ const start = async (config: HarnessConfig = {}): Promise<Harness> => {
   const directMealToolCalls: DirectMealToolCalls = {
     foodSearch: [],
     recordMealLogs: [],
+    mealSetSearchQueries: [],
+    registerMealSets: [],
   }
   const foodSearchService: FoodSearchService = {
     search(queries, limit, origin = 'retail') {
@@ -600,13 +612,43 @@ const start = async (config: HarnessConfig = {}): Promise<Harness> => {
         : errAsync(config.recordMealLogError)
     },
   }
+  const mealSetService: MealSetService = {
+    register(input) {
+      directMealToolCalls.registerMealSets.push(input)
+      return (
+        config.mealSetServiceOverrides?.register?.(input) ??
+        errAsync(new MealSetPersistenceError('stub'))
+      )
+    },
+    list: () =>
+      config.mealSetServiceOverrides?.list?.() ??
+      errAsync(new MealSetPersistenceError('stub')),
+    getById: (id) =>
+      config.mealSetServiceOverrides?.getById?.(id) ??
+      errAsync(new MealSetPersistenceError('stub')),
+    update: (input) =>
+      config.mealSetServiceOverrides?.update?.(input) ??
+      errAsync(new MealSetPersistenceError('stub')),
+    delete: (id) =>
+      config.mealSetServiceOverrides?.delete?.(id) ??
+      errAsync(new MealSetPersistenceError('stub')),
+    searchByName(name, limit) {
+      directMealToolCalls.mealSetSearchQueries.push(name)
+      return (
+        config.mealSetServiceOverrides?.searchByName?.(name, limit) ??
+        okAsync([])
+      )
+    },
+  }
   const server = createMcpServer({
     foodMasterService,
     mealHistoryService,
     mealLogService,
     mealSkipService,
+    stockService: createStubMcpDeps().stockService,
     profileService,
     foodSearchService,
+    mealSetService,
     logger,
   })
   const [clientTransport, serverTransport] =
@@ -631,25 +673,31 @@ const start = async (config: HarnessConfig = {}): Promise<Harness> => {
 }
 
 describe('MeshiMcpServer tools/list', () => {
-  it('exposes the fifteen public tools with stable names', async () => {
+  it('exposes the twenty-one public tools with stable names', async () => {
     const h = await start()
     try {
       const result = await h.client.listTools()
       const names = result.tools.map((t) => t.name).sort()
       expect(names).toEqual([
         'cancel_meal_skip',
+        'count_stock',
         'delete_meal_log',
         'fill_food_nutrition',
         'get_profile',
         'get_recommendation_context',
+        'get_stock_status',
         'merge_food_master',
         'query_meals',
+        'receive_delivery',
         'record_meal_log',
         'record_meal_skip',
+        'register_delivery',
         'register_food',
         'register_food_from_composition',
         'register_food_without_nutrition',
+        'register_meal_set',
         'search_foods',
+        'set_stock_item',
         'update_meal_log',
         'update_profile',
       ])
@@ -754,6 +802,12 @@ describe('MeshiMcpServer tools/list', () => {
       }
       expect(propsByTool).toEqual({
         cancel_meal_skip: ['date', 'meal_type'],
+        count_stock: [
+          'best_before',
+          'food_master_id',
+          'quantity',
+          'received_date',
+        ],
         delete_meal_log: ['meal_log_ids'],
         fill_food_nutrition: [
           'food_master_id',
@@ -764,16 +818,32 @@ describe('MeshiMcpServer tools/list', () => {
         ],
         get_profile: [],
         get_recommendation_context: ['period_from', 'period_to'],
+        get_stock_status: [],
         merge_food_master: [
           'dry_run',
           'loser_food_master_id',
           'survivor_food_master_id',
         ],
         query_meals: ['period_from', 'period_to'],
+        receive_delivery: ['delivery_id', 'items', 'received_date'],
         record_meal_log: ['date', 'items', 'meal_type'],
         record_meal_skip: ['date', 'meal_type'],
+        register_delivery: [
+          'change_deadline',
+          'expected_date',
+          'items',
+          'source_ref',
+          'status',
+        ],
+        register_meal_set: ['items', 'name'],
         register_food_from_composition: ['aliases', 'composition_code', 'name'],
         search_foods: ['limit', 'origin', 'queries'],
+        set_stock_item: [
+          'eat_within_days',
+          'food_master_id',
+          'storage_location_capacity',
+          'storage_location_name',
+        ],
         register_food: [
           'aliases',
           'confirmed_distinct_from_master_ids',
@@ -828,6 +898,26 @@ describe('MeshiMcpServer tools/list', () => {
     }
   })
 
+  it('requires dates and delivery identity for delivery operations', async () => {
+    const h = await start()
+    try {
+      const result = await h.client.listTools()
+      const requiredByTool = Object.fromEntries(
+        result.tools
+          .filter((tool) =>
+            ['register_delivery', 'receive_delivery'].includes(tool.name),
+          )
+          .map((tool) => [tool.name, tool.inputSchema.required]),
+      )
+      expect(requiredByTool).toEqual({
+        receive_delivery: ['delivery_id', 'received_date'],
+        register_delivery: ['status', 'expected_date', 'items'],
+      })
+    } finally {
+      await h.close()
+    }
+  })
+
   it('requires only composition_code for composition registration', async () => {
     const h = await start()
     try {
@@ -842,6 +932,19 @@ describe('MeshiMcpServer tools/list', () => {
         additionalProperties?: boolean
       }
       expect(inputSchema.required).toEqual(['composition_code'])
+    } finally {
+      await h.close()
+    }
+  })
+
+  it('requires a name and item list for meal-set registration', async () => {
+    const h = await start()
+    try {
+      const result = await h.client.listTools()
+      const tool = result.tools.find(
+        (candidate) => candidate.name === 'register_meal_set',
+      )
+      expect(tool?.inputSchema.required).toEqual(['name', 'items'])
     } finally {
       await h.close()
     }
@@ -875,24 +978,28 @@ describe('MeshiMcpServer tools/list', () => {
     }
   })
 
-  it('limits composition-table candidates to homemade ingredients', async () => {
+  it('explains food and meal set search results', async () => {
     const h = await start()
     try {
       const result = await h.client.listTools()
       const descriptions = Object.fromEntries(
         result.tools
           .filter((tool) =>
-            ['search_foods', 'register_food_from_composition'].includes(
-              tool.name,
-            ),
+            [
+              'search_foods',
+              'register_food_from_composition',
+              'register_meal_set',
+            ].includes(tool.name),
           )
           .map((tool) => [tool.name, tool.description]),
       )
       expect(descriptions).toEqual({
         search_foods:
-          '登録済み食品を複数の名前候補から検索し、食品名、kcal、栄養状態 (nutrition_status: confirmed / estimated / unknown)、最後に食べた JST 日付 (last_eaten_date) とそのときの量 (last_quantity) を返す。栄養値が不明な食品の kcal は null。last_eaten_date がある候補と同じ食品なら新規登録せず、その food_master_id を使う。量の指定が無ければ last_quantity を使い、null ならユーザーに量を聞く。origin が homemade の場合のみ食品成分表の候補も返す。成分表候補は自炊の素材にだけ使い、買った商品や外食には使わない。成分表候補の energy_kcal は 100g あたり。',
+          '登録済み食品を複数の名前候補から検索し、食品名、kcal、栄養状態 (nutrition_status: confirmed / estimated / unknown)、最後に食べた JST 日付 (last_eaten_date) とそのときの量 (last_quantity) を返す。栄養値が不明な食品の kcal は null。last_eaten_date がある候補と同じ食品なら新規登録せず、その food_master_id を使う。量の指定が無ければ last_quantity を使い、null ならユーザーに量を聞く。origin が homemade の場合のみ食品成分表の候補も返す。成分表候補は自炊の素材にだけ使い、買った商品や外食には使わない。成分表候補の energy_kcal は 100g あたり。meal_sets に一致があれば items を record_meal_log に渡す。ユーザーが品目を指定した場合は該当 item だけ差し替える。meal_type は発話から決め、無ければユーザーに聞く。',
         register_food_from_composition:
           '食品成分表の composition_code から食品マスタを登録する。成分表候補は自炊の素材にだけ使い、買った商品や外食には使わない。栄養値は食品成分表から 100g あたりの値をコピーするため、入力では指定できない。',
+        register_meal_set:
+          'マイセットを登録する。name はセット名、items は food_master_id と quantity の組み合わせ。quantity は食品 1 つ分への倍率。',
       })
     } finally {
       await h.close()
@@ -1755,6 +1862,7 @@ describe('update_meal_log', () => {
             eaten_date: '2026-04-18',
             meal_type: 'dinner',
             quantity: 2,
+            stock_shortfall: null,
             nutrition: { energy_kcal: 446 },
             is_estimated: true,
           },
@@ -1773,6 +1881,48 @@ describe('update_meal_log', () => {
           delete: [],
           deleteMany: [],
         },
+      })
+    } finally {
+      await h.close()
+    }
+  })
+
+  it('returns a stock shortfall after updating a meal log', async () => {
+    let captured: UpdateMealLogInput | undefined
+    const h = await start({
+      mealLogOverrides: {
+        update: (input) => {
+          captured = input
+          return okAsync({
+            ...initialMealLog,
+            quantity: 3,
+            stockShortfall: 1.25,
+          })
+        },
+      },
+    })
+    try {
+      const result = await h.client.callTool({
+        name: 'update_meal_log',
+        arguments: { meal_log_id: initialMealLog.id, quantity: 3 },
+      })
+
+      expect(observation({ result, captured })).toEqual({
+        result: {
+          content: [{ type: 'text', text: '食事ログを更新しました。' }],
+          structuredContent: {
+            meal_log_id: initialMealLog.id,
+            food_master_id: initialMealLog.foodMasterId,
+            food_name: '試験用食品 A',
+            eaten_date: initialMealLog.eatenDate,
+            meal_type: initialMealLog.mealType,
+            quantity: 3,
+            stock_shortfall: 1.25,
+            nutrition: initialMealLog.nutrition,
+            is_estimated: initialMealLog.isEstimated,
+          },
+        },
+        captured: { id: initialMealLog.id, quantity: 3 },
       })
     } finally {
       await h.close()
@@ -2202,7 +2352,10 @@ describe('search_foods', () => {
       ).toEqual({
         result: {
           content: [
-            { type: 'text', text: '登録済み食品を 1 件取得しました。' },
+            {
+              type: 'text',
+              text: '登録済み食品を 1 件、マイセットを 0 件取得しました。',
+            },
           ],
           structuredContent: {
             foods: [
@@ -2217,6 +2370,7 @@ describe('search_foods', () => {
                 last_quantity: 1.5,
               },
             ],
+            meal_sets: [],
           },
         },
         searchCalls: [
@@ -2254,7 +2408,12 @@ describe('search_foods', () => {
       })
 
       expect(result).toEqual({
-        content: [{ type: 'text', text: '登録済み食品を 1 件取得しました。' }],
+        content: [
+          {
+            type: 'text',
+            text: '登録済み食品を 1 件、マイセットを 0 件取得しました。',
+          },
+        ],
         structuredContent: {
           foods: [
             {
@@ -2268,6 +2427,7 @@ describe('search_foods', () => {
               last_quantity: null,
             },
           ],
+          meal_sets: [],
         },
       })
     } finally {
@@ -2316,7 +2476,12 @@ describe('search_foods', () => {
         }),
       ).toEqual({
         result: {
-          content: [{ type: 'text', text: '食品候補を 2 件取得しました。' }],
+          content: [
+            {
+              type: 'text',
+              text: '食品候補を 2 件、マイセットを 0 件取得しました。',
+            },
+          ],
           structuredContent: {
             foods: [
               {
@@ -2340,6 +2505,7 @@ describe('search_foods', () => {
                 last_quantity: null,
               },
             ],
+            meal_sets: [],
           },
         },
         searchCalls: [
@@ -2377,7 +2543,12 @@ describe('search_foods', () => {
       })
 
       expect(result).toEqual({
-        content: [{ type: 'text', text: '登録済み食品を 1 件取得しました。' }],
+        content: [
+          {
+            type: 'text',
+            text: '登録済み食品を 1 件、マイセットを 0 件取得しました。',
+          },
+        ],
         structuredContent: {
           foods: [
             {
@@ -2391,7 +2562,239 @@ describe('search_foods', () => {
               last_quantity: null,
             },
           ],
+          meal_sets: [],
         },
+      })
+    } finally {
+      await h.close()
+    }
+  })
+
+  it('returns matching meal sets once across all search terms', async () => {
+    const firstMealSet: MealSet = {
+      id: 'ms_fixture_beta',
+      name: 'Sample meal set beta',
+      items: [
+        {
+          foodMasterId: 'fm_fixture_grain',
+          foodName: 'Sample grain',
+          quantity: 1,
+        },
+        {
+          foodMasterId: 'fm_fixture_side',
+          foodName: 'Sample side',
+          quantity: 1.5,
+        },
+      ],
+      createdAt: new Date('2026-04-17T00:00:00.000Z'),
+    }
+    const secondMealSet: MealSet = {
+      id: 'ms_fixture_delta',
+      name: 'Sample meal set delta',
+      items: [
+        {
+          foodMasterId: 'fm_fixture_protein',
+          foodName: 'Sample protein',
+          quantity: 2,
+        },
+      ],
+      createdAt: new Date('2026-04-17T00:00:00.000Z'),
+    }
+    const h = await start({
+      mealSetServiceOverrides: {
+        searchByName: (query) => {
+          if (query === 'sample meal set beta') return okAsync([firstMealSet])
+          if (query === 'sample set alias beta') {
+            return okAsync([firstMealSet, secondMealSet])
+          }
+          return okAsync([])
+        },
+      },
+    })
+    try {
+      const result = await h.client.callTool({
+        name: 'search_foods',
+        arguments: {
+          queries: ['sample meal set beta', 'sample set alias beta'],
+        },
+      })
+
+      expect(
+        observation({
+          result,
+          mealSetSearchQueries: h.directMealToolCalls.mealSetSearchQueries,
+        }),
+      ).toEqual({
+        result: {
+          content: [
+            {
+              type: 'text',
+              text: '登録済み食品を 1 件、マイセットを 2 件取得しました。',
+            },
+          ],
+          structuredContent: {
+            foods: [
+              {
+                food_master_id: 'fm_catalog_alpha',
+                composition_code: null,
+                name: 'item_token_alpha',
+                energy_kcal: 42,
+                is_estimated: false,
+                nutrition_status: 'confirmed',
+                last_eaten_date: '2026-01-02',
+                last_quantity: 1.5,
+              },
+            ],
+            meal_sets: [
+              {
+                meal_set_id: 'ms_fixture_beta',
+                name: 'Sample meal set beta',
+                items: [
+                  {
+                    food_master_id: 'fm_fixture_grain',
+                    food_name: 'Sample grain',
+                    quantity: 1,
+                  },
+                  {
+                    food_master_id: 'fm_fixture_side',
+                    food_name: 'Sample side',
+                    quantity: 1.5,
+                  },
+                ],
+              },
+              {
+                meal_set_id: 'ms_fixture_delta',
+                name: 'Sample meal set delta',
+                items: [
+                  {
+                    food_master_id: 'fm_fixture_protein',
+                    food_name: 'Sample protein',
+                    quantity: 2,
+                  },
+                ],
+              },
+            ],
+          },
+        },
+        mealSetSearchQueries: ['sample meal set beta', 'sample set alias beta'],
+      })
+    } finally {
+      await h.close()
+    }
+  })
+
+  it('returns an error when meal-set search fails', async () => {
+    const h = await start({
+      mealSetServiceOverrides: {
+        searchByName: () => errAsync(new MealSetPersistenceError('stub')),
+      },
+    })
+    try {
+      const result = await h.client.callTool({
+        name: 'search_foods',
+        arguments: { queries: ['item_token_alpha'] },
+      })
+
+      expect(result).toEqual({
+        content: [{ type: 'text', text: 'stub' }],
+        isError: true,
+      })
+    } finally {
+      await h.close()
+    }
+  })
+})
+
+describe('register_meal_set', () => {
+  it('registers meal-set items through MealSetService', async () => {
+    const mealSet: MealSet = {
+      id: 'ms_fixture_gamma',
+      name: 'Sample meal set gamma',
+      items: [
+        {
+          foodMasterId: 'fm_fixture_gamma',
+          foodName: 'Sample food gamma',
+          quantity: 1.25,
+        },
+      ],
+      createdAt: new Date('2026-04-17T00:00:00.000Z'),
+    }
+    const h = await start({
+      mealSetServiceOverrides: {
+        register: () => okAsync(mealSet),
+      },
+    })
+    try {
+      const result = await h.client.callTool({
+        name: 'register_meal_set',
+        arguments: {
+          name: 'Sample meal set gamma',
+          items: [{ food_master_id: 'fm_fixture_gamma', quantity: 1.25 }],
+        },
+      })
+
+      expect(
+        observation({
+          result,
+          registrations: h.directMealToolCalls.registerMealSets,
+        }),
+      ).toEqual({
+        result: {
+          content: [{ type: 'text', text: 'マイセットを登録しました。' }],
+          structuredContent: {
+            meal_set_id: 'ms_fixture_gamma',
+            name: 'Sample meal set gamma',
+            items: [
+              {
+                food_master_id: 'fm_fixture_gamma',
+                food_name: 'Sample food gamma',
+                quantity: 1.25,
+              },
+            ],
+          },
+        },
+        registrations: [
+          {
+            name: 'Sample meal set gamma',
+            items: [{ foodMasterId: 'fm_fixture_gamma', quantity: 1.25 }],
+          },
+        ],
+      })
+    } finally {
+      await h.close()
+    }
+  })
+
+  it('returns the domain error for empty meal-set items', async () => {
+    const error = new EmptyMealSetItemsError()
+    const h = await start({
+      mealSetServiceOverrides: {
+        register: () => errAsync(error),
+      },
+    })
+    try {
+      const result = await h.client.callTool({
+        name: 'register_meal_set',
+        arguments: { name: 'Sample empty set', items: [] },
+      })
+
+      expect(
+        observation({
+          result,
+          registrations: h.directMealToolCalls.registerMealSets,
+        }),
+      ).toEqual({
+        result: {
+          content: [{ type: 'text', text: 'items must not be empty' }],
+          isError: true,
+          structuredContent: {
+            error: {
+              code: 'meal_set/empty_items',
+              message: 'items must not be empty',
+            },
+          },
+        },
+        registrations: [{ name: 'Sample empty set', items: [] }],
       })
     } finally {
       await h.close()
@@ -3027,7 +3430,12 @@ describe('register_food_without_nutrition', () => {
 
 describe('record_meal_log', () => {
   it('records resolved food IDs directly', async () => {
-    const h = await start()
+    const h = await start({
+      recordMealLogResults: recordedMealLogItems.map((item) => ({
+        ...item,
+        stockShortfall: 0.5,
+      })),
+    })
     try {
       const result = await h.client.callTool({
         name: 'record_meal_log',
@@ -3059,6 +3467,7 @@ describe('record_meal_log', () => {
                 food_master_id: 'fm_catalog_alpha',
                 food_name: 'item_token_alpha',
                 quantity: 2,
+                stock_shortfall: 0.5,
                 nutrition: { energy_kcal: 84, protein_g: 3 },
                 is_estimated: false,
                 nutrition_status: 'confirmed',
@@ -3128,6 +3537,7 @@ describe('record_meal_log', () => {
               food_master_id: 'fm_catalog_unknown',
               food_name: 'unknown menu',
               quantity: 1,
+              stock_shortfall: null,
               nutrition: {},
               is_estimated: false,
               nutrition_status: 'unknown',

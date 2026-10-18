@@ -6,11 +6,11 @@ Foods available for meal logging.
 
 ## Columns
 
-| Name       | Type                     | Default | Nullable | Children                                                                                                                                                                                                              | Parents | Comment    |
-| ---------- | ------------------------ | ------- | -------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------- | ---------- |
-| id         | text                     |         | false    | [public.food_master_aliases](public.food_master_aliases.md) [public.meal_logs](public.meal_logs.md) [public.food_master_nutrition](public.food_master_nutrition.md) [public.meal_set_items](public.meal_set_items.md) |         |            |
-| name       | text                     |         | false    |                                                                                                                                                                                                                       |         | Food name. |
-| created_at | timestamp with time zone | now()   | false    |                                                                                                                                                                                                                       |         |            |
+| Name       | Type                     | Default | Nullable | Children                                                                                                                                                                                                                                                                                                    | Parents | Comment    |
+| ---------- | ------------------------ | ------- | -------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------- | ---------- |
+| id         | text                     |         | false    | [public.food_master_aliases](public.food_master_aliases.md) [public.meal_logs](public.meal_logs.md) [public.food_master_nutrition](public.food_master_nutrition.md) [public.meal_set_items](public.meal_set_items.md) [public.stock_items](public.stock_items.md) [public.stock_lots](public.stock_lots.md) |         |            |
+| name       | text                     |         | false    |                                                                                                                                                                                                                                                                                                             |         | Food name. |
+| created_at | timestamp with time zone | now()   | false    |                                                                                                                                                                                                                                                                                                             |         |            |
 
 ## Constraints
 
@@ -38,6 +38,8 @@ erDiagram
 "public.meal_logs" }o--|| "public.food_masters" : "FOREIGN KEY (food_master_id) REFERENCES food_masters(id) ON UPDATE CASCADE ON DELETE RESTRICT"
 "public.food_master_nutrition" |o--|| "public.food_masters" : "FOREIGN KEY (food_master_id) REFERENCES food_masters(id) ON UPDATE CASCADE ON DELETE CASCADE"
 "public.meal_set_items" }o--|| "public.food_masters" : "FOREIGN KEY (food_master_id) REFERENCES food_masters(id) ON UPDATE CASCADE ON DELETE RESTRICT"
+"public.stock_items" |o--|| "public.food_masters" : "FOREIGN KEY (food_master_id) REFERENCES food_masters(id) ON UPDATE CASCADE ON DELETE CASCADE"
+"public.stock_lots" }o--|| "public.food_masters" : "FOREIGN KEY (food_master_id) REFERENCES food_masters(id) ON UPDATE CASCADE ON DELETE RESTRICT"
 
 "public.food_masters" {
   text id
@@ -68,6 +70,22 @@ erDiagram
   text meal_set_id FK
   text food_master_id FK
   numeric quantity
+}
+"public.stock_items" {
+  text food_master_id FK
+  text storage_location_id FK
+  integer eat_within_days
+  timestamp_with_time_zone created_at
+}
+"public.stock_lots" {
+  text id
+  text food_master_id FK
+  numeric quantity
+  date received_date
+  date best_before
+  date eat_by
+  timestamp_with_time_zone created_at
+  text delivery_id FK
 }
 ```
 

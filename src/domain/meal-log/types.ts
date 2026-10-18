@@ -59,6 +59,7 @@ export interface UpdateMealLogInput {
 }
 
 export interface MealLogResult extends MealLogRow {
+  readonly stockShortfall?: number
   readonly nutrition: NutritionMap
   readonly isEstimated: boolean
   readonly nutritionStatus: NutritionStatus

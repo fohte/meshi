@@ -7,11 +7,16 @@ import { describeIfDb, setupTx } from '#test/db'
 import { createCountingIdGenerator, type IdCounter } from '#test/id-counter'
 import { jstDate } from '#test/jst-date'
 import {
+  seedDelivery,
   seedFoodMaster,
   seedFoodMasterAlias,
   seedMealLog,
   seedMealSet,
   seedMealSetItem,
+  seedStockItem,
+  seedStockLot,
+  seedStockMovement,
+  seedStorageLocation,
 } from '#test/seed'
 
 describeIfDb('mergeFoodMasters (merge-repository)', () => {
@@ -35,8 +40,7 @@ describeIfDb('mergeFoodMasters (merge-repository)', () => {
     })
   })
 
-  // Full seed for the basic case: survivor and loser each with their own
-  // alias, nutrient and meal_log, and no alias conflicts between them.
+  // The loser also appears in one meal set, with no alias conflicts in the pair.
   const seedBasicPair = async (): Promise<void> => {
     const tx = getTx()
     await seedFoodMaster(tx, {
@@ -99,6 +103,30 @@ describeIfDb('mergeFoodMasters (merge-repository)', () => {
       nutrientCode: string
     }>
     readonly mealLogs: ReadonlyArray<{ id: string; foodMasterId: string }>
+    readonly stockItems: ReadonlyArray<{
+      foodMasterId: string
+      storageLocationId: string | null
+      eatWithinDays: number | null
+    }>
+    readonly storageLocations: ReadonlyArray<{
+      id: string
+      name: string
+      capacity: string | null
+    }>
+    readonly stockLots: ReadonlyArray<{
+      id: string
+      foodMasterId: string
+      quantity: string
+      receivedDate: string | null
+      bestBefore: string | null
+      eatBy: string | null
+    }>
+    readonly stockMovements: ReadonlyArray<{
+      id: string
+      stockLotId: string
+      delta: string
+      reason: string
+    }>
     readonly mealSets: ReadonlyArray<{ id: string; name: string }>
     readonly mealSetItems: ReadonlyArray<{
       mealSetId: string
@@ -115,6 +143,10 @@ describeIfDb('mergeFoodMasters (merge-repository)', () => {
       aliases,
       nutrients,
       mealLogs,
+      stockItems,
+      storageLocations,
+      stockLots,
+      stockMovements,
       mealSets,
       mealSetItems,
     ] = await Promise.all([
@@ -144,6 +176,46 @@ describeIfDb('mergeFoodMasters (merge-repository)', () => {
       tx<{ id: string; food_master_id: string }[]>`
         SELECT id, food_master_id FROM meal_logs ORDER BY id
       `,
+      tx<
+        {
+          food_master_id: string
+          storage_location_id: string | null
+          eat_within_days: number | null
+        }[]
+      >`
+        SELECT food_master_id, storage_location_id, eat_within_days
+        FROM stock_items ORDER BY food_master_id
+      `,
+      tx<{ id: string; name: string; capacity: string | null }[]>`
+        SELECT id, name, capacity::text AS capacity
+        FROM storage_locations ORDER BY id
+      `,
+      tx<
+        {
+          id: string
+          food_master_id: string
+          quantity: string
+          received_date: string | null
+          best_before: string | null
+          eat_by: string | null
+        }[]
+      >`
+        SELECT id, food_master_id, quantity::text AS quantity,
+               received_date::text AS received_date,
+               best_before::text AS best_before, eat_by::text AS eat_by
+        FROM stock_lots ORDER BY id
+      `,
+      tx<
+        {
+          id: string
+          stock_lot_id: string
+          delta: string
+          reason: string
+        }[]
+      >`
+        SELECT id, stock_lot_id, delta::text AS delta, reason
+        FROM stock_movements ORDER BY id
+      `,
       tx<{ id: string; name: string }[]>`
         SELECT id, name FROM meal_sets ORDER BY id
       `,
@@ -172,6 +244,30 @@ describeIfDb('mergeFoodMasters (merge-repository)', () => {
       mealLogs: mealLogs.map((r) => ({
         id: r.id,
         foodMasterId: r.food_master_id,
+      })),
+      stockItems: stockItems.map((r) => ({
+        foodMasterId: r.food_master_id,
+        storageLocationId: r.storage_location_id,
+        eatWithinDays: r.eat_within_days,
+      })),
+      storageLocations: storageLocations.map((r) => ({
+        id: r.id,
+        name: r.name,
+        capacity: r.capacity,
+      })),
+      stockLots: stockLots.map((r) => ({
+        id: r.id,
+        foodMasterId: r.food_master_id,
+        quantity: r.quantity,
+        receivedDate: r.received_date,
+        bestBefore: r.best_before,
+        eatBy: r.eat_by,
+      })),
+      stockMovements: stockMovements.map((r) => ({
+        id: r.id,
+        stockLotId: r.stock_lot_id,
+        delta: r.delta,
+        reason: r.reason,
       })),
       mealSets,
       mealSetItems: mealSetItems.map((r) => ({
@@ -257,6 +353,159 @@ describeIfDb('mergeFoodMasters (merge-repository)', () => {
           quantity: 1.5,
         },
       ],
+      stockItems: [],
+      storageLocations: [],
+      stockLots: [],
+      stockMovements: [],
+    })
+  })
+
+  const snapshotStock = async (): Promise<{
+    readonly stockItems: DbSnapshot['stockItems']
+    readonly storageLocations: DbSnapshot['storageLocations']
+    readonly stockLots: DbSnapshot['stockLots']
+    readonly stockMovements: DbSnapshot['stockMovements']
+  }> => {
+    const result = await snapshot()
+    return {
+      stockItems: result.stockItems,
+      storageLocations: result.storageLocations,
+      stockLots: result.stockLots,
+      stockMovements: result.stockMovements,
+    }
+  }
+
+  it('moves stock items and lots from the loser when the survivor has no stock item', async () => {
+    await seedBasicPair()
+    const tx = getTx()
+    await seedStorageLocation(tx, {
+      id: 'sl_loser',
+      name: 'Sample compartment',
+      capacity: 6,
+    })
+    await seedStockItem(tx, {
+      foodMasterId: 'fm_loser',
+      storageLocationId: 'sl_loser',
+      eatWithinDays: 18,
+    })
+    await seedStockLot(tx, {
+      id: 'stl_loser',
+      foodMasterId: 'fm_loser',
+      quantity: 4.25,
+      receivedDate: '2026-10-01',
+      bestBefore: '2026-11-01',
+      eatBy: '2026-10-19',
+    })
+    await seedStockMovement(tx, {
+      id: 'stm_loser',
+      stockLotId: 'stl_loser',
+      delta: 4.25,
+      reason: 'count',
+    })
+
+    const mergeResult = await repo.merge('fm_survivor', 'fm_loser', false)
+    mergeResult._unsafeUnwrap()
+
+    expect(await snapshotStock()).toEqual({
+      stockItems: [
+        {
+          foodMasterId: 'fm_survivor',
+          storageLocationId: 'sl_loser',
+          eatWithinDays: 18,
+        },
+      ],
+      storageLocations: [
+        { id: 'sl_loser', name: 'Sample compartment', capacity: '6' },
+      ],
+      stockLots: [
+        {
+          id: 'stl_loser',
+          foodMasterId: 'fm_survivor',
+          quantity: '4.25',
+          receivedDate: '2026-10-01',
+          bestBefore: '2026-11-01',
+          eatBy: '2026-10-19',
+        },
+      ],
+      stockMovements: [
+        {
+          id: 'stm_loser',
+          stockLotId: 'stl_loser',
+          delta: '4.25',
+          reason: 'count',
+        },
+      ],
+    })
+  })
+
+  it('keeps the survivor stock item settings when both foods have stock items', async () => {
+    await seedBasicPair()
+    const tx = getTx()
+    await seedStorageLocation(tx, {
+      id: 'sl_survivor',
+      name: 'Sample shelf',
+      capacity: 12,
+    })
+    await seedStorageLocation(tx, {
+      id: 'sl_loser',
+      name: 'Sample drawer',
+      capacity: 5,
+    })
+    await seedStockItem(tx, {
+      foodMasterId: 'fm_survivor',
+      storageLocationId: 'sl_survivor',
+      eatWithinDays: 30,
+    })
+    await seedStockItem(tx, {
+      foodMasterId: 'fm_loser',
+      storageLocationId: 'sl_loser',
+      eatWithinDays: 10,
+    })
+    await seedStockLot(tx, {
+      id: 'stl_loser',
+      foodMasterId: 'fm_loser',
+      quantity: 2,
+    })
+    await seedStockMovement(tx, {
+      id: 'stm_loser',
+      stockLotId: 'stl_loser',
+      delta: 2,
+      reason: 'count',
+    })
+
+    const mergeResult = await repo.merge('fm_survivor', 'fm_loser', false)
+    mergeResult._unsafeUnwrap()
+
+    expect(await snapshotStock()).toEqual({
+      stockItems: [
+        {
+          foodMasterId: 'fm_survivor',
+          storageLocationId: 'sl_survivor',
+          eatWithinDays: 30,
+        },
+      ],
+      storageLocations: [
+        { id: 'sl_loser', name: 'Sample drawer', capacity: '5' },
+        { id: 'sl_survivor', name: 'Sample shelf', capacity: '12' },
+      ],
+      stockLots: [
+        {
+          id: 'stl_loser',
+          foodMasterId: 'fm_survivor',
+          quantity: '2',
+          receivedDate: null,
+          bestBefore: null,
+          eatBy: null,
+        },
+      ],
+      stockMovements: [
+        {
+          id: 'stm_loser',
+          stockLotId: 'stl_loser',
+          delta: '2',
+          reason: 'count',
+        },
+      ],
     })
   })
 
@@ -286,6 +535,177 @@ describeIfDb('mergeFoodMasters (merge-repository)', () => {
         quantity: 3.75,
       },
     ])
+  })
+
+  it('combines stock lots when both foods are in the same delivery', async () => {
+    await seedBasicPair()
+    const tx = getTx()
+    await seedStockItem(tx, { foodMasterId: 'fm_survivor' })
+    await seedStockItem(tx, { foodMasterId: 'fm_loser' })
+    await seedDelivery(tx, {
+      id: 'dly_food_merge',
+      sourceRef: 'sample-food-merge-order',
+      status: 'received',
+      expectedDate: '2026-10-20',
+      receivedDate: '2026-10-21',
+    })
+    await seedStockLot(tx, {
+      id: 'stl_delivery_survivor',
+      foodMasterId: 'fm_survivor',
+      deliveryId: 'dly_food_merge',
+      quantity: 3,
+      receivedDate: '2026-10-21',
+      bestBefore: '2026-11-05',
+      eatBy: '2026-10-31',
+    })
+    await seedStockLot(tx, {
+      id: 'stl_delivery_loser',
+      foodMasterId: 'fm_loser',
+      deliveryId: 'dly_food_merge',
+      quantity: 2,
+      receivedDate: '2026-10-21',
+      bestBefore: '2026-11-01',
+      eatBy: '2026-10-29',
+    })
+    await seedStockMovement(tx, {
+      id: 'stm_delivery_survivor',
+      stockLotId: 'stl_delivery_survivor',
+      delta: 3,
+      reason: 'receive',
+    })
+    await seedStockMovement(tx, {
+      id: 'stm_delivery_loser',
+      stockLotId: 'stl_delivery_loser',
+      delta: 2,
+      reason: 'receive',
+    })
+
+    ;(await repo.merge('fm_survivor', 'fm_loser', false))._unsafeUnwrap()
+
+    const result = await (async () => {
+      const lots = await tx<
+        {
+          id: string
+          food_master_id: string
+          delivery_id: string | null
+          quantity: string
+          received_date: string | null
+          best_before: string | null
+          eat_by: string | null
+        }[]
+      >`
+        SELECT id, food_master_id, delivery_id, quantity::text AS quantity,
+               received_date::text AS received_date,
+               best_before::text AS best_before, eat_by::text AS eat_by
+        FROM stock_lots
+        WHERE delivery_id = 'dly_food_merge'
+      `
+      const movements = await tx<
+        { id: string; stock_lot_id: string; delta: string; reason: string }[]
+      >`
+        SELECT id, stock_lot_id, delta::text AS delta, reason
+        FROM stock_movements
+        WHERE id IN ('stm_delivery_survivor', 'stm_delivery_loser')
+        ORDER BY id
+      `
+      return { lots, movements }
+    })()
+
+    expect(result).toEqual({
+      lots: [
+        {
+          id: 'stl_delivery_survivor',
+          food_master_id: 'fm_survivor',
+          delivery_id: 'dly_food_merge',
+          quantity: '5',
+          received_date: '2026-10-21',
+          best_before: '2026-11-01',
+          eat_by: '2026-10-29',
+        },
+      ],
+      movements: [
+        {
+          id: 'stm_delivery_loser',
+          stock_lot_id: 'stl_delivery_survivor',
+          delta: '2',
+          reason: 'receive',
+        },
+        {
+          id: 'stm_delivery_survivor',
+          stock_lot_id: 'stl_delivery_survivor',
+          delta: '3',
+          reason: 'receive',
+        },
+      ],
+    })
+  })
+
+  it('combines planned delivery lots when foods are merged', async () => {
+    await seedBasicPair()
+    const tx = getTx()
+    await seedStockItem(tx, { foodMasterId: 'fm_survivor' })
+    await seedStockItem(tx, { foodMasterId: 'fm_loser' })
+    await seedDelivery(tx, {
+      id: 'dly_planned_food_merge',
+      sourceRef: 'sample-planned-food-merge-order',
+      status: 'planned',
+      expectedDate: '2026-10-20',
+    })
+    await seedStockLot(tx, {
+      id: 'stl_planned_survivor',
+      foodMasterId: 'fm_survivor',
+      deliveryId: 'dly_planned_food_merge',
+      quantity: 3,
+    })
+    await seedStockLot(tx, {
+      id: 'stl_planned_loser',
+      foodMasterId: 'fm_loser',
+      deliveryId: 'dly_planned_food_merge',
+      quantity: 2,
+    })
+
+    ;(await repo.merge('fm_survivor', 'fm_loser', false))._unsafeUnwrap()
+
+    const result = await (async () => {
+      const lots = await tx<
+        {
+          id: string
+          food_master_id: string
+          delivery_id: string | null
+          quantity: string
+          received_date: string | null
+          best_before: string | null
+          eat_by: string | null
+        }[]
+      >`
+        SELECT id, food_master_id, delivery_id, quantity::text AS quantity,
+               received_date::text AS received_date,
+               best_before::text AS best_before, eat_by::text AS eat_by
+        FROM stock_lots
+        WHERE delivery_id = 'dly_planned_food_merge'
+      `
+      const movements = await tx<{ count: string }[]>`
+        SELECT count(*)::text AS count
+        FROM stock_movements
+        WHERE stock_lot_id IN ('stl_planned_survivor', 'stl_planned_loser')
+      `
+      return { lots, movements }
+    })()
+
+    expect(result).toEqual({
+      lots: [
+        {
+          id: 'stl_planned_survivor',
+          food_master_id: 'fm_survivor',
+          delivery_id: 'dly_planned_food_merge',
+          quantity: '5',
+          received_date: null,
+          best_before: null,
+          eat_by: null,
+        },
+      ],
+      movements: [{ count: '0' }],
+    })
   })
 
   // A third food_master already owns the loser's name as an alias, so the

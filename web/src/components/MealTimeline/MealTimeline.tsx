@@ -4,6 +4,7 @@ import styles from '#components/MealTimeline/MealTimeline.module.css'
 
 export interface MealTimelineProps {
   readonly groups: ReadonlyArray<MealTimelineGroup>
+  readonly renderMealPhotos?: (mealType: MealType) => React.ReactNode
   // Opens the meal log sheet in edit mode for the tapped entry. Optional so
   // Storybook stories can render the timeline without wiring up the sheet.
   readonly onItemClick?: (id: string) => void
@@ -16,6 +17,7 @@ export interface MealTimelineProps {
 
 export const MealTimeline = ({
   groups,
+  renderMealPhotos,
   onItemClick,
   onMarkSkipped,
   onCancelSkip,
@@ -61,6 +63,7 @@ export const MealTimeline = ({
             </div>
           )}
         </div>
+        {renderMealPhotos?.(group.mealType)}
         {group.status === 'eaten' && (
           <div className={styles.items}>
             {group.items.map((item) => (

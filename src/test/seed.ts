@@ -1,5 +1,6 @@
 import type { Sql } from '#db/index'
 import type {
+  deliveries,
   foodCompositionNutrients,
   foodCompositions,
   foodMasterAliases,
@@ -7,9 +8,14 @@ import type {
   foodMasterNutrition,
   foodMasters,
   mealLogs,
+  mealPhotos,
   mealSetItems,
   mealSets,
   nutrientDefinitions,
+  stockItems,
+  stockLots,
+  stockMovements,
+  storageLocations,
 } from '#db/schema'
 
 export const seedNutrientDefinition = async (
@@ -121,6 +127,25 @@ export const seedMealLog = async (
   `
 }
 
+export const seedMealPhoto = async (
+  sql: Sql,
+  values: typeof mealPhotos.$inferInsert,
+): Promise<void> => {
+  await sql`
+    INSERT INTO meal_photos (
+      id, eaten_date, meal_type, object_key, content_type, created_at
+    )
+    VALUES (
+      ${values.id},
+      ${values.eatenDate},
+      ${values.mealType},
+      ${values.objectKey},
+      ${values.contentType},
+      COALESCE(${values.createdAt?.toISOString() ?? null}::timestamptz, now())
+    )
+  `
+}
+
 export const seedMealSet = async (
   sql: Sql,
   values: typeof mealSets.$inferInsert,
@@ -172,5 +197,83 @@ export const seedFoodCompositionNutrient = async (
   await sql`
     INSERT INTO food_composition_nutrients (food_composition_code, nutrient_code, value)
     VALUES (${values.foodCompositionCode}, ${values.nutrientCode}, ${values.value})
+  `
+}
+
+export const seedStorageLocation = async (
+  sql: Sql,
+  values: Omit<
+    typeof storageLocations.$inferInsert,
+    'createdAt' | 'capacity'
+  > & {
+    capacity?: number | null
+  },
+): Promise<void> => {
+  await sql`
+    INSERT INTO storage_locations (id, name, capacity)
+    VALUES (${values.id}, ${values.name}, ${values.capacity ?? null})
+  `
+}
+
+export const seedStockItem = async (
+  sql: Sql,
+  values: Omit<typeof stockItems.$inferInsert, 'createdAt'>,
+): Promise<void> => {
+  await sql`
+    INSERT INTO stock_items (food_master_id, storage_location_id, eat_within_days)
+    VALUES (
+      ${values.foodMasterId}, ${values.storageLocationId ?? null},
+      ${values.eatWithinDays ?? null}
+    )
+  `
+}
+
+export const seedDelivery = async (
+  sql: Sql,
+  values: Omit<typeof deliveries.$inferInsert, 'createdAt'>,
+): Promise<void> => {
+  await sql`
+    INSERT INTO deliveries (
+      id, source_ref, status, expected_date, received_date, change_deadline
+    ) VALUES (
+      ${values.id}, ${values.sourceRef ?? null},
+      ${values.status ?? 'planned'}, ${values.expectedDate},
+      ${values.receivedDate ?? null}, ${values.changeDeadline ?? null}
+    )
+  `
+}
+
+export const seedStockLot = async (
+  sql: Sql,
+  values: Omit<typeof stockLots.$inferInsert, 'createdAt' | 'quantity'> & {
+    quantity: number
+  },
+): Promise<void> => {
+  await sql`
+    INSERT INTO stock_lots (
+      id, food_master_id, delivery_id, quantity, received_date, best_before, eat_by
+    ) VALUES (
+      ${values.id}, ${values.foodMasterId}, ${values.deliveryId ?? null},
+      ${values.quantity},
+      ${values.receivedDate ?? null}, ${values.bestBefore ?? null},
+      ${values.eatBy ?? null}
+    )
+  `
+}
+
+export const seedStockMovement = async (
+  sql: Sql,
+  values: Omit<typeof stockMovements.$inferInsert, 'createdAt' | 'delta'> & {
+    delta: number
+  },
+): Promise<void> => {
+  await sql`
+    INSERT INTO stock_movements (
+      id, stock_lot_id, delta, reason, note, meal_log_id
+    )
+    VALUES (
+      ${values.id}, ${values.stockLotId}, ${values.delta},
+      ${values.reason}, ${values.note ?? null}, ${values.mealLogId ?? null}
+    )
   `
 }

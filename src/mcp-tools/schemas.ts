@@ -5,6 +5,17 @@ import { NUTRITION_STATUSES } from '#domain/food-master/types'
 import { hasDuplicateAfterTrim } from '#domain/food-master/validation'
 import { MEAL_TYPES } from '#domain/meal-log/types'
 import { jstDateSchema } from '#lib/jst-date'
+import { stockStorageLocationOutput } from '#mcp-tools/stock-status-schemas'
+
+export {
+  deliveryStructuredOutput,
+  receiveDeliveryInput,
+  registerDeliveryInput,
+} from '#mcp-tools/delivery-schemas'
+export {
+  getStockStatusInput,
+  getStockStatusStructuredOutput,
+} from '#mcp-tools/stock-status-schemas'
 
 // z.number() rejects NaN and Infinity by default in zod v4, so it is safe to
 // reuse this schema on the MCP input boundary (update_profile.daily_targets).
@@ -112,6 +123,7 @@ export const recordMealSkipStructuredOutput = mealSkipIdentity.extend({
 export const cancelMealSkipStructuredOutput = mealSkipIdentity
 
 export const updateMealLogStructuredOutput = mealLogMutationOutput.extend({
+  stock_shortfall: z.number().nonnegative().nullable(),
   nutrition: nutritionMap,
   is_estimated: z.boolean(),
 })
@@ -143,6 +155,18 @@ export const searchFoodsInput = z.object({
     .describe('retail は買ったものや外食、homemade は自炊'),
 })
 
+const mealSetItemOutput = z.object({
+  food_master_id: z.string(),
+  food_name: z.string(),
+  quantity: z.number(),
+})
+
+const mealSetOutput = z.object({
+  meal_set_id: z.string(),
+  name: z.string(),
+  items: z.array(mealSetItemOutput),
+})
+
 export const searchFoodsStructuredOutput = z.object({
   foods: z.array(
     z.object({
@@ -168,6 +192,29 @@ export const searchFoodsStructuredOutput = z.object({
         ),
     }),
   ),
+  meal_sets: z.array(mealSetOutput),
+})
+
+// The service owns semantic validation so callers receive typed meal-set errors.
+export const registerMealSetInput = z.object({
+  name: z.string().describe('登録するマイセット名'),
+  items: z
+    .array(
+      z.object({
+        food_master_id: z.string().describe('セットに含める食品の ID'),
+        quantity: z.number().describe('食品 1 つ分への倍率'),
+      }),
+    )
+    .describe('マイセットに含める食品'),
+})
+
+export const registerMealSetStructuredOutput = mealSetOutput.partial().extend({
+  error: z
+    .object({
+      code: z.string(),
+      message: z.string(),
+    })
+    .optional(),
 })
 
 export const registerFoodFromCompositionInput = z
@@ -324,6 +371,7 @@ export const recordMealLogStructuredOutput = z.object({
       food_master_id: z.string(),
       food_name: z.string(),
       quantity: z.number(),
+      stock_shortfall: z.number().nonnegative().nullable(),
       nutrition: nutritionMap,
       is_estimated: z.boolean(),
       nutrition_status: z.enum(NUTRITION_STATUSES),
@@ -343,4 +391,62 @@ export const recordMealLogStructuredOutput = z.object({
       message: z.string(),
     })
     .nullable(),
+})
+
+export const setStockItemInput = z
+  .object({
+    food_master_id: z.string().min(1),
+    storage_location_name: z
+      .string()
+      .trim()
+      .min(1)
+      .nullable()
+      .optional()
+      .describe('保存場所名。省略すると維持し、null で解除する'),
+    storage_location_capacity: z
+      .number()
+      .positive()
+      .nullable()
+      .optional()
+      .describe('保存場所の容量。null で容量を解除する'),
+    eat_within_days: z
+      .number()
+      .int()
+      .positive()
+      .nullable()
+      .optional()
+      .describe('受領日から食べ切りたい日数。null で解除する'),
+  })
+  .strict()
+  .refine(
+    (input) =>
+      input.storage_location_capacity === undefined ||
+      input.storage_location_name !== null,
+    {
+      message: 'storage_location_capacity requires a storage location',
+      path: ['storage_location_capacity'],
+    },
+  )
+
+export const setStockItemStructuredOutput = z.object({
+  food_master_id: z.string(),
+  food_name: z.string(),
+  storage_location: stockStorageLocationOutput.nullable(),
+  eat_within_days: z.number().int().nullable(),
+})
+
+export const countStockInput = z
+  .object({
+    food_master_id: z.string().min(1),
+    quantity: z.number().min(0),
+    received_date: z.iso.date().nullable().optional(),
+    best_before: z.iso.date().nullable().optional(),
+  })
+  .strict()
+
+export const countStockStructuredOutput = z.object({
+  food_master_id: z.string(),
+  previous_quantity: z.number(),
+  counted_quantity: z.number(),
+  difference: z.number(),
 })

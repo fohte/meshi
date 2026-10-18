@@ -1,4 +1,4 @@
-import { defineConfig } from 'vitest/config'
+import { configDefaults, defineConfig } from 'vitest/config'
 
 export default defineConfig({
   test: {
@@ -13,5 +13,6 @@ export default defineConfig({
     // of this file can resolve test entry files; Vitest's own runtime
     // behavior is unchanged.
     include: ['**/*.{test,spec}.?(c|m)[jt]s?(x)'],
+    exclude: [...configDefaults.exclude, 'web/src/**/*.test.tsx'],
   },
 })
