@@ -34,6 +34,7 @@ import { registerMealSetTool } from '#mcp-tools/register-meal-set'
 import { profileStructuredOutput, updateProfileInput } from '#mcp-tools/schemas'
 import { registerSetStockItemTool } from '#mcp-tools/set-stock-item'
 import { registerUpdateMealLogTool } from '#mcp-tools/update-meal-log'
+import { registerUpdateStockLotTool } from '#mcp-tools/update-stock-lot'
 
 export interface MeshiToolDeps {
   readonly mealHistoryService: MealHistoryService
@@ -94,6 +95,7 @@ export const registerMeshiTools = (
   registerCountStockTool(server, { stockService, logger })
   registerRegisterDeliveryTool(server, { stockService, logger })
   registerReceiveDeliveryTool(server, { stockService, logger })
+  registerUpdateStockLotTool(server, { stockService, logger })
   registerGetStockStatusTool(server, { stockService, logger })
 
   server.registerTool(

@@ -17,6 +17,18 @@ export interface CountStockInput {
   readonly bestBefore?: string | null
 }
 
+export interface UpdateStockLotInput {
+  readonly stockLotId: string
+  readonly bestBefore?: string | null
+  readonly eatBy?: string | null
+}
+
+export interface UpdatedStockLot {
+  readonly id: string
+  readonly bestBefore: string | null
+  readonly eatBy: string | null
+}
+
 interface DeliveryItemInput {
   readonly foodMasterId: string
   readonly quantity: number
@@ -180,6 +192,9 @@ export interface StockRepository {
   countStock(
     input: CountStockInput,
   ): ResultAsync<StockCountResult, StockDomainError>
+  updateStockLot(
+    input: UpdateStockLotInput,
+  ): ResultAsync<UpdatedStockLot, StockDomainError>
   registerDelivery(
     input: RegisterDeliveryInput,
   ): ResultAsync<Delivery, StockDomainError>
@@ -198,6 +213,9 @@ export interface StockService {
   countStock(
     input: CountStockInput,
   ): ResultAsync<StockCountResult, StockDomainError>
+  updateStockLot(
+    input: UpdateStockLotInput,
+  ): ResultAsync<UpdatedStockLot, StockDomainError>
   registerDelivery(
     input: RegisterDeliveryInput,
   ): ResultAsync<Delivery, StockDomainError>

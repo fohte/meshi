@@ -450,3 +450,23 @@ export const countStockStructuredOutput = z.object({
   counted_quantity: z.number(),
   difference: z.number(),
 })
+
+export const updateStockLotInput = z
+  .object({
+    stock_lot_id: z.string().trim().min(1),
+    best_before: z.iso.date().nullable().optional(),
+    eat_by: z.iso.date().nullable().optional(),
+  })
+  .strict()
+  .refine(
+    (input) => input.best_before !== undefined || input.eat_by !== undefined,
+    {
+      message: 'at least one of best_before or eat_by must be provided',
+    },
+  )
+
+export const updateStockLotStructuredOutput = z.object({
+  stock_lot_id: z.string(),
+  best_before: z.iso.date().nullable(),
+  eat_by: z.iso.date().nullable(),
+})

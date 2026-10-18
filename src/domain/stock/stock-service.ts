@@ -10,6 +10,7 @@ import type {
   SetStockItemInput,
   StockRepository,
   StockService,
+  UpdateStockLotInput,
 } from '#domain/stock/types'
 import { toJstDateString } from '#lib/jst-date'
 
@@ -102,6 +103,38 @@ export const createStockService = (
       }
     }
     return repository.countStock(input)
+  },
+
+  updateStockLot(input: UpdateStockLotInput) {
+    const stockLotId = input.stockLotId.trim()
+    if (stockLotId === '') {
+      return errAsync(
+        new StockDomainError('invalid_input', 'stock_lot_id must not be empty'),
+      )
+    }
+    if (input.bestBefore === undefined && input.eatBy === undefined) {
+      return errAsync(
+        new StockDomainError(
+          'invalid_input',
+          'at least one of best_before or eat_by must be provided',
+        ),
+      )
+    }
+    for (const [field, value] of [
+      ['best_before', input.bestBefore],
+      ['eat_by', input.eatBy],
+    ] as const) {
+      if (
+        value !== undefined &&
+        value !== null &&
+        !validDate.safeParse(value).success
+      ) {
+        return errAsync(
+          new StockDomainError('invalid_input', `${field} must be YYYY-MM-DD`),
+        )
+      }
+    }
+    return repository.updateStockLot({ ...input, stockLotId })
   },
 
   registerDelivery(input: RegisterDeliveryInput) {

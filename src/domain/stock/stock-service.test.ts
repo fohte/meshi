@@ -9,6 +9,7 @@ import type {
   RegisterDeliveryInput,
   SetStockItemInput,
   StockRepository,
+  UpdateStockLotInput,
 } from '#domain/stock/types'
 
 const repository: StockRepository = {
@@ -25,6 +26,12 @@ const repository: StockRepository = {
       previousQuantity: 0,
       countedQuantity: input.quantity,
       difference: input.quantity,
+    }),
+  updateStockLot: (input) =>
+    okAsync({
+      id: input.stockLotId,
+      bestBefore: input.bestBefore ?? null,
+      eatBy: input.eatBy ?? null,
     }),
   registerDelivery: (input: RegisterDeliveryInput) =>
     okAsync({
@@ -127,6 +134,58 @@ it.each(invalidCountInputs)('rejects $name', async ({ input, message }) => {
   expect(result._unsafeUnwrapErr()).toEqual(
     new StockDomainError('invalid_input', message),
   )
+})
+
+const invalidUpdateStockLotInputs: ReadonlyArray<{
+  readonly name: string
+  readonly input: UpdateStockLotInput
+  readonly message: string
+}> = [
+  {
+    name: 'blank stock lot ID',
+    input: { stockLotId: '  ', eatBy: null },
+    message: 'stock_lot_id must not be empty',
+  },
+  {
+    name: 'no date fields',
+    input: { stockLotId: 'stl_sample' },
+    message: 'at least one of best_before or eat_by must be provided',
+  },
+  {
+    name: 'invalid best-before date',
+    input: { stockLotId: 'stl_sample', bestBefore: '2031-02-30' },
+    message: 'best_before must be YYYY-MM-DD',
+  },
+  {
+    name: 'invalid eat-by date',
+    input: { stockLotId: 'stl_sample', eatBy: '2031-13-01' },
+    message: 'eat_by must be YYYY-MM-DD',
+  },
+]
+
+it.each(invalidUpdateStockLotInputs)(
+  'rejects $name',
+  async ({ input, message }) => {
+    const result = await stockService.updateStockLot(input)
+
+    expect(result._unsafeUnwrapErr()).toEqual(
+      new StockDomainError('invalid_input', message),
+    )
+  },
+)
+
+it('trims the stock lot ID and preserves an explicit null date', async () => {
+  const result = await stockService.updateStockLot({
+    stockLotId: ' stl_sample ',
+    bestBefore: null,
+    eatBy: '2031-05-12',
+  })
+
+  expect(result._unsafeUnwrap()).toEqual({
+    id: 'stl_sample',
+    bestBefore: null,
+    eatBy: '2031-05-12',
+  })
 })
 
 const invalidDeliveryInputs: ReadonlyArray<{
