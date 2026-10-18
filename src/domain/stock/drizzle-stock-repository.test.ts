@@ -91,7 +91,7 @@ describeIfDb('stock repository', () => {
     })
   })
 
-  it('backfills an existing received lot into eat-by warnings and priorities', async () => {
+  it('backfills an existing received lot when eat-within days are omitted', async () => {
     const tx = getTx()
     await seedFoodMasterWithoutNutrition(tx, {
       id: 'fm_eat_by_backfill_status',
@@ -99,6 +99,7 @@ describeIfDb('stock repository', () => {
     })
     await seedStockItem(tx, {
       foodMasterId: 'fm_eat_by_backfill_status',
+      eatWithinDays: 2,
     })
     await seedStockLot(tx, {
       id: 'stl_eat_by_backfill_status',
@@ -115,7 +116,6 @@ describeIfDb('stock repository', () => {
 
     await stockService.setStockItem({
       foodMasterId: 'fm_eat_by_backfill_status',
-      eatWithinDays: 2,
     })
     const status = (await stockService.getStockStatus())._unsafeUnwrap()
 

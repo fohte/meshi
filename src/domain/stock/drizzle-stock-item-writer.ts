@@ -151,7 +151,7 @@ export const createStockItemWriter = (
         `
       }
 
-      if (input.eatWithinDays !== undefined && eatWithinDays !== null) {
+      if (eatWithinDays !== null) {
         await tx`
           UPDATE stock_lots
           SET eat_by = received_date + ${eatWithinDays}::int
