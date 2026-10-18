@@ -1,16 +1,10 @@
 import type { MealType } from '#api/day-detail'
+import { MealTypeSelector } from '#components/MealTypeSelector/MealTypeSelector'
 import styles from '#meal-log-sheet/MealLogDetailForm.module.css'
-import { previewKcal, type SheetState } from '#meal-log-sheet/sheet-state'
-
-const MEAL_OPTIONS: ReadonlyArray<{ value: MealType; label: string }> = [
-  { value: 'breakfast', label: '朝食' },
-  { value: 'lunch', label: '昼食' },
-  { value: 'dinner', label: '夕食' },
-  { value: 'snack', label: '間食' },
-]
+import { previewKcal, type SingleSheetState } from '#meal-log-sheet/sheet-state'
 
 export interface MealLogDetailFormProps {
-  readonly state: SheetState
+  readonly state: SingleSheetState
   readonly backToSearch: () => void
   readonly setQuantity: (quantity: string) => void
   readonly setMealType: (mealType: MealType) => void
@@ -26,7 +20,6 @@ export const MealLogDetailForm = ({
 }: MealLogDetailFormProps): React.JSX.Element => {
   const { selectedFood } = state
   const kcal = previewKcal(state)
-  const activeMealType = state.mealType
 
   return (
     <div className={styles.form}>
@@ -73,24 +66,11 @@ export const MealLogDetailForm = ({
 
       <div className={styles.field}>
         <div className={styles.label}>食事区分</div>
-        <div className={styles.mealOptions}>
-          {MEAL_OPTIONS.map((option) => (
-            <button
-              key={option.value}
-              type="button"
-              className={
-                activeMealType === option.value
-                  ? styles.mealOptionActive
-                  : styles.mealOption
-              }
-              onClick={() => {
-                setMealType(option.value)
-              }}
-            >
-              {option.label}
-            </button>
-          ))}
-        </div>
+        <MealTypeSelector
+          value={state.mealType}
+          disabled={false}
+          onChange={setMealType}
+        />
       </div>
 
       <div className={styles.field}>

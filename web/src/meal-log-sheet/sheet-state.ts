@@ -1,37 +1,72 @@
 import type { DayDetailEntry, MealType } from '#api/day-detail'
-import type { RecordMealLogInput } from '#api/meal-logs'
+import type {
+  RecordBatchMealLogInput,
+  RecordMealLogInput,
+} from '#api/meal-logs'
+import type { MealSet } from '#api/meal-sets'
 import { todayJstDate } from '#lib/jst-date'
 
 type SheetPhase = 'search' | 'detail'
-type SheetMode = 'create' | 'edit'
 
 export interface SelectedFood {
   readonly foodMasterId: string
   readonly name: string
   readonly isEstimated: boolean
-  // Only known for a food picked from search/suggestions (FoodListItem) or
-  // a freshly-registered composition candidate — an edited entry's food
-  // isn't re-fetched, so this stays null and the detail form skips the
-  // kcal preview rather than showing a stale/wrong number.
+  // Edited entries are not re-fetched, so their kcal preview stays hidden
+  // instead of showing a value that may no longer match the food master.
   readonly energyKcalPerUnit: number | null
 }
 
-export interface SheetState {
-  readonly mode: SheetMode
-  readonly mealLogId: string | null
+interface SingleSheetStateFields {
   readonly phase: SheetPhase
   readonly query: string
   readonly selectedFood: SelectedFood | null
   readonly isNewFood: boolean
   readonly quantity: string
-  // null means the user hasn't picked one yet — save stays disabled until
-  // they do (mealType is never inferred).
+  // The user must choose a meal type; it is never inferred from the time.
   readonly mealType: MealType | null
   readonly date: string
   readonly justSaved: boolean
 }
 
-export const buildCreateState = (): SheetState => ({
+export interface CreateSheetState extends SingleSheetStateFields {
+  readonly mode: 'create'
+  readonly mealLogId: null
+  readonly activeTab: 'food' | 'meal-set'
+}
+
+export interface EditSheetState extends SingleSheetStateFields {
+  readonly mode: 'edit'
+  readonly mealLogId: string
+}
+
+interface MealSetRecordItem {
+  readonly id: number
+  readonly foodMasterId: string
+  readonly foodName: string
+  readonly quantity: string
+  readonly energyKcalPerUnit: number | null
+}
+
+export type MealSetFoodSelection =
+  | { readonly type: 'add' }
+  | { readonly type: 'replace'; readonly itemId: number }
+
+export interface MealSetRecordState {
+  readonly mode: 'meal-set'
+  readonly mealSetName: string
+  readonly items: ReadonlyArray<MealSetRecordItem>
+  readonly nextItemId: number
+  readonly query: string
+  readonly pendingSelection: MealSetFoodSelection | null
+  readonly mealType: MealType | null
+  readonly date: string
+}
+
+export type SingleSheetState = CreateSheetState | EditSheetState
+export type SheetState = SingleSheetState | MealSetRecordState
+
+export const buildCreateState = (): CreateSheetState => ({
   mode: 'create',
   mealLogId: null,
   phase: 'search',
@@ -42,17 +77,19 @@ export const buildCreateState = (): SheetState => ({
   mealType: null,
   date: todayJstDate(),
   justSaved: false,
+  activeTab: 'food',
 })
 
-// Continuing after a save keeps the date the user was working with (e.g.
-// logging several items from the same meal) instead of resetting to today.
-export const buildContinueState = (previous: SheetState): SheetState => ({
+// Continuing after a save keeps the date the user was working with.
+export const buildContinueState = (
+  previous: CreateSheetState,
+): CreateSheetState => ({
   ...buildCreateState(),
   date: previous.date,
   justSaved: true,
 })
 
-export const buildEditState = (entry: DayDetailEntry): SheetState => ({
+export const buildEditState = (entry: DayDetailEntry): EditSheetState => ({
   mode: 'edit',
   mealLogId: entry.id,
   phase: 'detail',
@@ -70,7 +107,7 @@ export const buildEditState = (entry: DayDetailEntry): SheetState => ({
   justSaved: false,
 })
 
-export const previewKcal = (state: SheetState): number | null => {
+export const previewKcal = (state: SingleSheetState): number | null => {
   const energyKcalPerUnit = state.selectedFood?.energyKcalPerUnit ?? null
   if (energyKcalPerUnit === null) return null
   const quantity = Number(state.quantity)
@@ -78,14 +115,12 @@ export const previewKcal = (state: SheetState): number | null => {
   return energyKcalPerUnit * quantity
 }
 
-// A newly-registered composition candidate defaults quantity to 100 (see
-// registerFromComposition on the backend); picking an existing food_master
-// keeps whatever quantity the user already typed.
-export const applyFoodSelection = (
-  state: SheetState,
+// New composition foods default to 100 because that is their registered unit.
+const applyFoodSelection = (
+  state: CreateSheetState,
   food: SelectedFood,
   isNew: boolean,
-): SheetState => ({
+): CreateSheetState => ({
   ...state,
   selectedFood: food,
   isNewFood: isNew,
@@ -93,20 +128,149 @@ export const applyFoodSelection = (
   quantity: isNew ? '100' : state.quantity,
 })
 
-export const backToSearch = (state: SheetState): SheetState => ({
+const backToSearch = (state: CreateSheetState): CreateSheetState => ({
   ...state,
   phase: 'search',
   selectedFood: null,
   isNewFood: false,
 })
 
-// Returns null when the form isn't ready to submit (no food selected, an
-// empty date — the <input type="date"> control allows clearing to '' — no
-// mealType chosen yet, or a non-positive/non-numeric quantity). The sheet
-// disables its save button on the same condition, so this doubles as the
-// canSave check.
-export const buildSavePayload = (
+export const setCreateTab = (
+  state: CreateSheetState,
+  activeTab: CreateSheetState['activeTab'],
+): CreateSheetState => ({ ...state, activeTab })
+
+export const buildMealSetRecordState = (
+  mealSet: MealSet,
+  date: string,
+): MealSetRecordState => ({
+  mode: 'meal-set',
+  mealSetName: mealSet.name,
+  items: mealSet.items.map((item, index) => ({
+    id: index,
+    foodMasterId: item.foodMasterId,
+    foodName: item.foodName,
+    quantity: String(item.quantity),
+    energyKcalPerUnit: item.energyKcalPerUnit,
+  })),
+  nextItemId: mealSet.items.length,
+  query: '',
+  pendingSelection: null,
+  mealType: null,
+  date,
+})
+
+export const beginMealSetFoodSelection = (
+  state: MealSetRecordState,
+  selection: MealSetFoodSelection,
+): MealSetRecordState => ({ ...state, pendingSelection: selection, query: '' })
+
+const cancelMealSetFoodSelection = (
+  state: MealSetRecordState,
+): MealSetRecordState => ({ ...state, pendingSelection: null, query: '' })
+
+export const backToFoodSearch = (state: SheetState): SheetState => {
+  if (state.mode === 'meal-set') return cancelMealSetFoodSelection(state)
+  if (state.mode === 'create') return backToSearch(state)
+  return state
+}
+
+const applyMealSetFoodSelection = (
+  state: MealSetRecordState,
+  food: SelectedFood,
+): MealSetRecordState => {
+  const pendingSelection = state.pendingSelection
+  if (pendingSelection === null) return state
+
+  if (pendingSelection.type === 'replace') {
+    return {
+      ...state,
+      pendingSelection: null,
+      query: '',
+      items: state.items.map((item) =>
+        item.id === pendingSelection.itemId
+          ? {
+              ...item,
+              foodMasterId: food.foodMasterId,
+              foodName: food.name,
+              energyKcalPerUnit: food.energyKcalPerUnit,
+            }
+          : item,
+      ),
+    }
+  }
+
+  return {
+    ...state,
+    pendingSelection: null,
+    query: '',
+    nextItemId: state.nextItemId + 1,
+    items: [
+      ...state.items,
+      {
+        id: state.nextItemId,
+        foodMasterId: food.foodMasterId,
+        foodName: food.name,
+        quantity: '1',
+        energyKcalPerUnit: food.energyKcalPerUnit,
+      },
+    ],
+  }
+}
+
+export function applySelectedFoodToSheet(
+  state: CreateSheetState,
+  food: SelectedFood,
+  isNew: boolean,
+): CreateSheetState
+export function applySelectedFoodToSheet(
+  state: MealSetRecordState,
+  food: SelectedFood,
+  isNew: boolean,
+): MealSetRecordState
+export function applySelectedFoodToSheet(
+  state: EditSheetState,
+  food: SelectedFood,
+  isNew: boolean,
+): EditSheetState
+export function applySelectedFoodToSheet(
   state: SheetState,
+  food: SelectedFood,
+  isNew: boolean,
+): SheetState
+export function applySelectedFoodToSheet(
+  state: SheetState,
+  food: SelectedFood,
+  isNew: boolean,
+): SheetState {
+  if (state.mode === 'meal-set') return applyMealSetFoodSelection(state, food)
+  if (state.mode === 'create') return applyFoodSelection(state, food, isNew)
+  return state
+}
+
+export const setMealSetItemQuantity = (
+  state: MealSetRecordState,
+  itemId: number,
+  quantity: string,
+): MealSetRecordState => ({
+  ...state,
+  items: state.items.map((item) =>
+    item.id === itemId ? { ...item, quantity } : item,
+  ),
+})
+
+export const removeMealSetItem = (
+  state: MealSetRecordState,
+  itemId: number,
+): MealSetRecordState => ({
+  ...state,
+  items: state.items.filter((item) => item.id !== itemId),
+})
+
+// A cleared date, missing selection, missing meal type, or invalid quantity
+// leaves the form disabled until the user supplies a valid value.
+export const buildSavePayload = (
+  state: SingleSheetState,
 ): RecordMealLogInput | null => {
   if (state.selectedFood === null) return null
   if (state.date === '') return null
@@ -119,4 +283,29 @@ export const buildSavePayload = (
     mealType: state.mealType,
     quantity,
   }
+}
+
+export const buildMealSetSavePayload = (
+  state: MealSetRecordState,
+): RecordBatchMealLogInput | null => {
+  if (state.pendingSelection !== null) return null
+  if (
+    state.items.length === 0 ||
+    state.date === '' ||
+    state.mealType === null
+  ) {
+    return null
+  }
+
+  const items = state.items.map((item) => ({
+    foodMasterId: item.foodMasterId,
+    quantity: Number(item.quantity),
+  }))
+  if (
+    items.some((item) => !Number.isFinite(item.quantity) || item.quantity <= 0)
+  ) {
+    return null
+  }
+
+  return { eatenDate: state.date, mealType: state.mealType, items }
 }

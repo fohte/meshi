@@ -78,33 +78,6 @@
   margin-top: 6px;
 }
 
-.mealOptions {
-  display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  border: var(--border-width) solid var(--color-border);
-}
-
-.mealOption {
-  all: unset;
-  cursor: pointer;
-  box-sizing: border-box;
-  padding: 9px 0;
-  text-align: center;
-  font-size: 13px;
-  color: var(--color-text-secondary);
-}
-
-.mealOptionActive {
-  all: unset;
-  cursor: pointer;
-  box-sizing: border-box;
-  padding: 9px 0;
-  text-align: center;
-  font-size: 13px;
-  color: var(--color-bg);
-  background: var(--color-text);
-}
-
 .dateInput {
   all: unset;
   width: 100%;

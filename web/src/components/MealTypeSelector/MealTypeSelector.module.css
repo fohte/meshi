@@ -1,0 +1,30 @@
+.options {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  border: var(--border-width) solid var(--color-border);
+}
+
+.option,
+.optionActive {
+  all: unset;
+  cursor: pointer;
+  box-sizing: border-box;
+  padding: 9px 0;
+  text-align: center;
+  font-size: 13px;
+}
+
+.option {
+  color: var(--color-text-secondary);
+}
+
+.optionActive {
+  background: var(--color-text);
+  color: var(--color-bg);
+}
+
+.option:disabled,
+.optionActive:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}

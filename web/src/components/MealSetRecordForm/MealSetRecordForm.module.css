@@ -1,0 +1,156 @@
+.form {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.setName {
+  border: var(--border-width) solid var(--color-border);
+  padding: 12px;
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+}
+
+.label {
+  margin-bottom: 7px;
+  color: var(--color-muted);
+  font-family: var(--font-mono);
+  font-size: 11px;
+}
+
+.itemsHeader {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.itemsHeader .label {
+  margin-bottom: 7px;
+}
+
+.hint {
+  color: var(--color-muted);
+  font-size: 10px;
+}
+
+.items {
+  padding: 0;
+  margin: 0;
+  border: var(--border-width) solid var(--color-border);
+  list-style: none;
+}
+
+.item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 54px;
+  padding: 8px 10px;
+  border-bottom: var(--border-width) solid var(--color-border);
+}
+
+.item:last-child {
+  border-bottom: 0;
+}
+
+.foodName {
+  flex: 1;
+  min-width: 0;
+  font-size: 13px;
+}
+
+.itemActions {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+
+.quantityInput,
+.dateInput {
+  box-sizing: border-box;
+  border: var(--border-width) solid var(--color-border);
+  border-radius: 0;
+  background: var(--color-bg);
+  color: var(--color-text);
+  font: inherit;
+}
+
+.quantityInput {
+  width: 62px;
+  padding: 6px 7px;
+  text-align: right;
+  font-family: var(--font-mono);
+  font-size: 12px;
+}
+
+.kcal {
+  min-width: 46px;
+  color: var(--color-muted);
+  font-family: var(--font-mono);
+  font-size: 10px;
+  text-align: right;
+}
+
+.multiplier {
+  color: var(--color-muted);
+  font-family: var(--font-mono);
+  font-size: 11px;
+}
+
+.actionButton,
+.addButton {
+  all: unset;
+  cursor: pointer;
+  color: var(--color-muted);
+  font-size: 11px;
+}
+
+.actionButton:hover,
+.addButton:hover {
+  color: var(--color-text);
+}
+
+.addButton {
+  margin-top: 9px;
+  color: var(--color-accent);
+  font-size: 12px;
+}
+
+.empty {
+  border: var(--border-width) solid var(--color-border);
+  padding: 12px;
+  color: var(--color-muted);
+  font-size: 13px;
+}
+
+.dateInput {
+  width: 100%;
+  padding: 9px 11px;
+  font-family: var(--font-mono);
+  font-size: 14px;
+}
+
+.error {
+  border: var(--border-width) solid var(--color-accent);
+  padding: 12px;
+  color: var(--color-accent);
+  font-size: 13px;
+}
+
+@media (width < 420px) {
+  .item {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .itemActions {
+    width: 100%;
+    justify-content: flex-end;
+  }
+}

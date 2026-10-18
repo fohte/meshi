@@ -78,6 +78,47 @@
   gap: 20px;
 }
 
+.tabs {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  border: var(--border-width) solid var(--color-border);
+}
+
+.tab,
+.tabActive {
+  all: unset;
+  cursor: pointer;
+  box-sizing: border-box;
+  padding: 10px;
+  text-align: center;
+  font-size: 13px;
+}
+
+.tab {
+  color: var(--color-text-secondary);
+}
+
+.tabActive {
+  background: var(--color-text);
+  color: var(--color-bg);
+}
+
+.searchBack {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  color: var(--color-muted);
+  font-size: 12px;
+}
+
+.searchBack button {
+  all: unset;
+  cursor: pointer;
+  color: var(--color-text);
+  text-decoration: underline;
+}
+
 .savedMessage {
   border: var(--border-width) solid var(--color-border);
   background: var(--color-surface);
