@@ -1,49 +1,53 @@
-import { err, ok } from 'neverthrow'
+import { eq } from 'drizzle-orm'
+import { drizzle } from 'drizzle-orm/postgres-js'
+import { err, ok, ResultAsync } from 'neverthrow'
 import { z } from 'zod'
 
 import type { Sql } from '#db/index'
+import { stockLots } from '#db/schema'
 import { StockDomainError } from '#domain/stock/errors'
-import {
-  createStockWriteRunner,
-  parseRows,
-} from '#domain/stock/stock-repository-utils'
-import type { UpdateStockLotInput } from '#domain/stock/types'
+import { parseRows, toStockError } from '#domain/stock/stock-repository-utils'
+import type { UpdatedStockLot, UpdateStockLotInput } from '#domain/stock/types'
 
-const stockLotDatesRowSchema = z.object({
+type Db = ReturnType<typeof drizzle>
+type Transaction = Parameters<Parameters<Db['transaction']>[0]>[0]
+type DbSession = Db | Transaction
+
+const updatedStockLotRowSchema = z.object({
   id: z.string(),
-  best_before: z.iso.date().nullable(),
-  eat_by: z.iso.date().nullable(),
+  bestBefore: z.iso.date().nullable(),
+  eatBy: z.iso.date().nullable(),
 })
 
 export const createStockLotUpdater = (
   pgSql: Sql,
   wrapInTransaction: boolean,
 ) => {
-  const runWrite = createStockWriteRunner(pgSql, wrapInTransaction)
+  const db: Db = drizzle(pgSql)
 
-  return (input: UpdateStockLotInput) =>
-    runWrite(async (tx) => {
+  return (input: UpdateStockLotInput) => {
+    const update = async (session: DbSession) => {
+      const rawRows = await session
+        .update(stockLots)
+        .set({
+          ...(input.bestBefore === undefined
+            ? {}
+            : { bestBefore: input.bestBefore }),
+          ...(input.eatBy === undefined ? {} : { eatBy: input.eatBy }),
+        })
+        .where(eq(stockLots.id, input.stockLotId))
+        .returning({
+          id: stockLots.id,
+          bestBefore: stockLots.bestBefore,
+          eatBy: stockLots.eatBy,
+        })
       const rows = parseRows(
-        stockLotDatesRowSchema,
-        await tx<Record<string, unknown>[]>`
-          UPDATE stock_lots SET
-            best_before = CASE
-              WHEN ${input.bestBefore !== undefined}
-                THEN ${input.bestBefore ?? null}::date
-              ELSE best_before
-            END,
-            eat_by = CASE
-              WHEN ${input.eatBy !== undefined}
-                THEN ${input.eatBy ?? null}::date
-              ELSE eat_by
-            END
-          WHERE id = ${input.stockLotId}
-          RETURNING id, best_before::text AS best_before,
-                    eat_by::text AS eat_by
-        `,
+        updatedStockLotRowSchema,
+        rawRows,
         'update stock_lot dates',
       )
       if (rows.isErr()) return err(rows.error)
+
       const row = rows.value[0]
       if (row === undefined) {
         return err(
@@ -55,10 +59,20 @@ export const createStockLotUpdater = (
         )
       }
 
-      return ok({
-        id: row.id,
-        bestBefore: row.best_before,
-        eatBy: row.eat_by,
-      })
-    })
+      return ok<UpdatedStockLot, StockDomainError>(row)
+    }
+
+    const transactionWork = async (session: DbSession) => {
+      const result = await update(session)
+      if (result.isErr()) return Promise.reject(result.error)
+      return result
+    }
+
+    const promise = wrapInTransaction
+      ? db.transaction((tx) => transactionWork(tx))
+      : transactionWork(db)
+    return ResultAsync.fromPromise(promise, toStockError).andThen(
+      (result) => result,
+    )
+  }
 }

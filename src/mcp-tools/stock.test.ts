@@ -1,7 +1,8 @@
 import { Client, InMemoryTransport } from '@modelcontextprotocol/client'
-import { okAsync } from 'neverthrow'
+import { errAsync, okAsync } from 'neverthrow'
 import { expect, it } from 'vitest'
 
+import { StockDomainError } from '#domain/stock/errors'
 import type {
   CountStockInput,
   Delivery,
@@ -273,6 +274,36 @@ it('returns the updated update_stock_lot dates', async () => {
         best_before: '2031-05-10',
         eat_by: '2031-05-12',
       },
+    })
+  } finally {
+    await h.close()
+  }
+})
+
+it('returns a tool error when update_stock_lot cannot find the lot', async () => {
+  const h = await connect({
+    ...createStockServiceStub(),
+    updateStockLot: () =>
+      errAsync(
+        new StockDomainError(
+          'stock_lot_not_found',
+          'stock_lot not found: stl_unknown',
+          { stockLotId: 'stl_unknown' },
+        ),
+      ),
+  })
+  try {
+    const result = await h.client.callTool({
+      name: 'update_stock_lot',
+      arguments: {
+        stock_lot_id: 'stl_unknown',
+        eat_by: '2031-05-12',
+      },
+    })
+
+    expect(result).toEqual({
+      isError: true,
+      content: [{ type: 'text', text: 'stock_lot not found: stl_unknown' }],
     })
   } finally {
     await h.close()

@@ -5,7 +5,7 @@ import { createStockService } from '#domain/stock/stock-service'
 import type { StockService } from '#domain/stock/types'
 import { toJstDateString } from '#lib/jst-date'
 import { captureDomainError } from '#test/capture-domain-error'
-import { describeIfDb, setupTx } from '#test/db'
+import { describeIfDb, setupDrizzleTx } from '#test/db'
 import { createCountingIdGenerator, type IdCounter } from '#test/id-counter'
 import {
   seedDelivery,
@@ -18,7 +18,7 @@ import {
 } from '#test/seed'
 
 describeIfDb('stock repository', () => {
-  const getTx = setupTx()
+  const getTx = setupDrizzleTx()
   let stockService: StockService
 
   beforeEach(() => {
