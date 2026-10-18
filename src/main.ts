@@ -139,6 +139,7 @@ export const main = async (): Promise<void> => {
     foodBrowseService,
     foodDetailService,
     mealLogService,
+    mealSetService,
     foodMasterService,
     mealSkipService,
     mealPhotoService,

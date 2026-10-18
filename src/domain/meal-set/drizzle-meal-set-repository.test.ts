@@ -8,7 +8,7 @@ import {
   type MealSetDomainError,
 } from '#domain/meal-set/index'
 import { describeIfDb, setupDrizzleTx } from '#test/db'
-import { seedFoodMasterWithoutNutrition } from '#test/seed'
+import { seedFoodMaster, seedFoodMasterWithoutNutrition } from '#test/seed'
 
 const CREATED_AT_PLACEHOLDER = new Date('2000-01-01T00:00:00.000Z')
 
@@ -71,11 +71,13 @@ describeIfDb('MealSetService with DrizzleMealSetRepository', () => {
         {
           foodMasterId: 'fm_meal_set_alpha',
           foodName: 'alpha sample food',
+          energyKcalPerUnit: null,
           quantity: 2,
         },
         {
           foodMasterId: 'fm_meal_set_zeta',
           foodName: 'zeta sample food',
+          energyKcalPerUnit: null,
           quantity: 1.5,
         },
       ],
@@ -105,6 +107,7 @@ describeIfDb('MealSetService with DrizzleMealSetRepository', () => {
           {
             foodMasterId: 'fm_meal_set_zeta',
             foodName: 'zeta sample food',
+            energyKcalPerUnit: null,
             quantity: 2,
           },
         ],
@@ -117,6 +120,54 @@ describeIfDb('MealSetService with DrizzleMealSetRepository', () => {
           {
             foodMasterId: 'fm_meal_set_alpha',
             foodName: 'alpha sample food',
+            energyKcalPerUnit: null,
+            quantity: 1,
+          },
+        ],
+        createdAt: CREATED_AT_PLACEHOLDER,
+      },
+    ])
+  })
+
+  it('includes per-unit kcal and null when a food has no energy value', async () => {
+    const tx = getTx()
+    await seedFoodMaster(tx, {
+      id: 'fm_meal_set_with_kcal',
+      name: 'alpha sample food',
+      isEstimated: false,
+      source: 'user_input',
+      nutrients: { energy_kcal: 45.5 },
+    })
+    await seedFoodMasterWithoutNutrition(tx, {
+      id: 'fm_meal_set_without_kcal',
+      name: 'beta sample food',
+    })
+    const service = buildService()
+    await service.register({
+      name: 'kcal blend',
+      items: [
+        { foodMasterId: 'fm_meal_set_without_kcal', quantity: 1 },
+        { foodMasterId: 'fm_meal_set_with_kcal', quantity: 2 },
+      ],
+    })
+
+    const listed = await service.list()
+
+    expect(listed._unsafeUnwrap().map(normalizeMealSet)).toEqual([
+      {
+        id: 'ms_domain_test_1',
+        name: 'kcal blend',
+        items: [
+          {
+            foodMasterId: 'fm_meal_set_with_kcal',
+            foodName: 'alpha sample food',
+            energyKcalPerUnit: 45.5,
+            quantity: 2,
+          },
+          {
+            foodMasterId: 'fm_meal_set_without_kcal',
+            foodName: 'beta sample food',
+            energyKcalPerUnit: null,
             quantity: 1,
           },
         ],
@@ -143,6 +194,7 @@ describeIfDb('MealSetService with DrizzleMealSetRepository', () => {
         {
           foodMasterId: 'fm_meal_set_alpha',
           foodName: 'alpha sample food',
+          energyKcalPerUnit: null,
           quantity: 1,
         },
       ],
@@ -185,11 +237,13 @@ describeIfDb('MealSetService with DrizzleMealSetRepository', () => {
           {
             foodMasterId: 'fm_meal_set_case_upper',
             foodName: 'Banana sample food',
+            energyKcalPerUnit: null,
             quantity: 1,
           },
           {
             foodMasterId: 'fm_meal_set_case_lower',
             foodName: 'apple sample food',
+            energyKcalPerUnit: null,
             quantity: 1,
           },
         ],
@@ -202,11 +256,13 @@ describeIfDb('MealSetService with DrizzleMealSetRepository', () => {
           {
             foodMasterId: 'fm_meal_set_case_upper',
             foodName: 'Banana sample food',
+            energyKcalPerUnit: null,
             quantity: 1,
           },
           {
             foodMasterId: 'fm_meal_set_case_lower',
             foodName: 'apple sample food',
+            energyKcalPerUnit: null,
             quantity: 1,
           },
         ],
@@ -236,6 +292,7 @@ describeIfDb('MealSetService with DrizzleMealSetRepository', () => {
         {
           foodMasterId: 'fm_meal_set_alpha',
           foodName: 'alpha sample food',
+          energyKcalPerUnit: null,
           quantity: 3,
         },
       ],
@@ -283,6 +340,7 @@ describeIfDb('MealSetService with DrizzleMealSetRepository', () => {
           {
             foodMasterId: 'fm_meal_set_alpha',
             foodName: 'alpha sample food',
+            energyKcalPerUnit: null,
             quantity: 1,
           },
         ],
