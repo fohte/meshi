@@ -151,6 +151,16 @@ export const createStockItemWriter = (
         `
       }
 
+      if (input.eatWithinDays !== undefined && eatWithinDays !== null) {
+        await tx`
+          UPDATE stock_lots
+          SET eat_by = received_date + ${eatWithinDays}::int
+          WHERE food_master_id = ${input.foodMasterId}
+            AND eat_by IS NULL
+            AND received_date IS NOT NULL
+        `
+      }
+
       const stockItemRows = parseRows(
         stockItemRowSchema,
         await tx<Record<string, unknown>[]>`
