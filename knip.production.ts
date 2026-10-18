@@ -1,4 +1,4 @@
-import config, { project } from '#knip-config'
+import config, { project, testHelperExclusions } from '#knip-config'
 
 export default {
   ...config,
@@ -11,6 +11,12 @@ export default {
         'src/index.ts!',
       ],
       project,
+    },
+    web: {
+      project: [
+        '**/*.{js,mjs,cjs,jsx,ts,tsx,mts,cts}!',
+        ...testHelperExclusions,
+      ],
     },
   },
 }

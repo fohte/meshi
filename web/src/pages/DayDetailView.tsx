@@ -14,6 +14,7 @@ import {
   mealPhotosQueryKey,
   uploadMealPhoto,
 } from '#api/meal-photos'
+import { postMealSet } from '#api/meal-sets'
 import { deleteMealSkip, putMealSkip } from '#api/meal-skips'
 import type { NutrientDefinition } from '#api/nutrient-definitions'
 import {
@@ -25,6 +26,7 @@ import { toPromise } from '#api/to-promise'
 import { ErrorRetry } from '#components/ErrorRetry/ErrorRetry'
 import { getMealPhotoUploadErrorMessage } from '#components/MealPhotoGallery/meal-photo-upload-error-message'
 import { MealPhotoGallery } from '#components/MealPhotoGallery/MealPhotoGallery'
+import { MealSetSaveForm } from '#components/MealSetSaveForm/MealSetSaveForm'
 import {
   buildMealTimelineGroups,
   MEAL_LABELS,
@@ -40,6 +42,7 @@ import {
   weekdayLabelJa,
 } from '#lib/jst-date'
 import { useMealLogSheet } from '#meal-log-sheet/MealLogSheetContext'
+import { buildDayMealSetInput } from '#pages/build-day-meal-set-input'
 import styles from '#pages/DayDetailView.module.css'
 
 export interface DayDetailViewProps {
@@ -181,6 +184,10 @@ const DayDetailContent = ({
     readonly photo: MealPhoto
     readonly isConfirmingDelete: boolean
   } | null>(null)
+  const [mealSetSaveForm, setMealSetSaveForm] = useState<{
+    readonly mealType: MealType
+    readonly name: string
+  } | null>(null)
 
   const breakfastPhotoQuery = useMealPhotoQuery(date, 'breakfast')
   const lunchPhotoQuery = useMealPhotoQuery(date, 'lunch')
@@ -205,6 +212,15 @@ const DayDetailContent = ({
     mutationFn: (mealType: MealType) =>
       toPromise(deleteMealSkip(date, mealType)),
     onSuccess: invalidateDayDetail,
+  })
+  const saveMealSetMutation = useMutation({
+    mutationFn: ({
+      mealType,
+      name,
+    }: {
+      readonly mealType: MealType
+      readonly name: string
+    }) => toPromise(postMealSet(buildDayMealSetInput(entries, mealType, name))),
   })
 
   const uploadMealPhotoMutation = useMutation({
@@ -241,6 +257,53 @@ const DayDetailContent = ({
   })
 
   const getMealPhotoQuery = (mealType: MealType) => mealPhotoQueries[mealType]
+
+  const toggleMealSetSaveForm = (mealType: MealType): void => {
+    saveMealSetMutation.reset()
+    setMealSetSaveForm((current) =>
+      current?.mealType === mealType ? null : { mealType, name: '' },
+    )
+  }
+
+  const renderMealSetSaveForm = (mealType: MealType): React.ReactNode => {
+    if (mealSetSaveForm?.mealType !== mealType) return null
+
+    const mutationMatchesForm =
+      saveMealSetMutation.variables?.mealType === mealType &&
+      saveMealSetMutation.variables.name === mealSetSaveForm.name
+    const error =
+      saveMealSetMutation.isError && mutationMatchesForm
+        ? saveMealSetMutation.error.message
+        : undefined
+    const successMessage =
+      saveMealSetMutation.isSuccess && mutationMatchesForm
+        ? `「${mealSetSaveForm.name}」をマイセットに保存しました。`
+        : undefined
+
+    return (
+      <MealSetSaveForm
+        id={`meal-set-save-${mealType}`}
+        mealLabel={MEAL_LABELS[mealType]}
+        name={mealSetSaveForm.name}
+        isSaving={saveMealSetMutation.isPending}
+        error={error}
+        successMessage={successMessage}
+        onNameChange={(name) => {
+          saveMealSetMutation.reset()
+          setMealSetSaveForm((current) =>
+            current?.mealType === mealType ? { ...current, name } : current,
+          )
+        }}
+        onSave={() => {
+          saveMealSetMutation.mutate({ mealType, name: mealSetSaveForm.name })
+        }}
+        onCancel={() => {
+          saveMealSetMutation.reset()
+          setMealSetSaveForm(null)
+        }}
+      />
+    )
+  }
 
   const renderMealPhotos = (mealType: MealType): React.JSX.Element => {
     const photoQuery = getMealPhotoQuery(mealType)
@@ -358,6 +421,10 @@ const DayDetailContent = ({
         onCancelSkip={(mealType) => {
           cancelSkipMutation.mutate(mealType)
         }}
+        saveMealSetFormMealType={mealSetSaveForm?.mealType ?? null}
+        onToggleMealSetSave={toggleMealSetSaveForm}
+        renderMealSetSaveForm={renderMealSetSaveForm}
+        isMealSetSavePending={saveMealSetMutation.isPending}
         isSkipActionPending={
           markSkippedMutation.isPending || cancelSkipMutation.isPending
         }

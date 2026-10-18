@@ -1,9 +1,13 @@
+export const testHelperExclusions = [
+  '!src/**/test-helpers.ts!',
+  '!src/test/**!',
+]
+
 export const project = [
   'src/**/*.ts!',
   'scripts/**/*.ts!',
   '!src/**/*.test.ts!',
-  '!src/**/test-helpers.ts!',
-  '!src/test/**!',
+  ...testHelperExclusions,
   '!scripts/**/*.test.ts!',
 ]
 

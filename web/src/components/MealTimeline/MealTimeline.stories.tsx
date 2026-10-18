@@ -3,6 +3,7 @@ import type { Meta, StoryObj } from '@storybook/react-vite'
 import type { DayDetailEntry } from '#api/day-detail'
 import type { MealPhoto } from '#api/meal-photos'
 import { MealPhotoGallery } from '#components/MealPhotoGallery/MealPhotoGallery'
+import { MealSetSaveForm } from '#components/MealSetSaveForm/MealSetSaveForm'
 import { buildMealTimelineGroups } from '#components/MealTimeline/build-meal-timeline-groups'
 import { MealTimeline } from '#components/MealTimeline/MealTimeline'
 
@@ -129,6 +130,26 @@ export const WithMealPhoto: Story = {
           onRequestDelete={() => undefined}
           onCancelDeleteConfirmation={() => undefined}
           onDeletePhoto={() => undefined}
+        />
+      ) : null,
+  },
+}
+
+export const MealSetSaveFormOpen: Story = {
+  name: '朝食をマイセットとして保存するフォームを表示しています',
+  args: {
+    groups: buildMealTimelineGroups(ENTRIES, []),
+    saveMealSetFormMealType: 'breakfast',
+    onToggleMealSetSave: () => undefined,
+    renderMealSetSaveForm: (mealType) =>
+      mealType === 'breakfast' ? (
+        <MealSetSaveForm
+          id="meal-set-save-breakfast"
+          mealLabel="朝食"
+          name="朝の定番"
+          onNameChange={() => undefined}
+          onSave={() => undefined}
+          onCancel={() => undefined}
         />
       ) : null,
   },
