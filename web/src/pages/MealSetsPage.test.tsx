@@ -44,6 +44,7 @@ const food = {
   source: 'user_input',
   energyKcalPerUnit: 120,
 }
+const foodSearchPath = `/api/foods/search?${new URLSearchParams({ q: '架空食品', limit: '20' }).toString()}`
 
 const jsonResponse = (body: unknown, status = 200): Response =>
   new Response(JSON.stringify(body), {
@@ -76,13 +77,12 @@ const readPageState = (container: HTMLElement) => ({
   editorOpen: container.querySelector('#meal-set-editor-title') !== null,
 })
 
-const readCrudOutput = (
+const readPageOutput = (
   requests: ReadonlyArray<RequestRecord>,
-  editedMealSets: ReturnType<typeof readMealSets>,
-  finalPageState: ReturnType<typeof readPageState>,
-) => ({ requests, editedMealSets, finalPageState })
+  container: HTMLElement,
+) => ({ requests, page: readPageState(container) })
 
-const readConflictOutput = (
+const readEditorErrorOutput = (
   container: HTMLElement,
   requests: ReadonlyArray<RequestRecord>,
 ) => ({
@@ -129,6 +129,58 @@ const clickButton = async (
     button?.click()
   })
 }
+
+const selectRecentFood = async (container: HTMLElement): Promise<void> => {
+  await clickButton(container, 'button[aria-label="新しいマイセットを作成"]')
+  await waitFor(
+    () =>
+      container.querySelector('button[aria-label="食品を追加 架空食品 A"]') !==
+      null,
+  )
+  await clickButton(container, 'button[aria-label="食品を追加 架空食品 A"]')
+}
+
+const selectSearchedFood = async (
+  container: HTMLElement,
+  requests: ReadonlyArray<RequestRecord>,
+): Promise<void> => {
+  await clickButton(container, 'button[aria-label="新しいマイセットを作成"]')
+  const searchInput = container.querySelector<HTMLInputElement>(
+    '#meal-set-food-search',
+  )
+  if (searchInput !== null) await setInputValue(searchInput, '架空食品')
+  await waitFor(() =>
+    requests.some(({ path }) => path.startsWith('/api/foods/search?')),
+  )
+  await waitFor(
+    () =>
+      container.querySelector('button[aria-label="食品を追加 架空食品 A"]') !==
+      null,
+  )
+  await clickButton(container, 'button[aria-label="食品を追加 架空食品 A"]')
+}
+
+const setMealSetName = async (
+  container: HTMLElement,
+  name: string,
+): Promise<void> => {
+  const nameInput = container.querySelector<HTMLInputElement>('#meal-set-name')
+  if (nameInput !== null) await setInputValue(nameInput, name)
+}
+
+const savedMealSet = (quantity = 1): MealSetRecord => ({
+  id: 'meal_set_demo_one',
+  name: '作業用セット',
+  items: [
+    {
+      foodMasterId: food.foodMasterId,
+      foodName: food.name,
+      quantity,
+      energyKcalPerUnit: food.energyKcalPerUnit,
+    },
+  ],
+  createdAt: '2040-01-02T00:00:00.000Z',
+})
 
 const setupPage = (
   fetchHandler: (path: string, method: string, body: unknown) => Response,
@@ -185,7 +237,7 @@ afterEach(() => {
 })
 
 describe('MealSetsPage', () => {
-  it('creates, edits, and deletes a meal set through the page', async () => {
+  it('creates a meal set from searched food', async () => {
     const requests: Array<RequestRecord> = []
     const mealSets: Array<MealSetRecord> = []
     const { container, root, queryClient } = setupPage((path, method, body) => {
@@ -195,10 +247,7 @@ describe('MealSetsPage', () => {
       if (path === '/api/foods/suggestions?limit=5') {
         return jsonResponse({ recent: [food], frequent: [] })
       }
-      if (
-        path ===
-        `/api/foods/search?${new URLSearchParams({ q: '架空食品', limit: '20' }).toString()}`
-      ) {
+      if (path === foodSearchPath) {
         return jsonResponse({ items: [food] })
       }
       if (path === '/api/meal-sets' && method === 'POST') {
@@ -220,16 +269,86 @@ describe('MealSetsPage', () => {
         mealSets.push(created)
         return jsonResponse(created, 201)
       }
+      return jsonResponse({ error: 'unexpected request' }, 500)
+    }, requests)
+
+    try {
+      await performAct(() => {
+        renderPage(root, queryClient)
+      })
+      await waitFor(() => container.textContent.includes('新しいマイセット'))
+      await selectSearchedFood(container, requests)
+      await setMealSetName(container, '作業用セット')
+      await clickButton(container, 'button[type="submit"]')
+      await waitFor(
+        () =>
+          container.querySelector('button[aria-label="編集 作業用セット"]') !==
+          null,
+      )
+
+      expect(readPageOutput(requests, container)).toEqual({
+        requests: [
+          { method: 'GET', path: '/api/meal-sets', body: null },
+          {
+            method: 'GET',
+            path: '/api/foods/suggestions?limit=5',
+            body: null,
+          },
+          {
+            method: 'GET',
+            path: foodSearchPath,
+            body: null,
+          },
+          {
+            method: 'POST',
+            path: '/api/meal-sets',
+            body: {
+              name: '作業用セット',
+              items: [{ foodMasterId: food.foodMasterId, quantity: 1 }],
+            },
+          },
+          { method: 'GET', path: '/api/meal-sets', body: null },
+        ],
+        page: {
+          paragraphs: [
+            'よく食べる食品の組み合わせと量を登録できます。',
+            '約 120 kcal',
+          ],
+          mealSets: [
+            {
+              name: '作業用セット',
+              energy: '約 120 kcal',
+              items: ['架空食品 A1 ×'],
+            },
+          ],
+          editorOpen: false,
+        },
+      })
+    } finally {
+      await cleanupPage(container, root, queryClient)
+    }
+  })
+
+  it('updates a meal set quantity and recalculates its energy', async () => {
+    const requests: Array<RequestRecord> = []
+    const mealSets: Array<MealSetRecord> = [savedMealSet()]
+    const { container, root, queryClient } = setupPage((path, method, body) => {
+      if (path === '/api/meal-sets' && method === 'GET') {
+        return jsonResponse(mealSets)
+      }
+      if (path === '/api/foods/suggestions?limit=5') {
+        return jsonResponse({ recent: [food], frequent: [] })
+      }
       if (path === '/api/meal-sets/meal_set_demo_one' && method === 'PATCH') {
         const parsedInput = saveMealSetInputSchema.safeParse(body)
         if (!parsedInput.success) {
           return jsonResponse({ error: 'invalid request' }, 500)
         }
-        const input = parsedInput.data
         const current = mealSets[0]
         if (current === undefined) {
           return jsonResponse({ error: 'meal set not found' }, 404)
         }
+        const input = parsedInput.data
         const updated: MealSetRecord = {
           ...current,
           name: input.name,
@@ -242,10 +361,6 @@ describe('MealSetsPage', () => {
         mealSets[0] = updated
         return jsonResponse(updated)
       }
-      if (path === '/api/meal-sets/meal_set_demo_one' && method === 'DELETE') {
-        mealSets.splice(0, 1)
-        return new Response(null, { status: 204 })
-      }
       return jsonResponse({ error: 'unexpected request' }, 500)
     }, requests)
 
@@ -253,38 +368,11 @@ describe('MealSetsPage', () => {
       await performAct(() => {
         renderPage(root, queryClient)
       })
-      await waitFor(() => container.textContent.includes('新しいマイセット'))
-      await clickButton(
-        container,
-        'button[aria-label="新しいマイセットを作成"]',
-      )
-      const foodSearchInput = container.querySelector<HTMLInputElement>(
-        '#meal-set-food-search',
-      )
-      if (foodSearchInput !== null) {
-        await setInputValue(foodSearchInput, '架空食品')
-      }
-      await waitFor(() =>
-        requests.some(({ path }) => path.startsWith('/api/foods/search?')),
-      )
-      await waitFor(
-        () =>
-          container.querySelector(
-            'button[aria-label="食品を追加 架空食品 A"]',
-          ) !== null,
-      )
-      await clickButton(container, 'button[aria-label="食品を追加 架空食品 A"]')
-
-      const nameInput =
-        container.querySelector<HTMLInputElement>('#meal-set-name')
-      if (nameInput !== null) await setInputValue(nameInput, '作業用セット')
-      await clickButton(container, 'button[type="submit"]')
       await waitFor(
         () =>
           container.querySelector('button[aria-label="編集 作業用セット"]') !==
           null,
       )
-
       await clickButton(container, 'button[aria-label="編集 作業用セット"]')
       await waitFor(
         () =>
@@ -299,20 +387,7 @@ describe('MealSetsPage', () => {
       await clickButton(container, 'button[type="submit"]')
       await waitFor(() => container.textContent.includes('約 300 kcal'))
 
-      const editedMealSets = readMealSets(container)
-
-      await clickButton(container, 'button[aria-label="削除 作業用セット"]')
-      await clickButton(
-        container,
-        'button[aria-label="削除を確定 作業用セット"]',
-      )
-      await waitFor(() =>
-        container.textContent.includes('マイセットはまだありません。'),
-      )
-
-      expect(
-        readCrudOutput(requests, editedMealSets, readPageState(container)),
-      ).toEqual({
+      expect(readPageOutput(requests, container)).toEqual({
         requests: [
           { method: 'GET', path: '/api/meal-sets', body: null },
           {
@@ -320,20 +395,6 @@ describe('MealSetsPage', () => {
             path: '/api/foods/suggestions?limit=5',
             body: null,
           },
-          {
-            method: 'GET',
-            path: `/api/foods/search?${new URLSearchParams({ q: '架空食品', limit: '20' }).toString()}`,
-            body: null,
-          },
-          {
-            method: 'POST',
-            path: '/api/meal-sets',
-            body: {
-              name: '作業用セット',
-              items: [{ foodMasterId: food.foodMasterId, quantity: 1 }],
-            },
-          },
-          { method: 'GET', path: '/api/meal-sets', body: null },
           {
             method: 'PATCH',
             path: '/api/meal-sets/meal_set_demo_one',
@@ -343,6 +404,62 @@ describe('MealSetsPage', () => {
             },
           },
           { method: 'GET', path: '/api/meal-sets', body: null },
+        ],
+        page: {
+          paragraphs: [
+            'よく食べる食品の組み合わせと量を登録できます。',
+            '約 300 kcal',
+          ],
+          mealSets: [
+            {
+              name: '作業用セット',
+              energy: '約 300 kcal',
+              items: ['架空食品 A2.5001 ×'],
+            },
+          ],
+          editorOpen: false,
+        },
+      })
+    } finally {
+      await cleanupPage(container, root, queryClient)
+    }
+  })
+
+  it('deletes a meal set after confirmation', async () => {
+    const requests: Array<RequestRecord> = []
+    const mealSets: Array<MealSetRecord> = [savedMealSet()]
+    const { container, root, queryClient } = setupPage((path, method) => {
+      if (path === '/api/meal-sets' && method === 'GET') {
+        return jsonResponse(mealSets)
+      }
+      if (path === '/api/meal-sets/meal_set_demo_one' && method === 'DELETE') {
+        mealSets.splice(0, 1)
+        return new Response(null, { status: 204 })
+      }
+      return jsonResponse({ error: 'unexpected request' }, 500)
+    }, requests)
+
+    try {
+      await performAct(() => {
+        renderPage(root, queryClient)
+      })
+      await waitFor(
+        () =>
+          container.querySelector('button[aria-label="削除 作業用セット"]') !==
+          null,
+      )
+      await clickButton(container, 'button[aria-label="削除 作業用セット"]')
+      await clickButton(
+        container,
+        'button[aria-label="削除を確定 作業用セット"]',
+      )
+      await waitFor(() =>
+        container.textContent.includes('マイセットはまだありません。'),
+      )
+
+      expect(readPageOutput(requests, container)).toEqual({
+        requests: [
+          { method: 'GET', path: '/api/meal-sets', body: null },
           {
             method: 'DELETE',
             path: '/api/meal-sets/meal_set_demo_one',
@@ -350,14 +467,7 @@ describe('MealSetsPage', () => {
           },
           { method: 'GET', path: '/api/meal-sets', body: null },
         ],
-        editedMealSets: [
-          {
-            name: '作業用セット',
-            energy: '約 300 kcal',
-            items: ['架空食品 A2.5001 ×'],
-          },
-        ],
-        finalPageState: {
+        page: {
           paragraphs: [
             'よく食べる食品の組み合わせと量を登録できます。',
             'マイセットはまだありません。',
@@ -365,6 +475,58 @@ describe('MealSetsPage', () => {
           ],
           mealSets: [],
           editorOpen: false,
+        },
+      })
+    } finally {
+      await cleanupPage(container, root, queryClient)
+    }
+  })
+
+  it('rejects a quantity of zero before sending a request', async () => {
+    const requests: Array<RequestRecord> = []
+    const { container, root, queryClient } = setupPage((path, method) => {
+      if (path === '/api/meal-sets' && method === 'GET') {
+        return jsonResponse([])
+      }
+      if (path === '/api/foods/suggestions?limit=5') {
+        return jsonResponse({ recent: [food], frequent: [] })
+      }
+      return jsonResponse({ error: 'unexpected request' }, 500)
+    }, requests)
+
+    try {
+      await performAct(() => {
+        renderPage(root, queryClient)
+      })
+      await waitFor(() => container.textContent.includes('新しいマイセット'))
+      await selectRecentFood(container)
+      await setMealSetName(container, '作業用セット')
+      const quantityInput = container.querySelector<HTMLInputElement>(
+        `input[aria-label="${food.name} の量"]`,
+      )
+      if (quantityInput !== null) await setInputValue(quantityInput, '0')
+      await clickButton(container, 'button[type="submit"]')
+      await waitFor(
+        () =>
+          container
+            .querySelector('[role="alert"]')
+            ?.textContent.includes(
+              '量は 0 より大きい数を入力してください。',
+            ) === true,
+      )
+
+      expect(readEditorErrorOutput(container, requests)).toEqual({
+        requests: [
+          { method: 'GET', path: '/api/meal-sets', body: null },
+          {
+            method: 'GET',
+            path: '/api/foods/suggestions?limit=5',
+            body: null,
+          },
+        ],
+        output: {
+          error: '量は 0 より大きい数を入力してください。',
+          editorTitle: '##新しいマイセット',
         },
       })
     } finally {
@@ -395,24 +557,12 @@ describe('MealSetsPage', () => {
         renderPage(root, queryClient)
       })
       await waitFor(() => container.textContent.includes('新しいマイセット'))
-      await clickButton(
-        container,
-        'button[aria-label="新しいマイセットを作成"]',
-      )
-      await waitFor(
-        () =>
-          container.querySelector(
-            'button[aria-label="食品を追加 架空食品 A"]',
-          ) !== null,
-      )
-      await clickButton(container, 'button[aria-label="食品を追加 架空食品 A"]')
-      const nameInput =
-        container.querySelector<HTMLInputElement>('#meal-set-name')
-      if (nameInput !== null) await setInputValue(nameInput, '作業用セット')
+      await selectRecentFood(container)
+      await setMealSetName(container, '作業用セット')
       await clickButton(container, 'button[type="submit"]')
       await waitFor(() => container.querySelector('[role="alert"]') !== null)
 
-      expect(readConflictOutput(container, requests)).toEqual({
+      expect(readEditorErrorOutput(container, requests)).toEqual({
         requests: [
           { method: 'GET', path: '/api/meal-sets', body: null },
           {

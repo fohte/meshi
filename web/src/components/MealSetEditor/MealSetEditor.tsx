@@ -1,4 +1,3 @@
-import type { MealSet } from '#api/meal-sets'
 import styles from '#components/MealSetEditor/MealSetEditor.module.css'
 
 export interface MealSetFoodOption {
@@ -276,7 +275,6 @@ const FoodOptions = ({
           <button
             type="button"
             className={styles.foodOption}
-            disabled={selectedFoodIds.has(item.foodMasterId)}
             aria-label={`食品を追加 ${item.name}`}
             onClick={() => {
               onAddFood(item)
@@ -320,24 +318,11 @@ const FoodSection = ({
 }: FoodSectionProps): React.JSX.Element => (
   <section className={styles.foodSection}>
     <h3 className={styles.foodSectionTitle}>{title}</h3>
-    {items.filter((item) => !selectedFoodIds.has(item.foodMasterId)).length ===
-    0 ? (
-      <div className={styles.emptySearch}>{emptyText}</div>
-    ) : (
-      <FoodOptions
-        items={items}
-        selectedFoodIds={selectedFoodIds}
-        emptyText={emptyText}
-        onAddFood={onAddFood}
-      />
-    )}
+    <FoodOptions
+      items={items}
+      selectedFoodIds={selectedFoodIds}
+      emptyText={emptyText}
+      onAddFood={onAddFood}
+    />
   </section>
 )
-
-export const mealSetFromApi = (mealSet: MealSet): MealSetDraftItem[] =>
-  mealSet.items.map((item) => ({
-    foodMasterId: item.foodMasterId,
-    foodName: item.foodName,
-    quantity: String(item.quantity),
-    energyKcalPerUnit: item.energyKcalPerUnit,
-  }))

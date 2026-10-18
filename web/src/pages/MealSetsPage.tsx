@@ -19,7 +19,6 @@ import {
   type MealSetDraftItem,
   MealSetEditor,
   type MealSetFoodOption,
-  mealSetFromApi,
 } from '#components/MealSetEditor/MealSetEditor'
 import styles from '#pages/MealSetsPage.module.css'
 
@@ -69,6 +68,14 @@ const toFoodOptions = (
     }))
 
 const formatQuantity = (quantity: number): string => String(quantity)
+
+const draftItemsFromMealSet = (mealSet: MealSet): MealSetDraftItem[] =>
+  mealSet.items.map((item) => ({
+    foodMasterId: item.foodMasterId,
+    foodName: item.foodName,
+    quantity: String(item.quantity),
+    energyKcalPerUnit: item.energyKcalPerUnit,
+  }))
 
 const getEnergySummary = (mealSet: MealSet): string => {
   const knownItems = mealSet.items.filter(
@@ -148,7 +155,7 @@ export const MealSetsPage = (): React.JSX.Element => {
     setEditor({
       id: mealSet.id,
       name: mealSet.name,
-      items: mealSetFromApi(mealSet),
+      items: draftItemsFromMealSet(mealSet),
       foodQuery: '',
     })
     setDeleteTargetId(null)
@@ -158,6 +165,14 @@ export const MealSetsPage = (): React.JSX.Element => {
     setEditor(null)
     setValidationError(undefined)
     saveMutation.reset()
+  }
+
+  const updateEditor = (
+    update: (current: EditorState) => EditorState,
+  ): void => {
+    setEditor((current) => (current === null ? current : update(current)))
+    saveMutation.reset()
+    setValidationError(undefined)
   }
 
   const handleSave = (): void => {
@@ -190,9 +205,8 @@ export const MealSetsPage = (): React.JSX.Element => {
   }
 
   const handleAddFood = (food: MealSetFoodOption): void => {
-    setEditor((current) => {
+    updateEditor((current) => {
       if (
-        current === null ||
         current.items.some((item) => item.foodMasterId === food.foodMasterId)
       ) {
         return current
@@ -211,44 +225,26 @@ export const MealSetsPage = (): React.JSX.Element => {
         ],
       }
     })
-    saveMutation.reset()
-    setValidationError(undefined)
   }
 
   const setEditorName = (name: string): void => {
-    setEditor((current) => (current === null ? current : { ...current, name }))
-    saveMutation.reset()
-    setValidationError(undefined)
+    updateEditor((current) => ({ ...current, name }))
   }
 
   const setItemQuantity = (foodMasterId: string, quantity: string): void => {
-    setEditor((current) =>
-      current === null
-        ? current
-        : {
-            ...current,
-            items: current.items.map((item) =>
-              item.foodMasterId === foodMasterId ? { ...item, quantity } : item,
-            ),
-          },
-    )
-    saveMutation.reset()
-    setValidationError(undefined)
+    updateEditor((current) => ({
+      ...current,
+      items: current.items.map((item) =>
+        item.foodMasterId === foodMasterId ? { ...item, quantity } : item,
+      ),
+    }))
   }
 
   const removeFood = (foodMasterId: string): void => {
-    setEditor((current) =>
-      current === null
-        ? current
-        : {
-            ...current,
-            items: current.items.filter(
-              (item) => item.foodMasterId !== foodMasterId,
-            ),
-          },
-    )
-    saveMutation.reset()
-    setValidationError(undefined)
+    updateEditor((current) => ({
+      ...current,
+      items: current.items.filter((item) => item.foodMasterId !== foodMasterId),
+    }))
   }
 
   const setFoodQuery = (foodQuery: string): void => {

@@ -83,23 +83,42 @@ const renderEditor = (
   )
 }
 
+const setupEditor = async (
+  items: ReadonlyArray<MealSetDraftItem>,
+): Promise<{
+  readonly container: HTMLDivElement
+  readonly root: Root
+  readonly events: Array<EditorEvent>
+}> => {
+  vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true)
+  const container = document.createElement('div')
+  document.body.append(container)
+  const root = createRoot(container)
+  const events: Array<EditorEvent> = []
+  await performAct(() => {
+    renderEditor(root, events, items)
+  })
+  return { container, root, events }
+}
+
+const cleanupEditor = async (
+  container: HTMLElement,
+  root: Root,
+): Promise<void> => {
+  await performAct(() => {
+    root.unmount()
+  })
+  container.remove()
+}
+
 afterEach(() => {
   vi.unstubAllGlobals()
 })
 
 describe('MealSetEditor', () => {
-  it('adds a food, changes its quantity, removes it, and submits', async () => {
-    vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true)
-    const container = document.createElement('div')
-    document.body.append(container)
-    const root = createRoot(container)
-    const events: Array<EditorEvent> = []
-
+  it('adds a selected food', async () => {
+    const { container, root, events } = await setupEditor([])
     try {
-      await performAct(() => {
-        renderEditor(root, events, [])
-      })
-
       const foodButton = Array.from(
         container.querySelectorAll<HTMLButtonElement>('button'),
       ).find((button) => button.textContent.includes(food.name))
@@ -107,10 +126,17 @@ describe('MealSetEditor', () => {
         foodButton?.click()
       })
 
-      await performAct(() => {
-        renderEditor(root, events, [item])
-      })
+      expect(events).toEqual([
+        { action: 'add', foodMasterId: food.foodMasterId },
+      ])
+    } finally {
+      await cleanupEditor(container, root)
+    }
+  })
 
+  it('changes the quantity of a selected food', async () => {
+    const { container, root, events } = await setupEditor([item])
+    try {
       const quantityInput = container.querySelector<HTMLInputElement>(
         `input[aria-label="${food.name} の量"]`,
       )
@@ -121,6 +147,21 @@ describe('MealSetEditor', () => {
         }
       })
 
+      expect(events).toEqual([
+        {
+          action: 'quantity',
+          foodMasterId: food.foodMasterId,
+          quantity: '2.5',
+        },
+      ])
+    } finally {
+      await cleanupEditor(container, root)
+    }
+  })
+
+  it('removes a selected food', async () => {
+    const { container, root, events } = await setupEditor([item])
+    try {
       const removeButton = container.querySelector<HTMLButtonElement>(
         `button[aria-label="${food.name} を削除"]`,
       )
@@ -128,29 +169,25 @@ describe('MealSetEditor', () => {
         removeButton?.click()
       })
 
-      await performAct(() => {
-        renderEditor(root, events, [item])
-      })
+      expect(events).toEqual([
+        { action: 'remove', foodMasterId: food.foodMasterId },
+      ])
+    } finally {
+      await cleanupEditor(container, root)
+    }
+  })
+
+  it('submits the form', async () => {
+    const { container, root, events } = await setupEditor([item])
+    try {
       await performAct(() => {
         const form = container.querySelector<HTMLFormElement>('form')
         if (form !== null) form.requestSubmit()
       })
 
-      expect(events).toEqual([
-        { action: 'add', foodMasterId: food.foodMasterId },
-        {
-          action: 'quantity',
-          foodMasterId: food.foodMasterId,
-          quantity: '2.5',
-        },
-        { action: 'remove', foodMasterId: food.foodMasterId },
-        { action: 'save' },
-      ])
+      expect(events).toEqual([{ action: 'save' }])
     } finally {
-      await performAct(() => {
-        root.unmount()
-      })
-      container.remove()
+      await cleanupEditor(container, root)
     }
   })
 })
