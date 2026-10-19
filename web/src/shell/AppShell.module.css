@@ -1,7 +1,10 @@
 .main {
   flex: 1;
   min-width: 0;
-  padding-bottom: 72px;
+  padding-bottom: calc(
+    var(--mobile-bottom-navigation-height) +
+      var(--mobile-safe-area-inset-bottom)
+  );
 }
 
 @media (width > 768px) {
