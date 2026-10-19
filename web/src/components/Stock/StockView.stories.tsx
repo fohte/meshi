@@ -215,3 +215,14 @@ export const Refreshing: Story = {
     ...noActions,
   },
 }
+
+export const RefreshFailedWithCachedData: Story = {
+  name: '更新に失敗し最後に取得した在庫を表示しています',
+  args: {
+    data: BASE_DATA,
+    isLoading: false,
+    isFetching: false,
+    isError: true,
+    ...noActions,
+  },
+}

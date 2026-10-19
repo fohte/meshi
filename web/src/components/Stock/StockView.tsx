@@ -18,6 +18,11 @@ const quantityFormatter = new Intl.NumberFormat('ja-JP', {
 const formatQuantity = (quantity: number): string =>
   quantityFormatter.format(quantity)
 
+const formatOptionalQuantity = (quantity: number | null | undefined): string =>
+  quantity === null || quantity === undefined
+    ? '未設定'
+    : formatQuantity(quantity)
+
 const displayDate = (date: string | null): string => date ?? '不明'
 
 const targetDateTypeLabel = (type: 'best_before' | 'eat_by'): string =>
@@ -119,11 +124,7 @@ export const StockView = ({
                     <div>
                       <dt>容量</dt>
                       <dd>
-                        {item.storageLocation === null
-                          ? '未設定'
-                          : item.storageLocation.capacity === null
-                            ? '未設定'
-                            : formatQuantity(item.storageLocation.capacity)}
+                        {formatOptionalQuantity(item.storageLocation?.capacity)}
                       </dd>
                     </div>
                     <div>

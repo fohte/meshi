@@ -15,6 +15,24 @@ const EMPTY_STOCK_STATUS: StockStatus = {
   priorityLots: [],
 }
 
+const STALE_STOCK_STATUS: StockStatus = {
+  stockItems: [
+    {
+      foodMasterId: 'food_example_spice',
+      foodName: '架空香辛料',
+      storageLocation: { name: '乾物棚', capacity: null },
+      eatWithinDays: null,
+      totalQuantity: 0.75,
+      lots: [],
+      storageLocationId: 'location_example_dry',
+    },
+  ],
+  plannedDeliveries: [],
+  capacityWarnings: [],
+  eatByWarnings: [],
+  priorityLots: [],
+}
+
 const STOCK_STATUS: StockStatus = {
   stockItems: [
     {
@@ -193,14 +211,14 @@ const readPageOutput = (
   page: readPageState(container),
 })
 
-const readRefreshOutput = (
+const readRefreshRecoveryOutput = (
   requests: ReadonlyArray<string>,
-  whileRefreshing: ReturnType<typeof readPageState>,
+  afterRefreshFailure: ReturnType<typeof readPageState>,
   container: HTMLElement,
 ) => ({
   requests,
-  whileRefreshing,
-  afterRevisit: readPageState(container),
+  afterRefreshFailure,
+  afterRetry: readPageState(container),
 })
 
 const EMPTY_PAGE_STATE = {
@@ -227,6 +245,39 @@ const EMPTY_PAGE_STATE = {
   refreshDisabled: false,
   refreshStatus: null,
   retryButtons: 0,
+}
+
+const STALE_ERROR_PAGE_STATE = {
+  headings: [
+    '# 在庫',
+    '在庫',
+    '架空香辛料',
+    '入荷予定',
+    '容量超過',
+    '食べ切り警告',
+    '先に食べたい入荷分',
+  ],
+  paragraphs: [
+    '数量は食品登録時の単位で表示しています。',
+    '更新に失敗しました。表示中の在庫は最後に取得した内容です。',
+    '残数 0.75',
+    '入荷分はありません。',
+    '入荷予定はありません。',
+    '容量超過の警告はありません。',
+    '食べ切りの警告はありません。',
+    '先に食べたい入荷分はありません。',
+  ],
+  fields: [
+    { label: '保存場所', value: '乾物棚' },
+    { label: '容量', value: '未設定' },
+    { label: '食べ切り目安', value: '未設定' },
+  ],
+  summaries: [],
+  listItems: [],
+  alerts: ['更新に失敗しました。表示中の在庫は最後に取得した内容です。再試行'],
+  refreshDisabled: false,
+  refreshStatus: null,
+  retryButtons: 1,
 }
 
 const refreshButton = (container: HTMLElement): HTMLButtonElement | null =>
@@ -350,7 +401,46 @@ describe('StockPage', () => {
     })
   })
 
-  it('disables repeated refreshes and fetches again when the page is revisited', async () => {
+  it('keeps cached stock visible and retries after a refresh failure', async () => {
+    const requests: string[] = []
+    const { container, root, queryClient } = setupPage(() => {
+      requests.push('/api/stock')
+      if (requests.length === 1) {
+        return Promise.resolve(jsonResponse(STALE_STOCK_STATUS))
+      }
+      if (requests.length === 2) {
+        return Promise.resolve(jsonResponse({ error: 'unavailable' }, 500))
+      }
+      return Promise.resolve(jsonResponse(EMPTY_STOCK_STATUS))
+    })
+    await renderPage(root, queryClient)
+    await waitFor(() => container.textContent.includes('架空香辛料'))
+    await performAct(() => {
+      refreshButton(container)?.click()
+    })
+    await waitFor(() => container.textContent.includes('更新に失敗しました。'))
+    const afterRefreshFailure = readPageState(container)
+    await performAct(() => {
+      Array.from(container.querySelectorAll('button'))
+        .find((button) => button.textContent.trim() === '再試行')
+        ?.click()
+    })
+    await waitFor(
+      () =>
+        requests.length === 3 &&
+        container.textContent.includes('在庫対象はありません。'),
+    )
+
+    expect(
+      readRefreshRecoveryOutput(requests, afterRefreshFailure, container),
+    ).toEqual({
+      requests: ['/api/stock', '/api/stock', '/api/stock'],
+      afterRefreshFailure: STALE_ERROR_PAGE_STATE,
+      afterRetry: EMPTY_PAGE_STATE,
+    })
+  })
+
+  it('disables refresh while the request is pending', async () => {
     const requests: string[] = []
     let resolveRefresh: (response: Response) => void = () => undefined
     const { container, root, queryClient } = setupPage(() => {
@@ -362,7 +452,6 @@ describe('StockPage', () => {
         : Promise.resolve(jsonResponse(EMPTY_STOCK_STATUS))
     })
     await renderPage(root, queryClient)
-    await waitFor(() => requests.length === 1)
     await waitFor(() =>
       container.textContent.includes('在庫対象はありません。'),
     )
@@ -370,26 +459,59 @@ describe('StockPage', () => {
       refreshButton(container)?.click()
     })
     await waitFor(() => requests.length === 2)
-    const whileRefreshing = readPageState(container)
-    resolveRefresh(jsonResponse(STOCK_STATUS))
-    await waitFor(() => container.textContent.includes('架空米'))
     await performAct(() => {
-      root.render(null)
+      refreshButton(container)?.click()
     })
-    await renderPage(root, queryClient)
-    await waitFor(() => requests.length === 3)
-    await waitFor(() =>
-      container.textContent.includes('在庫対象はありません。'),
-    )
 
-    expect(readRefreshOutput(requests, whileRefreshing, container)).toEqual({
-      requests: ['/api/stock', '/api/stock', '/api/stock'],
-      whileRefreshing: {
+    expect(readPageOutput(requests, container)).toEqual({
+      requests: ['/api/stock', '/api/stock'],
+      page: {
         ...EMPTY_PAGE_STATE,
         refreshDisabled: true,
         refreshStatus: '更新中…',
       },
-      afterRevisit: EMPTY_PAGE_STATE,
+    })
+
+    resolveRefresh(jsonResponse(EMPTY_STOCK_STATUS))
+    await waitFor(() => refreshButton(container)?.disabled === false)
+  })
+
+  it('fetches fresh stock again when the page is revisited', async () => {
+    const requests: string[] = []
+    const { container, root, queryClient } = setupPage(() => {
+      requests.push('/api/stock')
+      return Promise.resolve(
+        jsonResponse(
+          requests.length === 1 ? EMPTY_STOCK_STATUS : STALE_STOCK_STATUS,
+        ),
+      )
+    })
+    await renderPage(root, queryClient)
+    await waitFor(() =>
+      container.textContent.includes('在庫対象はありません。'),
+    )
+    await performAct(() => {
+      root.render(null)
+    })
+    await renderPage(root, queryClient)
+    await waitFor(() => container.textContent.includes('架空香辛料'))
+
+    expect(readPageOutput(requests, container)).toEqual({
+      requests: ['/api/stock', '/api/stock'],
+      page: {
+        ...STALE_ERROR_PAGE_STATE,
+        paragraphs: [
+          '数量は食品登録時の単位で表示しています。',
+          '残数 0.75',
+          '入荷分はありません。',
+          '入荷予定はありません。',
+          '容量超過の警告はありません。',
+          '食べ切りの警告はありません。',
+          '先に食べたい入荷分はありません。',
+        ],
+        alerts: [],
+        retryButtons: 0,
+      },
     })
   })
 })

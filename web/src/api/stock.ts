@@ -2,7 +2,7 @@ import { z } from 'zod'
 
 import { requestJson } from '#api/request'
 
-const stockLotSchema = z.strictObject({
+const stockLotSchema = z.object({
   id: z.string(),
   quantity: z.number(),
   remainingQuantity: z.number(),
@@ -11,11 +11,11 @@ const stockLotSchema = z.strictObject({
   eatBy: z.iso.date().nullable(),
 })
 
-const stockItemSchema = z.strictObject({
+const stockItemSchema = z.object({
   foodMasterId: z.string(),
   foodName: z.string(),
   storageLocation: z
-    .strictObject({
+    .object({
       name: z.string(),
       capacity: z.number().nullable(),
     })
@@ -26,13 +26,13 @@ const stockItemSchema = z.strictObject({
   storageLocationId: z.string().nullable(),
 })
 
-const deliveryItemSchema = z.strictObject({
+const deliveryItemSchema = z.object({
   foodMasterId: z.string(),
   foodName: z.string(),
   quantity: z.number(),
 })
 
-const plannedDeliverySchema = z.strictObject({
+const plannedDeliverySchema = z.object({
   id: z.string(),
   sourceRef: z.string().nullable(),
   expectedDate: z.iso.date(),
@@ -40,13 +40,13 @@ const plannedDeliverySchema = z.strictObject({
   items: z.array(deliveryItemSchema),
 })
 
-const capacityWarningSchema = z.strictObject({
+const capacityWarningSchema = z.object({
   id: z.string(),
   storageLocationId: z.string(),
   storageLocationName: z.string(),
   expectedDate: z.iso.date(),
   deliveries: z.array(
-    z.strictObject({
+    z.object({
       deliveryId: z.string(),
       changeDeadline: z.iso.date().nullable(),
     }),
@@ -56,7 +56,7 @@ const capacityWarningSchema = z.strictObject({
   excessQuantity: z.number(),
 })
 
-const eatByWarningSchema = z.strictObject({
+const eatByWarningSchema = z.object({
   id: z.string(),
   riskType: z.enum(['deadline_passed', 'consumption_rate_below_required']),
   stockLotId: z.string(),
@@ -71,7 +71,7 @@ const eatByWarningSchema = z.strictObject({
   actualDailyConsumption: z.number(),
 })
 
-const priorityLotSchema = z.strictObject({
+const priorityLotSchema = z.object({
   foodMasterId: z.string(),
   foodName: z.string(),
   stockLotId: z.string(),
@@ -88,7 +88,7 @@ const priorityLotSchema = z.strictObject({
   ),
 })
 
-const stockStatusSchema = z.strictObject({
+const stockStatusSchema = z.object({
   stockItems: z.array(stockItemSchema),
   plannedDeliveries: z.array(plannedDeliverySchema),
   capacityWarnings: z.array(capacityWarningSchema),

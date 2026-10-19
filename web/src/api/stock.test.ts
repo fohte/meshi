@@ -135,14 +135,18 @@ describe('fetchStockStatus', () => {
     })
   })
 
-  it('rejects additional fields rather than silently accepting an unknown contract', async () => {
-    mockFetchOk({ ...STOCK_STATUS, unexpected: true })
+  it('validates known fields and ignores additive response fields', async () => {
+    const fetchMock = mockFetchOk({
+      ...STOCK_STATUS,
+      addedByNewerServer: true,
+      stockItems: [{ ...STOCK_STATUS.stockItems[0], addedByNewerServer: true }],
+    })
 
     const result = await fetchStockStatus()
 
-    expect(normalizedApiError(result._unsafeUnwrapErr())).toEqual({
-      name: 'ApiRequestError',
-      message: '/api/stock response did not match the expected schema',
+    expect(readFetchOutput(fetchMock, result)).toEqual({
+      request: [['/api/stock', undefined]],
+      status: STOCK_STATUS,
     })
   })
 })
