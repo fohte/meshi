@@ -1,6 +1,12 @@
 import type { StockStatus } from '#api/stock'
 import { ErrorRetry } from '#components/ErrorRetry/ErrorRetry'
+import {
+  StockCountForm,
+  type StockCountFormProps,
+} from '#components/Stock/StockCountForm'
 import styles from '#components/Stock/StockView.module.css'
+
+type StockCountFormState = Omit<StockCountFormProps, 'stockItems'>
 
 export interface StockViewProps {
   readonly data: StockStatus | null
@@ -9,6 +15,7 @@ export interface StockViewProps {
   readonly isError: boolean
   readonly onRetry: () => void
   readonly onRefresh: () => void
+  readonly countForm: StockCountFormState
 }
 
 const quantityFormatter = new Intl.NumberFormat('ja-JP', {
@@ -88,6 +95,7 @@ const StockViewContent = ({
   isError,
   onRetry,
   onRefresh,
+  countForm,
   plannedDeliveriesById,
 }: StockViewProps & {
   readonly plannedDeliveriesById: ReadonlyMap<string, PlannedDelivery>
@@ -140,6 +148,8 @@ const StockViewContent = ({
             </button>
           </div>
         )}
+
+        <StockCountForm stockItems={data.stockItems} {...countForm} />
 
         <section className={styles.section} aria-labelledby="stock-items-title">
           <h2 className={styles.sectionTitle} id="stock-items-title">

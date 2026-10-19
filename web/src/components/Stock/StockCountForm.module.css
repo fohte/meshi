@@ -1,0 +1,93 @@
+.form {
+  border: var(--border-width) solid var(--color-border);
+  background: var(--color-surface);
+  padding: 16px;
+}
+
+.fieldset {
+  display: grid;
+  gap: 12px;
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  margin: 0;
+}
+
+.title {
+  padding: 0;
+  font-family: var(--font-mono);
+  font-size: 15px;
+  font-weight: 700;
+}
+
+.field {
+  display: grid;
+  gap: 5px;
+  min-width: 0;
+}
+
+.label {
+  color: var(--color-muted);
+  font-size: 12px;
+}
+
+.input {
+  width: 100%;
+  min-height: 40px;
+  border: var(--border-width) solid var(--color-border);
+  border-radius: 0;
+  padding: 8px 10px;
+  background: var(--color-background);
+  color: var(--color-text);
+  font: inherit;
+}
+
+.referenceQuantity {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  color: var(--color-muted);
+  font-size: 12px;
+}
+
+.referenceQuantity output {
+  color: var(--color-text-secondary);
+  font-family: var(--font-mono);
+  font-size: 13px;
+}
+
+.optionalFields {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 12px;
+}
+
+.hint {
+  margin: 0;
+  color: var(--color-muted);
+  font-size: 11px;
+}
+
+.error {
+  color: #fca5a5;
+  font-size: 12px;
+}
+
+.submitButton {
+  min-height: 40px;
+  border: var(--border-width) solid var(--color-accent);
+  border-radius: 0;
+  padding: 8px 12px;
+  background: var(--color-accent);
+  color: var(--color-background);
+  cursor: pointer;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.submitButton:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}

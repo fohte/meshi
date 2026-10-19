@@ -1,6 +1,6 @@
 import { Hono } from 'hono'
 import { errAsync, okAsync } from 'neverthrow'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 
 import { mountStockRoutes } from '#api/stock-routes'
 import { StockDomainError } from '#domain/stock/errors'
@@ -107,6 +107,14 @@ const responseSnapshot = async (res: Response) => ({
   body: await res.json(),
 })
 
+const responseCallsSnapshot = async <Calls>(
+  responses: ReadonlyArray<Response>,
+  calls: Calls,
+) => ({
+  responses: await Promise.all(responses.map(responseSnapshot)),
+  calls,
+})
+
 describe('GET /api/stock', () => {
   it('returns the complete stock status in camelCase JSON', async () => {
     const app = buildApp({
@@ -159,6 +167,161 @@ describe('GET /api/stock', () => {
     expect(await responseSnapshot(res)).toEqual({
       status: 500,
       body: { error: 'stock status unavailable' },
+    })
+  })
+})
+
+describe('POST /api/stock/counts', () => {
+  it('records zero and fractional counts with optional lot dates', async () => {
+    const inputs = [
+      {
+        foodMasterId: 'food_example_beans',
+        quantity: 0.75,
+        receivedDate: '2026-09-02',
+        bestBefore: null,
+      },
+      { foodMasterId: 'food_example_oats', quantity: 0 },
+    ]
+    const countStock = vi.fn((input: (typeof inputs)[number]) =>
+      okAsync({
+        foodMasterId: input.foodMasterId,
+        previousQuantity: 1,
+        countedQuantity: input.quantity,
+        difference: input.quantity - 1,
+      }),
+    )
+    const app = buildApp({
+      ...createStubApiDeps().stockService,
+      countStock,
+    })
+
+    const responses: Array<Response> = []
+    for (const input of inputs) {
+      responses.push(
+        await app.request('/api/stock/counts', {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify(input),
+        }),
+      )
+    }
+
+    expect(
+      await responseCallsSnapshot(responses, countStock.mock.calls),
+    ).toEqual({
+      responses: [
+        {
+          status: 200,
+          body: {
+            foodMasterId: 'food_example_beans',
+            previousQuantity: 1,
+            countedQuantity: 0.75,
+            difference: -0.25,
+          },
+        },
+        {
+          status: 200,
+          body: {
+            foodMasterId: 'food_example_oats',
+            previousQuantity: 1,
+            countedQuantity: 0,
+            difference: -1,
+          },
+        },
+      ],
+      calls: [[inputs[0]], [inputs[1]]],
+    })
+  })
+
+  it('rejects invalid quantities and dates before calling the service', async () => {
+    const countStock = vi.fn(() =>
+      okAsync({
+        foodMasterId: 'food_example_beans',
+        previousQuantity: 1,
+        countedQuantity: 1,
+        difference: 0,
+      }),
+    )
+    const app = buildApp({
+      ...createStubApiDeps().stockService,
+      countStock,
+    })
+    const invalidInputs = [
+      { foodMasterId: 'food_example_beans', quantity: -1 },
+      {
+        foodMasterId: 'food_example_beans',
+        quantity: 1,
+        receivedDate: '2026-02-30',
+      },
+    ]
+
+    const responses: Array<Response> = []
+    for (const input of invalidInputs) {
+      responses.push(
+        await app.request('/api/stock/counts', {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify(input),
+        }),
+      )
+    }
+
+    expect(
+      await responseCallsSnapshot(responses, countStock.mock.calls),
+    ).toEqual({
+      responses: [
+        {
+          status: 400,
+          body: { error: 'Too small: expected number to be >=0' },
+        },
+        { status: 400, body: { error: 'Invalid ISO date' } },
+      ],
+      calls: [],
+    })
+  })
+
+  it('returns not found when the food is not tracked in stock', async () => {
+    const app = buildApp({
+      ...createStubApiDeps().stockService,
+      countStock: () =>
+        errAsync(
+          new StockDomainError('stock_item_not_found', 'stock item not found'),
+        ),
+    })
+
+    const res = await app.request('/api/stock/counts', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        foodMasterId: 'food_example_unknown',
+        quantity: 1,
+      }),
+    })
+
+    expect(await responseSnapshot(res)).toEqual({
+      status: 404,
+      body: { error: 'stock item not found' },
+    })
+  })
+
+  it('returns the shared server error response when persistence fails', async () => {
+    const app = buildApp({
+      ...createStubApiDeps().stockService,
+      countStock: () =>
+        errAsync(
+          new StockDomainError('persistence_failed', 'stock count unavailable'),
+        ),
+    })
+
+    const res = await app.request('/api/stock/counts', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ foodMasterId: 'food_example_beans', quantity: 1 }),
+    })
+
+    expect(await responseSnapshot(res)).toEqual({
+      status: 500,
+      body: { error: 'stock count unavailable' },
     })
   })
 })
