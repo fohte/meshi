@@ -96,6 +96,29 @@ const measureNavigation = (
   }
 }
 
+const tabThroughAndSettle = async (count: number): Promise<void> => {
+  for (let index = 0; index < count; index += 1) {
+    await userEvent.tab()
+  }
+  await new Promise<void>((resolve) => {
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        resolve()
+      })
+    })
+  })
+}
+
+const isFullyVisibleIn = (
+  inner: Element | null,
+  outer: Element | null,
+): boolean => {
+  if (inner === null || outer === null) return false
+  const innerRect = inner.getBoundingClientRect()
+  const outerRect = outer.getBoundingClientRect()
+  return innerRect.left >= outerRect.left && innerRect.right <= outerRect.right
+}
+
 const LocationProbe = (): React.JSX.Element => {
   const { pathname } = useLocation()
   return <output data-testid="pathname">{pathname}</output>
@@ -276,33 +299,16 @@ describe('BottomNavigationView', () => {
   it('scrolls the focused final destination into view when the viewport is narrow', async () => {
     await page.viewport(220, 800)
     const container = await renderNavigation(SAMPLE_ITEMS)
-
-    for (let index = 0; index < SAMPLE_ITEMS.length; index += 1) {
-      await userEvent.tab()
-    }
-    await new Promise<void>((resolve) => {
-      requestAnimationFrame(() => {
-        requestAnimationFrame(() => {
-          resolve()
-        })
-      })
-    })
+    await tabThroughAndSettle(SAMPLE_ITEMS.length)
 
     const navigation = container.querySelector<HTMLElement>('nav')
     const lastItem = container.querySelector<HTMLAnchorElement>(
       'a[href="/sample/sky"]',
     )
-    const navigationRect = navigation?.getBoundingClientRect()
-    const lastItemRect = lastItem?.getBoundingClientRect()
-
     const getOutput = () => ({
       activeHref: document.activeElement?.getAttribute('href'),
       scrolled: navigation !== null && navigation.scrollLeft > 0,
-      finalItemVisible:
-        navigationRect !== undefined &&
-        lastItemRect !== undefined &&
-        lastItemRect.left >= navigationRect.left &&
-        lastItemRect.right <= navigationRect.right,
+      finalItemVisible: isFullyVisibleIn(lastItem, navigation),
     })
 
     expect(getOutput()).toEqual({
@@ -316,17 +322,7 @@ describe('BottomNavigationView', () => {
     await page.viewport(320, 800)
     document.documentElement.style.fontSize = '200%'
     const container = await renderNavigation(SAMPLE_ITEMS)
-
-    for (let index = 0; index < SAMPLE_ITEMS.length; index += 1) {
-      await userEvent.tab()
-    }
-    await new Promise<void>((resolve) => {
-      requestAnimationFrame(() => {
-        requestAnimationFrame(() => {
-          resolve()
-        })
-      })
-    })
+    await tabThroughAndSettle(SAMPLE_ITEMS.length)
 
     const navigation = container.querySelector<HTMLElement>('nav')
     const items = Array.from(
@@ -342,8 +338,6 @@ describe('BottomNavigationView', () => {
       )
       .filter((label): label is HTMLElement => label !== null)
     const lastItem = items.at(-1)
-    const navigationRect = navigation?.getBoundingClientRect()
-    const lastItemRect = lastItem?.getBoundingClientRect()
     const itemRectangles = items.map((item) => item.getBoundingClientRect())
     const adjacentItemsDoNotOverlap = itemRectangles
       .slice(1)
@@ -365,11 +359,7 @@ describe('BottomNavigationView', () => {
       navigationOverflows:
         navigation !== null && navigation.scrollWidth > navigation.clientWidth,
       activeHref: document.activeElement?.getAttribute('href'),
-      finalItemVisible:
-        navigationRect !== undefined &&
-        lastItemRect !== undefined &&
-        lastItemRect.left >= navigationRect.left &&
-        lastItemRect.right <= navigationRect.right,
+      finalItemVisible: isFullyVisibleIn(lastItem ?? null, navigation),
     })
 
     expect(getOutput()).toEqual({
