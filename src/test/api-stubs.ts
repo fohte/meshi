@@ -6,6 +6,7 @@ import { MealLogPersistenceError } from '#domain/meal-log/errors'
 import { MealPhotoPersistenceError } from '#domain/meal-photo/errors'
 import { MealSetPersistenceError } from '#domain/meal-set/errors'
 import { MealSkipPersistenceError } from '#domain/meal-skip/errors'
+import { StockDomainError } from '#domain/stock/errors'
 import { DEFAULT_USER_PROFILE } from '#domain/user-profile/user-profile'
 
 // createApp's /api deps have their own dedicated route tests; callers that
@@ -142,6 +143,51 @@ export const createStubApiDeps = (): ApiDeps => ({
         new MealSkipPersistenceError('mealSkipService.cancel not stubbed'),
       ),
     findForDate: () => okAsync([]),
+  },
+  stockService: {
+    setStockItem: () =>
+      errAsync(
+        new StockDomainError(
+          'persistence_failed',
+          'stockService.setStockItem not stubbed',
+        ),
+      ),
+    countStock: () =>
+      errAsync(
+        new StockDomainError(
+          'persistence_failed',
+          'stockService.countStock not stubbed',
+        ),
+      ),
+    updateStockLot: () =>
+      errAsync(
+        new StockDomainError(
+          'persistence_failed',
+          'stockService.updateStockLot not stubbed',
+        ),
+      ),
+    registerDelivery: () =>
+      errAsync(
+        new StockDomainError(
+          'persistence_failed',
+          'stockService.registerDelivery not stubbed',
+        ),
+      ),
+    receiveDelivery: () =>
+      errAsync(
+        new StockDomainError(
+          'persistence_failed',
+          'stockService.receiveDelivery not stubbed',
+        ),
+      ),
+    getStockStatus: () =>
+      okAsync({
+        stockItems: [],
+        plannedDeliveries: [],
+        capacityWarnings: [],
+        eatByWarnings: [],
+        priorityLots: [],
+      }),
   },
   mealPhotoService: {
     upload: () =>

@@ -10,6 +10,7 @@ import { mountMealSetRoutes } from '#api/meal-set-routes'
 import { mountMealSkipRoutes } from '#api/meal-skip-routes'
 import { mountNutrientDefinitionRoutes } from '#api/nutrient-definition-routes'
 import { mountProfileRoutes } from '#api/profile-routes'
+import { mountStockRoutes } from '#api/stock-routes'
 import type { DayDetailService } from '#domain/day-detail/types'
 import type { FoodBrowseService } from '#domain/food-browse/types'
 import type { FoodDetailService } from '#domain/food-detail/types'
@@ -20,6 +21,7 @@ import type { MealPhotoService } from '#domain/meal-photo/meal-photo-service'
 import type { MealSetService } from '#domain/meal-set/index'
 import type { MealSkipService } from '#domain/meal-skip/meal-skip-service'
 import type { NutrientDefinitionRepository } from '#domain/nutrient-definition/types'
+import type { StockService } from '#domain/stock/types'
 import type { UserProfileService } from '#domain/user-profile/user-profile-service'
 
 export interface ApiDeps {
@@ -34,6 +36,7 @@ export interface ApiDeps {
   mealPhotoService: MealPhotoService
   foodMasterService: FoodMasterService
   mealSkipService: MealSkipService
+  stockService: StockService
 }
 
 export const mountApiRoutes = (app: Hono, deps: ApiDeps): void => {
@@ -50,4 +53,5 @@ export const mountApiRoutes = (app: Hono, deps: ApiDeps): void => {
   mountMealPhotoRoutes(app, deps.mealPhotoService)
   mountFoodMasterRoutes(app, deps.foodMasterService)
   mountMealSkipRoutes(app, deps.mealSkipService)
+  mountStockRoutes(app, deps.stockService)
 }

@@ -143,6 +143,7 @@ export const main = async (): Promise<void> => {
     foodMasterService,
     mealSkipService,
     mealPhotoService,
+    stockService,
   })
   const honoListener = getRequestListener(app.fetch)
 
