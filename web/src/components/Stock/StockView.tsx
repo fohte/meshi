@@ -25,6 +25,42 @@ const formatOptionalQuantity = (quantity: number | null | undefined): string =>
 
 const displayDate = (date: string | null): string => date ?? '不明'
 
+interface DeliverySummaryProps {
+  readonly sourceRef: string | null
+  readonly expectedDate: string | null
+  readonly changeDeadline: string | null
+  readonly headingLevel: 'h3' | 'h4'
+}
+
+const DeliverySummary = ({
+  sourceRef,
+  expectedDate,
+  changeDeadline,
+  headingLevel,
+}: DeliverySummaryProps): React.JSX.Element => {
+  const Heading = headingLevel
+  const headingClassName =
+    headingLevel === 'h3' ? styles.cardTitle : styles.warningDeliveryTitle
+
+  return (
+    <div>
+      <Heading className={headingClassName}>
+        注文番号 {sourceRef ?? '不明'}
+      </Heading>
+      <dl className={styles.summary}>
+        <div>
+          <dt>入荷予定日</dt>
+          <dd>{displayDate(expectedDate)}</dd>
+        </div>
+        <div>
+          <dt>変更締切</dt>
+          <dd>{displayDate(changeDeadline)}</dd>
+        </div>
+      </dl>
+    </div>
+  )
+}
+
 const targetDateTypeLabel = (type: 'best_before' | 'eat_by'): string =>
   type === 'best_before' ? '賞味期限' : '食べ切り目標日'
 
@@ -43,14 +79,19 @@ const PRIORITY_REASON_LABELS: Record<
   consumption_rate_below_required: '消費ペース不足',
 }
 
-export const StockView = ({
+type PlannedDelivery = StockStatus['plannedDeliveries'][number]
+
+const StockViewContent = ({
   data,
   isLoading,
   isFetching,
   isError,
   onRetry,
   onRefresh,
-}: StockViewProps): React.JSX.Element => (
+  plannedDeliveriesById,
+}: StockViewProps & {
+  readonly plannedDeliveriesById: ReadonlyMap<string, PlannedDelivery>
+}): React.JSX.Element => (
   <div className={styles.page}>
     <header className={styles.pageHeader}>
       <div>
@@ -185,21 +226,12 @@ export const StockView = ({
             <div className={styles.cardList}>
               {data.plannedDeliveries.map((delivery) => (
                 <article className={styles.card} key={delivery.id}>
-                  <header className={styles.cardHeader}>
-                    <h3 className={styles.cardTitle}>
-                      注文番号 {delivery.sourceRef ?? '不明'}
-                    </h3>
-                  </header>
-                  <dl className={styles.summary}>
-                    <div>
-                      <dt>入荷予定日</dt>
-                      <dd>{delivery.expectedDate}</dd>
-                    </div>
-                    <div>
-                      <dt>変更締切</dt>
-                      <dd>{displayDate(delivery.changeDeadline)}</dd>
-                    </div>
-                  </dl>
+                  <DeliverySummary
+                    sourceRef={delivery.sourceRef}
+                    expectedDate={delivery.expectedDate}
+                    changeDeadline={delivery.changeDeadline}
+                    headingLevel="h3"
+                  />
                   <ul className={styles.deliveryItems}>
                     {delivery.items.map((item) => (
                       <li key={item.foodMasterId}>
@@ -240,8 +272,8 @@ export const StockView = ({
                   </p>
                   <ul className={styles.warningDeliveries}>
                     {warning.deliveries.map((warningDelivery) => {
-                      const delivery = data.plannedDeliveries.find(
-                        ({ id }) => id === warningDelivery.deliveryId,
+                      const delivery = plannedDeliveriesById.get(
+                        warningDelivery.deliveryId,
                       )
 
                       return (
@@ -249,23 +281,12 @@ export const StockView = ({
                           className={styles.warningDelivery}
                           key={warningDelivery.deliveryId}
                         >
-                          <h4 className={styles.warningDeliveryTitle}>
-                            注文番号 {delivery?.sourceRef ?? '不明'}
-                          </h4>
-                          <dl className={styles.summary}>
-                            <div>
-                              <dt>入荷予定日</dt>
-                              <dd>
-                                {displayDate(delivery?.expectedDate ?? null)}
-                              </dd>
-                            </div>
-                            <div>
-                              <dt>変更締切</dt>
-                              <dd>
-                                {displayDate(warningDelivery.changeDeadline)}
-                              </dd>
-                            </div>
-                          </dl>
+                          <DeliverySummary
+                            sourceRef={delivery?.sourceRef ?? null}
+                            expectedDate={delivery?.expectedDate ?? null}
+                            changeDeadline={warningDelivery.changeDeadline}
+                            headingLevel="h4"
+                          />
                         </li>
                       )
                     })}
@@ -379,3 +400,18 @@ export const StockView = ({
     )}
   </div>
 )
+
+export const StockView = (props: StockViewProps): React.JSX.Element => {
+  const plannedDeliveriesById = new Map(
+    (props.data?.plannedDeliveries ?? []).map(
+      (delivery) => [delivery.id, delivery] as const,
+    ),
+  )
+
+  return (
+    <StockViewContent
+      {...props}
+      plannedDeliveriesById={plannedDeliveriesById}
+    />
+  )
+}

@@ -139,6 +139,13 @@ const EMPTY_DATA: StockStatus = {
   priorityLots: [],
 }
 
+const CAPACITY_WARNING_DATA: StockStatus = {
+  ...BASE_DATA,
+  stockItems: [],
+  eatByWarnings: [],
+  priorityLots: [],
+}
+
 const meta: Meta<typeof StockView> = {
   title: 'components/Stock/StockView',
   component: StockView,
@@ -187,9 +194,20 @@ export const NoStockTargets: Story = {
 }
 
 export const WithStockAndWarnings: Story = {
-  name: '容量警告ごとの配送と変更締切を表示しています',
+  name: '残数と入荷予定と警告を表示しています',
   args: {
     data: BASE_DATA,
+    isLoading: false,
+    isFetching: false,
+    isError: false,
+    ...noActions,
+  },
+}
+
+export const CapacityWarningWithMultipleDeliveries: Story = {
+  name: '容量警告で複数配送の変更締切を照合しています',
+  args: {
+    data: CAPACITY_WARNING_DATA,
     isLoading: false,
     isFetching: false,
     isError: false,
