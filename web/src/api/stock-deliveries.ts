@@ -24,7 +24,7 @@ const apiErrorSchema = z.object({ error: z.string() })
 
 export type StockDelivery = z.infer<typeof deliverySchema>
 
-export interface StockDeliveryItemInput {
+interface StockDeliveryItemInput {
   readonly foodMasterId: string
   readonly quantity: number
 }

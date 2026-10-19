@@ -9,7 +9,7 @@ export type StockDeliveryEditorMode = 'create' | 'edit' | 'cancel' | 'receive'
 export type PlannedDelivery = StockStatus['plannedDeliveries'][number]
 export type StockItem = StockStatus['stockItems'][number]
 
-export interface StockDeliveryDraftItem {
+interface StockDeliveryDraftItem {
   readonly foodMasterId: string
   readonly quantity: string
 }

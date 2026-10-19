@@ -1,7 +1,7 @@
 import styles from '#components/Stock/StockDeliveryConfirmation.module.css'
 import editorStyles from '#components/Stock/StockDeliveryEditor.module.css'
 
-export interface StockDeliveryConfirmationItem {
+interface StockDeliveryConfirmationItem {
   readonly foodMasterId: string
   readonly foodName: string
   readonly quantity: number
