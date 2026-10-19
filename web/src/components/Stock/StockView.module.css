@@ -1,0 +1,282 @@
+.page {
+  display: grid;
+  gap: 28px;
+}
+
+.pageHeader {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.heading {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin: 0;
+  font-family: var(--font-mono);
+  font-size: 24px;
+  font-weight: 700;
+}
+
+.hash {
+  color: var(--color-accent);
+}
+
+.description {
+  margin: 8px 0 0;
+  color: var(--color-muted);
+  font-size: 13px;
+}
+
+.headerActions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+}
+
+.refreshStatus {
+  color: var(--color-muted);
+  font-size: 12px;
+}
+
+.refreshButton,
+.staleError button {
+  min-height: 38px;
+  border: var(--border-width) solid var(--color-border);
+  border-radius: 0;
+  padding: 7px 12px;
+  background: transparent;
+  color: var(--color-text);
+  cursor: pointer;
+  font: inherit;
+  font-size: 13px;
+}
+
+.refreshButton:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+.state,
+.emptyState,
+.staleError {
+  border: var(--border-width) solid var(--color-border);
+  padding: 20px;
+  font-size: 13px;
+}
+
+.state,
+.emptyState {
+  color: var(--color-muted);
+  text-align: center;
+}
+
+.staleError {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  color: #fca5a5;
+}
+
+.staleError p {
+  margin: 0;
+}
+
+.staleError button {
+  flex: none;
+}
+
+.content {
+  display: grid;
+  gap: 32px;
+}
+
+.section {
+  display: grid;
+  gap: 12px;
+}
+
+.sectionTitle {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin: 0;
+  font-family: var(--font-mono);
+  font-size: 16px;
+  font-weight: 700;
+}
+
+.sectionTitle::before {
+  color: var(--color-accent);
+  content: '#';
+}
+
+.cardList {
+  display: grid;
+  gap: 10px;
+}
+
+.card {
+  border: var(--border-width) solid var(--color-border);
+  background: var(--color-surface);
+  padding: 16px;
+}
+
+.cardHeader {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.cardTitle {
+  min-width: 0;
+  margin: 0;
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.totalQuantity,
+.warningDate,
+.riskType {
+  flex: none;
+  margin: 0;
+  color: var(--color-text-secondary);
+  font-family: var(--font-mono);
+  font-size: 12px;
+}
+
+.riskType {
+  color: #fca5a5;
+}
+
+.summary {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+  gap: 10px 16px;
+  margin: 0;
+}
+
+.summary > div {
+  min-width: 0;
+}
+
+.summary dt {
+  margin-bottom: 3px;
+  color: var(--color-muted);
+  font-size: 11px;
+}
+
+.summary dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+  font-size: 13px;
+}
+
+.lots {
+  border-top: var(--border-width) solid var(--color-border);
+  padding-top: 10px;
+  margin-top: 14px;
+  font-size: 12px;
+}
+
+.lots summary {
+  width: fit-content;
+  color: var(--color-text-secondary);
+  cursor: pointer;
+}
+
+.lotList,
+.deliveryItems,
+.reasonList {
+  display: grid;
+  gap: 8px;
+  padding: 0;
+  margin: 10px 0 0;
+  list-style: none;
+}
+
+.lot {
+  border-top: var(--border-width) solid var(--color-border);
+  padding: 10px 0 2px;
+}
+
+.lotQuantity {
+  margin: 0 0 9px;
+  font-family: var(--font-mono);
+}
+
+.noLots {
+  border-top: var(--border-width) solid var(--color-border);
+  padding-top: 10px;
+  margin: 14px 0 0;
+  color: var(--color-muted);
+  font-size: 12px;
+}
+
+.deliveryItems {
+  border-top: var(--border-width) solid var(--color-border);
+  padding-top: 10px;
+}
+
+.deliveryItems li {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  font-size: 12px;
+}
+
+.deliveryItems li span:last-child {
+  flex: none;
+  color: var(--color-text-secondary);
+  font-family: var(--font-mono);
+}
+
+.warningSummary {
+  margin: 0 0 12px;
+  color: var(--color-text-secondary);
+  font-size: 13px;
+}
+
+.reasonList {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.reasonList li {
+  border: var(--border-width) solid var(--color-border);
+  padding: 3px 7px;
+  color: var(--color-text-secondary);
+  font-size: 11px;
+}
+
+@media (max-width: 640px) {
+  .pageHeader {
+    align-items: flex-start;
+  }
+
+  .headerActions {
+    align-items: flex-end;
+    flex-direction: column-reverse;
+    gap: 4px;
+  }
+
+  .staleError {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .staleError button {
+    align-self: flex-end;
+  }
+
+  .cardHeader {
+    align-items: flex-start;
+  }
+}
