@@ -1,5 +1,7 @@
 import type { StockStatus } from '#api/stock'
 import { ErrorRetry } from '#components/ErrorRetry/ErrorRetry'
+import type { StockDeliveryEditorProps } from '#components/Stock/stock-delivery-editor-types'
+import { StockDeliveryEditor } from '#components/Stock/StockDeliveryEditor'
 import styles from '#components/Stock/StockView.module.css'
 
 export interface StockViewProps {
@@ -9,6 +11,17 @@ export interface StockViewProps {
   readonly isError: boolean
   readonly onRetry: () => void
   readonly onRefresh: () => void
+  readonly deliveryEditor?: Omit<StockDeliveryEditorProps, 'stockItems'> | null
+  readonly onCreateDelivery?: () => void
+  readonly onEditDelivery?: (
+    delivery: StockStatus['plannedDeliveries'][number],
+  ) => void
+  readonly onCancelDelivery?: (
+    delivery: StockStatus['plannedDeliveries'][number],
+  ) => void
+  readonly onReceiveDelivery?: (
+    delivery: StockStatus['plannedDeliveries'][number],
+  ) => void
 }
 
 const quantityFormatter = new Intl.NumberFormat('ja-JP', {
@@ -88,6 +101,11 @@ const StockViewContent = ({
   isError,
   onRetry,
   onRefresh,
+  deliveryEditor,
+  onCreateDelivery,
+  onEditDelivery,
+  onCancelDelivery,
+  onReceiveDelivery,
   plannedDeliveriesById,
 }: StockViewProps & {
   readonly plannedDeliveriesById: ReadonlyMap<string, PlannedDelivery>
@@ -132,6 +150,13 @@ const StockViewContent = ({
 
     {data !== null && (
       <div className={styles.content}>
+        {deliveryEditor != null && (
+          <StockDeliveryEditor
+            key={`${deliveryEditor.mode}:${deliveryEditor.delivery?.id ?? 'new'}`}
+            stockItems={data.stockItems}
+            {...deliveryEditor}
+          />
+        )}
         {isError && (
           <div className={styles.staleError} role="alert">
             <p>更新に失敗しました。表示中の在庫は最後に取得した内容です。</p>
@@ -217,9 +242,20 @@ const StockViewContent = ({
           className={styles.section}
           aria-labelledby="planned-deliveries-title"
         >
-          <h2 className={styles.sectionTitle} id="planned-deliveries-title">
-            入荷予定
-          </h2>
+          <div className={styles.sectionHeading}>
+            <h2 className={styles.sectionTitle} id="planned-deliveries-title">
+              入荷予定
+            </h2>
+            {onCreateDelivery !== undefined && (
+              <button
+                type="button"
+                className={styles.deliveryAction}
+                onClick={onCreateDelivery}
+              >
+                予定を登録
+              </button>
+            )}
+          </div>
           {data.plannedDeliveries.length === 0 ? (
             <p className={styles.emptyState}>入荷予定はありません。</p>
           ) : (
@@ -240,6 +276,43 @@ const StockViewContent = ({
                       </li>
                     ))}
                   </ul>
+                  <div className={styles.deliveryActions}>
+                    {onReceiveDelivery !== undefined && (
+                      <button
+                        type="button"
+                        className={styles.deliveryAction}
+                        onClick={() => {
+                          onReceiveDelivery(delivery)
+                        }}
+                      >
+                        受領
+                      </button>
+                    )}
+                    {delivery.sourceRef !== null &&
+                      onEditDelivery !== undefined && (
+                        <button
+                          type="button"
+                          className={styles.deliveryAction}
+                          onClick={() => {
+                            onEditDelivery(delivery)
+                          }}
+                        >
+                          変更
+                        </button>
+                      )}
+                    {delivery.sourceRef !== null &&
+                      onCancelDelivery !== undefined && (
+                        <button
+                          type="button"
+                          className={styles.deliveryAction}
+                          onClick={() => {
+                            onCancelDelivery(delivery)
+                          }}
+                        >
+                          予定を取り消す
+                        </button>
+                      )}
+                  </div>
                 </article>
               ))}
             </div>

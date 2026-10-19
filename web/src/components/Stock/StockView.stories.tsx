@@ -160,6 +160,13 @@ const noActions = {
   onRefresh: () => undefined,
 }
 
+const deliveryActions = {
+  onCreateDelivery: () => undefined,
+  onEditDelivery: () => undefined,
+  onCancelDelivery: () => undefined,
+  onReceiveDelivery: () => undefined,
+}
+
 export const Loading: Story = {
   name: '在庫データの読み込み中です',
   args: {
@@ -223,6 +230,19 @@ export const NoPlannedDeliveries: Story = {
     isFetching: false,
     isError: false,
     ...noActions,
+  },
+}
+
+export const WithDeliveryControls: Story = {
+  name: '注文番号がある予定は変更・取消でき、番号なしは受領だけできます',
+  args: {
+    data: {
+      ...BASE_DATA,
+      plannedDeliveries: BASE_DATA.plannedDeliveries.map((delivery, index) =>
+        index === 1 ? { ...delivery, sourceRef: null } : delivery,
+      ),
+    },
+    ...deliveryActions,
   },
 }
 

@@ -115,6 +115,13 @@
   content: '#';
 }
 
+.sectionHeading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
 .cardList {
   display: grid;
   gap: 10px;
@@ -235,6 +242,28 @@
   flex: none;
   color: var(--color-text-secondary);
   font-family: var(--font-mono);
+}
+
+.deliveryActions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+  border-top: var(--border-width) solid var(--color-border);
+  padding-top: 10px;
+  margin-top: 10px;
+}
+
+.deliveryAction {
+  min-height: 34px;
+  border: var(--border-width) solid var(--color-border);
+  border-radius: 0;
+  padding: 5px 9px;
+  background: transparent;
+  color: var(--color-text);
+  cursor: pointer;
+  font: inherit;
+  font-size: 12px;
 }
 
 .warningSummary {
