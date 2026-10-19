@@ -1,8 +1,10 @@
 import { Client, InMemoryTransport } from '@modelcontextprotocol/client'
+import { okAsync } from 'neverthrow'
 import { describe, expect, it } from 'vitest'
 
 import { createApp } from '#app'
 import type { Sql } from '#db/index'
+import type { StockStatus } from '#domain/stock/types'
 import { createMcpServer } from '#mcp'
 import { createStubApiDeps } from '#test/api-stubs'
 import { createStubMcpDeps } from '#test/mcp-stubs'
@@ -12,6 +14,11 @@ const fakeSql = (
 ): Sql =>
   // eslint-disable-next-line @typescript-eslint/no-unsafe-type-assertion -- Sql is a callable tag; tests only exercise the SELECT 1 ping branch.
   tag as unknown as Sql
+
+const responseSnapshot = async (res: Response) => ({
+  status: res.status,
+  body: await res.json(),
+})
 
 describe('createApp', () => {
   it('returns ok on /health after a successful DB ping', async () => {
@@ -62,6 +69,43 @@ describe('createApp', () => {
     }).request('/api/nutrient-definitions')
     expect(res.status).toBe(200)
     expect(await res.json()).toEqual([])
+  })
+
+  it('mounts /api/stock with the injected stock service', async () => {
+    const sql = fakeSql(() => Promise.resolve([]))
+    const apiDeps = createStubApiDeps()
+    const stockStatus: StockStatus = {
+      stockItems: [
+        {
+          foodMasterId: 'food_example_injected',
+          foodName: 'Injected beans',
+          storageLocation: null,
+          eatWithinDays: null,
+          totalQuantity: 1,
+          lots: [],
+          storageLocationId: null,
+        },
+      ],
+      plannedDeliveries: [],
+      capacityWarnings: [],
+      eatByWarnings: [],
+      priorityLots: [],
+    }
+    const app = createApp({
+      sql,
+      ...apiDeps,
+      stockService: {
+        ...apiDeps.stockService,
+        getStockStatus: () => okAsync(stockStatus),
+      },
+    })
+
+    const res = await app.request('/api/stock')
+
+    expect(await responseSnapshot(res)).toEqual({
+      status: 200,
+      body: stockStatus,
+    })
   })
 })
 
