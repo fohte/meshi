@@ -6,11 +6,11 @@ import type { NavItem } from '#shell/nav-items'
 
 const DESTINATIONS: ReadonlyArray<NavItem> = [
   { label: '星のしるべ', path: '/sample/stars' },
-  { label: '月の観測', path: '/sample/moon' },
-  { label: '雲の記録', path: '/sample/clouds' },
-  { label: '森の地図', path: '/sample/forest' },
-  { label: '海の音色', path: '/sample/ocean' },
-  { label: '空の便り', path: '/sample/sky' },
+  { label: '月食記', path: '/sample/moon' },
+  { label: '雲海図', path: '/sample/clouds' },
+  { label: '森影図', path: '/sample/forest' },
+  { label: '潮騒記', path: '/sample/ocean' },
+  { label: '夜空', path: '/sample/sky' },
 ]
 
 const SELECTED_PATH = '/sample/stars/catalog'

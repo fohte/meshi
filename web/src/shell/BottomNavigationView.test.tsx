@@ -15,11 +15,11 @@ import { TabBar } from '#shell/TabBar'
 
 const SAMPLE_ITEMS: ReadonlyArray<NavItem> = [
   { label: '星のしるべ', path: '/sample/stars' },
-  { label: '月の観測', path: '/sample/moon' },
-  { label: '雲の記録', path: '/sample/clouds' },
-  { label: '森の地図', path: '/sample/forest' },
-  { label: '海の音色', path: '/sample/ocean' },
-  { label: '空の便り', path: '/sample/sky' },
+  { label: '月食記', path: '/sample/moon' },
+  { label: '雲海図', path: '/sample/clouds' },
+  { label: '森影図', path: '/sample/forest' },
+  { label: '潮騒記', path: '/sample/ocean' },
+  { label: '夜空', path: '/sample/sky' },
 ]
 
 const SELECTED_PATH = '/sample/stars/catalog'
@@ -116,6 +116,7 @@ afterEach(async () => {
   document.documentElement.style.removeProperty(
     '--mobile-safe-area-inset-bottom',
   )
+  document.documentElement.style.removeProperty('font-size')
   vi.unstubAllGlobals()
 })
 
@@ -307,6 +308,76 @@ describe('BottomNavigationView', () => {
     expect(getOutput()).toEqual({
       activeHref: '/sample/sky',
       scrolled: true,
+      finalItemVisible: true,
+    })
+  })
+
+  it('keeps enlarged labels legible and keyboard reachable at twice the text size', async () => {
+    await page.viewport(320, 800)
+    document.documentElement.style.fontSize = '200%'
+    const container = await renderNavigation(SAMPLE_ITEMS)
+
+    for (let index = 0; index < SAMPLE_ITEMS.length; index += 1) {
+      await userEvent.tab()
+    }
+    await new Promise<void>((resolve) => {
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => {
+          resolve()
+        })
+      })
+    })
+
+    const navigation = container.querySelector<HTMLElement>('nav')
+    const items = Array.from(
+      container.querySelectorAll<HTMLElement>(
+        '[data-slot="bottom-navigation-list"] > li',
+      ),
+    )
+    const labels = items
+      .map((item) =>
+        item.querySelector<HTMLElement>(
+          '[data-slot="bottom-navigation-label"]',
+        ),
+      )
+      .filter((label): label is HTMLElement => label !== null)
+    const lastItem = items.at(-1)
+    const navigationRect = navigation?.getBoundingClientRect()
+    const lastItemRect = lastItem?.getBoundingClientRect()
+    const itemRectangles = items.map((item) => item.getBoundingClientRect())
+    const adjacentItemsDoNotOverlap = itemRectangles
+      .slice(1)
+      .every((rect, index) => {
+        const previousRect = itemRectangles[index]
+        return previousRect !== undefined && rect.left >= previousRect.right
+      })
+    const getOutput = () => ({
+      labelFontSizes: labels.map((label) => getComputedStyle(label).fontSize),
+      labelsFitWithinItems: labels.every((label) => {
+        const item = label.closest('li')
+        return (
+          item !== null &&
+          label.getBoundingClientRect().width <=
+            item.getBoundingClientRect().width
+        )
+      }),
+      adjacentItemsDoNotOverlap,
+      navigationOverflows:
+        navigation !== null && navigation.scrollWidth > navigation.clientWidth,
+      activeHref: document.activeElement?.getAttribute('href'),
+      finalItemVisible:
+        navigationRect !== undefined &&
+        lastItemRect !== undefined &&
+        lastItemRect.left >= navigationRect.left &&
+        lastItemRect.right <= navigationRect.right,
+    })
+
+    expect(getOutput()).toEqual({
+      labelFontSizes: ['22px', '22px', '22px', '22px', '22px', '22px'],
+      labelsFitWithinItems: true,
+      adjacentItemsDoNotOverlap: true,
+      navigationOverflows: true,
+      activeHref: '/sample/sky',
       finalItemVisible: true,
     })
   })
