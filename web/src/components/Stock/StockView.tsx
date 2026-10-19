@@ -149,9 +149,7 @@ const StockViewContent = ({
           </div>
         )}
 
-        {data.stockItems.length > 0 && (
-          <StockCountForm stockItems={data.stockItems} {...countForm} />
-        )}
+        <StockCountForm stockItems={data.stockItems} {...countForm} />
 
         <section className={styles.section} aria-labelledby="stock-items-title">
           <h2 className={styles.sectionTitle} id="stock-items-title">

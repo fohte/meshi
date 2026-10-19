@@ -97,4 +97,18 @@ describe('postStockCount', () => {
       message: 'stock item not found',
     })
   })
+
+  it('uses the status fallback when the error response is not JSON', async () => {
+    mockFetch(new Response('upstream unavailable', { status: 502 }))
+
+    const result = await postStockCount({
+      foodMasterId: 'food_example_lentils',
+      quantity: 0,
+    })
+
+    expect(errorSnapshot(result._unsafeUnwrapErr())).toEqual({
+      name: 'ApiRequestError',
+      message: '/api/stock/counts responded with 502',
+    })
+  })
 })
