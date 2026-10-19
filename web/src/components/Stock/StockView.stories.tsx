@@ -38,14 +38,27 @@ const BASE_DATA: StockStatus = {
   plannedDeliveries: [
     {
       id: 'delivery_example',
-      sourceRef: null,
+      sourceRef: 'order_example_first',
       expectedDate: '2026-10-26',
-      changeDeadline: null,
+      changeDeadline: '2026-10-23',
       items: [
         {
           foodMasterId: 'food_example_pasta',
           foodName: '架空パスタ',
           quantity: 2.5,
+        },
+      ],
+    },
+    {
+      id: 'delivery_example_two',
+      sourceRef: 'order_example_second',
+      expectedDate: '2026-10-26',
+      changeDeadline: null,
+      items: [
+        {
+          foodMasterId: 'food_example_soup',
+          foodName: '架空スープ',
+          quantity: 1.25,
         },
       ],
     },
@@ -56,7 +69,13 @@ const BASE_DATA: StockStatus = {
       storageLocationId: 'location_example_dry',
       storageLocationName: '乾物棚',
       expectedDate: '2026-10-26',
-      deliveries: [{ deliveryId: 'delivery_example', changeDeadline: null }],
+      deliveries: [
+        {
+          deliveryId: 'delivery_example',
+          changeDeadline: '2026-10-23',
+        },
+        { deliveryId: 'delivery_example_two', changeDeadline: null },
+      ],
       projectedQuantity: 6.5,
       capacity: 5,
       excessQuantity: 1.5,
@@ -168,7 +187,7 @@ export const NoStockTargets: Story = {
 }
 
 export const WithStockAndWarnings: Story = {
-  name: '残数と入荷予定と警告を表示しています',
+  name: '容量警告ごとの配送と変更締切を表示しています',
   args: {
     data: BASE_DATA,
     isLoading: false,

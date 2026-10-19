@@ -238,6 +238,38 @@ export const StockView = ({
                     {formatQuantity(warning.capacity)} / 超過{' '}
                     {formatQuantity(warning.excessQuantity)}
                   </p>
+                  <ul className={styles.warningDeliveries}>
+                    {warning.deliveries.map((warningDelivery) => {
+                      const delivery = data.plannedDeliveries.find(
+                        ({ id }) => id === warningDelivery.deliveryId,
+                      )
+
+                      return (
+                        <li
+                          className={styles.warningDelivery}
+                          key={warningDelivery.deliveryId}
+                        >
+                          <h4 className={styles.warningDeliveryTitle}>
+                            注文番号 {delivery?.sourceRef ?? '不明'}
+                          </h4>
+                          <dl className={styles.summary}>
+                            <div>
+                              <dt>入荷予定日</dt>
+                              <dd>
+                                {displayDate(delivery?.expectedDate ?? null)}
+                              </dd>
+                            </div>
+                            <div>
+                              <dt>変更締切</dt>
+                              <dd>
+                                {displayDate(warningDelivery.changeDeadline)}
+                              </dd>
+                            </div>
+                          </dl>
+                        </li>
+                      )
+                    })}
+                  </ul>
                 </article>
               ))}
             </div>

@@ -132,6 +132,61 @@ const STOCK_STATUS: StockStatus = {
   ],
 }
 
+const CAPACITY_WARNING_STATUS: StockStatus = {
+  stockItems: [],
+  plannedDeliveries: [
+    {
+      id: 'delivery_example_first',
+      sourceRef: 'order_example_first',
+      expectedDate: '2026-11-09',
+      changeDeadline: '2026-11-06',
+      items: [
+        {
+          foodMasterId: 'food_example_tea',
+          foodName: '架空茶葉',
+          quantity: 2,
+        },
+      ],
+    },
+    {
+      id: 'delivery_example_second',
+      sourceRef: 'order_example_second',
+      expectedDate: '2026-11-09',
+      changeDeadline: null,
+      items: [
+        {
+          foodMasterId: 'food_example_spice',
+          foodName: '架空香辛料',
+          quantity: 1.5,
+        },
+      ],
+    },
+  ],
+  capacityWarnings: [
+    {
+      id: 'capacity_warning_example',
+      storageLocationId: 'location_example_pantry',
+      storageLocationName: '架空食品庫',
+      expectedDate: '2026-11-09',
+      deliveries: [
+        {
+          deliveryId: 'delivery_example_second',
+          changeDeadline: null,
+        },
+        {
+          deliveryId: 'delivery_example_first',
+          changeDeadline: '2026-11-06',
+        },
+      ],
+      projectedQuantity: 6,
+      capacity: 4,
+      excessQuantity: 2,
+    },
+  ],
+  eatByWarnings: [],
+  priorityLots: [],
+}
+
 const jsonResponse = (body: unknown, status = 200): Response =>
   new Response(JSON.stringify(body), {
     status,
@@ -209,6 +264,43 @@ const readPageOutput = (
 ) => ({
   requests,
   page: readPageState(container),
+})
+
+const readCapacityWarningOutput = (container: HTMLElement) => {
+  const section = container.querySelector(
+    'section[aria-labelledby="capacity-warnings-title"]',
+  )
+
+  return {
+    heading: textContent(section?.querySelector('h2') ?? null),
+    emptyMessage: textContent(section?.querySelector('h2 + p') ?? null),
+    warnings: Array.from(section?.querySelectorAll('article') ?? []).map(
+      (warning) => ({
+        heading: textContent(warning.querySelector('h3')),
+        date: textContent(warning.querySelector('header p')),
+        summary: textContent(warning.querySelector('header + p')),
+        deliveries: Array.from(warning.querySelectorAll('ul > li')).map(
+          (delivery) => ({
+            heading: textContent(delivery.querySelector('h4')),
+            fields: Array.from(delivery.querySelectorAll('dl > div')).map(
+              (field) => ({
+                label: textContent(field.querySelector('dt')),
+                value: textContent(field.querySelector('dd')),
+              }),
+            ),
+          }),
+        ),
+      }),
+    ),
+  }
+}
+
+const readCapacityWarningPageOutput = (
+  requests: ReadonlyArray<string>,
+  container: HTMLElement,
+) => ({
+  requests,
+  capacityWarning: readCapacityWarningOutput(container),
 })
 
 const readRefreshRecoveryOutput = (
@@ -352,6 +444,8 @@ describe('StockPage', () => {
           { label: '食べ切り目安', value: '未設定' },
           { label: '入荷予定日', value: '2026-11-06' },
           { label: '変更締切', value: '不明' },
+          { label: '入荷予定日', value: '2026-11-06' },
+          { label: '変更締切', value: '不明' },
           { label: '消費ペース算定量', value: '不明' },
           { label: '期限まで', value: '不明' },
           { label: '必要な消費量', value: '不明' },
@@ -365,6 +459,7 @@ describe('StockPage', () => {
         listItems: [
           '残数 0.5受領日不明賞味期限2026-11-05食べ切り目標日不明',
           '架空米数量 1.5',
+          '注文番号 不明入荷予定日2026-11-06変更締切不明',
           '期限超過',
           '古い入荷分',
         ],
@@ -372,6 +467,51 @@ describe('StockPage', () => {
         refreshDisabled: false,
         refreshStatus: null,
         retryButtons: 0,
+      },
+    })
+  })
+
+  it('matches each capacity warning to its delivery and change deadline', async () => {
+    const requests: string[] = []
+    const { container, root, queryClient } = setupPage(() => {
+      requests.push('/api/stock')
+      return Promise.resolve(jsonResponse(CAPACITY_WARNING_STATUS))
+    })
+    await renderPage(root, queryClient)
+    await waitFor(
+      () =>
+        readCapacityWarningOutput(container).warnings[0]?.deliveries.length ===
+        2,
+    )
+
+    expect(readCapacityWarningPageOutput(requests, container)).toEqual({
+      requests: ['/api/stock'],
+      capacityWarning: {
+        heading: '容量超過',
+        emptyMessage: null,
+        warnings: [
+          {
+            heading: '架空食品庫',
+            date: '2026-11-09',
+            summary: '予測 6 / 容量 4 / 超過 2',
+            deliveries: [
+              {
+                heading: '注文番号 order_example_second',
+                fields: [
+                  { label: '入荷予定日', value: '2026-11-09' },
+                  { label: '変更締切', value: '不明' },
+                ],
+              },
+              {
+                heading: '注文番号 order_example_first',
+                fields: [
+                  { label: '入荷予定日', value: '2026-11-09' },
+                  { label: '変更締切', value: '2026-11-06' },
+                ],
+              },
+            ],
+          },
+        ],
       },
     })
   })
