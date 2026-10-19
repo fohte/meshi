@@ -17,6 +17,7 @@ import type { MealPhotoService } from '#domain/meal-photo/meal-photo-service'
 import type { MealSetService } from '#domain/meal-set/index'
 import type { MealSkipService } from '#domain/meal-skip/meal-skip-service'
 import type { NutrientDefinitionRepository } from '#domain/nutrient-definition/types'
+import type { StockService } from '#domain/stock/types'
 import type { UserProfileService } from '#domain/user-profile/user-profile-service'
 
 // Relative to process.cwd(): the Docker runtime image's WORKDIR (/app) and
@@ -37,6 +38,7 @@ export interface AppDeps {
   mealPhotoService: MealPhotoService
   foodMasterService: FoodMasterService
   mealSkipService: MealSkipService
+  stockService: StockService
 }
 
 const errorMessage = (err: unknown): string =>
@@ -64,6 +66,7 @@ export const createApp = (deps: AppDeps): Hono => {
     mealPhotoService: deps.mealPhotoService,
     foodMasterService: deps.foodMasterService,
     mealSkipService: deps.mealSkipService,
+    stockService: deps.stockService,
   })
 
   // SPA static assets, then an index.html fallback for client-side routes
