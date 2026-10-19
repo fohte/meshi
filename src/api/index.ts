@@ -10,6 +10,7 @@ import { mountMealSetRoutes } from '#api/meal-set-routes'
 import { mountMealSkipRoutes } from '#api/meal-skip-routes'
 import { mountNutrientDefinitionRoutes } from '#api/nutrient-definition-routes'
 import { mountProfileRoutes } from '#api/profile-routes'
+import { mountStockDeliveryRoutes } from '#api/stock-delivery-routes'
 import { mountStockRoutes } from '#api/stock-routes'
 import type { DayDetailService } from '#domain/day-detail/types'
 import type { FoodBrowseService } from '#domain/food-browse/types'
@@ -54,4 +55,5 @@ export const mountApiRoutes = (app: Hono, deps: ApiDeps): void => {
   mountFoodMasterRoutes(app, deps.foodMasterService)
   mountMealSkipRoutes(app, deps.mealSkipService)
   mountStockRoutes(app, deps.stockService)
+  mountStockDeliveryRoutes(app, deps.stockService)
 }
