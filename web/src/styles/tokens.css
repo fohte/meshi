@@ -24,6 +24,9 @@
   --color-surface: #141414;
   --color-track: #1f1f1f;
 
+  --mobile-bottom-navigation-height: 52px;
+  --mobile-safe-area-inset-bottom: env(safe-area-inset-bottom, 0px);
+
   --border-width: 1px;
 
   --font-mono: 'JetBrains Mono', monospace;

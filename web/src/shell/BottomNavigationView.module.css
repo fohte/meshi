@@ -1,0 +1,49 @@
+.navigation {
+  width: 100%;
+  min-width: 0;
+  border-top: var(--border-width) solid var(--color-border);
+  background: var(--color-bg);
+}
+
+.navigation :global([data-slot='bottom-navigation-list']) {
+  width: 100%;
+  min-width: 100%;
+  padding-left: 0;
+}
+
+.navigation :global([data-slot='bottom-navigation-list'] > li) {
+  flex: 1 0 52px;
+  min-width: 52px;
+}
+
+.navigation :global([data-slot='bottom-navigation-item']) {
+  width: 100%;
+  min-width: 52px;
+  gap: 2px;
+  padding-inline: 0;
+  margin-top: -1px;
+  border-top: 2px solid transparent;
+  color: var(--color-muted);
+}
+
+.navigation :global([data-slot='bottom-navigation-item'][aria-current='page']) {
+  border-top-color: var(--color-accent);
+  background: transparent;
+  color: var(--color-text);
+}
+
+.navigation :global([data-slot='bottom-navigation-icon']) {
+  color: var(--color-muted-2);
+  font-family: var(--font-mono);
+  font-size: 16px;
+}
+
+.navigation
+  :global([aria-current='page'] [data-slot='bottom-navigation-icon']) {
+  color: var(--color-accent);
+}
+
+.navigation :global([data-slot='bottom-navigation-label']) {
+  font-size: 11px;
+  letter-spacing: -0.6px;
+}
