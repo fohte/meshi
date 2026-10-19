@@ -1,8 +1,14 @@
 import type { StockStatus } from '#api/stock'
 import { ErrorRetry } from '#components/ErrorRetry/ErrorRetry'
 import type { StockDeliveryEditorProps } from '#components/Stock/stock-delivery-editor-types'
+import {
+  StockCountForm,
+  type StockCountFormProps,
+} from '#components/Stock/StockCountForm'
 import { StockDeliveryEditor } from '#components/Stock/StockDeliveryEditor'
 import styles from '#components/Stock/StockView.module.css'
+
+type StockCountFormState = Omit<StockCountFormProps, 'stockItems'>
 
 export interface StockViewProps {
   readonly data: StockStatus | null
@@ -11,6 +17,7 @@ export interface StockViewProps {
   readonly isError: boolean
   readonly onRetry: () => void
   readonly onRefresh: () => void
+  readonly countForm: StockCountFormState
   readonly deliveryEditor?: StockDeliveryEditorProps | null
   readonly onCreateDelivery?: () => void
   readonly onEditDelivery?: (
@@ -101,6 +108,7 @@ const StockViewContent = ({
   isError,
   onRetry,
   onRefresh,
+  countForm,
   deliveryEditor,
   onCreateDelivery,
   onEditDelivery,
@@ -165,6 +173,8 @@ const StockViewContent = ({
             </button>
           </div>
         )}
+
+        <StockCountForm stockItems={data.stockItems} {...countForm} />
 
         <section className={styles.section} aria-labelledby="stock-items-title">
           <h2 className={styles.sectionTitle} id="stock-items-title">

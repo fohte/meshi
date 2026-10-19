@@ -193,10 +193,19 @@ const jsonResponse = (body: unknown, status = 200): Response =>
     headers: { 'content-type': 'application/json' },
   })
 
+const requestPath = (input: RequestInfo | URL): string => {
+  if (typeof input === 'string') return input
+  if (input instanceof URL) return input.href
+  return input.url
+}
+
 const mountedRoots: Root[] = []
 
 const setupPage = (
-  fetchHandler: () => Promise<Response>,
+  fetchHandler: (
+    input: RequestInfo | URL,
+    init?: RequestInit,
+  ) => Promise<Response>,
 ): {
   readonly container: HTMLDivElement
   readonly root: Root
@@ -376,6 +385,105 @@ const refreshButton = (container: HTMLElement): HTMLButtonElement | null =>
   Array.from(container.querySelectorAll('button')).find(
     (button) => button.textContent.trim() === '更新',
   ) ?? null
+
+const stockCountSubmitButton = (
+  container: HTMLElement,
+): HTMLButtonElement | null =>
+  container.querySelector<HTMLButtonElement>(
+    'form[aria-label="棚卸しを記録"] button[type="submit"]',
+  )
+
+const fillInput = (
+  container: HTMLElement,
+  label: string,
+  value: string,
+): void => {
+  const input = container.querySelector<HTMLInputElement>(
+    `form[aria-label="棚卸しを記録"] input[aria-label="${label}"]`,
+  )
+  if (input === null) throw new Error(`missing ${label} input`)
+
+  const setter = Object.getOwnPropertyDescriptor(
+    HTMLInputElement.prototype,
+    'value',
+  )?.set?.bind(input)
+  setter?.(value)
+  input.dispatchEvent(new Event('input', { bubbles: true }))
+}
+
+const stockCountFormState = (container: HTMLElement) => ({
+  foodMasterId: container.querySelector<HTMLSelectElement>(
+    'form[aria-label="棚卸しを記録"] select',
+  )?.value,
+  quantity: container.querySelector<HTMLInputElement>(
+    'form[aria-label="棚卸しを記録"] input[aria-label="今、数えた実数"]',
+  )?.value,
+  receivedDate: container.querySelector<HTMLInputElement>(
+    'form[aria-label="棚卸しを記録"] input[aria-label="増加分の受領日 (任意)"]',
+  )?.value,
+  bestBefore: container.querySelector<HTMLInputElement>(
+    'form[aria-label="棚卸しを記録"] input[aria-label="増加分の賞味期限 (任意)"]',
+  )?.value,
+  referenceQuantity: container.querySelector(
+    'form[aria-label="棚卸しを記録"] output',
+  )?.textContent,
+  error:
+    container.querySelector('form[aria-label="棚卸しを記録"] [role="alert"]')
+      ?.textContent ?? null,
+  submitLabel: stockCountSubmitButton(container)?.textContent.trim(),
+  submitDisabled: stockCountSubmitButton(container)?.disabled,
+})
+
+const firstStockQuantity = (container: HTMLElement): string | null =>
+  container.querySelector(
+    'section[aria-labelledby="stock-items-title"] article header p',
+  )?.textContent ?? null
+
+const stockCountPageOutput = <WhileSaving,>(
+  requests: ReadonlyArray<{
+    readonly path: string
+    readonly method: string
+    readonly body: BodyInit | null
+  }>,
+  whileSaving: WhileSaving,
+  container: HTMLElement,
+) => ({
+  whileSaving,
+  afterSave: {
+    requests,
+    stockQuantity: firstStockQuantity(container),
+    capacityNotice: container.querySelector(
+      'section[aria-labelledby="capacity-warnings-title"] h2 + p',
+    )?.textContent,
+    eatByNotice: container.querySelector(
+      'section[aria-labelledby="eat-by-warnings-title"] h2 + p',
+    )?.textContent,
+    priorityNotice: container.querySelector(
+      'section[aria-labelledby="priority-lots-title"] h2 + p',
+    )?.textContent,
+    form: stockCountFormState(container),
+  },
+})
+
+const stockCountRetryOutput = (
+  requests: ReadonlyArray<{
+    readonly path: string
+    readonly method: string
+    readonly body: BodyInit | null
+  }>,
+  afterFailure: {
+    readonly stockQuantity: string | null
+    readonly form: ReturnType<typeof stockCountFormState>
+  },
+  container: HTMLElement,
+) => ({
+  requests,
+  afterFailure,
+  afterRetry: {
+    stockQuantity: firstStockQuantity(container),
+    form: stockCountFormState(container),
+  },
+})
 
 afterEach(async () => {
   await performAct(() => {
@@ -651,6 +759,243 @@ describe('StockPage', () => {
         ],
         alerts: [],
         retryButtons: 0,
+      },
+    })
+  })
+
+  it('records a zero count once and reloads the stock and warnings', async () => {
+    const requests: Array<{
+      readonly path: string
+      readonly method: string
+      readonly body: BodyInit | null
+    }> = []
+    let resolveCount: (response: Response) => void = () => undefined
+    const countedStatus: StockStatus = {
+      ...STOCK_STATUS,
+      stockItems: STOCK_STATUS.stockItems.map((item, index) =>
+        index === 0 ? { ...item, totalQuantity: 0, lots: [] } : item,
+      ),
+      capacityWarnings: [],
+      eatByWarnings: [],
+      priorityLots: [],
+    }
+    const { container, root, queryClient } = setupPage((input, init) => {
+      const path = requestPath(input)
+      const method = init?.method ?? 'GET'
+      requests.push({ path, method, body: init?.body ?? null })
+      if (method === 'POST') {
+        return new Promise<Response>((resolve) => {
+          resolveCount = resolve
+        })
+      }
+      return Promise.resolve(
+        jsonResponse(requests.length === 1 ? STOCK_STATUS : countedStatus),
+      )
+    })
+    await renderPage(root, queryClient)
+    await waitFor(() => container.textContent.includes('架空米'))
+    await performAct(() => {
+      fillInput(container, '今、数えた実数', '0')
+      fillInput(container, '増加分の受領日 (任意)', '2026-08-12')
+      fillInput(container, '増加分の賞味期限 (任意)', '2026-09-20')
+      stockCountSubmitButton(container)?.click()
+    })
+    await waitFor(() => requests.length === 2)
+    await performAct(() => {
+      stockCountSubmitButton(container)?.click()
+    })
+
+    const whileSaving = {
+      requests: [...requests],
+      form: stockCountFormState(container),
+      quantityDisabled: container
+        .querySelector<HTMLInputElement>(
+          'form[aria-label="棚卸しを記録"] input[aria-label="今、数えた実数"]',
+        )
+        ?.matches(':disabled'),
+    }
+    resolveCount(
+      jsonResponse({
+        foodMasterId: 'food_example_rice',
+        previousQuantity: 0.5,
+        countedQuantity: 0,
+        difference: -0.5,
+      }),
+    )
+    await waitFor(
+      () => requests.length === 3 && firstStockQuantity(container) === '残数 0',
+    )
+
+    expect(stockCountPageOutput(requests, whileSaving, container)).toEqual({
+      whileSaving: {
+        requests: [
+          { path: '/api/stock', method: 'GET', body: null },
+          {
+            path: '/api/stock/counts',
+            method: 'POST',
+            body: JSON.stringify({
+              foodMasterId: 'food_example_rice',
+              quantity: 0,
+              receivedDate: '2026-08-12',
+              bestBefore: '2026-09-20',
+            }),
+          },
+        ],
+        form: {
+          foodMasterId: 'food_example_rice',
+          quantity: '0',
+          receivedDate: '2026-08-12',
+          bestBefore: '2026-09-20',
+          referenceQuantity: '0.5',
+          error: null,
+          submitLabel: '記録中…',
+          submitDisabled: true,
+        },
+        quantityDisabled: true,
+      },
+      afterSave: {
+        requests: [
+          { path: '/api/stock', method: 'GET', body: null },
+          {
+            path: '/api/stock/counts',
+            method: 'POST',
+            body: JSON.stringify({
+              foodMasterId: 'food_example_rice',
+              quantity: 0,
+              receivedDate: '2026-08-12',
+              bestBefore: '2026-09-20',
+            }),
+          },
+          { path: '/api/stock', method: 'GET', body: null },
+        ],
+        stockQuantity: '残数 0',
+        capacityNotice: '容量超過の警告はありません。',
+        eatByNotice: '食べ切りの警告はありません。',
+        priorityNotice: '先に食べたい入荷分はありません。',
+        form: {
+          foodMasterId: 'food_example_rice',
+          quantity: '',
+          receivedDate: '',
+          bestBefore: '',
+          referenceQuantity: '0',
+          error: null,
+          submitLabel: '実数を記録',
+          submitDisabled: true,
+        },
+      },
+    })
+  })
+
+  it('keeps the last stock after a failed count and allows retry', async () => {
+    const requests: Array<{
+      readonly path: string
+      readonly method: string
+      readonly body: BodyInit | null
+    }> = []
+    const countedStatus: StockStatus = {
+      ...STOCK_STATUS,
+      stockItems: STOCK_STATUS.stockItems.map((item, index) =>
+        index === 0 ? { ...item, totalQuantity: 0.75 } : item,
+      ),
+      capacityWarnings: [],
+      eatByWarnings: [],
+      priorityLots: [],
+    }
+    const { container, root, queryClient } = setupPage((input, init) => {
+      const path = requestPath(input)
+      const method = init?.method ?? 'GET'
+      requests.push({ path, method, body: init?.body ?? null })
+      if (
+        method === 'POST' &&
+        requests.filter((request) => request.method === 'POST').length === 1
+      ) {
+        return Promise.resolve(jsonResponse({ error: 'count failed' }, 500))
+      }
+      if (method === 'POST') {
+        return Promise.resolve(
+          jsonResponse({
+            foodMasterId: 'food_example_rice',
+            previousQuantity: 0.5,
+            countedQuantity: 0.75,
+            difference: 0.25,
+          }),
+        )
+      }
+      return Promise.resolve(
+        jsonResponse(requests.length === 1 ? STOCK_STATUS : countedStatus),
+      )
+    })
+    await renderPage(root, queryClient)
+    await waitFor(() => container.textContent.includes('架空米'))
+    await performAct(() => {
+      fillInput(container, '今、数えた実数', '0.5')
+      stockCountSubmitButton(container)?.click()
+    })
+    await waitFor(
+      () =>
+        container.querySelector(
+          'form[aria-label="棚卸しを記録"] [role="alert"]',
+        ) !== null,
+    )
+    const afterFailure = {
+      stockQuantity: firstStockQuantity(container),
+      form: stockCountFormState(container),
+    }
+    await performAct(() => {
+      fillInput(container, '今、数えた実数', '0.75')
+      stockCountSubmitButton(container)?.click()
+    })
+    await waitFor(
+      () =>
+        requests.length === 4 && firstStockQuantity(container) === '残数 0.75',
+    )
+
+    expect(stockCountRetryOutput(requests, afterFailure, container)).toEqual({
+      requests: [
+        { path: '/api/stock', method: 'GET', body: null },
+        {
+          path: '/api/stock/counts',
+          method: 'POST',
+          body: JSON.stringify({
+            foodMasterId: 'food_example_rice',
+            quantity: 0.5,
+          }),
+        },
+        {
+          path: '/api/stock/counts',
+          method: 'POST',
+          body: JSON.stringify({
+            foodMasterId: 'food_example_rice',
+            quantity: 0.75,
+          }),
+        },
+        { path: '/api/stock', method: 'GET', body: null },
+      ],
+      afterFailure: {
+        stockQuantity: '残数 0.5',
+        form: {
+          foodMasterId: 'food_example_rice',
+          quantity: '0.5',
+          receivedDate: '',
+          bestBefore: '',
+          referenceQuantity: '0.5',
+          error: 'count failed',
+          submitLabel: '実数を記録',
+          submitDisabled: false,
+        },
+      },
+      afterRetry: {
+        stockQuantity: '残数 0.75',
+        form: {
+          foodMasterId: 'food_example_rice',
+          quantity: '',
+          receivedDate: '',
+          bestBefore: '',
+          referenceQuantity: '0.75',
+          error: null,
+          submitLabel: '実数を記録',
+          submitDisabled: true,
+        },
       },
     })
   })

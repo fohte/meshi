@@ -149,6 +149,20 @@ const CAPACITY_WARNING_DATA: StockStatus = {
 const meta: Meta<typeof StockView> = {
   title: 'components/Stock/StockView',
   component: StockView,
+  args: {
+    countForm: {
+      foodMasterId: STOCK_ITEM.foodMasterId,
+      quantity: '',
+      receivedDate: '',
+      bestBefore: '',
+      isSaving: false,
+      onFoodMasterIdChange: () => undefined,
+      onQuantityChange: () => undefined,
+      onReceivedDateChange: () => undefined,
+      onBestBeforeChange: () => undefined,
+      onSubmit: () => undefined,
+    },
+  },
 }
 
 export default meta
