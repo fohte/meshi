@@ -67,6 +67,7 @@ export const StockDeliveryEditor = (
     mode,
     delivery,
     isSubmitting,
+    onClose,
     onRegister,
     onReceive,
     ...viewPropsBase
@@ -122,11 +123,6 @@ export const StockDeliveryEditor = (
     event.preventDefault()
     if (isSubmitting) return
 
-    if (mode === 'cancel') {
-      if (delivery?.sourceRef != null) setIsConfirming(true)
-      return
-    }
-
     if (mode === 'receive') {
       if (delivery === null) return
       if (draft.receivedDate === '' || !validateItems(draft.items, true)) {
@@ -162,6 +158,7 @@ export const StockDeliveryEditor = (
     mode,
     delivery,
     isSubmitting,
+    onClose,
     draft,
     isConfirming,
     validationError,
@@ -179,7 +176,11 @@ export const StockDeliveryEditor = (
     },
     onFormSubmit,
     onConfirmationBack: () => {
-      setIsConfirming(false)
+      if (mode === 'cancel') {
+        onClose()
+      } else {
+        setIsConfirming(false)
+      }
     },
     onConfirmationConfirm,
   }

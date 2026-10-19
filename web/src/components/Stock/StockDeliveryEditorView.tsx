@@ -30,21 +30,6 @@ const foodNameFor = (
     ?.foodName ??
   '不明な食品'
 
-const summaryItems = (
-  items: StockDeliveryEditorViewProps['draft']['items'],
-  stockItems: ReadonlyArray<StockItem>,
-  delivery: PlannedDelivery | null,
-): React.JSX.Element => (
-  <ul className={styles.summaryItems}>
-    {items.map((item) => (
-      <li key={item.foodMasterId}>
-        <span>{foodNameFor(item.foodMasterId, stockItems, delivery)}</span>
-        <span>数量 {item.quantity || '0'}</span>
-      </li>
-    ))}
-  </ul>
-)
-
 export const StockDeliveryEditorView = ({
   mode,
   delivery,
@@ -81,7 +66,9 @@ export const StockDeliveryEditorView = ({
       })),
   ]
   const confirmationMode = mode === 'cancel' || mode === 'receive' ? mode : null
-  const isConfirmation = isConfirming && confirmationMode !== null
+  const isConfirmation =
+    confirmationMode === 'cancel' ||
+    (isConfirming && confirmationMode === 'receive')
   const title = modeTitle(mode)
 
   return (
@@ -105,7 +92,11 @@ export const StockDeliveryEditorView = ({
         </button>
       </header>
 
-      {isConfirmation && delivery !== null ? (
+      {mode === 'cancel' && delivery === null ? (
+        <p className={styles.error} role="alert">
+          対象の入荷予定がありません。
+        </p>
+      ) : isConfirmation && delivery !== null ? (
         <StockDeliveryConfirmation
           mode={confirmationMode}
           sourceRef={delivery.sourceRef}
@@ -130,52 +121,6 @@ export const StockDeliveryEditorView = ({
           onBack={onConfirmationBack}
           onConfirm={onConfirmationConfirm}
         />
-      ) : mode === 'cancel' ? (
-        <form className={styles.form} onSubmit={onFormSubmit}>
-          <p className={styles.confirmationText}>
-            meshi
-            の入荷予定を取り消します。注文先への注文キャンセルは行いません。
-          </p>
-          <dl className={styles.summary}>
-            <div>
-              <dt>注文番号</dt>
-              <dd>{delivery?.sourceRef ?? '不明'}</dd>
-            </div>
-            <div>
-              <dt>入荷予定日</dt>
-              <dd>{delivery?.expectedDate ?? '不明'}</dd>
-            </div>
-            <div>
-              <dt>変更締切</dt>
-              <dd>{delivery?.changeDeadline ?? '不明'}</dd>
-            </div>
-          </dl>
-          {summaryItems(
-            delivery?.items.map((item) => ({
-              foodMasterId: item.foodMasterId,
-              quantity: String(item.quantity),
-            })) ?? [],
-            stockItems,
-            delivery,
-          )}
-          <div className={styles.actions}>
-            <button
-              type="button"
-              className={styles.secondaryButton}
-              disabled={isSubmitting}
-              onClick={onClose}
-            >
-              閉じる
-            </button>
-            <button
-              type="submit"
-              className={styles.primaryButton}
-              disabled={isSubmitting || delivery?.sourceRef == null}
-            >
-              取消内容を確認
-            </button>
-          </div>
-        </form>
       ) : (
         <form className={styles.form} onSubmit={onFormSubmit}>
           {mode === 'receive' ? (

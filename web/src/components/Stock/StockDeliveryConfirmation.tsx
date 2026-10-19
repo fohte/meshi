@@ -1,4 +1,5 @@
 import styles from '#components/Stock/StockDeliveryConfirmation.module.css'
+import editorStyles from '#components/Stock/StockDeliveryEditor.module.css'
 
 export interface StockDeliveryConfirmationItem {
   readonly foodMasterId: string
@@ -39,7 +40,7 @@ export const StockDeliveryConfirmation = ({
         ? 'meshi の入荷予定を取り消します。注文先への注文キャンセルは行いません。'
         : '表示した数量で配送全体の受領を確定します。'}
     </p>
-    <dl className={styles.summary}>
+    <dl className={editorStyles.summary}>
       <div>
         <dt>注文番号</dt>
         <dd>{sourceRef ?? '注文番号の登録なし'}</dd>
@@ -55,7 +56,7 @@ export const StockDeliveryConfirmation = ({
         </div>
       )}
     </dl>
-    <ul className={styles.items}>
+    <ul className={editorStyles.summaryItems}>
       {items.map((item) => (
         <li key={item.foodMasterId}>
           <span>{item.foodName}</span>
@@ -63,10 +64,10 @@ export const StockDeliveryConfirmation = ({
         </li>
       ))}
     </ul>
-    <div className={styles.actions}>
+    <div className={editorStyles.actions}>
       <button
         type="button"
-        className={styles.button}
+        className={editorStyles.secondaryButton}
         disabled={isSubmitting}
         onClick={onBack}
       >
@@ -74,8 +75,7 @@ export const StockDeliveryConfirmation = ({
       </button>
       <button
         type="button"
-        className={styles.button}
-        data-primary="true"
+        className={editorStyles.primaryButton}
         disabled={isSubmitting}
         onClick={onConfirm}
       >

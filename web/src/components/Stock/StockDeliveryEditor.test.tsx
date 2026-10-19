@@ -208,7 +208,6 @@ describe('StockDeliveryEditor', () => {
 
   it('shows cancellation details before sending the cancellation', async () => {
     const setup = setupEditor({ mode: 'cancel', delivery: DELIVERY })
-    await submitForm(setup.container)
     const review = {
       text: setup.container.textContent.replace(/\s+/g, ' ').trim(),
       registerCalls: [...setup.registerCalls],

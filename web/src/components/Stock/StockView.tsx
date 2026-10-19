@@ -11,7 +11,7 @@ export interface StockViewProps {
   readonly isError: boolean
   readonly onRetry: () => void
   readonly onRefresh: () => void
-  readonly deliveryEditor?: Omit<StockDeliveryEditorProps, 'stockItems'> | null
+  readonly deliveryEditor?: StockDeliveryEditorProps | null
   readonly onCreateDelivery?: () => void
   readonly onEditDelivery?: (
     delivery: StockStatus['plannedDeliveries'][number],
