@@ -11,12 +11,18 @@ export const project = [
   '!scripts/**/*.test.ts!',
 ]
 
+export const rootWorkspace = {
+  ignoreDependencies: ['@commitlint/cli'],
+  ignore: ['commitlint-plugin-no-external-refs.cjs'],
+}
+
 export default {
   treatConfigHintsAsErrors: true,
   workspaces: {
-    '.': {
+    '.': rootWorkspace,
+    server: {
       project,
     },
+    web: {},
   },
-  ignoreDependencies: ['@commitlint/cli'],
 }

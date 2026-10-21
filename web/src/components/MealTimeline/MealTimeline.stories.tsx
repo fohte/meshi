@@ -65,14 +65,17 @@ export default meta
 type Story = StoryObj<typeof MealTimeline>
 
 export const Default: Story = {
+  name: '一日の食事記録を時間帯ごとに表示しています',
   args: { groups: buildMealTimelineGroups(ENTRIES, []) },
 }
 
 export const Empty: Story = {
+  name: '食事記録がない日の空のタイムラインです',
   args: { groups: buildMealTimelineGroups([], []) },
 }
 
 export const WithSkipsAndUnrecorded: Story = {
+  name: '昼食がスキップされた日のタイムラインです',
   args: {
     groups: buildMealTimelineGroups(
       ENTRIES.filter((entry) => entry.mealType === 'breakfast'),

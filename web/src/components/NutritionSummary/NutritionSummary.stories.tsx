@@ -81,6 +81,7 @@ export default meta
 type Story = StoryObj<typeof NutritionSummary>
 
 export const WithTargets: Story = {
+  name: '目標値と推定値を含む栄養サマリーです',
   args: {
     hasEstimatedValues: true,
     hasUnknownValues: false,
@@ -108,6 +109,7 @@ export const WithTargets: Story = {
 }
 
 export const NoTargets: Story = {
+  name: '目標値なしで栄養サマリーを表示しています',
   args: {
     hasEstimatedValues: false,
     hasUnknownValues: false,
@@ -120,6 +122,7 @@ export const NoTargets: Story = {
 }
 
 export const Empty: Story = {
+  name: '栄養データがないときの空のサマリーです',
   args: {
     hasEstimatedValues: false,
     hasUnknownValues: false,

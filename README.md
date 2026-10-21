@@ -12,6 +12,8 @@ The MCP server exposes meal-history queries, profile management, origin-aware fo
 - pnpm (via Corepack or mise)
 - Docker (for local Postgres, and optionally for running the app itself)
 
+Run `scripts/bootstrap` once to install the workspace dependencies and git hooks.
+
 ### Local Postgres
 
 Start a local Postgres instance and create the development and test databases:
@@ -20,7 +22,7 @@ Start a local Postgres instance and create the development and test databases:
 mise run db:up
 ```
 
-This starts Postgres with user `meshi` / password `meshi`, published to a random host port to avoid clashing with other projects' Postgres instances. It creates `meshi_dev` and `meshi_test`. Find the port with:
+This starts Postgres with user `meshi` / password `meshi`, published to a random host port to avoid clashing with other projects' Postgres instances. It creates `meshi_server_dev` and `meshi_server_test`. Find the port with:
 
 ```sh
 docker compose port db 5432
@@ -28,46 +30,48 @@ docker compose port db 5432
 
 Stop the services with `docker compose down`; the named volumes remain.
 
-`compose.override.yaml` sets the locale used by `initdb` (`LC_COLLATE=C` / `LC_CTYPE=C.UTF-8`) to match production. The new PostgreSQL 18 service uses its own volume; the previous PostgreSQL 17 volume remains untouched and is not mounted by this configuration. To carry its data forward into `meshi_dev`, use the pre-migration Compose file from commit `e04b4838a7d179d6bd3dd406f0417c426b44c1e0`:
+`compose.override.yaml` sets the locale used by `initdb` (`LC_COLLATE=C` / `LC_CTYPE=C.UTF-8`) to match production. The new PostgreSQL 18 service uses its own volume; the previous PostgreSQL 17 volume remains untouched and is not mounted by this configuration. Package-scoped databases use the `meshi_server_*` prefix. Existing `meshi_dev` and `meshi_test` databases remain in the volume; dump and restore into the new database to carry data forward:
 
 ```sh
 legacy_compose=$(mktemp /tmp/meshi-postgres17-compose.XXXXXX)
 dump=$(mktemp /tmp/meshi-postgres17-dump.XXXXXX)
-git show e04b4838a7d179d6bd3dd406f0417c426b44c1e0:docker-compose.yml > "$legacy_compose"
+compose_migration_revision=$(git log -S'postgres:17' --format='%H' -1 -- docker-compose.yml)
+legacy_compose_revision="${compose_migration_revision}^"
+git show "${legacy_compose_revision}:docker-compose.yml" > "$legacy_compose"
 docker compose --project-directory "$PWD" --project-name meshi \
   -f "$legacy_compose" up -d postgres
 docker compose --project-directory "$PWD" --project-name meshi \
   -f "$legacy_compose" exec -T postgres \
   pg_dump -U meshi -d meshi -Fc > "$dump"
 mise run db:up
-docker compose exec -T db pg_restore -U meshi --no-owner -d meshi_dev - < "$dump"
+docker compose exec -T db pg_restore -U meshi --no-owner -d meshi_server_dev - < "$dump"
 ```
 
 ### Environment variables
 
-The server fails fast on missing required env at startup. This table covers every env var this repo's own code reads directly, not just via `src/env.ts`. Observability (Sentry/OTel exporter) config is delegated wholesale to `@fohte/service-kit/observability` and follows that package's own env var contract, not `src/env.ts`'s — see its docs for those variable names.
+The server fails fast on missing required env at startup. This table covers every env var this repo's own code reads directly, not just via `server/src/env.ts`. Observability (Sentry/OTel exporter) config is delegated wholesale to `@fohte/service-kit/observability` and follows that package's own env var contract, not `server/src/env.ts`'s — see its docs for those variable names.
 
-| Name                   | Required             | Description                                                                                                                                                                                         | Example                                                                  |
-| ---------------------- | -------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------ |
-| `DATABASE_URL`         | Required             | Postgres connection string (verified with `SELECT 1` at startup); also required to run `src/db/migrate.ts` directly                                                                                 | `postgres://meshi:meshi@127.0.0.1:<port from docker compose>/meshi_dev`  |
-| `MCP_LISTEN_ADDR`      | Required             | MCP server listen address                                                                                                                                                                           | `0.0.0.0:8080`                                                           |
-| `R2_ACCOUNT_ID`        | Required             | Cloudflare account ID used to construct the R2 S3 API endpoint                                                                                                                                      | `00000000000000000000000000000000`                                       |
-| `R2_BUCKET_NAME`       | Required             | R2 bucket for meal photos; keep public access disabled because meshi serves the images                                                                                                              | `sample-meal-photos`                                                     |
-| `R2_ACCESS_KEY_ID`     | Required             | Access key ID with object read, write, and delete permissions on the bucket                                                                                                                         | `sample-access-key`                                                      |
-| `R2_SECRET_ACCESS_KEY` | Required             | Secret access key for the R2 bucket                                                                                                                                                                 | `sample-secret-key`                                                      |
-| `NODE_ENV`             | Optional             | Skips observability initialization when set to `test` (set automatically by Vitest); otherwise passed through to `@fohte/service-kit/observability`                                                 | `production`                                                             |
-| `TEST_DATABASE_URL`    | Optional (test-only) | Dedicated local test DB for `pnpm test`; run `mise run db:up` first. Global setup drops the `public` and `drizzle` schemas before migrations. Outside mise, DB-backed suites are skipped when unset | `postgres://meshi:meshi@127.0.0.1:<port from docker compose>/meshi_test` |
+| Name                   | Required             | Description                                                                                                                                                                                            | Example                                                                         |
+| ---------------------- | -------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------- |
+| `DATABASE_URL`         | Required             | Postgres connection string (verified with `SELECT 1` at startup); also required to run `server/src/db/migrate.ts` directly                                                                             | `postgres://meshi:meshi@127.0.0.1:<port from docker compose>/meshi_server_dev`  |
+| `MCP_LISTEN_ADDR`      | Required             | MCP server listen address                                                                                                                                                                              | `0.0.0.0:8080`                                                                  |
+| `R2_ACCOUNT_ID`        | Required             | Cloudflare account ID used to construct the R2 S3 API endpoint                                                                                                                                         | `00000000000000000000000000000000`                                              |
+| `R2_BUCKET_NAME`       | Required             | R2 bucket for meal photos; keep public access disabled because meshi serves the images                                                                                                                 | `sample-meal-photos`                                                            |
+| `R2_ACCESS_KEY_ID`     | Required             | Access key ID with object read, write, and delete permissions on the bucket                                                                                                                            | `sample-access-key`                                                             |
+| `R2_SECRET_ACCESS_KEY` | Required             | Secret access key for the R2 bucket                                                                                                                                                                    | `sample-secret-key`                                                             |
+| `NODE_ENV`             | Optional             | Skips observability initialization when set to `test` (set automatically by Vitest); otherwise passed through to `@fohte/service-kit/observability`                                                    | `production`                                                                    |
+| `TEST_DATABASE_URL`    | Optional (test-only) | Dedicated local test DB for `server` tests; run `mise run db:up` first. Global setup drops the `public` and `drizzle` schemas before migrations. Outside mise, DB-backed suites are skipped when unset | `postgres://meshi:meshi@127.0.0.1:<port from docker compose>/meshi_server_test` |
 
 ### Run
 
 Set the required `R2_*` variables in `.env` before starting the server. mise loads `.env` and `.env.local` for local commands, while Compose reads `.env` and passes the values to the app. The access key needs object read, write, and delete permissions on the selected bucket; objects are stored under `meal-photos/`.
 
 ```sh
-pnpm build && pnpm start   # one-shot, from the built dist/
-pnpm dev                   # tsx watch, no build step
+pnpm --filter server run build && pnpm --filter server run start  # one-shot, from the built dist/
+pnpm --filter server run dev                                      # tsx watch, no build step
 ```
 
-To create `meshi_dev`, run `mise run db:up` once before starting the app in a container. The source is bind-mounted, so it hot-reloads the same way:
+To create `meshi_server_dev`, run `mise run db:up` once before starting the app in a container. The source is bind-mounted, so it hot-reloads the same way:
 
 ```sh
 docker compose up app
@@ -95,36 +99,37 @@ pnpm --filter web run storybook  # component storybook
 ### Seed / load
 
 ```sh
-pnpm seed                                          # nutrient_definitions only
-pnpm seed --food-composition path/to/dataset.json  # + MEXT composition tables
+pnpm --filter server run seed                                            # nutrient_definitions only
+pnpm --filter server run seed -- --food-composition ../path/to/dataset.json  # + MEXT composition tables
 ```
 
 Dataset shape (JSON array): `[{ "code": "01088", "name": "...", "nutrients": { "energy_kcal": 156, "protein_g": 2.5, ... } }]`. Nutrient codes follow `<英名>_<単位>` (e.g. `protein_g`, `iron_mg`, `vitamin_a_µg`). Codes not in `nutrient_definitions` are rejected; pass extras via the programmatic API.
 
 #### Food composition table (MEXT) → dataset JSON
 
-The 日本食品標準成分表 is distributed as an .xlsx workbook by MEXT, not as this dataset JSON. `pnpm convert-food-composition` reads that .xlsx directly — no spreadsheet app needed:
+The 日本食品標準成分表 is distributed as an .xlsx workbook by MEXT, not as this dataset JSON. `pnpm --filter server run convert-food-composition` reads that .xlsx directly — no spreadsheet app needed:
 
 1. Download the data workbook ("・第2章（データ）", covering all tables including 一般成分表) from the [MEXT publication page](https://www.mext.go.jp/a_menu/syokuhinseibun/mext_00001.html) and keep it out of version control, e.g. under `data/` (gitignored — see below).
 2. Check column detection before converting anything:
    ```sh
-   pnpm convert-food-composition --xlsx data/mext-table.xlsx --dump-header
+   pnpm --filter server run convert-food-composition -- --xlsx ../data/mext-table.xlsx --dump-header
    ```
    This prints each column's detected header text and, if matched, which nutrient code it resolved to, plus a summary of nutrient codes with no matching column ("unmatched") and codes that matched more than one column ("ambiguous"). Columns are matched by header text (e.g. "たんぱく質" vs "アミノ酸組成によるたんぱく質"), not fixed position, so a column matching the wrong thing shows up here rather than silently landing in the output. The default `--header-rows 12` matches the 増補2023年 workbook's actual header depth (group / item / sub-item label rows, then a "単位" unit row and a "成分識別子" component-tag row) — adjust it if a different release's header is shallower or deeper. If the workbook has more than one sheet, pick it with `--sheet <name-or-1-based-index>` (defaults to the first sheet; the 増補2023年 file has a single "表全体" sheet).
 3. Convert:
    ```sh
-   pnpm convert-food-composition --xlsx data/mext-table.xlsx --out data/food-composition.json
+   pnpm --filter server run convert-food-composition -- --xlsx ../data/mext-table.xlsx --out ../data/food-composition.json
    ```
    Values are handled as: `Tr` (trace) → `0`, `(2.5)` (estimated) → `2.5`, `-` (not measured) → the nutrient key is omitted for that food. Food codes are re-padded to 5 digits (numeric-typed code cells can drop the leading zero, e.g. `01088` → `1088`). Verified end-to-end against the actual 増補2023年 workbook: all 2,538 foods convert with 0 unmatched/ambiguous nutrient columns.
-4. `pnpm seed --food-composition data/food-composition.json`.
+4. `pnpm --filter server run seed -- --food-composition ../data/food-composition.json`.
 
-Only the columns from the general-components table are mapped; 飽和脂肪酸 (a separate per-fatty-acid table) and ビタミン E (four tocopherol columns, no single total) are left unmatched — extend `NUTRIENT_MATCHERS` in `scripts/convert-food-composition.ts` if they're needed.
+Only the columns from the general-components table are mapped; 飽和脂肪酸 (a separate per-fatty-acid table) and ビタミン E (four tocopherol columns, no single total) are left unmatched — extend `NUTRIENT_MATCHERS` in `server/scripts/convert-food-composition.ts` if they're needed.
 
 Citation: outputs derived from this dataset must credit "日本食品標準成分表(八訂)増補2023年" and note that the data has been edited/processed (加工) from the source, per the [政府標準利用規約(2.0 版)](https://www.mext.go.jp/b_menu/1351168.htm). Per [the same terms' content list](https://www.mext.go.jp/b_menu/1366610.htm), 日本食品標準成分表 is one of the datasets that may require notification/royalty payment for some uses (e.g. republishing it as a book) — the source Excel and any JSON generated from it must stay local (`data/` is gitignored) and must not be committed to this repository.
 
 ### Test / lint
 
 ```sh
-pnpm test
+pnpm --filter server run test
 pnpm lint
+pnpm --filter web run test
 ```

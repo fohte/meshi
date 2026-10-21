@@ -19,11 +19,9 @@ import type { MealSkipService } from '#domain/meal-skip/meal-skip-service'
 import type { NutrientDefinitionRepository } from '#domain/nutrient-definition/types'
 import type { StockService } from '#domain/stock/types'
 import type { UserProfileService } from '#domain/user-profile/user-profile-service'
+import { resolveWebDistRoot } from '#web-dist-root'
 
-// Relative to process.cwd(): the Docker runtime image's WORKDIR (/app) and
-// `pnpm dev`/`pnpm start` both run from the repo root, where the web
-// subpackage's Vite build output lands at web/dist.
-const WEB_DIST_ROOT = 'web/dist'
+const WEB_DIST_ROOT = resolveWebDistRoot(process.cwd())
 
 export interface AppDeps {
   sql: Sql

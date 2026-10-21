@@ -59,14 +59,14 @@ jobs:
         with:
           path: |
             ${{ steps.pnpm-store.outputs.path }}
-          key: ${{ runner.os }}-pnpm-store-${{ hashFiles('web/pnpm-lock.yaml') }}
+          key: ${{ runner.os }}-pnpm-store-${{ hashFiles('pnpm-lock.yaml') }}
           restore-keys: ${{ runner.os }}-pnpm-store-
 
       - name: Install pnpm dependencies
-        run: cd "web" && pnpm install --frozen-lockfile
+        run: pnpm install --frozen-lockfile
 
       - name: Build Storybook
-        run: cd "web" && pnpm run storybook:build
+        run: pnpm --filter web run storybook:build
 
       - name: Create Cloudflare Pages project if not exists
         uses: cloudflare/wrangler-action@ebbaa1584979971c8614a24965b4405ff95890e0 # v4.0.0

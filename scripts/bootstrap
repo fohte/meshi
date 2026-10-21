@@ -15,7 +15,7 @@ if command -v mise > /dev/null 2>&1; then
   mise install
 fi
 
-# Enable corepack so that pnpm version from package.json packageManager field is used
+# Enable corepack so that the pnpm version from package.json is used
 corepack enable
 
 # corepack creates the pnpm executable inside mise's node install bin
@@ -25,7 +25,7 @@ if command -v mise > /dev/null 2>&1; then
 fi
 
 # Use --frozen-lockfile when a lockfile exists so a Renovate-bumped dep still
-# inside the pnpm-workspace.yaml minimumReleaseAge window does not re-trigger
+# inside the package workspace minimumReleaseAge window does not re-trigger
 # the supply-chain policy check and block bootstrap. Fall back to plain
 # `pnpm install` on freshly generated projects without a lockfile yet.
 pnpm_install() {

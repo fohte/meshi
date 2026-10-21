@@ -13,6 +13,6 @@ export default defineConfig({
     // of this file can resolve test entry files; Vitest's own runtime
     // behavior is unchanged.
     include: ['**/*.{test,spec}.?(c|m)[jt]s?(x)'],
-    exclude: [...configDefaults.exclude, 'web/src/**/*.test.tsx'],
+    exclude: configDefaults.exclude,
   },
 })

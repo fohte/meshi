@@ -82,6 +82,6 @@ run_db_doc() {
   drop_database
 }
 
-run_db_doc '.' 'node' << 'DB_MIGRATE'
+run_db_doc 'server' 'node' << 'DB_MIGRATE'
 pnpm run db:migrate
 DB_MIGRATE

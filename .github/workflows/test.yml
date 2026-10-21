@@ -72,7 +72,7 @@ jobs:
         uses: tj-actions/changed-files@9426d40962ed5378910ee2e21d5f8c6fcbf2dd96 # v47.0.6
         with:
           files: |
-            drizzle/**
+            server/drizzle/**
             **/.tbls.yml
             scripts/db-*
             compose*.yaml
@@ -85,7 +85,7 @@ jobs:
 
       - name: Stage generated database documentation
         if: steps.db-doc-changes.outputs.any_modified == 'true'
-        run: git add -- docs/db
+        run: git add -- server/docs/db
 
       - name: Run lefthook
         id: lefthook
@@ -138,8 +138,8 @@ jobs:
       # mise-action resolves these URLs before the database has a published port.
       - name: Refresh database URLs
         run: |
-          echo "DATABASE_URL=$(scripts/db-url . dev)" >> "$GITHUB_ENV"
-          echo "TEST_DATABASE_URL=$(scripts/db-url . test)" >> "$GITHUB_ENV"
+          echo "DATABASE_URL=$(scripts/db-url server dev)" >> "$GITHUB_ENV"
+          echo "TEST_DATABASE_URL=$(scripts/db-url server test)" >> "$GITHUB_ENV"
 
       - name: Get pnpm store directory
         id: pnpm-store
@@ -156,22 +156,16 @@ jobs:
       - run: pnpm install --frozen-lockfile
 
       - name: Run tests
-        run: pnpm run test
+        run: pnpm --filter server run test
 
-      # generic-boilerplate's test.yml.jinja doesn't wire up subpackage
-      # testing for a `type: node` root (only for `type: rust` or `type: base`
-      # roots), so the web subpackage's build/test is added here by hand.
+      # Build the SPA package separately from the API and DB package.
       - name: Build web
         run: pnpm --filter web run build
 
-      # web/vitest.config.ts's "storybook" project runs story tests through
-      # a Playwright-driven browser, so the browser binary needs to be
-      # installed here too (the hand-added web job above doesn't get this
-      # for free from generic-boilerplate's `pkg.spa` template block).
+      # web/vitest.config.ts runs browser-backed Storybook tests.
       - name: Get Playwright version
         id: playwright-version
-        working-directory: web
-        run: echo "version=$(pnpm exec playwright --version | cut -d' ' -f2)" >> "$GITHUB_OUTPUT"
+        run: echo "version=$(pnpm --filter web exec playwright --version | cut -d' ' -f2)" >> "$GITHUB_OUTPUT"
 
       - name: Cache Playwright browsers
         id: playwright-cache
@@ -182,13 +176,11 @@ jobs:
 
       - name: Install Playwright chromium
         if: steps.playwright-cache.outputs.cache-hit != 'true'
-        working-directory: web
-        run: pnpm exec playwright install --with-deps chromium
+        run: pnpm --filter web exec playwright install --with-deps chromium
 
       - name: Install Playwright system dependencies
         if: steps.playwright-cache.outputs.cache-hit == 'true'
-        working-directory: web
-        run: pnpm exec playwright install-deps chromium
+        run: pnpm --filter web exec playwright install-deps chromium
 
       - name: Run tests (web)
         run: pnpm --filter web run test
@@ -208,10 +200,10 @@ jobs:
     runs-on: ubuntu-latest
 
     env:
-      # drizzle.config.ts requires DATABASE_URL to build its config object
+      # server/drizzle.config.ts requires DATABASE_URL to build its config object
       # (see the comment there); knip only loads the config statically and
       # never connects, so a placeholder value is enough.
-      DATABASE_URL: postgres://meshi:meshi@127.0.0.1:5432/meshi
+      DATABASE_URL: postgres://meshi:meshi@127.0.0.1:5432/meshi_server_dev
 
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
