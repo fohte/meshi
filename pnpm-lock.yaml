@@ -174,10 +174,10 @@ importers:
         version: 0.1.16(9162a9aafc8b6bbce9c79a8d8004998c)
       '@hono/node-server':
         specifier: 2.0.12
-        version: 2.0.12(hono@4.12.34)
+        version: 2.0.12(hono@4.13.7)
       '@modelcontextprotocol/node':
         specifier: 2.0.0
-        version: 2.0.0(@modelcontextprotocol/server@2.0.0)(hono@4.12.34)
+        version: 2.0.0(@modelcontextprotocol/server@2.0.0)(hono@4.13.7)
       '@modelcontextprotocol/server':
         specifier: 2.0.0
         version: 2.0.0
@@ -194,8 +194,8 @@ importers:
         specifier: 0.45.3
         version: 0.45.3(@opentelemetry/api@1.9.1)(@types/pg@8.15.6)(pg@8.23.0)(postgres@3.4.9)
       hono:
-        specifier: 4.12.34
-        version: 4.12.34
+        specifier: 4.13.7
+        version: 4.13.7
       neverthrow:
         specifier: 8.2.0
         version: 8.2.0
@@ -4664,6 +4664,10 @@ packages:
     resolution: {integrity: sha512-GqXJqY/xJkJmuloTrnV1ZEXG3fqte+VjkUqoRNZXcrUidiUOP4fMSIHHY4tsqZBK++kVyWmt/AAfSUuy57/eSA==}
     engines: {node: '>=16.9.0'}
 
+  hono@4.13.7:
+    resolution: {integrity: sha512-c8/gF9ac8Y78/agExVocyLevgR+JlpNB444Py0FSX8pJoPdYUfUzRcXtYEYGwt6l19qIlVZPN5Mfsw9jFShmQQ==}
+    engines: {node: '>=16.9.0'}
+
   hookified@1.15.1:
     resolution: {integrity: sha512-MvG/clsADq1GPM2KGo2nyfaWVyn9naPiXrqIe4jYjXNZQt238kWyOGrsyc/DmRAQ+Re6yeo6yX/yoNCG5KAEVg==}
 
@@ -7543,13 +7547,17 @@ snapshots:
       protobufjs: 7.6.6
       yargs: 17.7.3
 
-  '@hono/node-server@1.19.17(hono@4.12.34)':
+  '@hono/node-server@1.19.17(hono@4.13.7)':
     dependencies:
-      hono: 4.12.34
+      hono: 4.13.7
 
   '@hono/node-server@2.0.12(hono@4.12.34)':
     dependencies:
       hono: 4.12.34
+
+  '@hono/node-server@2.0.12(hono@4.13.7)':
+    dependencies:
+      hono: 4.13.7
 
   '@humanfs/core@0.19.2':
     dependencies:
@@ -7714,12 +7722,12 @@ snapshots:
     dependencies:
       zod: 4.4.3
 
-  '@modelcontextprotocol/node@2.0.0(@modelcontextprotocol/server@2.0.0)(hono@4.12.34)':
+  '@modelcontextprotocol/node@2.0.0(@modelcontextprotocol/server@2.0.0)(hono@4.13.7)':
     dependencies:
-      '@hono/node-server': 1.19.17(hono@4.12.34)
+      '@hono/node-server': 1.19.17(hono@4.13.7)
       '@modelcontextprotocol/server': 2.0.0
     optionalDependencies:
-      hono: 4.12.34
+      hono: 4.13.7
 
   '@modelcontextprotocol/sdk@1.30.0(@cfworker/json-schema@4.1.1)(supports-color@10.2.2)(zod@3.25.76)':
     dependencies:
@@ -10687,6 +10695,8 @@ snapshots:
       set-cookie-parser: 3.1.2
 
   hono@4.12.34: {}
+
+  hono@4.13.7: {}
 
   hookified@1.15.1: {}
 
