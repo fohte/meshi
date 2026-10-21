@@ -6,9 +6,10 @@ services:
   app:
     build:
       context: .
+      dockerfile: docker/meshi.Dockerfile
       target: dev
     environment:
-      DATABASE_URL: postgres://meshi:meshi@db:5432/meshi_dev
+      DATABASE_URL: postgres://meshi:meshi@db:5432/meshi_server_dev
       MCP_LISTEN_ADDR: 0.0.0.0:8080
       R2_ACCOUNT_ID: ${R2_ACCOUNT_ID:-}
       R2_BUCKET_NAME: ${R2_BUCKET_NAME:-}
@@ -18,10 +19,14 @@ services:
       - '127.0.0.1::8080'
     volumes:
       - .:/app
-      - meshi-app-node-modules:/app/node_modules
+      - meshi-root-node-modules:/app/node_modules
+      - meshi-server-node-modules:/app/server/node_modules
+      - meshi-web-node-modules:/app/web/node_modules
     depends_on:
       db:
         condition: service_healthy
 
 volumes:
-  meshi-app-node-modules:
+  meshi-root-node-modules:
+  meshi-server-node-modules:
+  meshi-web-node-modules:

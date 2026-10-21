@@ -1,9 +1,14 @@
-import config, { project, testHelperExclusions } from '#knip-config'
+import config, {
+  project,
+  rootWorkspace,
+  testHelperExclusions,
+} from '#knip-config'
 
 export default {
   ...config,
   workspaces: {
-    '.': {
+    '.': rootWorkspace,
+    server: {
       entry: [
         'scripts/convert-food-composition.ts!',
         'scripts/seed.ts!',

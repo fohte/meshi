@@ -2,7 +2,7 @@ import { defineConfig } from 'tsup'
 
 export default defineConfig({
   // infra runs dist/db/migrate.js as an init container's entrypoint; see
-  // src/db/migrate.ts.
+  // server/src/db/migrate.ts.
   entry: ['src/index.ts', 'src/db/migrate.ts'],
   format: ['esm'],
   // Keep in sync with the node version in .mise.toml.

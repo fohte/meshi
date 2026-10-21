@@ -13,8 +13,8 @@ shellcheck = "0.11.0"
 shfmt = "3.14.1"
 
 [env]
-DATABASE_URL = "{{ exec(command=config_root ~ '/scripts/db-url . dev') }}"
-TEST_DATABASE_URL = "{{ exec(command=config_root ~ '/scripts/db-url . test') }}"
+DATABASE_URL = "{{ exec(command=config_root ~ '/scripts/db-url server dev') }}"
+TEST_DATABASE_URL = "{{ exec(command=config_root ~ '/scripts/db-url server test') }}"
 _.file = ['.env', '.env.local']
 
 [tasks."db:up"]

@@ -3,7 +3,7 @@
     "@tsconfig/node-lts/tsconfig.json",
     "@tsconfig/strictest/tsconfig.json"
   ],
-  "exclude": ["**/*.cjs", "web"],
+  "exclude": ["**/*.cjs"],
   "compilerOptions": {
     "module": "preserve",
     "moduleResolution": "bundler",

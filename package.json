@@ -1,66 +1,35 @@
 {
   "name": "meshi",
   "private": true,
+  "workspaces": [
+    "server",
+    "web"
+  ],
   "packageManager": "pnpm@12.7.0",
   "type": "module",
-  "imports": {
-    "#*": "./src/*.ts",
-    "#knip-config": "./knip.config.ts",
-    "#scripts/*": "./scripts/*.ts"
-  },
   "scripts": {
-    "start": "node --import @fohte/service-kit/otel-register dist/index.js",
-    "dev": "tsx watch --import @fohte/service-kit/otel-register src/index.ts",
-    "build": "tsup",
-    "knip": "knip",
-    "knip:production": "knip --config knip.production.ts --production",
-    "db:generate": "drizzle-kit generate",
-    "db:migrate": "drizzle-kit migrate",
-    "seed": "tsx scripts/seed.ts",
-    "convert-food-composition": "tsx scripts/convert-food-composition.ts",
     "lint": "eslint .",
     "format:eslint": "eslint --fix .",
     "format:prettier": "prettier --write .",
     "format": "conc -m 1 pnpm:format:eslint pnpm:format:prettier",
-    "test": "conc pnpm:test:type pnpm:test:unit",
-    "test:type": "tsc --noEmit",
-    "test:unit": "vitest run"
+    "knip": "knip --config server/knip.config.ts",
+    "knip:production": "knip --config server/knip.production.ts --production",
+    "test": "pnpm -r run test"
   },
   "devDependencies": {
     "@commitlint/cli": "21.2.3",
     "@fohte/eslint-config": "0.5.1",
-    "@modelcontextprotocol/client": "2.2.0",
     "@ninoseki/eslint-plugin-neverthrow": "0.3.2",
-    "@opentelemetry/sdk-trace-base": "2.11.0",
     "@tsconfig/node-lts": "24.0.1",
     "@tsconfig/strictest": "2.0.8",
     "@types/node": "26.5.0",
     "concurrently": "10.0.5",
-    "drizzle-kit": "0.31.10",
     "eslint": "10.11.0",
     "eslint-plugin-storybook": "10.6.0",
     "eslint-plugin-tailwindcss": "4.4.0",
     "knip": "6.38.0",
     "prettier": "3.9.9",
-    "read-excel-file": "9.3.10",
-    "tsup": "8.5.1",
-    "tsx": "4.23.15",
     "typescript": "6.0.3",
     "vitest": "4.1.11"
-  },
-  "dependencies": {
-    "@aws-sdk/client-s3": "3.1149.0",
-    "@fohte/service-kit": "0.1.16",
-    "@hono/node-server": "2.0.12",
-    "@modelcontextprotocol/node": "2.0.0",
-    "@modelcontextprotocol/server": "2.0.0",
-    "@opentelemetry/api": "1.9.1",
-    "@opentelemetry/semantic-conventions": "1.41.1",
-    "@sentry/node": "10.58.0",
-    "drizzle-orm": "0.45.3",
-    "hono": "4.12.34",
-    "neverthrow": "8.2.0",
-    "postgres": "3.4.9",
-    "zod": "4.4.3"
   }
 }
