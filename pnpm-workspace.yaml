@@ -28,3 +28,5 @@ minimumReleaseAgeExclude:
   - '@modelcontextprotocol/client@2.2.0 || 2.3.0'
   # Renovate security update: vite@8.3.3
   - vite@8.3.3
+  # Renovate security update: react-router@8.3.0
+  - react-router@8.3.0
