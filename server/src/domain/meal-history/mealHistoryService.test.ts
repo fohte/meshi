@@ -7,6 +7,7 @@ import { describeIfDb, setupTx, TEST_DATABASE_URL } from '#test/db'
 import { jstDate } from '#test/jst-date'
 import {
   seedFoodMaster,
+  seedFoodMasterNutritionVersion,
   seedFoodMasterWithoutNutrition,
   seedMealLog,
   seedNutrientDefinition,
@@ -150,6 +151,76 @@ describeIfDb('MealHistoryService.query', () => {
       ],
       hasEstimatedValues: false,
       hasUnknownValues: true,
+    })
+  })
+
+  it('aggregates the current version when a log references an older version', async () => {
+    const tx = getTx()
+    await seedNutrientDefinitions(tx)
+    await seedFoodMasterWithoutNutrition(tx, {
+      id: 'versioned-food',
+      name: 'versioned food',
+    })
+    const oldVersionId = await seedFoodMasterNutritionVersion(tx, {
+      foodMasterId: 'versioned-food',
+      versionNo: 1,
+      isCurrent: false,
+      changeKind: 'initial',
+      source: 'user_input',
+      nutrients: { energy_kcal: 11, protein_g: 1 },
+    })
+    await seedFoodMasterNutritionVersion(tx, {
+      foodMasterId: 'versioned-food',
+      versionNo: 2,
+      isCurrent: true,
+      changeKind: 'product_update',
+      source: 'user_input',
+      nutrients: { energy_kcal: 23, protein_g: 2 },
+    })
+    await seedMealLog(tx, {
+      id: 'versioned-log',
+      foodMasterId: 'versioned-food',
+      nutritionVersionId: oldVersionId,
+      nutritionVersionOrigin: 'migrated',
+      eatenDate: jstDate('2026-06-01'),
+      mealType: 'lunch',
+      quantity: 1,
+      createdAt: new Date('2026-06-01T03:04:05.789Z'),
+    })
+
+    const result = (
+      await createMealHistoryService(tx).query({
+        periodFrom: jstDate('2026-06-01'),
+        periodTo: jstDate('2026-06-02'),
+        nutrientCodes: ['energy_kcal', 'protein_g'],
+      })
+    )._unsafeUnwrap()
+
+    expect(result).toEqual({
+      totals: { energy_kcal: 23, protein_g: 2 },
+      incompleteNutrients: [],
+      perDay: [
+        {
+          date: '2026-06-01',
+          totals: { energy_kcal: 23, protein_g: 2 },
+          incompleteNutrients: [],
+          hasUnknownValues: false,
+        },
+      ],
+      entries: [
+        {
+          id: 'versioned-log',
+          foodMasterId: 'versioned-food',
+          foodName: 'versioned food',
+          eatenDate: '2026-06-01',
+          mealType: 'lunch',
+          quantity: 1,
+          recordedAt: '2026-06-01T03:04:05Z',
+          nutritionStatus: 'confirmed',
+        },
+      ],
+      hasEstimatedValues: false,
+      hasUnknownValues: false,
     })
   })
 

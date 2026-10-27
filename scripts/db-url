@@ -2,7 +2,7 @@
 set -euo pipefail
 
 if [ "$#" -ne 2 ]; then
-  printf 'Usage: %s <pkg> <dev|test>\n' "$0" >&2
+  printf 'Usage: %s <pkg> <dev|test|migration-test>\n' "$0" >&2
   exit 2
 fi
 
@@ -10,17 +10,18 @@ package="$1"
 environment="$2"
 
 case "$environment" in
-  dev | test) ;;
+  dev | test | migration-test) ;;
   *)
     printf 'Unknown database environment: %s\n' "$environment" >&2
     exit 2
     ;;
 esac
 
+database_suffix="${environment//-/_}"
 if [ "$package" = "." ]; then
-  database_name="meshi_$environment"
+  database_name="meshi_$database_suffix"
 else
-  database_name="meshi_${package//-/_}_$environment"
+  database_name="meshi_${package//-/_}_$database_suffix"
 fi
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"

@@ -1,3 +1,5 @@
+import { z } from 'zod'
+
 import type { Sql } from '#db/index'
 import type {
   deliveries,
@@ -42,22 +44,21 @@ const seedFoodMasterNutrient = async (
   },
 ): Promise<void> => {
   await sql`
-    INSERT INTO food_master_nutrients (food_master_id, nutrient_code, value)
-    VALUES (${values.foodMasterId}, ${values.nutrientCode}, ${values.value})
+    INSERT INTO food_master_nutrients (nutrition_version_id, nutrient_code, value)
+    VALUES (${values.nutritionVersionId}, ${values.nutrientCode}, ${values.value})
   `
 }
 
-export const seedFoodMaster = async (
+export const seedFoodMasterNutritionVersion = async (
   sql: Sql,
-  values: Omit<typeof foodMasters.$inferInsert, 'createdAt'> &
-    Omit<typeof foodMasterNutrition.$inferInsert, 'foodMasterId'> & {
-      nutrients?: Readonly<Record<string, number>>
-    },
-): Promise<void> => {
+  values: Omit<
+    typeof foodMasterNutrition.$inferInsert,
+    'id' | 'createdAt' | 'legacyEvidence'
+  > & {
+    nutrients?: Readonly<Record<string, number>>
+  },
+): Promise<string> => {
   const { nutrients, ...row } = values
-  // Seed definitions in a stable code order before food masters so concurrent
-  // test transactions acquire nutrient and food-master locks consistently.
-  // ON CONFLICT DO NOTHING preserves any custom definitions the test seeded.
   const nutrientEntries = Object.entries(nutrients ?? {}).sort(
     ([left], [right]) => left.localeCompare(right),
   )
@@ -69,22 +70,102 @@ export const seedFoodMaster = async (
     })
   }
 
-  await sql`INSERT INTO food_masters (id, name) VALUES (${row.id}, ${row.name})`
-  await sql`
+  const rows = await sql`
     INSERT INTO food_master_nutrition (
-      food_master_id, is_estimated, source, source_url, source_composition_code
+      food_master_id,
+      version_no,
+      is_current,
+      change_kind,
+      corrects_version_id,
+      is_estimated,
+      source,
+      source_url,
+      source_composition_code,
+      serving_basis,
+      net_content,
+      checked_on,
+      effective_from,
+      reason,
+      legacy_evidence
     )
     VALUES (
-      ${row.id},
+      ${row.foodMasterId},
+      ${row.versionNo},
+      ${row.isCurrent},
+      ${row.changeKind},
+      ${row.correctsVersionId ?? null},
       ${row.isEstimated ?? false},
       ${row.source},
       ${row.sourceUrl ?? null},
-      ${row.sourceCompositionCode ?? null}
+      ${row.sourceCompositionCode ?? null},
+      ${row.servingBasis ?? null},
+      ${row.netContent ?? null},
+      ${row.checkedOn ?? null},
+      ${row.effectiveFrom ?? null},
+      ${row.reason ?? null},
+      false
     )
+    RETURNING id
   `
+  const nutritionVersionId = z.object({ id: z.uuid() }).parse(rows[0]).id
   for (const [nutrientCode, value] of nutrientEntries) {
     await seedFoodMasterNutrient(sql, {
-      foodMasterId: row.id,
+      nutritionVersionId,
+      nutrientCode,
+      value,
+    })
+  }
+  return nutritionVersionId
+}
+
+export const seedFoodMaster = async (
+  sql: Sql,
+  values: Omit<typeof foodMasters.$inferInsert, 'createdAt'> &
+    Pick<
+      typeof foodMasterNutrition.$inferInsert,
+      'isEstimated' | 'source' | 'sourceUrl' | 'sourceCompositionCode'
+    > & {
+      nutrients?: Readonly<Record<string, number>>
+    },
+): Promise<void> => {
+  const {
+    id,
+    name,
+    nutrients,
+    isEstimated,
+    source,
+    sourceUrl,
+    sourceCompositionCode,
+  } = values
+  const nutrientEntries = Object.entries(nutrients ?? {}).sort(
+    ([left], [right]) => left.localeCompare(right),
+  )
+  // Seed definitions before food masters so concurrent test transactions
+  // acquire nutrient and food-master locks consistently.
+  for (const [nutrientCode] of nutrientEntries) {
+    await seedNutrientDefinition(sql, {
+      code: nutrientCode,
+      displayName: nutrientCode,
+      unit: 'g',
+      isMajor: false,
+      sortOrder: 0,
+    })
+  }
+
+  await sql`INSERT INTO food_masters (id, name) VALUES (${id}, ${name})`
+  const nutritionVersionId = await seedFoodMasterNutritionVersion(sql, {
+    foodMasterId: id,
+    versionNo: 1,
+    isCurrent: true,
+    changeKind: 'initial',
+    isEstimated,
+    source,
+    sourceUrl,
+    sourceCompositionCode,
+  })
+  for (const [nutrientCode, value] of nutrientEntries) {
+    await seedFoodMasterNutrient(sql, {
+      nutritionVersionId,
       nutrientCode,
       value,
     })
@@ -110,15 +191,43 @@ export const seedFoodMasterAlias = async (
 
 export const seedMealLog = async (
   sql: Sql,
-  values: Omit<typeof mealLogs.$inferInsert, 'quantity'> & {
+  values: Omit<
+    typeof mealLogs.$inferInsert,
+    'quantity' | 'nutritionVersionOrigin'
+  > & {
     quantity: number
+    nutritionVersionOrigin?: typeof mealLogs.$inferInsert.nutritionVersionOrigin
   },
 ): Promise<void> => {
+  const currentVersionRows =
+    values.nutritionVersionId === undefined
+      ? await sql`
+          SELECT id
+          FROM food_master_nutrition
+          WHERE food_master_id = ${values.foodMasterId} AND is_current = true
+        `
+      : []
+  const nutritionVersionId =
+    values.nutritionVersionId === undefined
+      ? (z.array(z.object({ id: z.uuid() })).parse(currentVersionRows)[0]?.id ??
+        null)
+      : values.nutritionVersionId
   await sql`
-    INSERT INTO meal_logs (id, food_master_id, eaten_date, meal_type, quantity, created_at)
+    INSERT INTO meal_logs (
+      id,
+      food_master_id,
+      nutrition_version_id,
+      nutrition_version_origin,
+      eaten_date,
+      meal_type,
+      quantity,
+      created_at
+    )
     VALUES (
       ${values.id},
       ${values.foodMasterId},
+      ${nutritionVersionId},
+      ${values.nutritionVersionOrigin ?? 'recorded'},
       ${values.eatenDate},
       ${values.mealType},
       ${values.quantity},

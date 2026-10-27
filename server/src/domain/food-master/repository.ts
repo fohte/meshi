@@ -124,7 +124,8 @@ export const createFoodMasterRepository = (
         SELECT fm.id, fm.name, fmn.is_estimated, fmn.source,
                fmn.source_url, fmn.source_composition_code, fm.created_at
         FROM food_masters fm
-        LEFT JOIN food_master_nutrition fmn ON fmn.food_master_id = fm.id
+        LEFT JOIN food_master_nutrition fmn
+          ON fmn.food_master_id = fm.id AND fmn.is_current = true
         WHERE fm.id = ${id}
       `,
       (caughtErr) =>
@@ -154,9 +155,12 @@ export const createFoodMasterRepository = (
               SELECT alias FROM food_master_aliases WHERE food_master_id = ${id}
             `,
             sql<{ nutrient_code: string; value: string }[]>`
-              SELECT nutrient_code, value
-              FROM food_master_nutrients
-              WHERE food_master_id = ${id}
+              SELECT nutrients.nutrient_code, nutrients.value
+              FROM food_master_nutrition nutrition
+              INNER JOIN food_master_nutrients nutrients
+                ON nutrients.nutrition_version_id = nutrition.id
+              WHERE nutrition.food_master_id = ${id}
+                AND nutrition.is_current = true
             `,
           ])
 

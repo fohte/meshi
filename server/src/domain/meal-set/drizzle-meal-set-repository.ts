@@ -8,6 +8,7 @@ import { numericValueSchema } from '#db/numeric-value-schema'
 import { getConstraintName, isUniqueViolation } from '#db/pg-error'
 import {
   foodMasterNutrients,
+  foodMasterNutrition,
   foodMasters,
   mealSetItems,
   mealSets,
@@ -108,9 +109,16 @@ const selectMealSetRows = (session: DbSession, where?: SQL) =>
     .innerJoin(mealSetItems, eq(mealSetItems.mealSetId, mealSets.id))
     .innerJoin(foodMasters, eq(foodMasters.id, mealSetItems.foodMasterId))
     .leftJoin(
+      foodMasterNutrition,
+      and(
+        eq(foodMasterNutrition.foodMasterId, foodMasters.id),
+        eq(foodMasterNutrition.isCurrent, true),
+      ),
+    )
+    .leftJoin(
       foodMasterNutrients,
       and(
-        eq(foodMasterNutrients.foodMasterId, foodMasters.id),
+        eq(foodMasterNutrients.nutritionVersionId, foodMasterNutrition.id),
         eq(foodMasterNutrients.nutrientCode, 'energy_kcal'),
       ),
     )

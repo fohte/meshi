@@ -14,7 +14,12 @@ import { similarFoodMasterCandidateOutput } from '#mcp-tools/schemas'
 import { captureDomainError } from '#test/capture-domain-error'
 import { describeIfDb, setupTx } from '#test/db'
 import { createCountingIdGenerator, type IdCounter } from '#test/id-counter'
-import { seedFoodComposition, seedFoodMasterWithoutNutrition } from '#test/seed'
+import { jstDate } from '#test/jst-date'
+import {
+  seedFoodComposition,
+  seedFoodMasterWithoutNutrition,
+  seedMealLog,
+} from '#test/seed'
 
 const baseInput: RegisterFoodMasterInput = {
   name: 'rice',
@@ -136,6 +141,57 @@ describeIfDb('FoodMasterService + Repository', () => {
     expect(fetched === null ? null : normalize(fetched)).toEqual(
       normalize(registered),
     )
+  })
+
+  it('registers nutrition as the initial current version', async () => {
+    const tx = getTx()
+    await repository.register({
+      name: 'Nutrition version item',
+      nutrition: { energy_kcal: 100, protein_g: 5 },
+      source: 'user_input',
+      isEstimated: false,
+    })
+
+    const versions = await tx<
+      {
+        version_no: number
+        is_current: boolean
+        change_kind: string
+        serving_basis: string | null
+        net_content: string | null
+        checked_on: string | null
+        effective_from: string | null
+        reason: string | null
+        nutrient_values: string[]
+      }[]
+    >`
+      SELECT nutrition.version_no, nutrition.is_current,
+             nutrition.change_kind, nutrition.serving_basis,
+             nutrition.net_content, nutrition.checked_on::text AS checked_on,
+             nutrition.effective_from::text AS effective_from,
+             nutrition.reason,
+             ARRAY_AGG(nutrients.nutrient_code || '=' || nutrients.value::text
+                       ORDER BY nutrients.nutrient_code) AS nutrient_values
+      FROM food_master_nutrition AS nutrition
+      JOIN food_master_nutrients AS nutrients
+        ON nutrients.nutrition_version_id = nutrition.id
+      WHERE nutrition.food_master_id = 'fm_test_0001'
+      GROUP BY nutrition.id
+    `
+
+    expect(versions).toEqual([
+      {
+        version_no: 1,
+        is_current: true,
+        change_kind: 'initial',
+        serving_basis: null,
+        net_content: null,
+        checked_on: null,
+        effective_from: null,
+        reason: null,
+        nutrient_values: ['energy_kcal=100', 'protein_g=5'],
+      },
+    ])
   })
 
   it("rejects is_estimated=true combined with source='web_search'", async () => {
@@ -700,6 +756,81 @@ describeIfDb('FoodMasterService + Repository', () => {
     })
   })
 
+  it('assigns the new version to unknown-nutrition logs and records each fill', async () => {
+    const tx = getTx()
+    await seedFoodMasterWithoutNutrition(tx, {
+      id: 'fm_pending_logs',
+      name: 'Unknown nutrition item',
+    })
+    for (const [id, quantity] of [
+      ['ml_pending_logs_first', 1.25],
+      ['ml_pending_logs_second', 2],
+    ] as const) {
+      await seedMealLog(tx, {
+        id,
+        foodMasterId: 'fm_pending_logs',
+        eatenDate: jstDate('2026-06-15'),
+        mealType: 'lunch',
+        quantity,
+      })
+    }
+
+    await service.fillNutrition({
+      foodMasterId: 'fm_pending_logs',
+      nutrition: { energy_kcal: 240 },
+      source: 'user_input',
+      isEstimated: false,
+    })
+
+    const rows = await tx<
+      {
+        id: string
+        quantity: string
+        nutrition_version_origin: string
+        version_matches_current: boolean
+        change_from_unknown: boolean
+        change_targets_current: boolean
+        reason: string
+      }[]
+    >`
+      SELECT logs.id, logs.quantity::text AS quantity,
+             logs.nutrition_version_origin,
+             logs.nutrition_version_id = nutrition.id AS version_matches_current,
+             changes.from_version_id IS NULL AS change_from_unknown,
+             changes.to_version_id = nutrition.id AS change_targets_current,
+             changes.reason
+      FROM meal_logs AS logs
+      JOIN food_master_nutrition AS nutrition
+        ON nutrition.food_master_id = logs.food_master_id
+       AND nutrition.is_current = true
+      JOIN meal_log_nutrition_changes AS changes
+        ON changes.meal_log_id = logs.id
+      WHERE logs.food_master_id = 'fm_pending_logs'
+      ORDER BY logs.id
+    `
+
+    expect(rows).toEqual([
+      {
+        id: 'ml_pending_logs_first',
+        quantity: '1.25',
+        nutrition_version_origin: 'filled',
+        version_matches_current: true,
+        change_from_unknown: true,
+        change_targets_current: true,
+        reason: '補完',
+      },
+      {
+        id: 'ml_pending_logs_second',
+        quantity: '2',
+        nutrition_version_origin: 'filled',
+        version_matches_current: true,
+        change_from_unknown: true,
+        change_targets_current: true,
+        reason: '補完',
+      },
+    ])
+  })
+
   it('fills unknown nutrition with a model estimate and persists the source', async () => {
     await seedFoodMasterWithoutNutrition(getTx(), {
       id: 'fm_pending_model_estimate',
@@ -858,6 +989,39 @@ describeIfDb('FoodMasterService + Repository', () => {
         nutrition: { energy_kcal: 190, protein_g: 8 },
         createdAt: '<date>',
       },
+    })
+  })
+
+  it('keeps the nutrition version id when replacing a model estimate', async () => {
+    const tx = getTx()
+    const foodMaster = (
+      await repository.register({
+        name: 'Estimated nutrition item',
+        nutrition: { energy_kcal: 205 },
+        source: 'model_estimate',
+        isEstimated: true,
+      })
+    )._unsafeUnwrap()
+    const before = await tx<{ id: string }[]>`
+      SELECT id FROM food_master_nutrition
+      WHERE food_master_id = ${foodMaster.id} AND is_current = true
+    `
+
+    await service.fillNutrition({
+      foodMasterId: foodMaster.id,
+      nutrition: { energy_kcal: 190 },
+      source: 'user_input',
+      isEstimated: false,
+    })
+
+    const after = await tx<{ id: string; is_current: boolean }[]>`
+      SELECT id, is_current FROM food_master_nutrition
+      WHERE food_master_id = ${foodMaster.id} AND is_current = true
+    `
+
+    expect(observation({ beforeId: before[0]?.id ?? null, after })).toEqual({
+      beforeId: before[0]?.id ?? null,
+      after: [{ id: before[0]?.id, is_current: true }],
     })
   })
 

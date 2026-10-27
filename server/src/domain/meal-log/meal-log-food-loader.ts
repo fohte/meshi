@@ -1,4 +1,4 @@
-import { eq } from 'drizzle-orm'
+import { and, eq } from 'drizzle-orm'
 import { drizzle } from 'drizzle-orm/postgres-js'
 import { err, ok, type Result, ResultAsync } from 'neverthrow'
 
@@ -27,7 +27,16 @@ export const loadNutrition = async (
       value: foodMasterNutrients.value,
     })
     .from(foodMasterNutrients)
-    .where(eq(foodMasterNutrients.foodMasterId, foodMasterId))
+    .innerJoin(
+      foodMasterNutrition,
+      eq(foodMasterNutrition.id, foodMasterNutrients.nutritionVersionId),
+    )
+    .where(
+      and(
+        eq(foodMasterNutrition.foodMasterId, foodMasterId),
+        eq(foodMasterNutrition.isCurrent, true),
+      ),
+    )
 
   const nutrition: Record<string, number> = {}
   for (const row of rows) {
@@ -51,7 +60,10 @@ export const loadFoodMaster = (
         .from(foodMasters)
         .leftJoin(
           foodMasterNutrition,
-          eq(foodMasterNutrition.foodMasterId, foodMasters.id),
+          and(
+            eq(foodMasterNutrition.foodMasterId, foodMasters.id),
+            eq(foodMasterNutrition.isCurrent, true),
+          ),
         )
         .where(eq(foodMasters.id, foodMasterId))
         .limit(1)

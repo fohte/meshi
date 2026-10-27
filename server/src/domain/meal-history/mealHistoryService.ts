@@ -65,8 +65,11 @@ export const createMealHistoryService = (sql: Sql): MealHistoryService => {
                   fmn.nutrient_code AS nutrient_code,
                   SUM(fmn.value * ml.quantity) AS value
                 FROM meal_logs ml
+                INNER JOIN food_master_nutrition nutrition
+                  ON nutrition.food_master_id = ml.food_master_id
+                  AND nutrition.is_current = true
                 INNER JOIN food_master_nutrients fmn
-                  ON fmn.food_master_id = ml.food_master_id
+                  ON fmn.nutrition_version_id = nutrition.id
                 WHERE ml.eaten_date >= ${periodFrom}::date
                   AND ml.eaten_date < ${periodTo}::date
                   AND (
@@ -92,8 +95,11 @@ export const createMealHistoryService = (sql: Sql): MealHistoryService => {
                       nd.code AS nutrient_code
                     FROM meal_logs ml
                     CROSS JOIN nutrient_definitions nd
+                    LEFT JOIN food_master_nutrition nutrition
+                      ON nutrition.food_master_id = ml.food_master_id
+                      AND nutrition.is_current = true
                     LEFT JOIN food_master_nutrients fmn
-                      ON fmn.food_master_id = ml.food_master_id
+                      ON fmn.nutrition_version_id = nutrition.id
                       AND fmn.nutrient_code = nd.code
                     WHERE ml.eaten_date >= ${periodFrom}::date
                       AND ml.eaten_date < ${periodTo}::date
@@ -107,7 +113,7 @@ export const createMealHistoryService = (sql: Sql): MealHistoryService => {
                           ELSE nd.code = ANY(${nutrientCodes ?? []}::text[])
                         END
                       )
-                      AND fmn.food_master_id IS NULL
+                      AND fmn.nutrition_version_id IS NULL
                     GROUP BY day, nd.code
                     ORDER BY day, nd.code
                   `,
@@ -123,10 +129,12 @@ export const createMealHistoryService = (sql: Sql): MealHistoryService => {
                     ml.created_at AT TIME ZONE 'UTC',
                     'YYYY-MM-DD"T"HH24:MI:SS"Z"'
                   ) AS recorded_at,
-                  fmn.is_estimated AS is_estimated
+                  nutrition.is_estimated AS is_estimated
                 FROM meal_logs ml
                 INNER JOIN food_masters fm ON fm.id = ml.food_master_id
-                LEFT JOIN food_master_nutrition fmn ON fmn.food_master_id = fm.id
+                LEFT JOIN food_master_nutrition nutrition
+                  ON nutrition.food_master_id = fm.id
+                  AND nutrition.is_current = true
                 WHERE ml.eaten_date >= ${periodFrom}::date
                   AND ml.eaten_date < ${periodTo}::date
                   AND (

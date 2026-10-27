@@ -142,9 +142,12 @@ const planMerge = async (
       ) AS conflicts
     `,
     sql<Record<string, unknown>[]>`
-      SELECT nutrient_code, value
-      FROM food_master_nutrients
-      WHERE food_master_id = ${loserId}
+      SELECT nutrients.nutrient_code, nutrients.value
+      FROM food_master_nutrients AS nutrients
+      JOIN food_master_nutrition AS nutrition
+        ON nutrition.id = nutrients.nutrition_version_id
+      WHERE nutrition.food_master_id = ${loserId}
+        AND nutrition.is_current = true
     `,
     sql<Record<string, unknown>[]>`
       SELECT count(*)::int AS count FROM meal_logs WHERE food_master_id = ${loserId}
@@ -206,9 +209,12 @@ const applyMerge = async (
   const discardedNutritionRows = parseRows(
     nutrientRowSchema,
     await tx<Record<string, unknown>[]>`
-      SELECT nutrient_code, value
-      FROM food_master_nutrients
-      WHERE food_master_id = ${loserId}
+      SELECT nutrients.nutrient_code, nutrients.value
+      FROM food_master_nutrients AS nutrients
+      JOIN food_master_nutrition AS nutrition
+        ON nutrition.id = nutrients.nutrition_version_id
+      WHERE nutrition.food_master_id = ${loserId}
+        AND nutrition.is_current = true
     `,
   )
   if (discardedNutritionRows.isErr()) return err(discardedNutritionRows.error)
@@ -240,9 +246,24 @@ const applyMerge = async (
   const movedMealLogRows = parseRows(
     idRowSchema,
     await tx<Record<string, unknown>[]>`
-      UPDATE meal_logs SET food_master_id = ${survivorId}
-      WHERE food_master_id = ${loserId}
-      RETURNING id
+      WITH survivor_version AS (
+        SELECT id
+        FROM food_master_nutrition
+        WHERE food_master_id = ${survivorId} AND is_current = true
+      ), moved_logs AS (
+        UPDATE meal_logs
+        SET food_master_id = ${survivorId},
+            nutrition_version_id = (SELECT id FROM survivor_version),
+            nutrition_version_origin = CASE
+              WHEN nutrition_version_id IS DISTINCT FROM
+                (SELECT id FROM survivor_version)
+              THEN 'reassigned'
+              ELSE nutrition_version_origin
+            END
+        WHERE food_master_id = ${loserId}
+        RETURNING id
+      )
+      SELECT id FROM moved_logs
     `,
   )
   if (movedMealLogRows.isErr()) return err(movedMealLogRows.error)

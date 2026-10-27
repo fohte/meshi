@@ -14,8 +14,8 @@ import { nutritionStatusFromIsEstimated } from '#domain/food-master/types'
 import type { FoodMatcher } from '#domain/food-matcher/food-matcher'
 
 // Rows shared by the recent/frequent raw queries below: both join
-// food_masters + food_master_nutrients the same way and differ only in how
-// the candidate id set is ranked.
+// food_masters + the current nutrition version the same way and differ only
+// in how the candidate id set is ranked.
 const rawRowSchema = z.object({
   id: z.string(),
   name: z.string(),
@@ -126,9 +126,10 @@ export const createFoodBrowseService = (
             LIMIT ${limit}
           ) recent
           JOIN food_masters fm ON fm.id = recent.food_master_id
-          LEFT JOIN food_master_nutrition nutrition ON nutrition.food_master_id = fm.id
+          LEFT JOIN food_master_nutrition nutrition
+            ON nutrition.food_master_id = fm.id AND nutrition.is_current = true
           LEFT JOIN food_master_nutrients nutrients
-            ON nutrients.food_master_id = fm.id
+            ON nutrients.nutrition_version_id = nutrition.id
             AND nutrients.nutrient_code = ${ENERGY_KCAL_CODE}
           ORDER BY recent.last_eaten_date DESC, fm.id ASC
         `,
@@ -155,9 +156,10 @@ export const createFoodBrowseService = (
             LIMIT ${limit}
           ) freq
           JOIN food_masters fm ON fm.id = freq.food_master_id
-          LEFT JOIN food_master_nutrition nutrition ON nutrition.food_master_id = fm.id
+          LEFT JOIN food_master_nutrition nutrition
+            ON nutrition.food_master_id = fm.id AND nutrition.is_current = true
           LEFT JOIN food_master_nutrients nutrients
-            ON nutrients.food_master_id = fm.id
+            ON nutrients.nutrition_version_id = nutrition.id
             AND nutrients.nutrient_code = ${ENERGY_KCAL_CODE}
           ORDER BY freq.cnt DESC, fm.name ASC
         `,

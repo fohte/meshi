@@ -1,4 +1,4 @@
-import { eq, inArray } from 'drizzle-orm'
+import { and, asc, eq, inArray } from 'drizzle-orm'
 import { drizzle } from 'drizzle-orm/postgres-js'
 import {
   err,
@@ -15,6 +15,7 @@ import { defaultIdGenerator, type IdGenerator } from '#domain/food-master/id'
 import { nutritionStatusFromIsEstimated } from '#domain/food-master/types'
 import {
   DomainError,
+  FoodMasterNotFoundError,
   MealLogNotFoundError,
   MealLogPersistenceError,
 } from '#domain/meal-log/errors'
@@ -43,6 +44,50 @@ import type { JstDate } from '#lib/jst-date'
 type Db = ReturnType<typeof drizzle>
 type Transaction = Parameters<Parameters<Db['transaction']>[0]>[0]
 type DbSession = Db | Transaction
+
+const loadCurrentNutritionVersionIds = async (
+  session: DbSession,
+  foodMasterIds: ReadonlyArray<string>,
+): Promise<Result<ReadonlyMap<string, string | null>, DomainError>> => {
+  const ids = [...new Set(foodMasterIds)].toSorted()
+  if (ids.length === 0) return ok(new Map())
+
+  const foodRows = await session
+    .select({
+      foodMasterId: foodMasters.id,
+    })
+    .from(foodMasters)
+    .where(inArray(foodMasters.id, ids))
+    .orderBy(asc(foodMasters.id))
+    .for('share', { of: foodMasters })
+
+  const foundFoodMasterIds = new Set(foodRows.map((row) => row.foodMasterId))
+  const missingId = ids.find((id) => !foundFoodMasterIds.has(id))
+  if (missingId !== undefined) {
+    return err(new FoodMasterNotFoundError(missingId))
+  }
+
+  const versionRows = await session
+    .select({
+      foodMasterId: foodMasterNutrition.foodMasterId,
+      nutritionVersionId: foodMasterNutrition.id,
+    })
+    .from(foodMasterNutrition)
+    .where(
+      and(
+        inArray(foodMasterNutrition.foodMasterId, ids),
+        eq(foodMasterNutrition.isCurrent, true),
+      ),
+    )
+    .orderBy(asc(foodMasterNutrition.foodMasterId))
+    .for('share')
+  const currentVersions = new Map(
+    versionRows.map((row) => [row.foodMasterId, row.nutritionVersionId]),
+  )
+  return ok(
+    new Map(ids.map((id) => [id, currentVersions.get(id) ?? null] as const)),
+  )
+}
 
 export interface DrizzleMealLogRepositoryOptions {
   readonly wrapDeleteManyInTransaction?: boolean
@@ -175,11 +220,19 @@ export const createDrizzleMealLogRepository = (
       input: InsertMealLogInput,
     ): ResultAsync<MealLogWriteResult, DomainError> =>
       runInTransaction(async (session) => {
+        const currentVersions = await loadCurrentNutritionVersionIds(session, [
+          input.foodMasterId,
+        ])
+        if (currentVersions.isErr()) return err(currentVersions.error)
+
         const [inserted] = await session
           .insert(mealLogs)
           .values({
             id: input.id,
             foodMasterId: input.foodMasterId,
+            nutritionVersionId:
+              currentVersions.value.get(input.foodMasterId) ?? null,
+            nutritionVersionOrigin: 'recorded',
             eatenDate: input.eatenDate,
             mealType: input.mealType,
             quantity: input.quantity.toString(),
@@ -207,12 +260,21 @@ export const createDrizzleMealLogRepository = (
       inputs.length === 0
         ? okAsync([])
         : runInTransaction(async (session) => {
+            const currentVersions = await loadCurrentNutritionVersionIds(
+              session,
+              inputs.map((input) => input.foodMasterId),
+            )
+            if (currentVersions.isErr()) return err(currentVersions.error)
+
             const inserted = await session
               .insert(mealLogs)
               .values(
                 inputs.map((input) => ({
                   id: input.id,
                   foodMasterId: input.foodMasterId,
+                  nutritionVersionId:
+                    currentVersions.value.get(input.foodMasterId) ?? null,
+                  nutritionVersionOrigin: 'recorded',
                   eatenDate: input.eatenDate,
                   mealType: input.mealType,
                   quantity: input.quantity.toString(),
@@ -255,6 +317,28 @@ export const createDrizzleMealLogRepository = (
       input: UpdateMealLogPatch,
     ): ResultAsync<MealLogWriteResult, DomainError> =>
       runInTransaction(async (session) => {
+        const existingRows = await session
+          .select({ foodMasterId: mealLogs.foodMasterId })
+          .from(mealLogs)
+          .where(eq(mealLogs.id, input.id))
+          .limit(1)
+        const initialFoodMasterId = existingRows[0]?.foodMasterId
+        if (initialFoodMasterId === undefined) {
+          return err(
+            new MealLogPersistenceError('meal_logs update returned no rows'),
+          )
+        }
+
+        let currentVersions: ReadonlyMap<string, string | null> | undefined
+        if (input.foodMasterId !== undefined) {
+          const loadedVersions = await loadCurrentNutritionVersionIds(session, [
+            initialFoodMasterId,
+            input.foodMasterId,
+          ])
+          if (loadedVersions.isErr()) return err(loadedVersions.error)
+          currentVersions = loadedVersions.value
+        }
+
         const [existing] = await session
           .select({
             foodMasterId: mealLogs.foodMasterId,
@@ -270,10 +354,12 @@ export const createDrizzleMealLogRepository = (
         }
 
         const foodMasterId = input.foodMasterId ?? existing.foodMasterId
+        const foodMasterChanged =
+          input.foodMasterId !== undefined &&
+          input.foodMasterId !== existing.foodMasterId
         const quantity = input.quantity ?? Number(existing.quantity)
         const shouldSyncStock =
-          foodMasterId !== existing.foodMasterId ||
-          quantity !== Number(existing.quantity)
+          foodMasterChanged || quantity !== Number(existing.quantity)
         if (shouldSyncStock) {
           await clearMealStockMovements(session, input.id)
         }
@@ -284,6 +370,13 @@ export const createDrizzleMealLogRepository = (
             ...(input.foodMasterId === undefined
               ? {}
               : { foodMasterId: input.foodMasterId }),
+            ...(foodMasterChanged
+              ? {
+                  nutritionVersionId:
+                    currentVersions?.get(foodMasterId) ?? null,
+                  nutritionVersionOrigin: 'recorded',
+                }
+              : {}),
             ...(input.eatenDate === undefined
               ? {}
               : { eatenDate: input.eatenDate }),
@@ -366,7 +459,10 @@ export const createDrizzleMealLogRepository = (
             .innerJoin(foodMasters, eq(mealLogs.foodMasterId, foodMasters.id))
             .leftJoin(
               foodMasterNutrition,
-              eq(foodMasterNutrition.foodMasterId, foodMasters.id),
+              and(
+                eq(foodMasterNutrition.foodMasterId, foodMasters.id),
+                eq(foodMasterNutrition.isCurrent, true),
+              ),
             )
             .where(eq(mealLogs.id, id))
             .limit(1)

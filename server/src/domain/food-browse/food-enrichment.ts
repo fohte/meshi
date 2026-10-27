@@ -72,12 +72,18 @@ export const loadFoodMasterEnrichment = (
           .from(foodMasters)
           .leftJoin(
             foodMasterNutrition,
-            eq(foodMasterNutrition.foodMasterId, foodMasters.id),
+            and(
+              eq(foodMasterNutrition.foodMasterId, foodMasters.id),
+              eq(foodMasterNutrition.isCurrent, true),
+            ),
           )
           .leftJoin(
             foodMasterNutrients,
             and(
-              eq(foodMasterNutrients.foodMasterId, foodMasters.id),
+              eq(
+                foodMasterNutrients.nutritionVersionId,
+                foodMasterNutrition.id,
+              ),
               eq(foodMasterNutrients.nutrientCode, ENERGY_KCAL_CODE),
             ),
           )
