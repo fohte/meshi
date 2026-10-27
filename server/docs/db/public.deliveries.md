@@ -6,27 +6,28 @@ Expected deliveries and receipt status for stock inventory.
 
 ## Columns
 
-| Name            | Type                     | Default                    | Nullable | Children                                  | Parents | Comment                                                       |
-| --------------- | ------------------------ | -------------------------- | -------- | ----------------------------------------- | ------- | ------------------------------------------------------------- |
-| id              | text                     |                            | false    | [public.stock_lots](public.stock_lots.md) |         |                                                               |
-| source_ref      | text                     |                            | true     |                                           |         | External identifier used to deduplicate delivery updates.     |
-| status          | delivery_status          | 'planned'::delivery_status | false    |                                           |         | Lifecycle state of the delivery.                              |
-| expected_date   | date                     |                            | false    |                                           |         | Date the delivery is expected to arrive.                      |
-| received_date   | date                     |                            | true     |                                           |         | Date the delivery was received.                               |
-| change_deadline | date                     |                            | true     |                                           |         | Deadline for changing or cancelling the delivery, when known. |
-| created_at      | timestamp with time zone | now()                      | false    |                                           |         |                                                               |
+| Name            | Type                     | Default                    | Nullable | Children                                                                                                | Parents                                                       | Comment                                                       |
+| --------------- | ------------------------ | -------------------------- | -------- | ------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------- | ------------------------------------------------------------- |
+| id              | text                     |                            | false    | [public.stock_lots](public.stock_lots.md) [public.delivery_source_refs](public.delivery_source_refs.md) | [public.delivery_source_refs](public.delivery_source_refs.md) |                                                               |
+| source_ref      | text                     |                            | true     |                                                                                                         | [public.delivery_source_refs](public.delivery_source_refs.md) | External identifier used to deduplicate delivery updates.     |
+| status          | delivery_status          | 'planned'::delivery_status | false    |                                                                                                         |                                                               | Lifecycle state of the delivery.                              |
+| expected_date   | date                     |                            | false    |                                                                                                         |                                                               | Date the delivery is expected to arrive.                      |
+| received_date   | date                     |                            | true     |                                                                                                         |                                                               | Date the delivery was received.                               |
+| change_deadline | date                     |                            | true     |                                                                                                         |                                                               | Deadline for changing or cancelling the delivery, when known. |
+| created_at      | timestamp with time zone | now()                      | false    |                                                                                                         |                                                               |                                                               |
 
 ## Constraints
 
-| Name                                    | Type        | Definition                                                                     |
-| --------------------------------------- | ----------- | ------------------------------------------------------------------------------ |
-| deliveries_created_at_not_null          | n           | NOT NULL created_at                                                            |
-| deliveries_expected_date_not_null       | n           | NOT NULL expected_date                                                         |
-| deliveries_id_not_null                  | n           | NOT NULL id                                                                    |
-| deliveries_received_date_matches_status | CHECK       | CHECK (((status = 'received'::delivery_status) = (received_date IS NOT NULL))) |
-| deliveries_source_ref_nonblank          | CHECK       | CHECK (((source_ref IS NULL) OR (btrim(source_ref) <> ''::text)))              |
-| deliveries_status_not_null              | n           | NOT NULL status                                                                |
-| deliveries_pkey                         | PRIMARY KEY | PRIMARY KEY (id)                                                               |
+| Name                                    | Type        | Definition                                                                            |
+| --------------------------------------- | ----------- | ------------------------------------------------------------------------------------- |
+| deliveries_created_at_not_null          | n           | NOT NULL created_at                                                                   |
+| deliveries_expected_date_not_null       | n           | NOT NULL expected_date                                                                |
+| deliveries_id_not_null                  | n           | NOT NULL id                                                                           |
+| deliveries_received_date_matches_status | CHECK       | CHECK (((status = 'received'::delivery_status) = (received_date IS NOT NULL)))        |
+| deliveries_source_ref_nonblank          | CHECK       | CHECK (((source_ref IS NULL) OR (btrim(source_ref) <> ''::text)))                     |
+| deliveries_status_not_null              | n           | NOT NULL status                                                                       |
+| deliveries_pkey                         | PRIMARY KEY | PRIMARY KEY (id)                                                                      |
+| deliveries_id_source_ref_fk             | FOREIGN KEY | FOREIGN KEY (id, source_ref) REFERENCES delivery_source_refs(delivery_id, source_ref) |
 
 ## Indexes
 
@@ -41,15 +42,22 @@ Expected deliveries and receipt status for stock inventory.
 ```mermaid
 erDiagram
 
+"public.deliveries" }o--|| "public.delivery_source_refs" : "FOREIGN KEY (id, source_ref) REFERENCES delivery_source_refs(delivery_id, source_ref)"
 "public.stock_lots" }o--o| "public.deliveries" : "FOREIGN KEY (delivery_id) REFERENCES deliveries(id) ON UPDATE CASCADE ON DELETE RESTRICT"
+"public.delivery_source_refs" }o--|| "public.deliveries" : "FOREIGN KEY (delivery_id) REFERENCES deliveries(id)"
 
 "public.deliveries" {
-  text id
-  text source_ref
+  text id FK
+  text source_ref FK
   delivery_status status
   date expected_date
   date received_date
   date change_deadline
+  timestamp_with_time_zone created_at
+}
+"public.delivery_source_refs" {
+  text source_ref
+  text delivery_id FK
   timestamp_with_time_zone created_at
 }
 "public.stock_lots" {

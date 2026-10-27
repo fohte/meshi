@@ -11,6 +11,7 @@ import type {
   SetStockItemInput,
   StockRepository,
   StockService,
+  UpdateDeliverySourceRefInput,
   UpdateStockLotInput,
 } from '#domain/stock/types'
 import { toJstDateString } from '#lib/jst-date'
@@ -185,6 +186,22 @@ export const createStockService = (
       ...(sourceRef === undefined ? {} : { sourceRef }),
       items,
     })
+  },
+
+  updateDeliverySourceRef(input: UpdateDeliverySourceRefInput) {
+    const deliveryId = input.deliveryId.trim()
+    if (deliveryId === '') {
+      return errAsync(
+        new StockDomainError('invalid_input', 'delivery_id must not be empty'),
+      )
+    }
+    const sourceRef = input.sourceRef.trim()
+    if (sourceRef === '') {
+      return errAsync(
+        new StockDomainError('invalid_input', 'source_ref must not be empty'),
+      )
+    }
+    return repository.updateDeliverySourceRef({ deliveryId, sourceRef })
   },
 
   receiveDelivery(input: ReceiveDeliveryInput) {

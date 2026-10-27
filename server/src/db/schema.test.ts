@@ -24,6 +24,7 @@ describeIfDb('schema migrations', () => {
     `
     expect(rows.map((r) => r.table_name)).toEqual([
       'deliveries',
+      'delivery_source_refs',
       'food_composition_nutrients',
       'food_compositions',
       'food_master_aliases',
@@ -303,6 +304,20 @@ describeIfDb('schema migrations', () => {
     `
     expect(rows).toEqual([
       {
+        conname: 'deliveries_id_source_ref_fk',
+        table_name: 'deliveries',
+        ref_table: 'delivery_source_refs',
+        on_update: 'a',
+        on_delete: 'a',
+      },
+      {
+        conname: 'delivery_source_refs_delivery_id_deliveries_id_fk',
+        table_name: 'delivery_source_refs',
+        ref_table: 'deliveries',
+        on_update: 'a',
+        on_delete: 'a',
+      },
+      {
         conname: 'food_composition_nutrients_food_composition_code_fk',
         table_name: 'food_composition_nutrients',
         ref_table: 'food_compositions',
@@ -439,6 +454,11 @@ describeIfDb('schema migrations', () => {
       {
         conname: 'deliveries_source_ref_nonblank',
         table_name: 'deliveries',
+        validated: true,
+      },
+      {
+        conname: 'delivery_source_refs_source_ref_nonblank',
+        table_name: 'delivery_source_refs',
         validated: true,
       },
       {

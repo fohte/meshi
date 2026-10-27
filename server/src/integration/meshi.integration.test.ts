@@ -28,6 +28,10 @@ import { createStockService } from '#domain/stock/stock-service'
 import { createUserProfileService } from '#domain/user-profile/user-profile-service'
 import { createMcpServer } from '#mcp'
 import {
+  listDeliveriesStructuredOutput,
+  updateDeliverySourceRefStructuredOutput,
+} from '#mcp-tools/delivery-schemas'
+import {
   addDrizzleNestedTransactions,
   describeIfDb,
   getTestSql,
@@ -36,12 +40,17 @@ import {
 import { jstDate } from '#test/jst-date'
 import { createNullLogger } from '#test/logger'
 import {
+  seedDelivery,
   seedFoodMaster as seedFoodMasterRow,
   seedFoodMasterWithoutNutrition as seedFoodMasterWithoutNutritionRow,
   seedMealLog as seedMealLogRow,
+  seedStockItem,
+  seedStockLot,
+  seedStockMovement,
 } from '#test/seed'
 
 const observation = <T extends object>(value: T): T => value
+const VALIDATION_ERROR_TEXT = '<schema validation error>'
 
 // harness -----------------------------------------------------------------
 
@@ -257,6 +266,286 @@ type NormalizedToolResult = z.infer<typeof toolResultSchema>
 
 const normalizeResult = (raw: unknown): NormalizedToolResult =>
   toolResultSchema.parse(raw)
+
+const normalizeValidationErrorResult = (raw: unknown): NormalizedToolResult => {
+  const result = normalizeResult(raw)
+  return {
+    ...result,
+    content: result.content.map((content) =>
+      content.type === 'text'
+        ? { ...content, text: VALIDATION_ERROR_TEXT }
+        : content,
+    ),
+  }
+}
+
+const NORMALIZED_HISTORY_TIMESTAMP = '2001-01-01T00:00:00.000Z'
+
+type ListedDeliveryPayload = z.infer<
+  typeof updateDeliverySourceRefStructuredOutput
+>
+
+const normalizeListedDeliveryHistory = (
+  delivery: ListedDeliveryPayload,
+): ListedDeliveryPayload => ({
+  ...delivery,
+  source_ref_history: delivery.source_ref_history.map((entry) => ({
+    ...entry,
+    created_at: NORMALIZED_HISTORY_TIMESTAMP,
+  })),
+})
+
+const normalizeListDeliveriesResult = (raw: unknown): NormalizedToolResult => {
+  const result = normalizeResult(raw)
+  const output = listDeliveriesStructuredOutput.parse(result.structuredContent)
+  return {
+    ...result,
+    structuredContent: {
+      deliveries: output.deliveries.map(normalizeListedDeliveryHistory),
+    },
+  }
+}
+
+const normalizeUpdateDeliverySourceRefResult = (
+  raw: unknown,
+): NormalizedToolResult => {
+  const result = normalizeResult(raw)
+  const output = updateDeliverySourceRefStructuredOutput.parse(
+    result.structuredContent,
+  )
+  return {
+    ...result,
+    structuredContent: normalizeListedDeliveryHistory(output),
+  }
+}
+
+const deliveryDatabaseSnapshotSchema = z.object({
+  deliveries: z.array(
+    z.object({
+      id: z.string(),
+      source_ref: z.string().nullable(),
+      status: z.enum(['planned', 'received', 'cancelled']),
+      expected_date: z.iso.date(),
+      received_date: z.iso.date().nullable(),
+      change_deadline: z.iso.date().nullable(),
+      created_at: z.string(),
+    }),
+  ),
+  sourceRefs: z.array(
+    z.object({
+      source_ref: z.string(),
+      delivery_id: z.string(),
+      created_at: z.string(),
+    }),
+  ),
+  stockLots: z.array(
+    z.object({
+      id: z.string(),
+      food_master_id: z.string(),
+      delivery_id: z.string().nullable(),
+      quantity: z.string(),
+      received_date: z.iso.date().nullable(),
+      best_before: z.iso.date().nullable(),
+      eat_by: z.iso.date().nullable(),
+      created_at: z.string(),
+    }),
+  ),
+  stockMovements: z.array(
+    z.object({
+      id: z.string(),
+      stock_lot_id: z.string(),
+      delta: z.string(),
+      reason: z.enum(['receive', 'meal', 'count']),
+      note: z.string().nullable(),
+      meal_log_id: z.string().nullable(),
+      created_at: z.string(),
+    }),
+  ),
+  mealLogs: z.array(
+    z.object({
+      id: z.string(),
+      food_master_id: z.string(),
+      eaten_date: z.iso.date(),
+      meal_type: z.string(),
+      quantity: z.string(),
+      created_at: z.string(),
+    }),
+  ),
+})
+
+type DeliveryDatabaseSnapshot = z.infer<typeof deliveryDatabaseSnapshotSchema>
+
+const readDeliveryDatabaseSnapshot = async (
+  tx: Sql,
+  deliveryIds: ReadonlyArray<string>,
+  mealLogIds: ReadonlyArray<string>,
+): Promise<DeliveryDatabaseSnapshot> =>
+  deliveryDatabaseSnapshotSchema.parse({
+    deliveries: await tx<Record<string, unknown>[]>`
+      SELECT id, source_ref, status::text AS status,
+             expected_date::text AS expected_date,
+             received_date::text AS received_date,
+             change_deadline::text AS change_deadline,
+             created_at::text AS created_at
+      FROM deliveries
+      WHERE id = ANY(${deliveryIds}::text[])
+      ORDER BY id
+    `,
+    sourceRefs: await tx<Record<string, unknown>[]>`
+      SELECT source_ref, delivery_id, created_at::text AS created_at
+      FROM delivery_source_refs
+      WHERE delivery_id = ANY(${deliveryIds}::text[])
+      ORDER BY delivery_id, created_at, source_ref
+    `,
+    stockLots: await tx<Record<string, unknown>[]>`
+      SELECT id, food_master_id, delivery_id, quantity::text AS quantity,
+             received_date::text AS received_date,
+             best_before::text AS best_before, eat_by::text AS eat_by,
+             created_at::text AS created_at
+      FROM stock_lots
+      WHERE delivery_id = ANY(${deliveryIds}::text[])
+      ORDER BY id
+    `,
+    stockMovements: await tx<Record<string, unknown>[]>`
+      SELECT sm.id, sm.stock_lot_id, sm.delta::text AS delta, sm.reason,
+             sm.note, sm.meal_log_id, sm.created_at::text AS created_at
+      FROM stock_movements sm
+      JOIN stock_lots sl ON sl.id = sm.stock_lot_id
+      WHERE sl.delivery_id = ANY(${deliveryIds}::text[])
+      ORDER BY sm.id
+    `,
+    mealLogs: await tx<Record<string, unknown>[]>`
+      SELECT id, food_master_id, eaten_date::text AS eaten_date, meal_type,
+             quantity::text AS quantity, created_at::text AS created_at
+      FROM meal_logs
+      WHERE id = ANY(${mealLogIds}::text[])
+      ORDER BY id
+    `,
+  })
+
+const inventorySnapshot = (snapshot: DeliveryDatabaseSnapshot) => ({
+  deliveries: snapshot.deliveries.map((delivery) => ({
+    id: delivery.id,
+    status: delivery.status,
+    expected_date: delivery.expected_date,
+    received_date: delivery.received_date,
+    change_deadline: delivery.change_deadline,
+    created_at: delivery.created_at,
+  })),
+  stockLots: snapshot.stockLots,
+  stockMovements: snapshot.stockMovements,
+  mealLogs: snapshot.mealLogs,
+})
+
+const seedDeliverySourceRefCorrectionScenario = async (
+  tx: Sql,
+): Promise<{
+  readonly foodMasterId: string
+  readonly partialDeliveryId: string
+  readonly completeDeliveryId: string
+  readonly partialOldSourceRef: string
+  readonly partialNewSourceRef: string
+  readonly completeOldSourceRef: string
+  readonly completeNewSourceRef: string
+  readonly partialMealLogId: string
+  readonly completeMealLogId: string
+}> => {
+  const foodMasterId = 'fm_delivery_ref_correction_sample'
+  const partialDeliveryId = 'dly_ref_correction_partial'
+  const completeDeliveryId = 'dly_ref_correction_complete'
+  const partialOldSourceRef = 'ref_zeta_partial_original'
+  const partialNewSourceRef = 'ref_alpha_partial_corrected'
+  const completeOldSourceRef = 'ref_zeta_complete_original'
+  const completeNewSourceRef = 'ref_alpha_complete_corrected'
+  const partialMealLogId = 'ml_ref_correction_partial'
+  const completeMealLogId = 'ml_ref_correction_complete'
+
+  await seedFoodMasterWithoutNutritionRow(tx, {
+    id: foodMasterId,
+    name: 'Sample delivery food',
+  })
+  await seedStockItem(tx, { foodMasterId })
+  await seedDelivery(tx, {
+    id: partialDeliveryId,
+    sourceRef: partialOldSourceRef,
+    status: 'received',
+    expectedDate: '2031-07-01',
+    receivedDate: '2031-07-02',
+  })
+  await seedDelivery(tx, {
+    id: completeDeliveryId,
+    sourceRef: completeOldSourceRef,
+    status: 'received',
+    expectedDate: '2031-07-03',
+    receivedDate: '2031-07-04',
+  })
+  await seedStockLot(tx, {
+    id: 'stl_ref_correction_partial',
+    foodMasterId,
+    deliveryId: partialDeliveryId,
+    quantity: 5,
+    receivedDate: '2031-07-02',
+  })
+  await seedStockLot(tx, {
+    id: 'stl_ref_correction_complete',
+    foodMasterId,
+    deliveryId: completeDeliveryId,
+    quantity: 4,
+    receivedDate: '2031-07-04',
+  })
+  await seedMealLogRow(tx, {
+    id: partialMealLogId,
+    foodMasterId,
+    eatenDate: jstDate('2031-07-03'),
+    mealType: 'lunch',
+    quantity: 2,
+  })
+  await seedMealLogRow(tx, {
+    id: completeMealLogId,
+    foodMasterId,
+    eatenDate: jstDate('2031-07-05'),
+    mealType: 'lunch',
+    quantity: 4,
+  })
+  await seedStockMovement(tx, {
+    id: 'stm_ref_correction_partial_receive',
+    stockLotId: 'stl_ref_correction_partial',
+    delta: 5,
+    reason: 'receive',
+  })
+  await seedStockMovement(tx, {
+    id: 'stm_ref_correction_partial_meal',
+    stockLotId: 'stl_ref_correction_partial',
+    delta: -2,
+    reason: 'meal',
+    mealLogId: partialMealLogId,
+  })
+  await seedStockMovement(tx, {
+    id: 'stm_ref_correction_complete_receive',
+    stockLotId: 'stl_ref_correction_complete',
+    delta: 4,
+    reason: 'receive',
+  })
+  await seedStockMovement(tx, {
+    id: 'stm_ref_correction_complete_meal',
+    stockLotId: 'stl_ref_correction_complete',
+    delta: -4,
+    reason: 'meal',
+    mealLogId: completeMealLogId,
+  })
+
+  return {
+    foodMasterId,
+    partialDeliveryId,
+    completeDeliveryId,
+    partialOldSourceRef,
+    partialNewSourceRef,
+    completeOldSourceRef,
+    completeNewSourceRef,
+    partialMealLogId,
+    completeMealLogId,
+  }
+}
 
 // scenarios ----------------------------------------------------------------
 
@@ -834,6 +1123,477 @@ describeIfDb('meshi integration', () => {
           daily_targets: { energy_kcal: 2200 },
         },
       ])
+    } finally {
+      await harness.close()
+    }
+  })
+
+  it('corrects a received delivery by id and keeps both references searchable', async () => {
+    const tx = getTx()
+    const scenario = await seedDeliverySourceRefCorrectionScenario(tx)
+    const harness = await startHarness({ tx })
+
+    try {
+      const initial = normalizeListDeliveriesResult(
+        await harness.client.callTool({
+          name: 'list_deliveries',
+          arguments: {
+            source_ref: scenario.partialOldSourceRef,
+            status: 'received',
+          },
+        }),
+      )
+      const updated = normalizeUpdateDeliverySourceRefResult(
+        await harness.client.callTool({
+          name: 'update_delivery_source_ref',
+          arguments: {
+            delivery_id: scenario.partialDeliveryId,
+            source_ref: scenario.partialNewSourceRef,
+          },
+        }),
+      )
+      const byOldSourceRef = normalizeListDeliveriesResult(
+        await harness.client.callTool({
+          name: 'list_deliveries',
+          arguments: { source_ref: scenario.partialOldSourceRef },
+        }),
+      )
+      const byNewSourceRef = normalizeListDeliveriesResult(
+        await harness.client.callTool({
+          name: 'list_deliveries',
+          arguments: { source_ref: scenario.partialNewSourceRef },
+        }),
+      )
+      const repeated = normalizeUpdateDeliverySourceRefResult(
+        await harness.client.callTool({
+          name: 'update_delivery_source_ref',
+          arguments: {
+            delivery_id: scenario.partialDeliveryId,
+            source_ref: scenario.partialNewSourceRef,
+          },
+        }),
+      )
+      const oldReferenceReplay = normalizeResult(
+        await harness.client.callTool({
+          name: 'register_delivery',
+          arguments: {
+            source_ref: scenario.partialOldSourceRef,
+            status: 'planned',
+            expected_date: '2031-07-06',
+            items: [{ food_master_id: scenario.foodMasterId, quantity: 1 }],
+          },
+        }),
+      )
+      const snapshot = await readDeliveryDatabaseSnapshot(
+        tx,
+        [scenario.partialDeliveryId, scenario.completeDeliveryId],
+        [scenario.partialMealLogId, scenario.completeMealLogId],
+      )
+      const deliveryIds = snapshot.deliveries.map((delivery) => delivery.id)
+      const sourceRefs = snapshot.sourceRefs.map(
+        ({ source_ref, delivery_id }) => ({
+          source_ref,
+          delivery_id,
+        }),
+      )
+
+      const actual = {
+        initial,
+        updated,
+        byOldSourceRef,
+        byNewSourceRef,
+        repeated,
+        oldReferenceReplay,
+        deliveryIds,
+        sourceRefs,
+      }
+      const expected = {
+        initial: {
+          content: [{ type: 'text', text: '1 件の配送を取得しました。' }],
+          structuredContent: {
+            deliveries: [
+              {
+                delivery_id: scenario.partialDeliveryId,
+                source_ref: scenario.partialOldSourceRef,
+                source_ref_history: [
+                  {
+                    source_ref: scenario.partialOldSourceRef,
+                    created_at: NORMALIZED_HISTORY_TIMESTAMP,
+                  },
+                ],
+                status: 'received',
+                expected_date: '2031-07-01',
+                received_date: '2031-07-02',
+                change_deadline: null,
+                items: [
+                  {
+                    food_master_id: scenario.foodMasterId,
+                    food_name: 'Sample delivery food',
+                    stock_lot_id: 'stl_ref_correction_partial',
+                    quantity: 5,
+                    remaining_quantity: 3,
+                  },
+                ],
+              },
+            ],
+          },
+        },
+        updated: {
+          content: [{ type: 'text', text: '配送の参照を訂正しました。' }],
+          structuredContent: {
+            delivery_id: scenario.partialDeliveryId,
+            source_ref: scenario.partialNewSourceRef,
+            source_ref_history: [
+              {
+                source_ref: scenario.partialOldSourceRef,
+                created_at: NORMALIZED_HISTORY_TIMESTAMP,
+              },
+              {
+                source_ref: scenario.partialNewSourceRef,
+                created_at: NORMALIZED_HISTORY_TIMESTAMP,
+              },
+            ],
+            status: 'received',
+            expected_date: '2031-07-01',
+            received_date: '2031-07-02',
+            change_deadline: null,
+            items: [
+              {
+                food_master_id: scenario.foodMasterId,
+                food_name: 'Sample delivery food',
+                stock_lot_id: 'stl_ref_correction_partial',
+                quantity: 5,
+                remaining_quantity: 3,
+              },
+            ],
+          },
+        },
+        byOldSourceRef: {
+          content: [{ type: 'text', text: '1 件の配送を取得しました。' }],
+          structuredContent: {
+            deliveries: [
+              {
+                delivery_id: scenario.partialDeliveryId,
+                source_ref: scenario.partialNewSourceRef,
+                source_ref_history: [
+                  {
+                    source_ref: scenario.partialOldSourceRef,
+                    created_at: NORMALIZED_HISTORY_TIMESTAMP,
+                  },
+                  {
+                    source_ref: scenario.partialNewSourceRef,
+                    created_at: NORMALIZED_HISTORY_TIMESTAMP,
+                  },
+                ],
+                status: 'received',
+                expected_date: '2031-07-01',
+                received_date: '2031-07-02',
+                change_deadline: null,
+                items: [
+                  {
+                    food_master_id: scenario.foodMasterId,
+                    food_name: 'Sample delivery food',
+                    stock_lot_id: 'stl_ref_correction_partial',
+                    quantity: 5,
+                    remaining_quantity: 3,
+                  },
+                ],
+              },
+            ],
+          },
+        },
+        byNewSourceRef: {
+          content: [{ type: 'text', text: '1 件の配送を取得しました。' }],
+          structuredContent: {
+            deliveries: [
+              {
+                delivery_id: scenario.partialDeliveryId,
+                source_ref: scenario.partialNewSourceRef,
+                source_ref_history: [
+                  {
+                    source_ref: scenario.partialOldSourceRef,
+                    created_at: NORMALIZED_HISTORY_TIMESTAMP,
+                  },
+                  {
+                    source_ref: scenario.partialNewSourceRef,
+                    created_at: NORMALIZED_HISTORY_TIMESTAMP,
+                  },
+                ],
+                status: 'received',
+                expected_date: '2031-07-01',
+                received_date: '2031-07-02',
+                change_deadline: null,
+                items: [
+                  {
+                    food_master_id: scenario.foodMasterId,
+                    food_name: 'Sample delivery food',
+                    stock_lot_id: 'stl_ref_correction_partial',
+                    quantity: 5,
+                    remaining_quantity: 3,
+                  },
+                ],
+              },
+            ],
+          },
+        },
+        repeated: {
+          content: [{ type: 'text', text: '配送の参照を訂正しました。' }],
+          structuredContent: {
+            delivery_id: scenario.partialDeliveryId,
+            source_ref: scenario.partialNewSourceRef,
+            source_ref_history: [
+              {
+                source_ref: scenario.partialOldSourceRef,
+                created_at: NORMALIZED_HISTORY_TIMESTAMP,
+              },
+              {
+                source_ref: scenario.partialNewSourceRef,
+                created_at: NORMALIZED_HISTORY_TIMESTAMP,
+              },
+            ],
+            status: 'received',
+            expected_date: '2031-07-01',
+            received_date: '2031-07-02',
+            change_deadline: null,
+            items: [
+              {
+                food_master_id: scenario.foodMasterId,
+                food_name: 'Sample delivery food',
+                stock_lot_id: 'stl_ref_correction_partial',
+                quantity: 5,
+                remaining_quantity: 3,
+              },
+            ],
+          },
+        },
+        oldReferenceReplay: {
+          isError: true,
+          content: [
+            { type: 'text', text: 'received deliveries cannot be changed' },
+          ],
+        },
+        deliveryIds: [scenario.completeDeliveryId, scenario.partialDeliveryId],
+        sourceRefs: [
+          {
+            source_ref: scenario.completeOldSourceRef,
+            delivery_id: scenario.completeDeliveryId,
+          },
+          {
+            source_ref: scenario.partialOldSourceRef,
+            delivery_id: scenario.partialDeliveryId,
+          },
+          {
+            source_ref: scenario.partialNewSourceRef,
+            delivery_id: scenario.partialDeliveryId,
+          },
+        ],
+      }
+      expect(observation(actual)).toEqual(expected)
+    } finally {
+      await harness.close()
+    }
+  })
+
+  it('preserves partial and complete stock records and status output when references change', async () => {
+    const tx = getTx()
+    const scenario = await seedDeliverySourceRefCorrectionScenario(tx)
+    const harness = await startHarness({ tx })
+
+    try {
+      const before = await readDeliveryDatabaseSnapshot(
+        tx,
+        [scenario.partialDeliveryId, scenario.completeDeliveryId],
+        [scenario.partialMealLogId, scenario.completeMealLogId],
+      )
+      const stockStatusBefore = normalizeResult(
+        await harness.client.callTool({
+          name: 'get_stock_status',
+          arguments: {},
+        }),
+      )
+      const partialUpdate = normalizeUpdateDeliverySourceRefResult(
+        await harness.client.callTool({
+          name: 'update_delivery_source_ref',
+          arguments: {
+            delivery_id: scenario.partialDeliveryId,
+            source_ref: scenario.partialNewSourceRef,
+          },
+        }),
+      )
+      const completeUpdate = normalizeUpdateDeliverySourceRefResult(
+        await harness.client.callTool({
+          name: 'update_delivery_source_ref',
+          arguments: {
+            delivery_id: scenario.completeDeliveryId,
+            source_ref: scenario.completeNewSourceRef,
+          },
+        }),
+      )
+      const after = await readDeliveryDatabaseSnapshot(
+        tx,
+        [scenario.partialDeliveryId, scenario.completeDeliveryId],
+        [scenario.partialMealLogId, scenario.completeMealLogId],
+      )
+      const stockStatusAfter = normalizeResult(
+        await harness.client.callTool({
+          name: 'get_stock_status',
+          arguments: {},
+        }),
+      )
+
+      const actual = {
+        updates: [partialUpdate, completeUpdate],
+        inventoryBefore: inventorySnapshot(before),
+        inventoryAfter: inventorySnapshot(after),
+        stockStatusBefore,
+        stockStatusAfter,
+      }
+      const expected = {
+        updates: [
+          {
+            content: [{ type: 'text', text: '配送の参照を訂正しました。' }],
+            structuredContent: {
+              delivery_id: scenario.partialDeliveryId,
+              source_ref: scenario.partialNewSourceRef,
+              source_ref_history: [
+                {
+                  source_ref: scenario.partialOldSourceRef,
+                  created_at: NORMALIZED_HISTORY_TIMESTAMP,
+                },
+                {
+                  source_ref: scenario.partialNewSourceRef,
+                  created_at: NORMALIZED_HISTORY_TIMESTAMP,
+                },
+              ],
+              status: 'received',
+              expected_date: '2031-07-01',
+              received_date: '2031-07-02',
+              change_deadline: null,
+              items: [
+                {
+                  food_master_id: scenario.foodMasterId,
+                  food_name: 'Sample delivery food',
+                  stock_lot_id: 'stl_ref_correction_partial',
+                  quantity: 5,
+                  remaining_quantity: 3,
+                },
+              ],
+            },
+          },
+          {
+            content: [{ type: 'text', text: '配送の参照を訂正しました。' }],
+            structuredContent: {
+              delivery_id: scenario.completeDeliveryId,
+              source_ref: scenario.completeNewSourceRef,
+              source_ref_history: [
+                {
+                  source_ref: scenario.completeOldSourceRef,
+                  created_at: NORMALIZED_HISTORY_TIMESTAMP,
+                },
+                {
+                  source_ref: scenario.completeNewSourceRef,
+                  created_at: NORMALIZED_HISTORY_TIMESTAMP,
+                },
+              ],
+              status: 'received',
+              expected_date: '2031-07-03',
+              received_date: '2031-07-04',
+              change_deadline: null,
+              items: [
+                {
+                  food_master_id: scenario.foodMasterId,
+                  food_name: 'Sample delivery food',
+                  stock_lot_id: 'stl_ref_correction_complete',
+                  quantity: 4,
+                  remaining_quantity: 0,
+                },
+              ],
+            },
+          },
+        ],
+        inventoryBefore: inventorySnapshot(before),
+        inventoryAfter: inventorySnapshot(before),
+        stockStatusBefore,
+        stockStatusAfter: stockStatusBefore,
+      }
+      expect(observation(actual)).toEqual(expected)
+    } finally {
+      await harness.close()
+    }
+  })
+
+  it('leaves all delivery rows unchanged for conflicts, missing ids, and invalid input', async () => {
+    const tx = getTx()
+    const scenario = await seedDeliverySourceRefCorrectionScenario(tx)
+    const harness = await startHarness({ tx })
+
+    try {
+      const before = await readDeliveryDatabaseSnapshot(
+        tx,
+        [scenario.partialDeliveryId, scenario.completeDeliveryId],
+        [scenario.partialMealLogId, scenario.completeMealLogId],
+      )
+      const conflict = normalizeResult(
+        await harness.client.callTool({
+          name: 'update_delivery_source_ref',
+          arguments: {
+            delivery_id: scenario.partialDeliveryId,
+            source_ref: scenario.completeOldSourceRef,
+          },
+        }),
+      )
+      const missing = normalizeResult(
+        await harness.client.callTool({
+          name: 'update_delivery_source_ref',
+          arguments: {
+            delivery_id: 'dly_missing_source_ref',
+            source_ref: 'ref_unused_source',
+          },
+        }),
+      )
+      const invalid = normalizeValidationErrorResult(
+        await harness.client.callTool({
+          name: 'update_delivery_source_ref',
+          arguments: {
+            delivery_id: scenario.partialDeliveryId,
+            source_ref: '   ',
+          },
+        }),
+      )
+      const after = await readDeliveryDatabaseSnapshot(
+        tx,
+        [scenario.partialDeliveryId, scenario.completeDeliveryId],
+        [scenario.partialMealLogId, scenario.completeMealLogId],
+      )
+
+      const actual = { conflict, missing, invalid, before, after }
+      const expected = {
+        conflict: {
+          isError: true,
+          content: [
+            {
+              type: 'text',
+              text: `source_ref is already used by delivery ${scenario.completeDeliveryId}`,
+            },
+          ],
+        },
+        missing: {
+          isError: true,
+          content: [
+            {
+              type: 'text',
+              text: 'delivery not found: dly_missing_source_ref',
+            },
+          ],
+        },
+        invalid: {
+          content: [{ type: 'text', text: VALIDATION_ERROR_TEXT }],
+          isError: true,
+        },
+        before,
+        after: before,
+      }
+      expect(observation(actual)).toEqual(expected)
     } finally {
       await harness.close()
     }

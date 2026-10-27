@@ -44,6 +44,11 @@ export interface RegisterDeliveryInput {
   readonly items: ReadonlyArray<DeliveryItemInput>
 }
 
+export interface UpdateDeliverySourceRefInput {
+  readonly deliveryId: string
+  readonly sourceRef: string
+}
+
 export interface ReceiveDeliveryInput {
   readonly deliveryId: string
   readonly receivedDate: string
@@ -73,12 +78,18 @@ export interface ListDeliveriesInput {
   readonly limit: number
 }
 
+export interface DeliverySourceRefHistoryItem {
+  readonly sourceRef: string
+  readonly createdAt: string
+}
+
 interface DeliveryLotItem extends DeliveryItem {
   readonly stockLotId: string
   readonly remainingQuantity: number | null
 }
 
 export interface ListedDelivery extends Omit<Delivery, 'items'> {
+  readonly sourceRefHistory: ReadonlyArray<DeliverySourceRefHistoryItem>
   readonly items: ReadonlyArray<DeliveryLotItem>
 }
 
@@ -214,6 +225,9 @@ export interface StockRepository {
   registerDelivery(
     input: RegisterDeliveryInput,
   ): ResultAsync<Delivery, StockDomainError>
+  updateDeliverySourceRef(
+    input: UpdateDeliverySourceRefInput,
+  ): ResultAsync<ListedDelivery, StockDomainError>
   receiveDelivery(
     input: ReceiveDeliveryInput,
   ): ResultAsync<Delivery, StockDomainError>
@@ -238,6 +252,9 @@ export interface StockService {
   registerDelivery(
     input: RegisterDeliveryInput,
   ): ResultAsync<Delivery, StockDomainError>
+  updateDeliverySourceRef(
+    input: UpdateDeliverySourceRefInput,
+  ): ResultAsync<ListedDelivery, StockDomainError>
   receiveDelivery(
     input: ReceiveDeliveryInput,
   ): ResultAsync<Delivery, StockDomainError>

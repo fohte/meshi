@@ -4,7 +4,11 @@ import { toMealHistoryPayload } from '#domain/meal-history/mealHistoryPayload'
 import type { MealHistoryAggregate } from '#domain/meal-history/types'
 import type { MealLogDeletionResult } from '#domain/meal-log/types'
 import type { MealSet } from '#domain/meal-set/types'
-import type { Delivery, DeliveryItem } from '#domain/stock/types'
+import type {
+  Delivery,
+  DeliveryItem,
+  ListedDelivery,
+} from '#domain/stock/types'
 import type { UserProfile } from '#domain/user-profile/user-profile'
 import type { Logger } from '#logger'
 
@@ -69,6 +73,26 @@ export const buildDeliveryPayload = (delivery: Delivery) => ({
   received_date: delivery.receivedDate,
   change_deadline: delivery.changeDeadline,
   items: delivery.items.map(buildDeliveryItemPayload),
+})
+
+export const buildListedDeliveryPayload = (delivery: ListedDelivery) => ({
+  delivery_id: delivery.id,
+  source_ref: delivery.sourceRef,
+  source_ref_history: delivery.sourceRefHistory.map((entry) => ({
+    source_ref: entry.sourceRef,
+    created_at: entry.createdAt,
+  })),
+  status: delivery.status,
+  expected_date: delivery.expectedDate,
+  received_date: delivery.receivedDate,
+  change_deadline: delivery.changeDeadline,
+  items: delivery.items.map((item) => ({
+    food_master_id: item.foodMasterId,
+    food_name: item.foodName,
+    stock_lot_id: item.stockLotId,
+    quantity: item.quantity,
+    remaining_quantity: item.remainingQuantity,
+  })),
 })
 
 export const buildMealSetPayload = (

@@ -1,5 +1,6 @@
 import { sql } from 'drizzle-orm'
 import {
+  type AnyPgColumn,
   check,
   date,
   foreignKey,
@@ -68,6 +69,29 @@ export const stockItems = pgTable(
   ],
 )
 
+export const deliverySourceRefs = pgTable(
+  'delivery_source_refs',
+  {
+    sourceRef: text('source_ref').primaryKey(),
+    deliveryId: text('delivery_id')
+      .notNull()
+      .references((): AnyPgColumn => deliveries.id),
+    createdAt: timestamp('created_at', { withTimezone: true, mode: 'date' })
+      .notNull()
+      .default(sql`now()`),
+  },
+  (table) => [
+    uniqueIndex('delivery_source_refs_delivery_id_source_ref_key').on(
+      table.deliveryId,
+      table.sourceRef,
+    ),
+    check(
+      'delivery_source_refs_source_ref_nonblank',
+      sql`btrim(${table.sourceRef}) <> ''`,
+    ),
+  ],
+)
+
 export const deliveries = pgTable(
   'deliveries',
   {
@@ -83,6 +107,14 @@ export const deliveries = pgTable(
   },
   (table) => [
     uniqueIndex('deliveries_source_ref_key').on(table.sourceRef),
+    foreignKey({
+      name: 'deliveries_id_source_ref_fk',
+      columns: [table.id, table.sourceRef],
+      foreignColumns: [
+        deliverySourceRefs.deliveryId,
+        deliverySourceRefs.sourceRef,
+      ],
+    }),
     index('deliveries_status_expected_date_idx').on(
       table.status,
       table.expectedDate,

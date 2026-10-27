@@ -1,6 +1,7 @@
 import type { Sql } from '#db/index'
 import type {
   deliveries,
+  deliverySourceRefs,
   foodCompositionNutrients,
   foodCompositions,
   foodMasterAliases,
@@ -228,19 +229,51 @@ export const seedStockItem = async (
   `
 }
 
-export const seedDelivery = async (
+const defaultSeedCreatedAt = new Date('2001-01-01T00:00:00.000Z')
+
+export const seedDeliverySourceRef = async (
   sql: Sql,
-  values: Omit<typeof deliveries.$inferInsert, 'createdAt'>,
+  values: typeof deliverySourceRefs.$inferInsert,
 ): Promise<void> => {
   await sql`
-    INSERT INTO deliveries (
-      id, source_ref, status, expected_date, received_date, change_deadline
-    ) VALUES (
-      ${values.id}, ${values.sourceRef ?? null},
-      ${values.status ?? 'planned'}, ${values.expectedDate},
-      ${values.receivedDate ?? null}, ${values.changeDeadline ?? null}
+    INSERT INTO delivery_source_refs (source_ref, delivery_id, created_at)
+    VALUES (
+      ${values.sourceRef}, ${values.deliveryId},
+      COALESCE(${values.createdAt?.toISOString() ?? null}::timestamptz, ${defaultSeedCreatedAt.toISOString()}::timestamptz)
     )
   `
+}
+
+export const seedDelivery = async (
+  sql: Sql,
+  values: Omit<typeof deliveries.$inferInsert, 'createdAt'> & {
+    readonly createdAt?: Date
+  },
+): Promise<void> => {
+  const createdAt = values.createdAt ?? defaultSeedCreatedAt
+  await sql`
+    INSERT INTO deliveries (
+      id, source_ref, status, expected_date, received_date, change_deadline,
+      created_at
+    ) VALUES (
+      ${values.id}, NULL,
+      ${values.status ?? 'planned'}, ${values.expectedDate},
+      ${values.receivedDate ?? null}, ${values.changeDeadline ?? null},
+      ${createdAt.toISOString()}::timestamptz
+    )
+  `
+  if (values.sourceRef != null) {
+    await seedDeliverySourceRef(sql, {
+      sourceRef: values.sourceRef,
+      deliveryId: values.id,
+      createdAt,
+    })
+    await sql`
+      UPDATE deliveries
+      SET source_ref = ${values.sourceRef}
+      WHERE id = ${values.id}
+    `
+  }
 }
 
 export const seedStockLot = async (
