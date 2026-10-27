@@ -3,7 +3,10 @@ import { z } from 'zod'
 
 import { createFoodMasterRepository } from '#domain/food-master/repository'
 import { createFoodMasterService } from '#domain/food-master/service'
-import type { FoodMasterNutritionVersion } from '#domain/food-master/types'
+import type {
+  AddFoodMasterNutritionVersionInput,
+  FoodMasterNutritionVersion,
+} from '#domain/food-master/types'
 import { describeIfDb, setupTx } from '#test/db'
 import { jstDate } from '#test/jst-date'
 import {
@@ -44,6 +47,109 @@ const normalizeVersion = (
 
 describeIfDb('food master nutrition versions', () => {
   const getTx = setupTx()
+
+  it('rejects invalid version change metadata before persistence', async () => {
+    const tx = getTx()
+    const service = createFoodMasterService(
+      createFoodMasterRepository(tx, { wrapInTransaction: false }),
+    )
+    const common = {
+      foodMasterId: 'fm_invalid_version_change',
+      nutrition: { energy_kcal: 10 },
+      source: 'user_input' as const,
+      isEstimated: false,
+    }
+    const invalidInputs: ReadonlyArray<AddFoodMasterNutritionVersionInput> = [
+      { ...common, changeKind: 'product_update' },
+      {
+        ...common,
+        changeKind: 'product_update',
+        checkedOn: '2026-07-12',
+        correctsVersionId: 'synthetic_version_id',
+      },
+      {
+        ...common,
+        changeKind: 'product_update',
+        checkedOn: '2026-07-12',
+        reason: 'not a correction',
+      },
+      {
+        ...common,
+        changeKind: 'correction',
+        reason: 'synthetic correction',
+      },
+      {
+        ...common,
+        changeKind: 'correction',
+        correctsVersionId: ' ',
+        reason: 'synthetic correction',
+      },
+      {
+        ...common,
+        changeKind: 'correction',
+        correctsVersionId: 'synthetic_version_id',
+      },
+      {
+        ...common,
+        changeKind: 'correction',
+        correctsVersionId: 'synthetic_version_id',
+        reason: '  ',
+      },
+    ]
+
+    const results = await Promise.all(
+      invalidInputs.map((input) =>
+        service.addNutritionVersion(input).match(
+          () => null,
+          (error) => ({
+            code: error.code,
+            message: error.message,
+            details: error.details,
+          }),
+        ),
+      ),
+    )
+
+    expect(observation(results)).toEqual([
+      {
+        code: 'invalid_nutrition_version_change',
+        message: "change_kind='product_update' requires checked_on",
+        details: {},
+      },
+      {
+        code: 'invalid_nutrition_version_change',
+        message:
+          "change_kind='product_update' must not include corrects_version_id or reason",
+        details: {},
+      },
+      {
+        code: 'invalid_nutrition_version_change',
+        message:
+          "change_kind='product_update' must not include corrects_version_id or reason",
+        details: {},
+      },
+      {
+        code: 'invalid_nutrition_version_change',
+        message: "change_kind='correction' requires corrects_version_id",
+        details: {},
+      },
+      {
+        code: 'invalid_nutrition_version_change',
+        message: "change_kind='correction' requires corrects_version_id",
+        details: {},
+      },
+      {
+        code: 'invalid_nutrition_version_change',
+        message: "change_kind='correction' requires reason",
+        details: {},
+      },
+      {
+        code: 'invalid_nutrition_version_change',
+        message: "change_kind='correction' requires reason",
+        details: {},
+      },
+    ])
+  })
 
   it('adds a product update without changing past logs or daily totals', async () => {
     const tx = getTx()
@@ -396,6 +502,197 @@ describeIfDb('food master nutrition versions', () => {
         mealLogCount: 0,
       },
     ])
+  })
+
+  it('inherits omitted correction metadata and honors explicit replacements', async () => {
+    const tx = getTx()
+    await seedFoodMasterWithoutNutrition(tx, {
+      id: 'fm_version_metadata',
+      name: 'sample pantry ingredient',
+    })
+    await seedFoodMasterNutritionVersion(tx, {
+      foodMasterId: 'fm_version_metadata',
+      versionNo: 1,
+      isCurrent: true,
+      changeKind: 'initial',
+      source: 'user_input',
+      isEstimated: false,
+      nutrients: { energy_kcal: 70 },
+    })
+    const service = createFoodMasterService(
+      createFoodMasterRepository(tx, { wrapInTransaction: false }),
+    )
+    const updated = (
+      await service.addNutritionVersion({
+        foodMasterId: 'fm_version_metadata',
+        changeKind: 'product_update',
+        nutrition: { energy_kcal: 80 },
+        source: 'user_input',
+        isEstimated: false,
+        servingBasis: '1 serving (40 g)',
+        netContent: '3 servings (120 g)',
+        checkedOn: '2026-07-12',
+        effectiveFrom: '2026-07-01',
+      })
+    )._unsafeUnwrap()
+    const inherited = (
+      await service.addNutritionVersion({
+        foodMasterId: 'fm_version_metadata',
+        changeKind: 'correction',
+        correctsVersionId: updated.id,
+        reason: 'synthetic correction reason',
+        nutrition: { energy_kcal: 85 },
+        source: 'user_input',
+        isEstimated: false,
+      })
+    )._unsafeUnwrap()
+    const overridden = (
+      await service.addNutritionVersion({
+        foodMasterId: 'fm_version_metadata',
+        changeKind: 'correction',
+        correctsVersionId: inherited.id,
+        reason: 'synthetic correction reason',
+        nutrition: { energy_kcal: 90 },
+        source: 'user_input',
+        isEstimated: false,
+        servingBasis: '1 serving (45 g)',
+        netContent: '3 servings (135 g)',
+        effectiveFrom: '2026-07-15',
+      })
+    )._unsafeUnwrap()
+    const versions = (
+      await service.listNutritionVersions('fm_version_metadata')
+    )._unsafeUnwrap()
+    const versionLabels = new Map([
+      [updated.id, 'version-2'],
+      [inherited.id, 'version-3'],
+      [overridden.id, 'version-4'],
+    ])
+
+    expect(
+      observation(
+        versions.map((version) => ({
+          id: versionLabels.get(version.id) ?? 'version-1',
+          versionNo: version.versionNo,
+          isCurrent: version.isCurrent,
+          servingBasis: version.servingBasis,
+          netContent: version.netContent,
+          effectiveFrom: version.effectiveFrom,
+        })),
+      ),
+    ).toEqual([
+      {
+        id: 'version-1',
+        versionNo: 1,
+        isCurrent: false,
+        servingBasis: null,
+        netContent: null,
+        effectiveFrom: null,
+      },
+      {
+        id: 'version-2',
+        versionNo: 2,
+        isCurrent: false,
+        servingBasis: '1 serving (40 g)',
+        netContent: '3 servings (120 g)',
+        effectiveFrom: '2026-07-01',
+      },
+      {
+        id: 'version-3',
+        versionNo: 3,
+        isCurrent: false,
+        servingBasis: '1 serving (40 g)',
+        netContent: '3 servings (120 g)',
+        effectiveFrom: '2026-07-01',
+      },
+      {
+        id: 'version-4',
+        versionNo: 4,
+        isCurrent: true,
+        servingBasis: '1 serving (45 g)',
+        netContent: '3 servings (135 g)',
+        effectiveFrom: '2026-07-15',
+      },
+    ])
+  })
+
+  it('returns food_master_not_found when listing a missing food', async () => {
+    const tx = getTx()
+    const service = createFoodMasterService(
+      createFoodMasterRepository(tx, { wrapInTransaction: false }),
+    )
+    const result = await service.listNutritionVersions('fm_version_missing')
+
+    expect(
+      observation(
+        result.match(
+          () => ({
+            code: 'unexpected_success',
+            message: 'listing a missing food unexpectedly succeeded',
+            details: {},
+          }),
+          (error) => ({
+            code: error.code,
+            message: error.message,
+            details: error.details,
+          }),
+        ),
+      ),
+    ).toEqual({
+      code: 'food_master_not_found',
+      message: 'food_master not found: fm_version_missing',
+      details: { foodMasterId: 'fm_version_missing' },
+    })
+  })
+
+  it('returns unknown_nutrient_code when adding an unregistered nutrient', async () => {
+    const tx = getTx()
+    await seedFoodMasterWithoutNutrition(tx, {
+      id: 'fm_version_unknown_nutrient',
+      name: 'sample pantry ingredient',
+    })
+    await seedFoodMasterNutritionVersion(tx, {
+      foodMasterId: 'fm_version_unknown_nutrient',
+      versionNo: 1,
+      isCurrent: true,
+      changeKind: 'initial',
+      source: 'user_input',
+      isEstimated: false,
+      nutrients: { energy_kcal: 70 },
+    })
+    const service = createFoodMasterService(
+      createFoodMasterRepository(tx, { wrapInTransaction: false }),
+    )
+    const result = await service.addNutritionVersion({
+      foodMasterId: 'fm_version_unknown_nutrient',
+      changeKind: 'product_update',
+      nutrition: { energy_kcal: 75, unregistered_nutrient: 1 },
+      source: 'user_input',
+      isEstimated: false,
+      checkedOn: '2026-07-12',
+    })
+
+    expect(
+      observation(
+        result.match(
+          () => ({
+            code: 'unexpected_success',
+            message: 'adding an unregistered nutrient unexpectedly succeeded',
+            details: {},
+          }),
+          (error) => ({
+            code: error.code,
+            message: error.message,
+            details: error.details,
+          }),
+        ),
+      ),
+    ).toEqual({
+      code: 'unknown_nutrient_code',
+      message:
+        'nutrient_code not registered in nutrient_definitions: unregistered_nutrient',
+      details: { unknown: ['unregistered_nutrient'] },
+    })
   })
 
   it('rejects evidence that does not satisfy the source rules', async () => {

@@ -19,6 +19,9 @@ const foodMasterRowSchema = z.object({ id: z.string() })
 const nutritionVersionStateSchema = z.object({
   id: z.string(),
   is_current: z.boolean(),
+  serving_basis: z.string().nullable(),
+  net_content: z.string().nullable(),
+  effective_from: z.string().nullable(),
 })
 const maxVersionRowSchema = z.object({ max_version_no: z.number().int() })
 const nutritionVersionRowSchema = z.object({
@@ -187,7 +190,9 @@ export const createFoodMasterNutritionVersionOperations = (
     }
 
     const existingVersions = await tx<Record<string, unknown>[]>`
-      SELECT id, is_current FROM food_master_nutrition
+      SELECT id, is_current, serving_basis, net_content,
+             effective_from::text AS effective_from
+      FROM food_master_nutrition
       WHERE food_master_id = ${input.foodMasterId}
     `
     const parsedExistingVersions = z
@@ -297,8 +302,20 @@ export const createFoodMasterNutritionVersionOperations = (
     const versionNo = maxVersion.max_version_no + 1
     const reason =
       input.changeKind === 'correction' ? (input.reason?.trim() ?? null) : null
-    const servingBasis = normalizeOptionalText(input.servingBasis)
-    const netContent = normalizeOptionalText(input.netContent)
+    const servingBasis = normalizeOptionalText(
+      input.servingBasis === undefined
+        ? (correctedVersion?.serving_basis ?? undefined)
+        : input.servingBasis,
+    )
+    const netContent = normalizeOptionalText(
+      input.netContent === undefined
+        ? (correctedVersion?.net_content ?? undefined)
+        : input.netContent,
+    )
+    const effectiveFrom =
+      input.effectiveFrom === undefined
+        ? (correctedVersion?.effective_from ?? null)
+        : input.effectiveFrom
     const insertedRows = await tx<Record<string, unknown>[]>`
       INSERT INTO food_master_nutrition (
         food_master_id, version_no, is_current, change_kind,
@@ -313,7 +330,7 @@ export const createFoodMasterNutritionVersionOperations = (
         ${reason}, ${normalized.isEstimated}, ${normalized.source},
         ${normalized.sourceUrl}, ${normalized.sourceCompositionCode},
         ${servingBasis}, ${netContent},
-        ${input.checkedOn ?? null}, ${input.effectiveFrom ?? null}, false
+        ${input.checkedOn ?? null}, ${effectiveFrom}, false
       )
       RETURNING id
     `
@@ -360,7 +377,7 @@ export const createFoodMasterNutritionVersionOperations = (
       sourceCompositionCode: normalized.sourceCompositionCode,
       isEstimated: normalized.isEstimated,
       checkedOn: input.checkedOn ?? null,
-      effectiveFrom: input.effectiveFrom ?? null,
+      effectiveFrom,
       reason,
       mealLogCount: 0,
     })

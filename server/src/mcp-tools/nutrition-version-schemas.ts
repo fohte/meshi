@@ -18,13 +18,23 @@ const versionInputBase = z.object({
     })
     .optional(),
   source_composition_code: z.string().trim().min(1).optional(),
-  serving_basis: z.string().trim().min(1).optional(),
-  net_content: z.string().trim().min(1).optional(),
+  serving_basis: z
+    .string()
+    .trim()
+    .min(1)
+    .optional()
+    .describe('栄養値の基準量。訂正時に省略すると訂正元の値を引き継ぐ。'),
+  net_content: z
+    .string()
+    .trim()
+    .min(1)
+    .optional()
+    .describe('内容量。訂正時に省略すると訂正元の値を引き継ぐ。'),
   effective_from: z.iso
     .date()
     .optional()
     .describe(
-      '商品の栄養情報が実際に適用され始めた日。確認日から推定せず、不明なら省略する。',
+      '商品の栄養情報が実際に適用され始めた日。確認日から推定せず、不明なら省略する。訂正時に省略すると訂正元の値を引き継ぐ。',
     ),
 })
 

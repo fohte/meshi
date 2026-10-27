@@ -3401,6 +3401,80 @@ describe('food nutrition versions', () => {
       await h.close()
     }
   })
+
+  it('rejects incomplete nutrition version changes before calling the service', async () => {
+    const calls: AddFoodMasterNutritionVersionInput[] = []
+    const h = await start({
+      foodMasterOverrides: {
+        addNutritionVersion(input) {
+          calls.push(input)
+          return errAsync(
+            new FoodMasterDomainError('persistence_failed', 'should not run'),
+          )
+        },
+      },
+    })
+    const invalidArguments: ReadonlyArray<Record<string, unknown>> = [
+      {
+        food_master_id: 'fm_version_validation',
+        change_kind: 'correction',
+        corrects_version_id: '11111111-1111-4111-8111-111111111111',
+        nutrition: { energy_kcal: 100 },
+        source: 'user_input',
+        is_estimated: false,
+      },
+      {
+        food_master_id: 'fm_version_validation',
+        change_kind: 'correction',
+        reason: 'synthetic correction reason',
+        nutrition: { energy_kcal: 100 },
+        source: 'user_input',
+        is_estimated: false,
+      },
+      {
+        food_master_id: 'fm_version_validation',
+        change_kind: 'product_update',
+        nutrition: { energy_kcal: 100 },
+        source: 'user_input',
+        is_estimated: false,
+      },
+    ]
+    try {
+      const results = await Promise.all(
+        invalidArguments.map((args) =>
+          h.client.callTool({
+            name: 'add_food_nutrition_version',
+            arguments: args,
+          }),
+        ),
+      )
+
+      expect(
+        observation({
+          results: results.map(normalizeValidationError),
+          calls,
+        }),
+      ).toEqual({
+        results: [
+          {
+            content: [{ type: 'text', text: VALIDATION_ERROR_TEXT }],
+            isError: true,
+          },
+          {
+            content: [{ type: 'text', text: VALIDATION_ERROR_TEXT }],
+            isError: true,
+          },
+          {
+            content: [{ type: 'text', text: VALIDATION_ERROR_TEXT }],
+            isError: true,
+          },
+        ],
+        calls: [],
+      })
+    } finally {
+      await h.close()
+    }
+  })
 })
 
 describe('fill_food_nutrition', () => {
