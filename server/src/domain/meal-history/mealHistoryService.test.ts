@@ -13,8 +13,6 @@ import {
   seedNutrientDefinition,
 } from '#test/seed'
 
-const observation = <T extends object>(value: T): T => value
-
 const seedNutrientDefinitions = async (sql: postgres.Sql): Promise<void> => {
   await seedNutrientDefinition(sql, {
     code: 'energy_kcal',
@@ -189,21 +187,24 @@ describeIfDb('MealHistoryService.query', () => {
         periodTo: jstDate('2026-06-02'),
         nutrientCodes: ['energy_kcal', 'protein_g'],
       })
-    const before = (await query())._unsafeUnwrap()
-    await tx`
-      UPDATE food_master_nutrition
-      SET is_current = false
-      WHERE id = ${oldVersionId}
-    `
-    await seedFoodMasterNutritionVersion(tx, {
-      foodMasterId: 'versioned-food',
-      versionNo: 2,
-      isCurrent: true,
-      changeKind: 'product_update',
-      source: 'user_input',
-      nutrients: { energy_kcal: 23, protein_g: 2 },
-    })
-    const after = (await query())._unsafeUnwrap()
+    const queryBeforeAndAfterVersionChange = async () => {
+      const before = (await query())._unsafeUnwrap()
+      await tx`
+        UPDATE food_master_nutrition
+        SET is_current = false
+        WHERE id = ${oldVersionId}
+      `
+      await seedFoodMasterNutritionVersion(tx, {
+        foodMasterId: 'versioned-food',
+        versionNo: 2,
+        isCurrent: true,
+        changeKind: 'product_update',
+        source: 'user_input',
+        nutrients: { energy_kcal: 23, protein_g: 2 },
+      })
+      const after = (await query())._unsafeUnwrap()
+      return { before, after }
+    }
 
     const expected = {
       totals: { energy_kcal: 11, protein_g: 1 },
@@ -231,8 +232,10 @@ describeIfDb('MealHistoryService.query', () => {
       hasEstimatedValues: false,
       hasUnknownValues: false,
     }
-    const expectedResult = { before: expected, after: expected }
-    expect(observation({ before, after })).toEqual(expectedResult)
+    expect(await queryBeforeAndAfterVersionChange()).toEqual({
+      before: expected,
+      after: expected,
+    })
   })
 
   it('filters entries and aggregation by foodFilter', async () => {
