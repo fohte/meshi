@@ -56,7 +56,10 @@ const stockDeliveryErrorResponse = (
   if (notFoundCodes.has(error.code)) {
     return c.json({ error: error.message }, 404)
   }
-  if (error.code === 'delivery_not_planned') {
+  if (
+    error.code === 'delivery_not_planned' ||
+    error.code === 'delivery_source_ref_conflict'
+  ) {
     return c.json({ error: error.message }, 409)
   }
   return jsonServerError(c, error)

@@ -72,8 +72,8 @@ erDiagram
   timestamp_with_time_zone created_at
 }
 "public.deliveries" {
-  text id
-  text source_ref
+  text id FK
+  text source_ref FK
   delivery_status status
   date expected_date
   date received_date

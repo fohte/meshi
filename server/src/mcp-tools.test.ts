@@ -673,7 +673,7 @@ const start = async (config: HarnessConfig = {}): Promise<Harness> => {
 }
 
 describe('MeshiMcpServer tools/list', () => {
-  it('exposes the twenty-three public tools with stable names', async () => {
+  it('exposes the twenty-four public tools with stable names', async () => {
     const h = await start()
     try {
       const result = await h.client.listTools()
@@ -699,6 +699,7 @@ describe('MeshiMcpServer tools/list', () => {
         'register_meal_set',
         'search_foods',
         'set_stock_item',
+        'update_delivery_source_ref',
         'update_meal_log',
         'update_profile',
         'update_stock_lot',
@@ -848,6 +849,7 @@ describe('MeshiMcpServer tools/list', () => {
           'storage_location_name',
         ],
         update_stock_lot: ['best_before', 'eat_by', 'stock_lot_id'],
+        update_delivery_source_ref: ['delivery_id', 'source_ref'],
         register_food: [
           'aliases',
           'confirmed_distinct_from_master_ids',
@@ -909,13 +911,18 @@ describe('MeshiMcpServer tools/list', () => {
       const requiredByTool = Object.fromEntries(
         result.tools
           .filter((tool) =>
-            ['register_delivery', 'receive_delivery'].includes(tool.name),
+            [
+              'register_delivery',
+              'receive_delivery',
+              'update_delivery_source_ref',
+            ].includes(tool.name),
           )
           .map((tool) => [tool.name, tool.inputSchema.required]),
       )
       expect(requiredByTool).toEqual({
         receive_delivery: ['delivery_id', 'received_date'],
         register_delivery: ['status', 'expected_date', 'items'],
+        update_delivery_source_ref: ['delivery_id', 'source_ref'],
       })
     } finally {
       await h.close()

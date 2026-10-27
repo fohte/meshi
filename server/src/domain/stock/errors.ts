@@ -6,6 +6,7 @@ export type StockDomainErrorCode =
   | 'stock_lot_not_found'
   | 'delivery_not_found'
   | 'delivery_not_planned'
+  | 'delivery_source_ref_conflict'
   | 'delivery_item_not_found'
   | 'invalid_input'
   | 'persistence_failed'

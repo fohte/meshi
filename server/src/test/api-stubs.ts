@@ -173,6 +173,13 @@ export const createStubApiDeps = (): ApiDeps => ({
           'stockService.registerDelivery not stubbed',
         ),
       ),
+    updateDeliverySourceRef: () =>
+      errAsync(
+        new StockDomainError(
+          'persistence_failed',
+          'stockService.updateDeliverySourceRef not stubbed',
+        ),
+      ),
     receiveDelivery: () =>
       errAsync(
         new StockDomainError(

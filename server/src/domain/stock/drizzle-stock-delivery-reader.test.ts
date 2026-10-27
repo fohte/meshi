@@ -126,6 +126,12 @@ describeIfDb('stock delivery reader', () => {
       {
         id: 'dly_received_remaining_reader',
         sourceRef: 'ref_received_remaining_reader',
+        sourceRefHistory: [
+          {
+            sourceRef: 'ref_received_remaining_reader',
+            createdAt: '2001-01-01T00:00:00.000000Z',
+          },
+        ],
         status: 'received',
         expectedDate: '2031-04-10',
         receivedDate: '2031-05-04',
@@ -143,6 +149,12 @@ describeIfDb('stock delivery reader', () => {
       {
         id: 'dly_planned_reader',
         sourceRef: 'ref_planned_reader',
+        sourceRefHistory: [
+          {
+            sourceRef: 'ref_planned_reader',
+            createdAt: '2001-01-01T00:00:00.000000Z',
+          },
+        ],
         status: 'planned',
         expectedDate: '2031-05-03',
         receivedDate: null,
@@ -160,6 +172,12 @@ describeIfDb('stock delivery reader', () => {
       {
         id: 'dly_received_reader',
         sourceRef: 'ref_received_reader',
+        sourceRefHistory: [
+          {
+            sourceRef: 'ref_received_reader',
+            createdAt: '2001-01-01T00:00:00.000000Z',
+          },
+        ],
         status: 'received',
         expectedDate: '2031-05-10',
         receivedDate: '2031-05-02',
@@ -177,6 +195,12 @@ describeIfDb('stock delivery reader', () => {
       {
         id: 'dly_cancelled_reader',
         sourceRef: 'ref_cancelled_reader',
+        sourceRefHistory: [
+          {
+            sourceRef: 'ref_cancelled_reader',
+            createdAt: '2001-01-01T00:00:00.000000Z',
+          },
+        ],
         status: 'cancelled',
         expectedDate: '2031-05-01',
         receivedDate: null,
@@ -197,6 +221,12 @@ describeIfDb('stock delivery reader', () => {
       {
         id: 'dly_filter_a',
         sourceRef: 'ref_filter_a',
+        sourceRefHistory: [
+          {
+            sourceRef: 'ref_filter_a',
+            createdAt: '2001-01-01T00:00:00.000000Z',
+          },
+        ],
         status: 'received',
         expectedDate: '2031-06-01',
         receivedDate: '2031-06-02',
@@ -217,6 +247,12 @@ describeIfDb('stock delivery reader', () => {
       {
         id: 'dly_filter_b',
         sourceRef: 'ref_filter_b',
+        sourceRefHistory: [
+          {
+            sourceRef: 'ref_filter_b',
+            createdAt: '2001-01-01T00:00:00.000000Z',
+          },
+        ],
         status: 'received',
         expectedDate: '2031-06-03',
         receivedDate: '2031-06-03',
@@ -265,6 +301,12 @@ describeIfDb('stock delivery reader', () => {
       {
         id: 'dly_status_received',
         sourceRef: 'ref_status_received',
+        sourceRefHistory: [
+          {
+            sourceRef: 'ref_status_received',
+            createdAt: '2001-01-01T00:00:00.000000Z',
+          },
+        ],
         status: 'received',
         expectedDate: '2031-06-04',
         receivedDate: '2031-06-05',
@@ -298,6 +340,12 @@ describeIfDb('stock delivery reader', () => {
       {
         id: 'dly_limit_newer',
         sourceRef: 'ref_limit_newer',
+        sourceRefHistory: [
+          {
+            sourceRef: 'ref_limit_newer',
+            createdAt: '2001-01-01T00:00:00.000000Z',
+          },
+        ],
         status: 'cancelled',
         expectedDate: '2031-07-02',
         receivedDate: null,
