@@ -56,16 +56,6 @@ export const createStockDeliveryWriter = (
         if (existingRows.isErr()) return err(existingRows.error)
         delivery = existingRows.value[0]
       }
-      if (delivery?.status === 'received') {
-        return err(
-          new StockDomainError(
-            'delivery_not_planned',
-            'received deliveries cannot be changed',
-            { deliveryId: delivery.id },
-          ),
-        )
-      }
-
       if (foodMasterIds.length > 0) {
         const stockItemRows = parseRows(
           z.object({ food_master_id: z.string() }),
@@ -92,6 +82,16 @@ export const createStockDeliveryWriter = (
             ),
           )
         }
+      }
+
+      if (delivery?.status === 'received') {
+        return err(
+          new StockDomainError(
+            'delivery_not_planned',
+            'received deliveries cannot be changed',
+            { deliveryId: delivery.id },
+          ),
+        )
       }
 
       if (delivery === undefined) {

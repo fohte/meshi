@@ -85,7 +85,7 @@ const deliverySourceRefHistoryOutput = z.object({
   created_at: z.iso.datetime({ offset: true }),
 })
 
-export const listedDeliveryStructuredOutput = z.object({
+const listedDeliveryStructuredOutput = z.object({
   delivery_id: z.string(),
   source_ref: z.string().nullable(),
   source_ref_history: z.array(deliverySourceRefHistoryOutput),

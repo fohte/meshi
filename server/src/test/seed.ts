@@ -231,7 +231,7 @@ export const seedStockItem = async (
 
 const defaultSeedCreatedAt = new Date('2001-01-01T00:00:00.000Z')
 
-export const seedDeliverySourceRef = async (
+const seedDeliverySourceRef = async (
   sql: Sql,
   values: typeof deliverySourceRefs.$inferInsert,
 ): Promise<void> => {

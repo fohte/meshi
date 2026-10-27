@@ -155,13 +155,6 @@
       "when": 1793125900981,
       "tag": "0021_talented_big_bertha",
       "breakpoints": true
-    },
-    {
-      "idx": 22,
-      "version": "7",
-      "when": 1793126901285,
-      "tag": "0022_condemned_khan",
-      "breakpoints": true
     }
   ]
 }

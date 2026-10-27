@@ -78,7 +78,7 @@ export interface ListDeliveriesInput {
   readonly limit: number
 }
 
-export interface DeliverySourceRefHistoryItem {
+interface DeliverySourceRefHistoryItem {
   readonly sourceRef: string
   readonly createdAt: string
 }

@@ -5,7 +5,7 @@ CREATE TABLE "delivery_source_refs" (
 	CONSTRAINT "delivery_source_refs_source_ref_nonblank" CHECK (btrim("delivery_source_refs"."source_ref") <> '')
 );
 --> statement-breakpoint
-ALTER TABLE "delivery_source_refs" ADD CONSTRAINT "delivery_source_refs_delivery_id_deliveries_id_fk" FOREIGN KEY ("delivery_id") REFERENCES "public"."deliveries"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "delivery_source_refs" ADD CONSTRAINT "delivery_source_refs_delivery_id_deliveries_id_fk" FOREIGN KEY ("delivery_id") REFERENCES "public"."deliveries"("id") ON DELETE no action ON UPDATE cascade;--> statement-breakpoint
 CREATE UNIQUE INDEX "delivery_source_refs_delivery_id_source_ref_key" ON "delivery_source_refs" USING btree ("delivery_id","source_ref");--> statement-breakpoint
 INSERT INTO "delivery_source_refs" ("source_ref", "delivery_id", "created_at")
 SELECT "source_ref", "id", "created_at"
