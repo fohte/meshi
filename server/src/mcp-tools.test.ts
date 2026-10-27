@@ -761,7 +761,7 @@ describe('MeshiMcpServer tools/list', () => {
         (tool) => tool.name === 'query_meals',
       )
       expect(queryMeals?.description).toEqual(
-        'JST の period_from 以上、period_to 未満の食事履歴と栄養集計を返す。質問の解釈と集計結果の説明は ChatGPT が行う。後で記録を削除・修正するときは各記録の meal_log_id を使う。採用バージョンが null なら不明です。checked_on と effective_from の null もそれぞれ不明を表し、確認日は適用開始日を意味しません。nutrition_version_differences に要素がある場合は同じ食品に栄養値の異なる版があるため、記録の値を確定値として扱わないでください。',
+        'JST の period_from 以上、period_to 未満の食事履歴と栄養集計を返す。質問の解釈と集計結果の説明は ChatGPT が行う。後で記録を削除・修正するときは各記録の meal_log_id を使う。採用バージョンが null なら不明を表す。checked_on と effective_from の null もそれぞれ不明を表し、確認日は適用開始日を意味しない。nutrition_version_differences に要素がある場合は同じ食品に栄養値の異なるバージョンがあるため、記録の値を確定値として扱わない。',
       )
     } finally {
       await h.close()
