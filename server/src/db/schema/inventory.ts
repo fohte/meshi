@@ -75,7 +75,7 @@ export const deliverySourceRefs = pgTable(
     sourceRef: text('source_ref').primaryKey(),
     deliveryId: text('delivery_id')
       .notNull()
-      .references((): AnyPgColumn => deliveries.id),
+      .references((): AnyPgColumn => deliveries.id, { onUpdate: 'cascade' }),
     createdAt: timestamp('created_at', { withTimezone: true, mode: 'date' })
       .notNull()
       .default(sql`now()`),

@@ -14,14 +14,14 @@ External references assigned to deliveries, including corrected references.
 
 ## Constraints
 
-| Name                                              | Type        | Definition                                          |
-| ------------------------------------------------- | ----------- | --------------------------------------------------- |
-| delivery_source_refs_created_at_not_null          | n           | NOT NULL created_at                                 |
-| delivery_source_refs_delivery_id_not_null         | n           | NOT NULL delivery_id                                |
-| delivery_source_refs_source_ref_nonblank          | CHECK       | CHECK ((btrim(source_ref) <> ''::text))             |
-| delivery_source_refs_source_ref_not_null          | n           | NOT NULL source_ref                                 |
-| delivery_source_refs_delivery_id_deliveries_id_fk | FOREIGN KEY | FOREIGN KEY (delivery_id) REFERENCES deliveries(id) |
-| delivery_source_refs_pkey                         | PRIMARY KEY | PRIMARY KEY (source_ref)                            |
+| Name                                              | Type        | Definition                                                            |
+| ------------------------------------------------- | ----------- | --------------------------------------------------------------------- |
+| delivery_source_refs_created_at_not_null          | n           | NOT NULL created_at                                                   |
+| delivery_source_refs_delivery_id_not_null         | n           | NOT NULL delivery_id                                                  |
+| delivery_source_refs_source_ref_nonblank          | CHECK       | CHECK ((btrim(source_ref) <> ''::text))                               |
+| delivery_source_refs_source_ref_not_null          | n           | NOT NULL source_ref                                                   |
+| delivery_source_refs_delivery_id_deliveries_id_fk | FOREIGN KEY | FOREIGN KEY (delivery_id) REFERENCES deliveries(id) ON UPDATE CASCADE |
+| delivery_source_refs_pkey                         | PRIMARY KEY | PRIMARY KEY (source_ref)                                              |
 
 ## Indexes
 
@@ -36,7 +36,7 @@ External references assigned to deliveries, including corrected references.
 erDiagram
 
 "public.deliveries" }o--|| "public.delivery_source_refs" : "FOREIGN KEY (id, source_ref) REFERENCES delivery_source_refs(delivery_id, source_ref)"
-"public.delivery_source_refs" }o--|| "public.deliveries" : "FOREIGN KEY (delivery_id) REFERENCES deliveries(id)"
+"public.delivery_source_refs" }o--|| "public.deliveries" : "FOREIGN KEY (delivery_id) REFERENCES deliveries(id) ON UPDATE CASCADE"
 
 "public.delivery_source_refs" {
   text source_ref

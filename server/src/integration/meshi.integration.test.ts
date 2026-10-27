@@ -1394,6 +1394,120 @@ describeIfDb('meshi integration', () => {
     }
   })
 
+  it('updates a planned delivery through its prior reference without changing its current reference', async () => {
+    const tx = getTx()
+    const deliveryId = 'dly_ref_correction_planned'
+    const foodMasterId = 'fm_ref_correction_planned'
+    const originalSourceRef = 'ref_planned_original'
+    const correctedSourceRef = 'ref_planned_corrected'
+    await seedFoodMasterWithoutNutritionRow(tx, {
+      id: foodMasterId,
+      name: 'Sample planned delivery food',
+    })
+    await seedStockItem(tx, { foodMasterId })
+    await seedDelivery(tx, {
+      id: deliveryId,
+      sourceRef: originalSourceRef,
+      status: 'planned',
+      expectedDate: '2031-08-01',
+    })
+    const harness = await startHarness({ tx })
+
+    try {
+      await harness.client.callTool({
+        name: 'update_delivery_source_ref',
+        arguments: {
+          delivery_id: deliveryId,
+          source_ref: correctedSourceRef,
+        },
+      })
+      const registered = normalizeResult(
+        await harness.client.callTool({
+          name: 'register_delivery',
+          arguments: {
+            source_ref: originalSourceRef,
+            status: 'planned',
+            expected_date: '2031-08-03',
+            items: [{ food_master_id: foodMasterId, quantity: 3 }],
+          },
+        }),
+      )
+      const state = {
+        deliveries: await tx<
+          {
+            id: string
+            source_ref: string | null
+            status: string
+            expected_date: string
+          }[]
+        >`
+          SELECT id, source_ref, status::text AS status,
+                 expected_date::text AS expected_date
+          FROM deliveries
+          ORDER BY id
+        `,
+        sourceRefs: await tx<{ source_ref: string; delivery_id: string }[]>`
+          SELECT source_ref, delivery_id
+          FROM delivery_source_refs
+          ORDER BY source_ref
+        `,
+        stockLots: await tx<
+          { delivery_id: string; food_master_id: string; quantity: string }[]
+        >`
+          SELECT delivery_id, food_master_id, quantity::text AS quantity
+          FROM stock_lots
+          ORDER BY delivery_id, food_master_id
+        `,
+      }
+
+      const actual = { registered, state }
+      const expected = {
+        registered: {
+          content: [{ type: 'text', text: '入荷予定を保存しました。' }],
+          structuredContent: {
+            delivery_id: deliveryId,
+            source_ref: correctedSourceRef,
+            status: 'planned',
+            expected_date: '2031-08-03',
+            received_date: null,
+            change_deadline: null,
+            items: [
+              {
+                food_master_id: foodMasterId,
+                food_name: 'Sample planned delivery food',
+                quantity: 3,
+              },
+            ],
+          },
+        },
+        state: {
+          deliveries: [
+            {
+              id: deliveryId,
+              source_ref: correctedSourceRef,
+              status: 'planned',
+              expected_date: '2031-08-03',
+            },
+          ],
+          sourceRefs: [
+            { source_ref: correctedSourceRef, delivery_id: deliveryId },
+            { source_ref: originalSourceRef, delivery_id: deliveryId },
+          ],
+          stockLots: [
+            {
+              delivery_id: deliveryId,
+              food_master_id: foodMasterId,
+              quantity: '3',
+            },
+          ],
+        },
+      }
+      expect(observation(actual)).toEqual(expected)
+    } finally {
+      await harness.close()
+    }
+  })
+
   it('preserves partial and complete stock records and status output when references change', async () => {
     const tx = getTx()
     const scenario = await seedDeliverySourceRefCorrectionScenario(tx)
@@ -1522,7 +1636,60 @@ describeIfDb('meshi integration', () => {
     }
   })
 
-  it('leaves all delivery rows unchanged for conflicts, missing ids, and invalid input', async () => {
+  it('rejects reusing a reference from the same delivery history', async () => {
+    const tx = getTx()
+    const scenario = await seedDeliverySourceRefCorrectionScenario(tx)
+    const harness = await startHarness({ tx })
+
+    try {
+      await harness.client.callTool({
+        name: 'update_delivery_source_ref',
+        arguments: {
+          delivery_id: scenario.partialDeliveryId,
+          source_ref: scenario.partialNewSourceRef,
+        },
+      })
+      const before = await readDeliveryDatabaseSnapshot(
+        tx,
+        [scenario.partialDeliveryId, scenario.completeDeliveryId],
+        [scenario.partialMealLogId, scenario.completeMealLogId],
+      )
+      const conflict = normalizeResult(
+        await harness.client.callTool({
+          name: 'update_delivery_source_ref',
+          arguments: {
+            delivery_id: scenario.partialDeliveryId,
+            source_ref: scenario.partialOldSourceRef,
+          },
+        }),
+      )
+      const after = await readDeliveryDatabaseSnapshot(
+        tx,
+        [scenario.partialDeliveryId, scenario.completeDeliveryId],
+        [scenario.partialMealLogId, scenario.completeMealLogId],
+      )
+
+      const actual = { conflict, before, after }
+      const expected = {
+        conflict: {
+          isError: true,
+          content: [
+            {
+              type: 'text',
+              text: `source_ref is already used by delivery ${scenario.partialDeliveryId}`,
+            },
+          ],
+        },
+        before,
+        after: before,
+      }
+      expect(observation(actual)).toEqual(expected)
+    } finally {
+      await harness.close()
+    }
+  })
+
+  it('leaves all delivery rows unchanged when a reference belongs to another delivery', async () => {
     const tx = getTx()
     const scenario = await seedDeliverySourceRefCorrectionScenario(tx)
     const harness = await startHarness({ tx })
@@ -1542,6 +1709,43 @@ describeIfDb('meshi integration', () => {
           },
         }),
       )
+      const after = await readDeliveryDatabaseSnapshot(
+        tx,
+        [scenario.partialDeliveryId, scenario.completeDeliveryId],
+        [scenario.partialMealLogId, scenario.completeMealLogId],
+      )
+
+      const actual = { conflict, before, after }
+      const expected = {
+        conflict: {
+          isError: true,
+          content: [
+            {
+              type: 'text',
+              text: `source_ref is already used by delivery ${scenario.completeDeliveryId}`,
+            },
+          ],
+        },
+        before,
+        after: before,
+      }
+      expect(observation(actual)).toEqual(expected)
+    } finally {
+      await harness.close()
+    }
+  })
+
+  it('leaves all delivery rows unchanged when the delivery id does not exist', async () => {
+    const tx = getTx()
+    const scenario = await seedDeliverySourceRefCorrectionScenario(tx)
+    const harness = await startHarness({ tx })
+
+    try {
+      const before = await readDeliveryDatabaseSnapshot(
+        tx,
+        [scenario.partialDeliveryId, scenario.completeDeliveryId],
+        [scenario.partialMealLogId, scenario.completeMealLogId],
+      )
       const missing = normalizeResult(
         await harness.client.callTool({
           name: 'update_delivery_source_ref',
@@ -1550,6 +1754,43 @@ describeIfDb('meshi integration', () => {
             source_ref: 'ref_unused_source',
           },
         }),
+      )
+      const after = await readDeliveryDatabaseSnapshot(
+        tx,
+        [scenario.partialDeliveryId, scenario.completeDeliveryId],
+        [scenario.partialMealLogId, scenario.completeMealLogId],
+      )
+
+      const actual = { missing, before, after }
+      const expected = {
+        missing: {
+          isError: true,
+          content: [
+            {
+              type: 'text',
+              text: 'delivery not found: dly_missing_source_ref',
+            },
+          ],
+        },
+        before,
+        after: before,
+      }
+      expect(observation(actual)).toEqual(expected)
+    } finally {
+      await harness.close()
+    }
+  })
+
+  it('leaves all delivery rows unchanged for invalid reference input', async () => {
+    const tx = getTx()
+    const scenario = await seedDeliverySourceRefCorrectionScenario(tx)
+    const harness = await startHarness({ tx })
+
+    try {
+      const before = await readDeliveryDatabaseSnapshot(
+        tx,
+        [scenario.partialDeliveryId, scenario.completeDeliveryId],
+        [scenario.partialMealLogId, scenario.completeMealLogId],
       )
       const invalid = normalizeValidationErrorResult(
         await harness.client.callTool({
@@ -1566,26 +1807,8 @@ describeIfDb('meshi integration', () => {
         [scenario.partialMealLogId, scenario.completeMealLogId],
       )
 
-      const actual = { conflict, missing, invalid, before, after }
+      const actual = { invalid, before, after }
       const expected = {
-        conflict: {
-          isError: true,
-          content: [
-            {
-              type: 'text',
-              text: `source_ref is already used by delivery ${scenario.completeDeliveryId}`,
-            },
-          ],
-        },
-        missing: {
-          isError: true,
-          content: [
-            {
-              type: 'text',
-              text: 'delivery not found: dly_missing_source_ref',
-            },
-          ],
-        },
         invalid: {
           content: [{ type: 'text', text: VALIDATION_ERROR_TEXT }],
           isError: true,

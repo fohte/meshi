@@ -3,6 +3,7 @@ import { z } from 'zod'
 
 import type { Sql } from '#db/index'
 import type { IdGenerator } from '#domain/food-master/id'
+import { claimDeliverySourceRef } from '#domain/stock/drizzle-stock-source-ref-claimer'
 import { StockDomainError } from '#domain/stock/errors'
 import {
   createStockWriteRunner,
@@ -20,8 +21,6 @@ const deliveryRowSchema = z.object({
   source_ref: z.string().nullable(),
   status: z.enum(['planned', 'received', 'cancelled']),
 })
-
-const sourceRefOwnerSchema = z.object({ delivery_id: z.string() })
 
 const stockFoodRowSchema = z.object({
   food_master_id: z.string(),
@@ -115,48 +114,11 @@ export const createStockDeliveryWriter = (
         delivery = created.value
 
         if (sourceRef !== null) {
-          const claimRows = parseRows(
-            sourceRefOwnerSchema,
-            await tx<Record<string, unknown>[]>`
-              INSERT INTO delivery_source_refs (
-                source_ref, delivery_id, created_at
-              ) VALUES (
-                ${sourceRef}, ${delivery.id}, statement_timestamp()
-              )
-              ON CONFLICT (source_ref) DO NOTHING
-              RETURNING delivery_id
-            `,
-            'claim delivery source reference',
-          )
-          if (claimRows.isErr()) return err(claimRows.error)
-          if (claimRows.value.length === 0) {
-            const ownerRows = parseRows(
-              sourceRefOwnerSchema,
-              await tx<Record<string, unknown>[]>`
-                SELECT delivery_id
-                FROM delivery_source_refs
-                WHERE source_ref = ${sourceRef}
-              `,
-              'load source reference owner',
-            )
-            if (ownerRows.isErr()) return err(ownerRows.error)
-            const owner = firstRow(
-              ownerRows.value,
-              'load source reference owner',
-            )
-            if (owner.isErr()) return err(owner.error)
-            return err(
-              new StockDomainError(
-                'delivery_source_ref_conflict',
-                `source_ref is already used by delivery ${owner.value.delivery_id}`,
-                {
-                  sourceRef,
-                  deliveryId: delivery.id,
-                  conflictingDeliveryId: owner.value.delivery_id,
-                },
-              ),
-            )
-          }
+          const claim = await claimDeliverySourceRef(tx, {
+            sourceRef,
+            deliveryId: delivery.id,
+          })
+          if (claim.isErr()) return err(claim.error)
 
           const attachedRows = parseRows(
             deliveryRowSchema,

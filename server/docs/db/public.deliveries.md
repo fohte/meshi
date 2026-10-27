@@ -44,7 +44,7 @@ erDiagram
 
 "public.deliveries" }o--|| "public.delivery_source_refs" : "FOREIGN KEY (id, source_ref) REFERENCES delivery_source_refs(delivery_id, source_ref)"
 "public.stock_lots" }o--o| "public.deliveries" : "FOREIGN KEY (delivery_id) REFERENCES deliveries(id) ON UPDATE CASCADE ON DELETE RESTRICT"
-"public.delivery_source_refs" }o--|| "public.deliveries" : "FOREIGN KEY (delivery_id) REFERENCES deliveries(id)"
+"public.delivery_source_refs" }o--|| "public.deliveries" : "FOREIGN KEY (delivery_id) REFERENCES deliveries(id) ON UPDATE CASCADE"
 
 "public.deliveries" {
   text id FK

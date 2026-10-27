@@ -40,7 +40,24 @@ export const readListedDeliveries = (
 ): ResultAsync<ReadonlyArray<ListedDelivery>, StockDomainError> =>
   ResultAsync.fromPromise(
     pgSql<Record<string, unknown>[]>`
-      WITH delivery_lots AS (
+      WITH selected_deliveries AS MATERIALIZED (
+        SELECT d.id, d.source_ref, d.status, d.expected_date,
+               d.received_date, d.change_deadline
+        FROM deliveries d
+        WHERE (${input.deliveryId ?? null}::text IS NULL
+               OR d.id = ${input.deliveryId ?? null})
+          AND (${input.sourceRef ?? null}::text IS NULL
+               OR EXISTS (
+                 SELECT 1
+                 FROM delivery_source_refs dsr
+                 WHERE dsr.delivery_id = d.id
+                   AND dsr.source_ref = ${input.sourceRef ?? null}
+               ))
+          AND (${input.status ?? null}::text IS NULL
+               OR d.status::text = ${input.status ?? null})
+        ORDER BY COALESCE(d.received_date, d.expected_date) DESC, d.id DESC
+        LIMIT ${input.limit}
+      ), delivery_lots AS (
         SELECT sl.delivery_id, sl.id AS stock_lot_id,
                sl.food_master_id, fm.name AS food_name,
                sl.quantity::text AS quantity,
@@ -48,7 +65,7 @@ export const readListedDeliveries = (
                  THEN COALESCE(SUM(sm.delta), 0)::text
                  ELSE NULL
                END AS remaining_quantity
-        FROM deliveries d
+        FROM selected_deliveries d
         JOIN stock_lots sl ON sl.delivery_id = d.id
         JOIN food_masters fm ON fm.id = sl.food_master_id
         LEFT JOIN stock_movements sm ON sm.stock_lot_id = sl.id
@@ -58,15 +75,16 @@ export const readListedDeliveries = (
         SELECT delivery_id,
                jsonb_agg(
                  jsonb_build_object(
-                   'source_ref', source_ref,
+                   'source_ref', dsr.source_ref,
                    'created_at', to_char(
-                     created_at AT TIME ZONE 'UTC',
+                     dsr.created_at AT TIME ZONE 'UTC',
                      'YYYY-MM-DD"T"HH24:MI:SS.US"Z"'
                    )
-                 ) ORDER BY created_at, source_ref
+                 ) ORDER BY dsr.created_at, dsr.source_ref
                ) AS source_ref_history
-        FROM delivery_source_refs
-        GROUP BY delivery_id
+        FROM delivery_source_refs dsr
+        JOIN selected_deliveries d ON d.id = dsr.delivery_id
+        GROUP BY dsr.delivery_id
       )
       SELECT d.id, d.source_ref,
              COALESCE(dsrh.source_ref_history, '[]'::jsonb) AS source_ref_history,
@@ -86,23 +104,12 @@ export const readListedDeliveries = (
                ) FILTER (WHERE dl.stock_lot_id IS NOT NULL),
                '[]'::jsonb
              ) AS items
-      FROM deliveries d
+      FROM selected_deliveries d
       LEFT JOIN delivery_lots dl ON dl.delivery_id = d.id
       LEFT JOIN delivery_source_ref_history dsrh ON dsrh.delivery_id = d.id
-      WHERE (${input.deliveryId ?? null}::text IS NULL
-             OR d.id = ${input.deliveryId ?? null})
-        AND (${input.sourceRef ?? null}::text IS NULL
-             OR EXISTS (
-               SELECT 1
-               FROM delivery_source_refs dsr
-               WHERE dsr.delivery_id = d.id
-                 AND dsr.source_ref = ${input.sourceRef ?? null}
-             ))
-        AND (${input.status ?? null}::text IS NULL
-             OR d.status::text = ${input.status ?? null})
-      GROUP BY d.id, dsrh.source_ref_history
+      GROUP BY d.id, d.source_ref, d.status, d.expected_date,
+               d.received_date, d.change_deadline, dsrh.source_ref_history
       ORDER BY COALESCE(d.received_date, d.expected_date) DESC, d.id DESC
-      LIMIT ${input.limit}
     `,
     toStockError,
   ).andThen((rows) => {

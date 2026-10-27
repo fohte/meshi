@@ -3,6 +3,7 @@ import { expect, it } from 'vitest'
 import { describeIfDb, getTestSql, setupTx } from '#test/db'
 import { jstDate } from '#test/jst-date'
 import {
+  seedDelivery,
   seedFoodComposition,
   seedFoodMasterWithoutNutrition,
   seedMealLog,
@@ -314,7 +315,7 @@ describeIfDb('schema migrations', () => {
         conname: 'delivery_source_refs_delivery_id_deliveries_id_fk',
         table_name: 'delivery_source_refs',
         ref_table: 'deliveries',
-        on_update: 'a',
+        on_update: 'c',
         on_delete: 'a',
       },
       {
@@ -573,6 +574,44 @@ const runOutcome = async (
 
 describeIfDb('schema runtime constraints', () => {
   const getTx = setupTx()
+
+  it('cascades delivery id updates to source reference history', async () => {
+    const tx = getTx()
+    await seedDelivery(tx, {
+      id: 'dly_reference_cascade_old',
+      sourceRef: 'ref_reference_cascade',
+      expectedDate: '2031-09-01',
+    })
+
+    await tx`
+      UPDATE deliveries
+      SET id = 'dly_reference_cascade_new'
+      WHERE id = 'dly_reference_cascade_old'
+    `
+
+    const actual = {
+      deliveries: await tx<{ id: string; source_ref: string | null }[]>`
+        SELECT id, source_ref FROM deliveries
+      `,
+      sourceRefs: await tx<{ source_ref: string; delivery_id: string }[]>`
+        SELECT source_ref, delivery_id FROM delivery_source_refs
+      `,
+    }
+    expect(observation(actual)).toEqual({
+      deliveries: [
+        {
+          id: 'dly_reference_cascade_new',
+          source_ref: 'ref_reference_cascade',
+        },
+      ],
+      sourceRefs: [
+        {
+          source_ref: 'ref_reference_cascade',
+          delivery_id: 'dly_reference_cascade_new',
+        },
+      ],
+    })
+  })
 
   it('rejects inserts that violate the meal_logs_quantity_positive CHECK', async () => {
     const tx = getTx()
