@@ -673,7 +673,7 @@ const start = async (config: HarnessConfig = {}): Promise<Harness> => {
 }
 
 describe('MeshiMcpServer tools/list', () => {
-  it('exposes the twenty-two public tools with stable names', async () => {
+  it('exposes the twenty-three public tools with stable names', async () => {
     const h = await start()
     try {
       const result = await h.client.listTools()
@@ -686,6 +686,7 @@ describe('MeshiMcpServer tools/list', () => {
         'get_profile',
         'get_recommendation_context',
         'get_stock_status',
+        'list_deliveries',
         'merge_food_master',
         'query_meals',
         'receive_delivery',
@@ -820,6 +821,7 @@ describe('MeshiMcpServer tools/list', () => {
         get_profile: [],
         get_recommendation_context: ['period_from', 'period_to'],
         get_stock_status: [],
+        list_deliveries: ['delivery_id', 'limit', 'source_ref', 'status'],
         merge_food_master: [
           'dry_run',
           'loser_food_master_id',

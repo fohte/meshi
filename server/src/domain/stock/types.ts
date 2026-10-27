@@ -66,6 +66,22 @@ export interface Delivery {
   readonly items: ReadonlyArray<DeliveryItem>
 }
 
+export interface ListDeliveriesInput {
+  readonly deliveryId?: string
+  readonly sourceRef?: string
+  readonly status?: Delivery['status']
+  readonly limit: number
+}
+
+interface DeliveryLotItem extends DeliveryItem {
+  readonly stockLotId: string
+  readonly remainingQuantity: number | null
+}
+
+export interface ListedDelivery extends Omit<Delivery, 'items'> {
+  readonly items: ReadonlyArray<DeliveryLotItem>
+}
+
 interface StockStorageLocation {
   readonly name: string
   readonly capacity: number | null
@@ -201,6 +217,9 @@ export interface StockRepository {
   receiveDelivery(
     input: ReceiveDeliveryInput,
   ): ResultAsync<Delivery, StockDomainError>
+  listDeliveries(
+    input: ListDeliveriesInput,
+  ): ResultAsync<ReadonlyArray<ListedDelivery>, StockDomainError>
   getStockStatus(
     today: JstDate,
   ): ResultAsync<StockStatusSnapshot, StockDomainError>
@@ -222,5 +241,8 @@ export interface StockService {
   receiveDelivery(
     input: ReceiveDeliveryInput,
   ): ResultAsync<Delivery, StockDomainError>
+  listDeliveries(
+    input: ListDeliveriesInput,
+  ): ResultAsync<ReadonlyArray<ListedDelivery>, StockDomainError>
   getStockStatus(): ResultAsync<StockStatus, StockDomainError>
 }

@@ -5,6 +5,7 @@ import { StockDomainError } from '#domain/stock/errors'
 import { calculateStockStatus } from '#domain/stock/stock-status-calculator'
 import type {
   CountStockInput,
+  ListDeliveriesInput,
   ReceiveDeliveryInput,
   RegisterDeliveryInput,
   SetStockItemInput,
@@ -214,6 +215,10 @@ export const createStockService = (
       deliveryId,
       ...(items === undefined ? {} : { items }),
     })
+  },
+
+  listDeliveries(input: ListDeliveriesInput) {
+    return repository.listDeliveries(input)
   },
 
   getStockStatus() {

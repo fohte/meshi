@@ -180,6 +180,7 @@ export const createStubApiDeps = (): ApiDeps => ({
           'stockService.receiveDelivery not stubbed',
         ),
       ),
+    listDeliveries: () => okAsync([]),
     getStockStatus: () =>
       okAsync({
         stockItems: [],
