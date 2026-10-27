@@ -170,6 +170,40 @@ describe('POST /api/stock/deliveries', () => {
       body: { error: 'delivery unavailable' },
     })
   })
+
+  it('returns a conflict when the source reference is already claimed', async () => {
+    const calls: Array<RegisterDeliveryInput> = []
+    const app = buildApp({
+      ...createStubApiDeps().stockService,
+      registerDelivery: (input) => {
+        calls.push(input)
+        return errAsync(
+          new StockDomainError(
+            'delivery_source_ref_conflict',
+            'source reference is already claimed',
+          ),
+        )
+      },
+    })
+    const input: RegisterDeliveryInput = {
+      sourceRef: 'order_example_43',
+      status: 'planned',
+      expectedDate: '2026-11-14',
+      items: [{ foodMasterId: 'food_example_oats', quantity: 2 }],
+    }
+
+    const res = await app.request('/api/stock/deliveries', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify(input),
+    })
+
+    expect(await responseWithCalls(res, calls)).toEqual({
+      status: 409,
+      body: { error: 'source reference is already claimed' },
+      calls: [input],
+    })
+  })
 })
 
 describe('POST /api/stock/deliveries/:id/receive', () => {

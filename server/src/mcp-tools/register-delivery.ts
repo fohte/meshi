@@ -25,7 +25,7 @@ export const registerRegisterDeliveryTool = (
     'register_delivery',
     {
       description:
-        '入荷予定を登録・更新する。同じ source_ref の配送は 1 件に保ち、変更時は status と items を更新し、キャンセル時は status を cancelled にする。status が planned のとき、items の食品は事前に set_stock_item で在庫の対象にしておく。対象外の食品はエラーになる。cancelled のとき items は無視する。',
+        '入荷予定を登録・更新する。訂正前の source_ref も同じ配送に解決する。受領済みの配送は delivery_not_planned になり、参照の訂正には update_delivery_source_ref を使う。planned の配送は status と items を更新し、キャンセル時は status を cancelled にする。status が planned のとき、items の食品は事前に set_stock_item で在庫の対象にしておく。対象外の食品はエラーになる。cancelled のとき items は無視する。',
       inputSchema: registerDeliveryInput,
       outputSchema: deliveryStructuredOutput,
       annotations: { readOnlyHint: false },

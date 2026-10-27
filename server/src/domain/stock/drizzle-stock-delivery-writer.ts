@@ -3,9 +3,11 @@ import { z } from 'zod'
 
 import type { Sql } from '#db/index'
 import type { IdGenerator } from '#domain/food-master/id'
+import { claimDeliverySourceRef } from '#domain/stock/drizzle-stock-source-ref-claimer'
 import { StockDomainError } from '#domain/stock/errors'
 import {
   createStockWriteRunner,
+  firstRow,
   parseRows,
 } from '#domain/stock/stock-repository-utils'
 import type {
@@ -16,6 +18,7 @@ import type {
 
 const deliveryRowSchema = z.object({
   id: z.string(),
+  source_ref: z.string().nullable(),
   status: z.enum(['planned', 'received', 'cancelled']),
 })
 
@@ -36,6 +39,23 @@ export const createStockDeliveryWriter = (
       const sourceRef = input.sourceRef ?? null
       const items = input.status === 'cancelled' ? [] : input.items
       const foodMasterIds = items.map((item) => item.foodMasterId)
+      let delivery: z.output<typeof deliveryRowSchema> | undefined
+
+      if (sourceRef !== null) {
+        const existingRows = parseRows(
+          deliveryRowSchema,
+          await tx<Record<string, unknown>[]>`
+            SELECT d.id, d.source_ref, d.status
+            FROM delivery_source_refs dsr
+            JOIN deliveries d ON d.id = dsr.delivery_id
+            WHERE dsr.source_ref = ${sourceRef}
+            FOR UPDATE OF d
+          `,
+          'load delivery by source reference',
+        )
+        if (existingRows.isErr()) return err(existingRows.error)
+        delivery = existingRows.value[0]
+      }
       if (foodMasterIds.length > 0) {
         const stockItemRows = parseRows(
           z.object({ food_master_id: z.string() }),
@@ -63,47 +83,8 @@ export const createStockDeliveryWriter = (
           )
         }
       }
-      const deliveryRows = parseRows(
-        deliveryRowSchema,
-        await tx<Record<string, unknown>[]>`
-          INSERT INTO deliveries (
-            id, source_ref, status, expected_date, change_deadline
-          ) VALUES (
-            ${generateId('dly')}, ${sourceRef}, ${input.status},
-            ${input.expectedDate}::date, ${input.changeDeadline ?? null}::date
-          )
-          ON CONFLICT (source_ref) DO UPDATE
-            SET source_ref = EXCLUDED.source_ref
-          WHERE deliveries.status <> 'received'
-          RETURNING id, status
-        `,
-        'upsert delivery',
-      )
-      if (deliveryRows.isErr()) return err(deliveryRows.error)
-      let delivery = deliveryRows.value[0]
-      if (delivery === undefined && sourceRef !== null) {
-        const existingRows = parseRows(
-          deliveryRowSchema,
-          await tx<Record<string, unknown>[]>`
-            SELECT id, status
-            FROM deliveries
-            WHERE source_ref = ${sourceRef}
-            FOR UPDATE
-          `,
-          'load existing delivery',
-        )
-        if (existingRows.isErr()) return err(existingRows.error)
-        delivery = existingRows.value[0]
-      }
-      if (delivery === undefined) {
-        return err(
-          new StockDomainError(
-            'persistence_failed',
-            'upsert delivery returned no row',
-          ),
-        )
-      }
-      if (delivery.status === 'received') {
+
+      if (delivery?.status === 'received') {
         return err(
           new StockDomainError(
             'delivery_not_planned',
@@ -111,6 +92,52 @@ export const createStockDeliveryWriter = (
             { deliveryId: delivery.id },
           ),
         )
+      }
+
+      if (delivery === undefined) {
+        const createdRows = parseRows(
+          deliveryRowSchema,
+          await tx<Record<string, unknown>[]>`
+            INSERT INTO deliveries (
+              id, source_ref, status, expected_date, change_deadline
+            ) VALUES (
+              ${generateId('dly')}, NULL, ${input.status},
+              ${input.expectedDate}::date, ${input.changeDeadline ?? null}::date
+            )
+            RETURNING id, source_ref, status
+          `,
+          'create delivery',
+        )
+        if (createdRows.isErr()) return err(createdRows.error)
+        const created = firstRow(createdRows.value, 'create delivery')
+        if (created.isErr()) return err(created.error)
+        delivery = created.value
+
+        if (sourceRef !== null) {
+          const claim = await claimDeliverySourceRef(tx, {
+            sourceRef,
+            deliveryId: delivery.id,
+          })
+          if (claim.isErr()) return err(claim.error)
+
+          const attachedRows = parseRows(
+            deliveryRowSchema,
+            await tx<Record<string, unknown>[]>`
+              UPDATE deliveries
+              SET source_ref = ${sourceRef}
+              WHERE id = ${delivery.id}
+              RETURNING id, source_ref, status
+            `,
+            'attach source reference to delivery',
+          )
+          if (attachedRows.isErr()) return err(attachedRows.error)
+          const attached = firstRow(
+            attachedRows.value,
+            'attach source reference to delivery',
+          )
+          if (attached.isErr()) return err(attached.error)
+          delivery = attached.value
+        }
       }
 
       let stockFoodRows: z.output<typeof stockFoodRowSchema>[] = []
@@ -177,7 +204,7 @@ export const createStockDeliveryWriter = (
 
       return ok({
         id: delivery.id,
-        sourceRef,
+        sourceRef: delivery.source_ref,
         status: input.status,
         expectedDate: input.expectedDate,
         receivedDate: null,

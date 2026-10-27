@@ -2,27 +2,28 @@
 
 ## Tables
 
-| Name                                                                      | Columns | Comment                                                                 | Type       |
-| ------------------------------------------------------------------------- | ------- | ----------------------------------------------------------------------- | ---------- |
-| [public.food_composition_nutrients](public.food_composition_nutrients.md) | 3       | Nutrient values for MEXT food composition entries.                      | BASE TABLE |
-| [public.food_compositions](public.food_compositions.md)                   | 2       | MEXT food composition reference entries.                                | BASE TABLE |
-| [public.food_master_aliases](public.food_master_aliases.md)               | 3       | Alternate names used to find food master entries.                       | BASE TABLE |
-| [public.food_master_nutrients](public.food_master_nutrients.md)           | 3       | Nutrient values associated with nutrition versions.                     | BASE TABLE |
-| [public.food_masters](public.food_masters.md)                             | 3       | Foods available for meal logging.                                       | BASE TABLE |
-| [public.meal_logs](public.meal_logs.md)                                   | 8       | Recorded food consumption entries.                                      | BASE TABLE |
-| [public.nutrient_definitions](public.nutrient_definitions.md)             | 5       | Catalog of nutrient codes, names, units, and display ordering.          | BASE TABLE |
-| [public.user_profiles](public.user_profiles.md)                           | 7       | The singleton user profile for preferences and daily nutrition targets. | BASE TABLE |
-| [public.meal_skips](public.meal_skips.md)                                 | 4       | Meals marked as skipped for a date and meal type.                       | BASE TABLE |
-| [public.food_master_nutrition](public.food_master_nutrition.md)           | 17      | Versioned nutrition metadata for registered foods.                      | BASE TABLE |
-| [public.meal_set_items](public.meal_set_items.md)                         | 3       | Foods and quantities included in a meal set.                            | BASE TABLE |
-| [public.meal_sets](public.meal_sets.md)                                   | 3       | Named groups of foods saved for repeated meal logging.                  | BASE TABLE |
-| [public.stock_items](public.stock_items.md)                               | 4       | Foods configured for stock tracking.                                    | BASE TABLE |
-| [public.stock_lots](public.stock_lots.md)                                 | 8       | Planned delivery, received, or counted batches of stock for a food.     | BASE TABLE |
-| [public.stock_movements](public.stock_movements.md)                       | 7       | Quantity changes recorded against stock lots.                           | BASE TABLE |
-| [public.storage_locations](public.storage_locations.md)                   | 4       | Named places where stock items are stored.                              | BASE TABLE |
-| [public.meal_photos](public.meal_photos.md)                               | 6       | Photos attached to a meal on a specific date.                           | BASE TABLE |
-| [public.deliveries](public.deliveries.md)                                 | 7       | Expected deliveries and receipt status for stock inventory.             | BASE TABLE |
-| [public.meal_log_nutrition_changes](public.meal_log_nutrition_changes.md) | 6       | Nutrition version replacements recorded for meal logs.                  | BASE TABLE |
+| Name                                                                      | Columns | Comment                                                                     | Type       |
+| ------------------------------------------------------------------------- | ------- | --------------------------------------------------------------------------- | ---------- |
+| [public.food_composition_nutrients](public.food_composition_nutrients.md) | 3       | Nutrient values for MEXT food composition entries.                          | BASE TABLE |
+| [public.food_compositions](public.food_compositions.md)                   | 2       | MEXT food composition reference entries.                                    | BASE TABLE |
+| [public.food_master_aliases](public.food_master_aliases.md)               | 3       | Alternate names used to find food master entries.                           | BASE TABLE |
+| [public.food_master_nutrients](public.food_master_nutrients.md)           | 3       | Nutrient values associated with nutrition versions.                         | BASE TABLE |
+| [public.food_masters](public.food_masters.md)                             | 3       | Foods available for meal logging.                                           | BASE TABLE |
+| [public.meal_logs](public.meal_logs.md)                                   | 8       | Recorded food consumption entries.                                          | BASE TABLE |
+| [public.nutrient_definitions](public.nutrient_definitions.md)             | 5       | Catalog of nutrient codes, names, units, and display ordering.              | BASE TABLE |
+| [public.user_profiles](public.user_profiles.md)                           | 7       | The singleton user profile for preferences and daily nutrition targets.     | BASE TABLE |
+| [public.meal_skips](public.meal_skips.md)                                 | 4       | Meals marked as skipped for a date and meal type.                           | BASE TABLE |
+| [public.food_master_nutrition](public.food_master_nutrition.md)           | 17      | Versioned nutrition metadata for registered foods.                          | BASE TABLE |
+| [public.meal_set_items](public.meal_set_items.md)                         | 3       | Foods and quantities included in a meal set.                                | BASE TABLE |
+| [public.meal_sets](public.meal_sets.md)                                   | 3       | Named groups of foods saved for repeated meal logging.                      | BASE TABLE |
+| [public.stock_items](public.stock_items.md)                               | 4       | Foods configured for stock tracking.                                        | BASE TABLE |
+| [public.stock_lots](public.stock_lots.md)                                 | 8       | Planned delivery, received, or counted batches of stock for a food.         | BASE TABLE |
+| [public.stock_movements](public.stock_movements.md)                       | 7       | Quantity changes recorded against stock lots.                               | BASE TABLE |
+| [public.storage_locations](public.storage_locations.md)                   | 4       | Named places where stock items are stored.                                  | BASE TABLE |
+| [public.meal_photos](public.meal_photos.md)                               | 6       | Photos attached to a meal on a specific date.                               | BASE TABLE |
+| [public.deliveries](public.deliveries.md)                                 | 7       | Expected deliveries and receipt status for stock inventory.                 | BASE TABLE |
+| [public.delivery_source_refs](public.delivery_source_refs.md)             | 3       | External references assigned to deliveries, including corrected references. | BASE TABLE |
+| [public.meal_log_nutrition_changes](public.meal_log_nutrition_changes.md) | 6       | Nutrition version replacements recorded for meal logs.                      | BASE TABLE |
 
 ## Stored procedures and functions
 
@@ -92,6 +93,8 @@ erDiagram
 "public.stock_lots" }o--o| "public.deliveries" : "FOREIGN KEY (delivery_id) REFERENCES deliveries(id) ON UPDATE CASCADE ON DELETE RESTRICT"
 "public.stock_movements" }o--o| "public.meal_logs" : "FOREIGN KEY (meal_log_id) REFERENCES meal_logs(id) ON UPDATE CASCADE ON DELETE CASCADE"
 "public.stock_movements" }o--|| "public.stock_lots" : "FOREIGN KEY (stock_lot_id) REFERENCES stock_lots(id) ON UPDATE CASCADE ON DELETE RESTRICT"
+"public.deliveries" }o--|| "public.delivery_source_refs" : "FOREIGN KEY (id, source_ref) REFERENCES delivery_source_refs(delivery_id, source_ref)"
+"public.delivery_source_refs" }o--|| "public.deliveries" : "FOREIGN KEY (delivery_id) REFERENCES deliveries(id) ON UPDATE CASCADE"
 "public.meal_log_nutrition_changes" }o--|| "public.meal_logs" : "FOREIGN KEY (meal_log_id) REFERENCES meal_logs(id) ON UPDATE CASCADE ON DELETE CASCADE"
 "public.meal_log_nutrition_changes" }o--o| "public.food_master_nutrition" : "FOREIGN KEY (from_version_id) REFERENCES food_master_nutrition(id) ON UPDATE CASCADE ON DELETE CASCADE"
 "public.meal_log_nutrition_changes" }o--|| "public.food_master_nutrition" : "FOREIGN KEY (to_version_id) REFERENCES food_master_nutrition(id) ON UPDATE CASCADE ON DELETE CASCADE"
@@ -221,12 +224,17 @@ erDiagram
   timestamp_with_time_zone created_at
 }
 "public.deliveries" {
-  text id
-  text source_ref
+  text id FK
+  text source_ref FK
   delivery_status status
   date expected_date
   date received_date
   date change_deadline
+  timestamp_with_time_zone created_at
+}
+"public.delivery_source_refs" {
+  text source_ref
+  text delivery_id FK
   timestamp_with_time_zone created_at
 }
 "public.meal_log_nutrition_changes" {

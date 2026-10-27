@@ -49,8 +49,8 @@ const fixtureFoods = [
   { id: 'legacy-model', name: 'Legacy model source food' },
   { id: 'legacy-unknown', name: 'Legacy unknown food' },
 ] as const
-const firstNutritionVersionMigrationTag = '0021_gray_doctor_faustus'
-const lastNutritionVersionMigrationTag = '0022_daily_charles_xavier'
+const firstNutritionVersionMigrationTag = '0022_gray_doctor_faustus'
+const lastNutritionVersionMigrationTag = '0023_daily_charles_xavier'
 
 const databaseUrlSchema = z.url()
 

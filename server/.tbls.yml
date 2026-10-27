@@ -142,6 +142,11 @@ comments:
       expected_date: 'Date the delivery is expected to arrive.'
       received_date: 'Date the delivery was received.'
       change_deadline: 'Deadline for changing or cancelling the delivery, when known.'
+  - table: delivery_source_refs
+    tableComment: 'External references assigned to deliveries, including corrected references.'
+    columnComments:
+      source_ref: 'Unique external identifier used to resolve a delivery.'
+      delivery_id: 'Identifier of the delivery that used this reference.'
   - table: stock_movements
     tableComment: 'Quantity changes recorded against stock lots.'
     columnComments:
