@@ -16,7 +16,7 @@ Run `scripts/bootstrap` once to install the workspace dependencies and git hooks
 
 ### Local Postgres
 
-Start a local Postgres instance and create the development and test databases:
+Start a local Postgres instance and create the development, test, and migration-test databases:
 
 ```sh
 mise run db:up
@@ -131,6 +131,7 @@ Citation: outputs derived from this dataset must credit "日本食品標準成�
 
 ```sh
 pnpm --filter server run test
+pnpm --filter server run test:migrations
 pnpm lint
 pnpm --filter web run test
 ```

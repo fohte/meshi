@@ -110,6 +110,9 @@ export const foodMasterNutrition = pgTable(
       .onUpdate('cascade')
       .onDelete('restrict'),
     index('food_master_nutrition_food_master_id_idx').on(table.foodMasterId),
+    index('food_master_nutrition_corrects_version_id_idx')
+      .on(table.foodMasterId, table.correctsVersionId)
+      .where(sql`${table.correctsVersionId} IS NOT NULL`),
     index('food_master_nutrition_is_estimated_idx')
       .on(table.isEstimated)
       .where(sql`${table.isEstimated} = true`),

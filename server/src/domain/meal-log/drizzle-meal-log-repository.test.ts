@@ -978,6 +978,61 @@ describeIfDb('createDrizzleMealLogRepository', () => {
     })
   })
 
+  it('clears the nutrition version when updateMealLog points to a food without nutrition', async () => {
+    const tx = getTx()
+    await seedFoodMaster(tx, {
+      id: 'fm_repoint_known',
+      name: 'Known nutrition item',
+      source: 'user_input',
+      nutrients: { energy_kcal: 100 },
+    })
+    await seedFoodMasterWithoutNutrition(tx, {
+      id: 'fm_repoint_unknown',
+      name: 'Unknown nutrition item',
+    })
+    const repo = createDrizzleMealLogRepository(tx)
+    await repo.insertMealLog({
+      id: 'ml_repoint_unknown',
+      foodMasterId: 'fm_repoint_known',
+      eatenDate: jstDate('2026-06-15'),
+      mealType: 'lunch',
+      quantity: 1,
+    })
+
+    const updated = (
+      await repo.updateMealLog({
+        id: 'ml_repoint_unknown',
+        foodMasterId: 'fm_repoint_unknown',
+      })
+    )._unsafeUnwrap()
+
+    expect(
+      observation({
+        row: normalizeRow(updated),
+        nutritionVersionReferences: await readNutritionVersionReferences(tx, [
+          'ml_repoint_unknown',
+        ]),
+      }),
+    ).toEqual({
+      row: {
+        id: 'ml_repoint_unknown',
+        foodMasterId: 'fm_repoint_unknown',
+        eatenDate: '2026-06-15',
+        mealType: 'lunch',
+        quantity: 1,
+        createdAt: CREATED_AT_PLACEHOLDER,
+      },
+      nutritionVersionReferences: [
+        {
+          id: 'ml_repoint_unknown',
+          nutritionVersionId: null,
+          currentVersionId: null,
+          nutritionVersionOrigin: 'recorded',
+        },
+      ],
+    })
+  })
+
   it('updateMealLog returns a MealLogPersistenceError when the id does not exist', async () => {
     const tx = getTx()
     const repo = createDrizzleMealLogRepository(tx)

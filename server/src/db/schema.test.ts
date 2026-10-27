@@ -837,6 +837,35 @@ describeIfDb('schema runtime constraints', () => {
     ).toEqual({ status: 'error', code: '23514' })
   })
 
+  it('rejects inserts that mark nutrition evidence as legacy', async () => {
+    const tx = getTx()
+    await seedFoodMasterWithoutNutrition(tx, {
+      id: 'fm_legacy_evidence_insert',
+      name: 'Legacy evidence sample',
+    })
+
+    expect(
+      await runOutcome(tx`
+        INSERT INTO food_master_nutrition (
+          food_master_id,
+          version_no,
+          is_current,
+          change_kind,
+          source,
+          legacy_evidence
+        )
+        VALUES (
+          'fm_legacy_evidence_insert',
+          1,
+          true,
+          'initial',
+          'web_search',
+          true
+        )
+      `),
+    ).toEqual({ status: 'error', code: 'P0001' })
+  })
+
   it('accepts estimated model nutrition without source evidence', async () => {
     const tx = getTx()
     await seedFoodMasterWithoutNutrition(tx, {

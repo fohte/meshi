@@ -1,6 +1,8 @@
+import { ResultAsync } from 'neverthrow'
 import postgres from 'postgres'
 import { afterAll, describe, expect, it } from 'vitest'
 
+import migrationSetup from '#test/migration-global-setup'
 import {
   type MigrationSnapshot,
   migrationSnapshotSchema,
@@ -67,6 +69,32 @@ const migrationDetails = (
 })
 
 describeIfDatabase('nutrition version migration', () => {
+  it('rejects a local database other than the migration-test database', async () => {
+    const previousUrl = process.env['MIGRATION_TEST_DATABASE_URL']
+    if (previousUrl === undefined) return
+
+    const nonMigrationUrl = new URL(previousUrl)
+    nonMigrationUrl.pathname = '/meshi_server_dev'
+    let errorMessage: string
+    try {
+      process.env['MIGRATION_TEST_DATABASE_URL'] = nonMigrationUrl.toString()
+      const setupResult = await ResultAsync.fromPromise(
+        migrationSetup(),
+        (error: unknown) => error,
+      )
+      errorMessage = setupResult.match(
+        () => 'database was accepted',
+        (error) => (error instanceof Error ? error.message : String(error)),
+      )
+    } finally {
+      process.env['MIGRATION_TEST_DATABASE_URL'] = previousUrl
+    }
+
+    expect(errorMessage).toEqual(
+      'MIGRATION_TEST_DATABASE_URL must target meshi_server_migration_test (got database: meshi_server_dev)',
+    )
+  })
+
   it('rolls back schema and data when a later migration fails', async () => {
     const snapshot = await readSnapshot()
 
@@ -210,7 +238,7 @@ describeIfDatabase('nutrition version migration', () => {
         },
       ],
       change_record_count: 0,
-      migration_count: snapshot.before.migrations.length + 1,
+      migration_count: snapshot.before.migrations.length + 2,
     }
     expect(migrationDetails(snapshot)).toEqual(migrationDetails(expected))
   })

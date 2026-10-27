@@ -12,6 +12,7 @@ import { fileURLToPath } from 'node:url'
 
 import { drizzle } from 'drizzle-orm/postgres-js'
 import { migrate } from 'drizzle-orm/postgres-js/migrator'
+import { ResultAsync } from 'neverthrow'
 import postgres from 'postgres'
 import { z } from 'zod'
 
@@ -39,6 +40,7 @@ const fixtureFoods = [
   { id: 'legacy-model', name: 'Legacy model source food' },
   { id: 'legacy-unknown', name: 'Legacy unknown food' },
 ] as const
+const nutritionVersionsMigrationCount = 2
 
 const databaseUrlSchema = z.url()
 
@@ -369,6 +371,12 @@ export default async function setup(): Promise<() => Promise<void> | void> {
       `MIGRATION_TEST_DATABASE_URL must point at a local disposable Postgres (got host: ${url.hostname})`,
     )
   }
+  if (url.pathname !== '/meshi_server_migration_test') {
+    // eslint-disable-next-line no-restricted-syntax -- This setup drops schemas and is restricted to its dedicated database.
+    throw new Error(
+      `MIGRATION_TEST_DATABASE_URL must target meshi_server_migration_test (got database: ${url.pathname.slice(1)})`,
+    )
+  }
 
   const sql = postgres(parsedDatabaseUrl.data, { max: 1, onnotice: () => {} })
   const sourceFolder = fileURLToPath(new URL('../../drizzle/', import.meta.url))
@@ -384,17 +392,16 @@ export default async function setup(): Promise<() => Promise<void> | void> {
         await readFile(path.join(sourceFolder, 'meta/_journal.json'), 'utf8'),
       ),
     )
-    const latestMigrationIndex = journal.entries.at(-1)?.idx
-    if (latestMigrationIndex === undefined) {
-      // eslint-disable-next-line no-restricted-syntax -- A journal without migrations cannot establish the pre-migration schema for this test.
-      throw new Error('Migration journal contains no migrations')
-    }
+    const latestMigrationIndex = z
+      .number()
+      .int()
+      .parse(journal.entries.at(-1)?.idx)
     const beforeFolder = await createMigrationFolder(
       migrationRoot,
       'before',
       sourceFolder,
       journal,
-      latestMigrationIndex - 1,
+      latestMigrationIndex - nutritionVersionsMigrationCount,
       false,
     )
     const failingFolder = await createMigrationFolder(
@@ -432,15 +439,16 @@ export default async function setup(): Promise<() => Promise<void> | void> {
     await insertLegacyFixture(sql)
     const before = await capturePreservedState(sql, false)
 
-    let failedMigrationObserved = false
-    // eslint-disable-next-line no-restricted-syntax -- The expected migration failure is the behavior under test.
-    try {
-      await migrate(drizzle(sql), { migrationsFolder: failingFolder })
-    } catch (error) {
-      failedMigrationObserved =
-        error instanceof Error &&
-        error.message.includes('intentional migration test failure')
-    }
+    const failingMigrationResult = await ResultAsync.fromPromise(
+      migrate(drizzle(sql), { migrationsFolder: failingFolder }),
+      (error: unknown) => error,
+    )
+    const failedMigrationObserved =
+      failingMigrationResult.isErr() &&
+      failingMigrationResult.error instanceof Error &&
+      failingMigrationResult.error.message.includes(
+        'intentional migration test failure',
+      )
     const rolledBack = await capturePreservedState(sql, false)
 
     await migrate(drizzle(sql), { migrationsFolder: finalFolder })

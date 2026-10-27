@@ -59,7 +59,7 @@ const loadCurrentNutritionVersionIds = async (
     .from(foodMasters)
     .where(inArray(foodMasters.id, ids))
     .orderBy(asc(foodMasters.id))
-    .for('share', { of: foodMasters })
+    .for('key share', { of: foodMasters })
 
   const foundFoodMasterIds = new Set(foodRows.map((row) => row.foodMasterId))
   const missingId = ids.find((id) => !foundFoodMasterIds.has(id))
