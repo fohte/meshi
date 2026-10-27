@@ -18,6 +18,7 @@ import { createCountingIdGenerator, type IdCounter } from '#test/id-counter'
 import { jstDate } from '#test/jst-date'
 import {
   seedFoodComposition,
+  seedFoodMaster,
   seedFoodMasterWithoutNutrition,
   seedMealLog,
 } from '#test/seed'
@@ -773,6 +774,20 @@ describeIfDb('FoodMasterService + Repository', () => {
       id: 'fm_pending_logs',
       name: 'Unknown nutrition item',
     })
+    await seedFoodMaster(tx, {
+      id: 'fm_known_same_day',
+      name: 'Known nutrition item',
+      nutrients: { energy_kcal: 100 },
+      isEstimated: false,
+      source: 'user_input',
+    })
+    await seedMealLog(tx, {
+      id: 'ml_known_same_day',
+      foodMasterId: 'fm_known_same_day',
+      eatenDate: jstDate('2026-06-15'),
+      mealType: 'breakfast',
+      quantity: 1,
+    })
     for (const [id, quantity] of [
       ['ml_pending_logs_first', 1.25],
       ['ml_pending_logs_second', 2],
@@ -843,8 +858,8 @@ describeIfDb('FoodMasterService + Repository', () => {
         affectedDayTotals: [
           {
             date: jstDate('2026-06-15'),
-            totalsBefore: {},
-            totalsAfter: { energy_kcal: 780 },
+            totalsBefore: { energy_kcal: 100 },
+            totalsAfter: { energy_kcal: 880 },
           },
         ],
       },

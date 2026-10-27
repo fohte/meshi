@@ -18,6 +18,7 @@ import type {
   FoundMealLog,
   InsertMealLogInput,
   MealLogRepository,
+  MealLogWriteResult,
   UpdateMealLogPatch,
 } from '#domain/meal-log/meal-log-repository'
 import { createMealLogService } from '#domain/meal-log/meal-log-service'
@@ -87,7 +88,7 @@ const createFakeRepository = (
         createdAt: CREATED_AT,
       }
       logs.set(input.id, { log: row, food })
-      return okAsync(row)
+      return okAsync({ log: row, food })
     },
     insertMealLogs: (inputs) => {
       batchInserted.push([...inputs])
@@ -99,14 +100,16 @@ const createFakeRepository = (
         quantity: input.quantity,
         createdAt: CREATED_AT,
       }))
+      const writtenRows: MealLogWriteResult[] = []
       for (const row of rows) {
         const food = storedFoodById.get(row.foodMasterId)
         if (food === undefined) {
           return errAsync(new FoodMasterNotFoundError(row.foodMasterId))
         }
         logs.set(row.id, { log: row, food })
+        writtenRows.push({ log: row, food })
       }
-      return okAsync(rows)
+      return okAsync(writtenRows)
     },
     updateMealLog: (input) => {
       updated.push(input)
@@ -134,7 +137,7 @@ const createFakeRepository = (
       if (food === undefined)
         return errAsync(new FoodMasterNotFoundError(merged.foodMasterId))
       logs.set(input.id, { log: merged, food })
-      return okAsync(merged)
+      return okAsync({ log: merged, food })
     },
     findMealLogById: (id) => okAsync(logs.get(id) ?? null),
     deleteMealLog: (id) => {
@@ -707,11 +710,25 @@ describe('MealLogService.record', () => {
 })
 
 describe('MealLogService.recordMany', () => {
-  it('validates every item before inserting the meal in one batch', async () => {
-    const { service, batchInserted, inserted } = buildService([
-      BATCH_FOOD_ALPHA,
-      BATCH_FOOD_BETA,
-    ])
+  it('returns stored nutrition for each item in input order after one batch insert', async () => {
+    const storedFoodMasters: ReadonlyArray<FoodMasterRef> = [
+      {
+        ...BATCH_FOOD_ALPHA,
+        nutritionPerUnit: { energy_kcal: 91, protein_g: 3 },
+      },
+      {
+        ...BATCH_FOOD_BETA,
+        isEstimated: false,
+        nutritionStatus: 'confirmed',
+        nutritionPerUnit: { energy_kcal: 182, fat_g: 2 },
+      },
+    ]
+    const { service, batchInserted, inserted } = buildService(
+      [BATCH_FOOD_ALPHA, BATCH_FOOD_BETA],
+      [],
+      {},
+      storedFoodMasters,
+    )
 
     const result = (
       await service.recordMany({
@@ -741,10 +758,8 @@ describe('MealLogService.recordMany', () => {
           quantity: 2,
           createdAt: CREATED_AT,
           nutrition: {
-            energy_kcal: 160,
-            protein_g: 8,
-            fat_g: 2,
-            carb_g: 30,
+            energy_kcal: 182,
+            protein_g: 6,
           },
           isEstimated: false,
           nutritionStatus: 'confirmed',
@@ -758,13 +773,11 @@ describe('MealLogService.recordMany', () => {
           quantity: 0.5,
           createdAt: CREATED_AT,
           nutrition: {
-            energy_kcal: 120,
-            protein_g: 5,
-            fat_g: 4,
-            carb_g: 15,
+            energy_kcal: 91,
+            fat_g: 1,
           },
-          isEstimated: true,
-          nutritionStatus: 'estimated',
+          isEstimated: false,
+          nutritionStatus: 'confirmed',
           foodName: 'item_token_beta',
         },
       ],

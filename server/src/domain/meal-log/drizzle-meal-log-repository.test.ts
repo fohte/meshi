@@ -172,7 +172,7 @@ describeIfDb('createDrizzleMealLogRepository', () => {
       createdAt: CREATED_AT_PLACEHOLDER,
     }
 
-    expect(normalizeRow(inserted)).toEqual(expectedRow)
+    expect(normalizeRow(inserted.log)).toEqual(expectedRow)
     expect(
       fetched === null
         ? null
@@ -600,7 +600,7 @@ describeIfDb('createDrizzleMealLogRepository', () => {
       ])
     )._unsafeUnwrap()
     const movements = await Promise.all(
-      inserted.map((row) => readMealMovements(tx, row.id)),
+      inserted.map((row) => readMealMovements(tx, row.log.id)),
     )
 
     expect(
@@ -889,7 +889,7 @@ describeIfDb('createDrizzleMealLogRepository', () => {
       ])
     )._unsafeUnwrap()
 
-    expect(inserted.map(normalizeRow)).toEqual([
+    expect(inserted.map((row) => normalizeRow(row.log))).toEqual([
       {
         id: 'ml_batch_alpha',
         foodMasterId: 'fm_batch_alpha',
@@ -947,7 +947,7 @@ describeIfDb('createDrizzleMealLogRepository', () => {
 
     expect(
       observation({
-        row: normalizeRow(updated),
+        row: normalizeRow(updated.log),
         nutritionVersionReferences: await readNutritionVersionReferences(tx, [
           'ml_patch',
         ]),
@@ -1072,7 +1072,7 @@ describeIfDb('createDrizzleMealLogRepository', () => {
 
     expect(
       observation({
-        row: normalizeRow(updated),
+        row: normalizeRow(updated.log),
         nutritionVersionReferences: await readNutritionVersionReferences(tx, [
           'ml_repoint_unknown',
         ]),

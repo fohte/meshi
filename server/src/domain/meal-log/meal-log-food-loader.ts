@@ -45,27 +45,6 @@ const loadNutrition = async (
   return nutrition
 }
 
-export const loadNutritionVersion = async (
-  db: Db,
-  nutritionVersionId: string | null,
-): Promise<Record<string, number>> => {
-  if (nutritionVersionId === null) return {}
-
-  const rows = await db
-    .select({
-      nutrientCode: foodMasterNutrients.nutrientCode,
-      value: foodMasterNutrients.value,
-    })
-    .from(foodMasterNutrients)
-    .where(eq(foodMasterNutrients.nutritionVersionId, nutritionVersionId))
-
-  const nutrition: Record<string, number> = {}
-  for (const row of rows) {
-    nutrition[row.nutrientCode] = Number(row.value)
-  }
-  return nutrition
-}
-
 export const loadFoodMaster = (
   db: Db,
   foodMasterId: string,

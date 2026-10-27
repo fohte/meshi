@@ -11,14 +11,12 @@ import {
   MealLogNotFoundError,
   MealLogPersistenceError,
 } from '#domain/meal-log/errors'
-import type {
-  MealLogRepository,
-  MealLogWriteResult,
-} from '#domain/meal-log/meal-log-repository'
+import type { MealLogRepository } from '#domain/meal-log/meal-log-repository'
 import type {
   FoodMasterRef,
   MealLogDeletionResult,
   MealLogResult,
+  MealLogRow,
   NutritionMap,
   RecordMealLogInput,
   RecordMealLogItemInput,
@@ -115,11 +113,7 @@ export const createMealLogService = (
           mealType: input.mealType,
           quantity: input.quantity,
         })
-        .andThen((log) =>
-          buildResultFromStoredLog(deps.repository, log).map(
-            ({ result }) => result,
-          ),
-        ),
+        .map(buildResult),
     )
   },
   recordMany(input) {
@@ -159,22 +153,22 @@ export const createMealLogService = (
       return deps.repository
         .insertMealLogs(plannedItems.map(({ insertInput }) => insertInput))
         .andThen((rows) => {
-          const rowsById = new Map(rows.map((row) => [row.id, row] as const))
-          return ResultAsync.combine(
+          const rowsById = new Map(
+            rows.map((row) => [row.log.id, row] as const),
+          )
+          return Result.combine(
             plannedItems.map(({ insertInput }) => {
               const row = rowsById.get(insertInput.id)
               return row === undefined
-                ? errAsync(
+                ? err(
                     new MealLogPersistenceError(
                       'meal_logs bulk insert returned incomplete rows',
                     ),
                   )
-                : buildResultFromStoredLog(deps.repository, row).map(
-                    ({ result, foodName }) => ({
-                      ...result,
-                      foodName,
-                    }),
-                  )
+                : ok({
+                    ...buildResult(row),
+                    foodName: row.food.name,
+                  })
             }),
           )
         })
@@ -203,7 +197,7 @@ export const createMealLogService = (
         input.mealType === undefined &&
         input.quantity === undefined
       ) {
-        return okAsync(buildResult(found.log, found.food))
+        return okAsync(buildResult(found))
       }
       const newFoodMasterId =
         input.foodMasterId !== undefined &&
@@ -252,11 +246,7 @@ export const createMealLogService = (
                           e,
                         ),
                     )
-            return aliasResult.andThen(() =>
-              buildResultFromStoredLog(deps.repository, log).map(
-                ({ result }) => result,
-              ),
-            )
+            return aliasResult.map(() => buildResult(log))
           })
       })
     })
@@ -264,9 +254,7 @@ export const createMealLogService = (
   getById(id) {
     return deps.repository
       .findMealLogById(id)
-      .map((found) =>
-        found === null ? null : buildResult(found.log, found.food),
-      )
+      .map((found) => (found === null ? null : buildResult(found)))
   },
   delete(id) {
     return deps.repository
@@ -281,31 +269,18 @@ export const createMealLogService = (
 })
 
 const buildResult = (
-  log: MealLogWriteResult,
-  food: FoodMasterRef,
+  found: { readonly log: MealLogRow; readonly food: FoodMasterRef } & {
+    readonly stockShortfall?: number
+  },
 ): MealLogResult => ({
-  ...log,
-  nutrition: scaleNutrition(food.nutritionPerUnit, log.quantity),
-  isEstimated: food.isEstimated,
-  nutritionStatus: food.nutritionStatus,
+  ...found.log,
+  ...(found.stockShortfall === undefined
+    ? {}
+    : { stockShortfall: found.stockShortfall }),
+  nutrition: scaleNutrition(found.food.nutritionPerUnit, found.log.quantity),
+  isEstimated: found.food.isEstimated,
+  nutritionStatus: found.food.nutritionStatus,
 })
-
-const buildResultFromStoredLog = (
-  repository: MealLogRepository,
-  log: MealLogWriteResult,
-): ResultAsync<{ result: MealLogResult; foodName: string }, DomainError> =>
-  repository.findMealLogById(log.id).andThen((found) =>
-    found === null
-      ? errAsync(
-          new MealLogPersistenceError(
-            'meal_logs write returned no row when reloading its nutrition version',
-          ),
-        )
-      : okAsync({
-          result: buildResult(log, found.food),
-          foodName: found.food.name,
-        }),
-  )
 
 const scaleNutrition = (
   perUnit: NutritionMap,

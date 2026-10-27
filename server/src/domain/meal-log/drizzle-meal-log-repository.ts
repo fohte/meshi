@@ -10,7 +10,12 @@ import {
 } from 'neverthrow'
 
 import type { Sql } from '#db/index'
-import { foodMasterNutrition, foodMasters, mealLogs } from '#db/schema'
+import {
+  foodMasterNutrients,
+  foodMasterNutrition,
+  foodMasters,
+  mealLogs,
+} from '#db/schema'
 import { defaultIdGenerator, type IdGenerator } from '#domain/food-master/id'
 import { nutritionStatusFromIsEstimated } from '#domain/food-master/types'
 import {
@@ -19,10 +24,7 @@ import {
   MealLogNotFoundError,
   MealLogPersistenceError,
 } from '#domain/meal-log/errors'
-import {
-  loadFoodMaster,
-  loadNutritionVersion,
-} from '#domain/meal-log/meal-log-food-loader'
+import { loadFoodMaster } from '#domain/meal-log/meal-log-food-loader'
 import type {
   FoundMealLog,
   InsertMealLogInput,
@@ -31,6 +33,7 @@ import type {
   UpdateMealLogPatch,
 } from '#domain/meal-log/meal-log-repository'
 import type {
+  FoodMasterRef,
   MealLogDeletionResult,
   MealLogRow,
   MealType,
@@ -110,6 +113,80 @@ const toRow = (row: {
   createdAt: row.createdAt,
 })
 
+type MutableFoodMasterRef = Omit<FoodMasterRef, 'nutritionPerUnit'> & {
+  nutritionPerUnit: Record<string, number>
+}
+
+const loadFoundMealLogs = async (
+  session: DbSession,
+  ids: ReadonlyArray<string>,
+): Promise<ReadonlyMap<string, FoundMealLog>> => {
+  if (ids.length === 0) return new Map()
+
+  const rows = await session
+    .select({
+      log: mealLogs,
+      food: {
+        id: foodMasters.id,
+        name: foodMasters.name,
+        isEstimated: foodMasterNutrition.isEstimated,
+      },
+      nutrientCode: foodMasterNutrients.nutrientCode,
+      nutrientValue: foodMasterNutrients.value,
+    })
+    .from(mealLogs)
+    .innerJoin(foodMasters, eq(mealLogs.foodMasterId, foodMasters.id))
+    .leftJoin(
+      foodMasterNutrition,
+      and(
+        eq(foodMasterNutrition.id, mealLogs.nutritionVersionId),
+        eq(foodMasterNutrition.foodMasterId, mealLogs.foodMasterId),
+      ),
+    )
+    .leftJoin(
+      foodMasterNutrients,
+      eq(foodMasterNutrients.nutritionVersionId, mealLogs.nutritionVersionId),
+    )
+    .where(inArray(mealLogs.id, ids))
+    .orderBy(asc(mealLogs.id), asc(foodMasterNutrients.nutrientCode))
+
+  const mutable = new Map<
+    string,
+    { readonly log: MealLogRow; readonly food: MutableFoodMasterRef }
+  >()
+  for (const row of rows) {
+    let found = mutable.get(row.log.id)
+    if (found === undefined) {
+      found = {
+        log: toRow(row.log),
+        food: {
+          ...row.food,
+          isEstimated: row.food.isEstimated ?? false,
+          nutritionStatus: nutritionStatusFromIsEstimated(row.food.isEstimated),
+          nutritionPerUnit: {},
+        },
+      }
+      mutable.set(row.log.id, found)
+    }
+    if (row.nutrientCode !== null && row.nutrientValue !== null) {
+      found.food.nutritionPerUnit[row.nutrientCode] = Number(row.nutrientValue)
+    }
+  }
+
+  return new Map(
+    [...mutable].map(([id, found]) => [
+      id,
+      {
+        log: found.log,
+        food: {
+          ...found.food,
+          nutritionPerUnit: found.food.nutritionPerUnit,
+        },
+      },
+    ]),
+  )
+}
+
 export const createDrizzleMealLogRepository = (
   sql: Sql,
   options: DrizzleMealLogRepositoryOptions = {},
@@ -151,10 +228,10 @@ export const createDrizzleMealLogRepository = (
   }
 
   const withStockShortfall = (
-    row: MealLogRow,
+    found: FoundMealLog,
     stockShortfall: number | null,
   ): MealLogWriteResult => ({
-    ...row,
+    ...found,
     ...(stockShortfall === null ? {} : { stockShortfall }),
   })
 
@@ -249,9 +326,16 @@ export const createDrizzleMealLogRepository = (
           foodMasterId: row.foodMasterId,
           quantity: row.quantity,
         })
-        return stockResult.map((shortfall) =>
-          withStockShortfall(row, shortfall),
-        )
+        if (stockResult.isErr()) return err(stockResult.error)
+        const found = (await loadFoundMealLogs(session, [row.id])).get(row.id)
+        if (found === undefined) {
+          return err(
+            new MealLogPersistenceError(
+              'meal_logs insert returned no row when loading its nutrition version',
+            ),
+          )
+        }
+        return ok(withStockShortfall(found, stockResult.value))
       }, 'failed to insert meal_log'),
 
     insertMealLogs: (
@@ -291,7 +375,7 @@ export const createDrizzleMealLogRepository = (
             const rowsById = new Map(
               inserted.map((row) => [row.id, row] as const),
             )
-            const writtenRows: MealLogWriteResult[] = []
+            const stockShortfalls = new Map<string, number | null>()
             for (const input of inputs) {
               const insertedRow = rowsById.get(input.id)
               if (insertedRow === undefined) {
@@ -308,7 +392,24 @@ export const createDrizzleMealLogRepository = (
                 quantity: row.quantity,
               })
               if (stockResult.isErr()) return err(stockResult.error)
-              writtenRows.push(withStockShortfall(row, stockResult.value))
+              stockShortfalls.set(input.id, stockResult.value)
+            }
+            const foundById = await loadFoundMealLogs(
+              session,
+              inputs.map((input) => input.id),
+            )
+            const writtenRows: MealLogWriteResult[] = []
+            for (const input of inputs) {
+              const found = foundById.get(input.id)
+              const stockShortfall = stockShortfalls.get(input.id)
+              if (found === undefined || stockShortfall === undefined) {
+                return err(
+                  new MealLogPersistenceError(
+                    'meal_logs bulk insert returned incomplete stored nutrition rows',
+                  ),
+                )
+              }
+              writtenRows.push(withStockShortfall(found, stockShortfall))
             }
             return ok(writtenRows)
           }, 'failed to insert meal_logs'),
@@ -395,16 +496,25 @@ export const createDrizzleMealLogRepository = (
           )
         }
         const row = toRow(updated)
-        if (!shouldSyncStock) return ok(withStockShortfall(row, null))
-
-        const stockResult = await consumeMealStock(session, {
-          mealLogId: row.id,
-          foodMasterId: row.foodMasterId,
-          quantity: row.quantity,
-        })
-        return stockResult.map((shortfall) =>
-          withStockShortfall(row, shortfall),
-        )
+        let stockShortfall: number | null = null
+        if (shouldSyncStock) {
+          const stockResult = await consumeMealStock(session, {
+            mealLogId: row.id,
+            foodMasterId: row.foodMasterId,
+            quantity: row.quantity,
+          })
+          if (stockResult.isErr()) return err(stockResult.error)
+          stockShortfall = stockResult.value
+        }
+        const found = (await loadFoundMealLogs(session, [row.id])).get(row.id)
+        if (found === undefined) {
+          return err(
+            new MealLogPersistenceError(
+              'meal_logs update returned no row when loading its nutrition version',
+            ),
+          )
+        }
+        return ok(withStockShortfall(found, stockShortfall))
       }, 'failed to update meal_log'),
 
     deleteMealLog: (id: string): ResultAsync<boolean, DomainError> =>
@@ -445,48 +555,9 @@ export const createDrizzleMealLogRepository = (
       id: string,
     ): ResultAsync<FoundMealLog | null, DomainError> =>
       ResultAsync.fromPromise(
-        (async (): Promise<FoundMealLog | null> => {
-          const rows = await db
-            .select({
-              log: mealLogs,
-              food: {
-                id: foodMasters.id,
-                name: foodMasters.name,
-                isEstimated: foodMasterNutrition.isEstimated,
-              },
-            })
-            .from(mealLogs)
-            .innerJoin(foodMasters, eq(mealLogs.foodMasterId, foodMasters.id))
-            .leftJoin(
-              foodMasterNutrition,
-              and(
-                eq(foodMasterNutrition.id, mealLogs.nutritionVersionId),
-                eq(foodMasterNutrition.foodMasterId, mealLogs.foodMasterId),
-              ),
-            )
-            .where(eq(mealLogs.id, id))
-            .limit(1)
-          // The FK on meal_logs.food_master_id is ON DELETE RESTRICT, so an existing
-          // meal_log always has its food_master.
-          const row = rows[0]
-          if (row === undefined) return null
-
-          const nutritionPerUnit = await loadNutritionVersion(
-            db,
-            row.log.nutritionVersionId,
-          )
-          return {
-            log: toRow(row.log),
-            food: {
-              ...row.food,
-              isEstimated: row.food.isEstimated ?? false,
-              nutritionStatus: nutritionStatusFromIsEstimated(
-                row.food.isEstimated,
-              ),
-              nutritionPerUnit,
-            },
-          }
-        })(),
+        loadFoundMealLogs(db, [id]).then(
+          (foundById) => foundById.get(id) ?? null,
+        ),
         (caughtErr) =>
           new MealLogPersistenceError('failed to load meal_log', caughtErr),
       ),
