@@ -21,6 +21,44 @@ export type NutritionMap = Readonly<Record<NutrientCode, number>>
 
 export type FoodMasterId = string
 
+type FoodMasterNutritionChangeKind = 'initial' | 'product_update' | 'correction'
+
+export interface FoodMasterNutritionVersion {
+  readonly id: string
+  readonly foodMasterId: FoodMasterId
+  readonly versionNo: number
+  readonly changeKind: FoodMasterNutritionChangeKind
+  readonly correctsVersionId: string | null
+  readonly isCurrent: boolean
+  readonly servingBasis: string | null
+  readonly netContent: string | null
+  readonly nutrition: NutritionMap
+  readonly source: FoodSource
+  readonly sourceUrl: string | null
+  readonly sourceCompositionCode: string | null
+  readonly isEstimated: boolean
+  readonly checkedOn: string | null
+  readonly effectiveFrom: string | null
+  readonly reason: string | null
+  readonly mealLogCount: number
+}
+
+export interface AddFoodMasterNutritionVersionInput {
+  readonly foodMasterId: FoodMasterId
+  readonly changeKind: Exclude<FoodMasterNutritionChangeKind, 'initial'>
+  readonly correctsVersionId?: string
+  readonly reason?: string
+  readonly nutrition: NutritionMap
+  readonly source: FoodSource
+  readonly isEstimated: boolean
+  readonly sourceUrl?: string
+  readonly sourceCompositionCode?: string
+  readonly servingBasis?: string
+  readonly netContent?: string
+  readonly checkedOn?: string
+  readonly effectiveFrom?: string
+}
+
 export interface FoodMaster {
   readonly id: FoodMasterId
   readonly name: string
