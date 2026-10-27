@@ -254,6 +254,63 @@ describeIfDb('createDrizzleMealLogRepository', () => {
     })
   })
 
+  it('returns the referenced nutrition version when updating a meal log', async () => {
+    const tx = getTx()
+    await seedFoodMasterWithoutNutrition(tx, {
+      id: 'fm_versioned_update',
+      name: 'versioned update item',
+    })
+    const referencedVersionId = await seedFoodMasterNutritionVersion(tx, {
+      foodMasterId: 'fm_versioned_update',
+      versionNo: 1,
+      isCurrent: false,
+      changeKind: 'initial',
+      source: 'user_input',
+      nutrients: { energy_kcal: 11, protein_g: 1 },
+    })
+    await seedFoodMasterNutritionVersion(tx, {
+      foodMasterId: 'fm_versioned_update',
+      versionNo: 2,
+      isCurrent: true,
+      changeKind: 'product_update',
+      source: 'user_input',
+      nutrients: { energy_kcal: 23, protein_g: 2 },
+    })
+    await seedMealLog(tx, {
+      id: 'ml_versioned_update',
+      foodMasterId: 'fm_versioned_update',
+      nutritionVersionId: referencedVersionId,
+      nutritionVersionOrigin: 'migrated',
+      eatenDate: jstDate('2026-06-15'),
+      mealType: 'lunch',
+      quantity: 1,
+      createdAt: CREATED_AT_PLACEHOLDER,
+    })
+    const repo = createDrizzleMealLogRepository(tx)
+
+    const updated = (
+      await repo.updateMealLog({ id: 'ml_versioned_update', quantity: 2.5 })
+    )._unsafeUnwrap()
+
+    expect(updated).toEqual({
+      log: {
+        id: 'ml_versioned_update',
+        foodMasterId: 'fm_versioned_update',
+        eatenDate: jstDate('2026-06-15'),
+        mealType: 'lunch',
+        quantity: 2.5,
+        createdAt: CREATED_AT_PLACEHOLDER,
+      },
+      food: {
+        id: 'fm_versioned_update',
+        name: 'versioned update item',
+        isEstimated: false,
+        nutritionStatus: 'confirmed',
+        nutritionPerUnit: { energy_kcal: 11, protein_g: 1 },
+      },
+    })
+  })
+
   it('records the current nutrition version for a single meal log', async () => {
     const tx = getTx()
     await seedFoodMaster(tx, {
