@@ -36,7 +36,7 @@ erDiagram
 
 "public.food_master_aliases" }o--|| "public.food_masters" : "FOREIGN KEY (food_master_id) REFERENCES food_masters(id) ON UPDATE CASCADE ON DELETE CASCADE"
 "public.meal_logs" }o--|| "public.food_masters" : "FOREIGN KEY (food_master_id) REFERENCES food_masters(id) ON UPDATE CASCADE ON DELETE RESTRICT"
-"public.food_master_nutrition" |o--|| "public.food_masters" : "FOREIGN KEY (food_master_id) REFERENCES food_masters(id) ON UPDATE CASCADE ON DELETE CASCADE"
+"public.food_master_nutrition" }o--|| "public.food_masters" : "FOREIGN KEY (food_master_id) REFERENCES food_masters(id) ON UPDATE CASCADE ON DELETE CASCADE"
 "public.meal_set_items" }o--|| "public.food_masters" : "FOREIGN KEY (food_master_id) REFERENCES food_masters(id) ON UPDATE CASCADE ON DELETE RESTRICT"
 "public.stock_items" |o--|| "public.food_masters" : "FOREIGN KEY (food_master_id) REFERENCES food_masters(id) ON UPDATE CASCADE ON DELETE CASCADE"
 "public.stock_lots" }o--|| "public.food_masters" : "FOREIGN KEY (food_master_id) REFERENCES food_masters(id) ON UPDATE CASCADE ON DELETE RESTRICT"
@@ -58,6 +58,8 @@ erDiagram
   timestamp_with_time_zone created_at
   meal_type meal_type
   date eaten_date
+  uuid nutrition_version_id FK
+  text nutrition_version_origin
 }
 "public.food_master_nutrition" {
   text food_master_id FK
@@ -65,6 +67,18 @@ erDiagram
   food_source source
   text source_url
   text source_composition_code FK
+  uuid id
+  integer version_no
+  boolean is_current
+  text change_kind
+  uuid corrects_version_id FK
+  text serving_basis
+  text net_content
+  date checked_on
+  date effective_from
+  text reason
+  boolean legacy_evidence
+  timestamp_with_time_zone created_at
 }
 "public.meal_set_items" {
   text meal_set_id FK
