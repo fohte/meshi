@@ -15,6 +15,28 @@ import {
 describeIfDb('stock delivery reader', () => {
   const getTx = setupDrizzleTx()
 
+  const seedFilterDeliveries = async () => {
+    const tx = getTx()
+    await seedDelivery(tx, {
+      id: 'dly_filter_a',
+      sourceRef: 'ref_filter_a',
+      status: 'received',
+      expectedDate: '2031-06-01',
+      receivedDate: '2031-06-02',
+    })
+    await seedDelivery(tx, {
+      id: 'dly_filter_b',
+      sourceRef: 'ref_filter_b',
+      status: 'received',
+      expectedDate: '2031-06-03',
+      receivedDate: '2031-06-03',
+    })
+
+    return createStockService(
+      createDrizzleStockRepository(tx, { wrapInTransaction: false }),
+    )
+  }
+
   it('returns all statuses in effective-date order with consumed and pending lots', async () => {
     const tx = getTx()
     await seedFoodMasterWithoutNutrition(tx, {
@@ -57,6 +79,26 @@ describeIfDb('stock delivery reader', () => {
       mealLogId: 'ml_consumed_reader',
     })
     await seedDelivery(tx, {
+      id: 'dly_received_remaining_reader',
+      sourceRef: 'ref_received_remaining_reader',
+      status: 'received',
+      expectedDate: '2031-04-10',
+      receivedDate: '2031-05-04',
+    })
+    await seedStockLot(tx, {
+      id: 'stl_remaining_reader',
+      foodMasterId: 'fm_delivery_reader',
+      deliveryId: 'dly_received_remaining_reader',
+      quantity: 4,
+      receivedDate: '2031-05-04',
+    })
+    await seedStockMovement(tx, {
+      id: 'stm_received_remaining_reader',
+      stockLotId: 'stl_remaining_reader',
+      delta: 4,
+      reason: 'receive',
+    })
+    await seedDelivery(tx, {
       id: 'dly_planned_reader',
       sourceRef: 'ref_planned_reader',
       status: 'planned',
@@ -81,6 +123,23 @@ describeIfDb('stock delivery reader', () => {
     const result = await stockService.listDeliveries({ limit: 20 })
 
     expect(result._unsafeUnwrap()).toEqual([
+      {
+        id: 'dly_received_remaining_reader',
+        sourceRef: 'ref_received_remaining_reader',
+        status: 'received',
+        expectedDate: '2031-04-10',
+        receivedDate: '2031-05-04',
+        changeDeadline: null,
+        items: [
+          {
+            foodMasterId: 'fm_delivery_reader',
+            foodName: 'Sample grain packet',
+            stockLotId: 'stl_remaining_reader',
+            quantity: 4,
+            remainingQuantity: 4,
+          },
+        ],
+      },
       {
         id: 'dly_planned_reader',
         sourceRef: 'ref_planned_reader',
@@ -127,37 +186,17 @@ describeIfDb('stock delivery reader', () => {
     ])
   })
 
-  it('uses delivery id and current source reference together', async () => {
-    const tx = getTx()
-    await seedDelivery(tx, {
-      id: 'dly_filter_target',
-      sourceRef: 'ref_filter_target',
-      status: 'received',
-      expectedDate: '2031-06-01',
-      receivedDate: '2031-06-02',
-    })
-    await seedDelivery(tx, {
-      id: 'dly_filter_other',
-      sourceRef: 'ref_filter_other',
-      status: 'received',
-      expectedDate: '2031-06-03',
-      receivedDate: '2031-06-03',
-    })
-
-    const stockService = createStockService(
-      createDrizzleStockRepository(tx, { wrapInTransaction: false }),
-    )
+  it('filters deliveries by id', async () => {
+    const stockService = await seedFilterDeliveries()
     const result = await stockService.listDeliveries({
-      deliveryId: 'dly_filter_target',
-      sourceRef: 'ref_filter_target',
-      status: 'received',
+      deliveryId: 'dly_filter_a',
       limit: 50,
     })
 
     expect(result._unsafeUnwrap()).toEqual([
       {
-        id: 'dly_filter_target',
-        sourceRef: 'ref_filter_target',
+        id: 'dly_filter_a',
+        sourceRef: 'ref_filter_a',
         status: 'received',
         expectedDate: '2031-06-01',
         receivedDate: '2031-06-02',
@@ -165,6 +204,37 @@ describeIfDb('stock delivery reader', () => {
         items: [],
       },
     ])
+  })
+
+  it('filters deliveries by current source reference', async () => {
+    const stockService = await seedFilterDeliveries()
+    const result = await stockService.listDeliveries({
+      sourceRef: 'ref_filter_b',
+      limit: 50,
+    })
+
+    expect(result._unsafeUnwrap()).toEqual([
+      {
+        id: 'dly_filter_b',
+        sourceRef: 'ref_filter_b',
+        status: 'received',
+        expectedDate: '2031-06-03',
+        receivedDate: '2031-06-03',
+        changeDeadline: null,
+        items: [],
+      },
+    ])
+  })
+
+  it('combines delivery id and current source reference with AND semantics', async () => {
+    const stockService = await seedFilterDeliveries()
+    const result = await stockService.listDeliveries({
+      deliveryId: 'dly_filter_a',
+      sourceRef: 'ref_filter_b',
+      limit: 50,
+    })
+
+    expect(result._unsafeUnwrap()).toEqual([])
   })
 
   it('filters deliveries by status', async () => {
