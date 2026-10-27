@@ -5,6 +5,7 @@ import type { FoodSearchService } from '#domain/food-browse/food-search-service'
 import type { FoodMasterService } from '#domain/food-master/service'
 import type { MealHistoryService } from '#domain/meal-history/types'
 import type { MealLogService } from '#domain/meal-log/meal-log-service'
+import type { MealLogNutritionReassignmentService } from '#domain/meal-log/nutrition-reassignment'
 import type { MealSetService } from '#domain/meal-set/meal-set-service'
 import type { MealSkipService } from '#domain/meal-skip/meal-skip-service'
 import type { StockService } from '#domain/stock/types'
@@ -26,6 +27,7 @@ import {
   TOOL_SUCCEEDED,
 } from '#mcp-tools/payloads'
 import { registerQueryMealsTool } from '#mcp-tools/query-meals'
+import { registerReassignMealLogNutritionTool } from '#mcp-tools/reassign-meal-log-nutrition'
 import { registerReceiveDeliveryTool } from '#mcp-tools/receive-delivery'
 import { registerRecommendationContextTool } from '#mcp-tools/recommendation'
 import { registerRegisterDeliveryTool } from '#mcp-tools/register-delivery'
@@ -43,6 +45,7 @@ export interface MeshiToolDeps {
   readonly profileService: UserProfileService
   readonly foodSearchService: FoodSearchService
   readonly mealLogService: MealLogService
+  readonly mealLogNutritionReassignmentService: MealLogNutritionReassignmentService
   readonly mealSetService: MealSetService
   readonly mealSkipService: MealSkipService
   readonly stockService: StockService
@@ -60,6 +63,7 @@ export const registerMeshiTools = (
     foodSearchService,
     foodMasterService,
     mealLogService,
+    mealLogNutritionReassignmentService,
     mealSetService,
     mealSkipService,
     stockService,
@@ -82,6 +86,10 @@ export const registerMeshiTools = (
   registerMergeFoodMasterTool(server, { foodMasterService, logger })
 
   registerQueryMealsTool(server, { mealHistoryService, logger })
+  registerReassignMealLogNutritionTool(server, {
+    mealLogNutritionReassignmentService,
+    logger,
+  })
   registerDeleteMealLogTool(server, { mealLogService, logger })
   registerUpdateMealLogTool(server, {
     mealLogService,
