@@ -10,20 +10,18 @@ import {
 } from 'neverthrow'
 
 import type { Sql } from '#db/index'
-import {
-  foodMasterNutrients,
-  foodMasterNutrition,
-  foodMasters,
-  mealLogs,
-} from '#db/schema'
+import { foodMasterNutrition, foodMasters, mealLogs } from '#db/schema'
 import { defaultIdGenerator, type IdGenerator } from '#domain/food-master/id'
 import { nutritionStatusFromIsEstimated } from '#domain/food-master/types'
 import {
   DomainError,
-  FoodMasterNotFoundError,
   MealLogNotFoundError,
   MealLogPersistenceError,
 } from '#domain/meal-log/errors'
+import {
+  loadFoodMaster,
+  loadNutrition,
+} from '#domain/meal-log/meal-log-food-loader'
 import type {
   FoundMealLog,
   InsertMealLogInput,
@@ -32,7 +30,6 @@ import type {
   UpdateMealLogPatch,
 } from '#domain/meal-log/meal-log-repository'
 import type {
-  FoodMasterRef,
   MealLogDeletionResult,
   MealLogRow,
   MealType,
@@ -51,63 +48,6 @@ export interface DrizzleMealLogRepositoryOptions {
   readonly wrapDeleteManyInTransaction?: boolean
   readonly generateId?: IdGenerator
 }
-
-const loadNutrition = async (
-  db: Db,
-  foodMasterId: string,
-): Promise<Record<string, number>> => {
-  const rows = await db
-    .select({
-      nutrientCode: foodMasterNutrients.nutrientCode,
-      value: foodMasterNutrients.value,
-    })
-    .from(foodMasterNutrients)
-    .where(eq(foodMasterNutrients.foodMasterId, foodMasterId))
-
-  const nutrition: Record<string, number> = {}
-  for (const row of rows) {
-    nutrition[row.nutrientCode] = Number(row.value)
-  }
-  return nutrition
-}
-
-const loadFoodMaster = (
-  db: Db,
-  foodMasterId: string,
-): ResultAsync<FoodMasterRef, DomainError> =>
-  ResultAsync.fromPromise(
-    (async (): Promise<Result<FoodMasterRef, DomainError>> => {
-      const masterRows = await db
-        .select({
-          id: foodMasters.id,
-          name: foodMasters.name,
-          isEstimated: foodMasterNutrition.isEstimated,
-        })
-        .from(foodMasters)
-        .leftJoin(
-          foodMasterNutrition,
-          eq(foodMasterNutrition.foodMasterId, foodMasters.id),
-        )
-        .where(eq(foodMasters.id, foodMasterId))
-        .limit(1)
-
-      const master = masterRows[0]
-      if (master === undefined) {
-        return err(new FoodMasterNotFoundError(foodMasterId))
-      }
-
-      const nutritionPerUnit = await loadNutrition(db, foodMasterId)
-      return ok({
-        id: master.id,
-        name: master.name,
-        isEstimated: master.isEstimated ?? false,
-        nutritionStatus: nutritionStatusFromIsEstimated(master.isEstimated),
-        nutritionPerUnit,
-      })
-    })(),
-    (caughtErr) =>
-      new MealLogPersistenceError('failed to load food_master', caughtErr),
-  ).andThen((result) => result)
 
 const toRow = (row: {
   id: string
