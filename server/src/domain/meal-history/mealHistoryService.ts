@@ -3,8 +3,11 @@ import { z } from 'zod'
 
 import { createAsText, type Sql } from '#db/index'
 import { numericValueSchema } from '#db/numeric-value-schema'
-import { foodSourceEnum } from '#db/schema'
 import { nutritionStatusFromIsEstimated } from '#domain/food-master/types'
+import {
+  nutritionVersionSchema,
+  type NutritionVersionWire,
+} from '#domain/meal-history/nutritionVersionSchema'
 import {
   type MealHistoryDayTotals,
   type MealHistoryNutritionVersion,
@@ -12,7 +15,6 @@ import {
   type MealHistoryService,
   type MealLogEntry,
   type NutrientCode,
-  NUTRITION_VERSION_CHANGE_KINDS,
   NUTRITION_VERSION_ORIGINS,
   type NutritionMap,
 } from '#domain/meal-history/types'
@@ -30,15 +32,6 @@ const incompleteNutrientRowSchema = z.object({
   nutrient_code: z.string(),
 })
 
-const nutritionVersionRowSchema = z.object({
-  version_no: z.number().int().positive(),
-  change_kind: z.enum(NUTRITION_VERSION_CHANGE_KINDS),
-  source: z.enum(foodSourceEnum.enumValues),
-  is_estimated: z.boolean(),
-  checked_on: z.iso.date().nullable(),
-  effective_from: z.iso.date().nullable(),
-})
-
 const entryRowSchema = z.object({
   id: z.string(),
   food_master_id: z.string(),
@@ -48,9 +41,9 @@ const entryRowSchema = z.object({
   quantity: numericValueSchema,
   recorded_at: z.iso.datetime({ offset: true }),
   is_estimated: z.boolean().nullable(),
-  nutrition_version: nutritionVersionRowSchema.nullable(),
+  nutrition_version: nutritionVersionSchema.nullable(),
   nutrition_version_origin: z.enum(NUTRITION_VERSION_ORIGINS),
-  nutrition_version_differences: z.array(nutritionVersionRowSchema),
+  nutrition_version_differences: z.array(nutritionVersionSchema),
 })
 
 export const createMealHistoryService = (sql: Sql): MealHistoryService => {
@@ -303,7 +296,7 @@ export const createMealHistoryService = (sql: Sql): MealHistoryService => {
 }
 
 const mapNutritionVersion = (
-  version: z.infer<typeof nutritionVersionRowSchema>,
+  version: NutritionVersionWire,
 ): MealHistoryNutritionVersion => ({
   versionNo: version.version_no,
   changeKind: version.change_kind,

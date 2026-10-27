@@ -1,4 +1,5 @@
 import type { NutritionStatus } from '#domain/food-master/types'
+import type { NutritionVersionWire } from '#domain/meal-history/nutritionVersionSchema'
 import type {
   MealHistoryAggregate,
   MealHistoryNutritionVersion,
@@ -14,18 +15,9 @@ interface MealHistoryPayloadEntry {
   readonly meal_type: MealType
   readonly quantity: number
   readonly nutrition_status: NutritionStatus
-  readonly nutrition_version: MealHistoryPayloadNutritionVersion | null
+  readonly nutrition_version: NutritionVersionWire | null
   readonly nutrition_version_origin: NutritionVersionOrigin
-  readonly nutrition_version_differences: Array<MealHistoryPayloadNutritionVersion>
-}
-
-interface MealHistoryPayloadNutritionVersion {
-  readonly version_no: number
-  readonly change_kind: MealHistoryNutritionVersion['changeKind']
-  readonly source: MealHistoryNutritionVersion['source']
-  readonly is_estimated: boolean
-  readonly checked_on: string | null
-  readonly effective_from: string | null
+  readonly nutrition_version_differences: Array<NutritionVersionWire>
 }
 
 interface MealHistoryPayloadBase {
@@ -98,7 +90,7 @@ export function toMealHistoryPayload(
 
 const toMealHistoryPayloadNutritionVersion = (
   version: MealHistoryNutritionVersion,
-): MealHistoryPayloadNutritionVersion => ({
+): NutritionVersionWire => ({
   version_no: version.versionNo,
   change_kind: version.changeKind,
   source: version.source,
