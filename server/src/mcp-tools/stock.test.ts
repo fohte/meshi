@@ -43,6 +43,7 @@ const createStockServiceStub = (
     readonly status?: StockStatus
     readonly delivery?: Delivery
     readonly listedDeliveries?: ReadonlyArray<ListedDelivery>
+    readonly listDeliveriesError?: StockDomainError
   } = {},
   onCount?: (input: CountStockInput) => void,
   onRegister?: (input: RegisterDeliveryInput) => void,
@@ -133,6 +134,9 @@ const createStockServiceStub = (
   },
   listDeliveries(input) {
     onListDeliveries?.(input)
+    if (overrides.listDeliveriesError !== undefined) {
+      return errAsync(overrides.listDeliveriesError)
+    }
     return okAsync(overrides.listedDeliveries ?? [])
   },
 })
@@ -243,6 +247,30 @@ it('returns lot balances from list_deliveries', async () => {
           },
         ],
       },
+    })
+  } finally {
+    await h.close()
+  }
+})
+
+it('returns a tool error when list_deliveries fails', async () => {
+  const h = await connect(
+    createStockServiceStub({
+      listDeliveriesError: new StockDomainError(
+        'persistence_failed',
+        'delivery lookup failed',
+      ),
+    }),
+  )
+  try {
+    const result = await h.client.callTool({
+      name: 'list_deliveries',
+      arguments: {},
+    })
+
+    expect(result).toEqual({
+      isError: true,
+      content: [{ type: 'text', text: 'delivery lookup failed' }],
     })
   } finally {
     await h.close()

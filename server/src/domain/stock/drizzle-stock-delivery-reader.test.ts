@@ -127,7 +127,7 @@ describeIfDb('stock delivery reader', () => {
     ])
   })
 
-  it('applies delivery id, current source reference, and status as AND filters', async () => {
+  it('uses delivery id and current source reference together', async () => {
     const tx = getTx()
     await seedDelivery(tx, {
       id: 'dly_filter_target',
@@ -161,6 +161,43 @@ describeIfDb('stock delivery reader', () => {
         status: 'received',
         expectedDate: '2031-06-01',
         receivedDate: '2031-06-02',
+        changeDeadline: null,
+        items: [],
+      },
+    ])
+  })
+
+  it('filters deliveries by status', async () => {
+    const tx = getTx()
+    await seedDelivery(tx, {
+      id: 'dly_status_received',
+      sourceRef: 'ref_status_received',
+      status: 'received',
+      expectedDate: '2031-06-04',
+      receivedDate: '2031-06-05',
+    })
+    await seedDelivery(tx, {
+      id: 'dly_status_planned',
+      sourceRef: 'ref_status_planned',
+      status: 'planned',
+      expectedDate: '2031-06-06',
+    })
+
+    const stockService = createStockService(
+      createDrizzleStockRepository(tx, { wrapInTransaction: false }),
+    )
+    const result = await stockService.listDeliveries({
+      status: 'received',
+      limit: 50,
+    })
+
+    expect(result._unsafeUnwrap()).toEqual([
+      {
+        id: 'dly_status_received',
+        sourceRef: 'ref_status_received',
+        status: 'received',
+        expectedDate: '2031-06-04',
+        receivedDate: '2031-06-05',
         changeDeadline: null,
         items: [],
       },
