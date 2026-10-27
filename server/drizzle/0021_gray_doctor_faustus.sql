@@ -85,5 +85,4 @@ ALTER TABLE "meal_logs" ADD CONSTRAINT "meal_logs_food_master_nutrition_version_
 ALTER TABLE "meal_logs" ADD CONSTRAINT "meal_logs_nutrition_version_origin_check" CHECK ("nutrition_version_origin" IN ('recorded', 'migrated', 'filled', 'reassigned'));--> statement-breakpoint
 CREATE UNIQUE INDEX "food_master_nutrition_food_master_id_version_no_key" ON "food_master_nutrition" USING btree ("food_master_id", "version_no");--> statement-breakpoint
 CREATE UNIQUE INDEX "food_master_nutrition_current_food_master_id_key" ON "food_master_nutrition" USING btree ("food_master_id") WHERE "food_master_nutrition"."is_current" = true;--> statement-breakpoint
-CREATE INDEX "food_master_nutrition_food_master_id_idx" ON "food_master_nutrition" USING btree ("food_master_id");--> statement-breakpoint
 CREATE INDEX "meal_logs_nutrition_version_id_idx" ON "meal_logs" USING btree ("nutrition_version_id");--> statement-breakpoint

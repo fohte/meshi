@@ -114,6 +114,11 @@ describeIfDatabase('nutrition version migration', () => {
     )
   })
 
+  it('does not change the migrated state when migrations are run again', async () => {
+    const snapshot = await readSnapshot()
+    expect(snapshot.after_rerun).toEqual(snapshot.after)
+  })
+
   it('assigns migrated logs to v1 and validates legacy evidence checks', async () => {
     const snapshot = await readSnapshot()
 

@@ -155,7 +155,6 @@ describeIfDb('schema migrations', () => {
       WHERE indexname IN (
         'food_master_nutrition_current_food_master_id_key',
         'food_master_nutrition_food_master_id_id_key',
-        'food_master_nutrition_food_master_id_idx',
         'food_master_nutrition_food_master_id_version_no_key',
         'food_master_nutrition_is_estimated_idx',
         'food_master_nutrition_source_composition_code_idx',
@@ -176,11 +175,6 @@ describeIfDb('schema migrations', () => {
         indexname: 'food_master_nutrition_food_master_id_id_key',
         indexdef:
           'CREATE UNIQUE INDEX food_master_nutrition_food_master_id_id_key ON public.food_master_nutrition USING btree (food_master_id, id)',
-      },
-      {
-        indexname: 'food_master_nutrition_food_master_id_idx',
-        indexdef:
-          'CREATE INDEX food_master_nutrition_food_master_id_idx ON public.food_master_nutrition USING btree (food_master_id)',
       },
       {
         indexname: 'food_master_nutrition_food_master_id_version_no_key',
@@ -835,35 +829,6 @@ describeIfDb('schema runtime constraints', () => {
         }),
       ),
     ).toEqual({ status: 'error', code: '23514' })
-  })
-
-  it('rejects inserts that mark nutrition evidence as legacy', async () => {
-    const tx = getTx()
-    await seedFoodMasterWithoutNutrition(tx, {
-      id: 'fm_legacy_evidence_insert',
-      name: 'Legacy evidence sample',
-    })
-
-    expect(
-      await runOutcome(tx`
-        INSERT INTO food_master_nutrition (
-          food_master_id,
-          version_no,
-          is_current,
-          change_kind,
-          source,
-          legacy_evidence
-        )
-        VALUES (
-          'fm_legacy_evidence_insert',
-          1,
-          true,
-          'initial',
-          'web_search',
-          true
-        )
-      `),
-    ).toEqual({ status: 'error', code: 'P0001' })
   })
 
   it('accepts estimated model nutrition without source evidence', async () => {

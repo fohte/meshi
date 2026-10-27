@@ -470,21 +470,6 @@
           "method": "btree",
           "with": {}
         },
-        "food_master_nutrition_food_master_id_idx": {
-          "name": "food_master_nutrition_food_master_id_idx",
-          "columns": [
-            {
-              "expression": "food_master_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
         "food_master_nutrition_is_estimated_idx": {
           "name": "food_master_nutrition_is_estimated_idx",
           "columns": [

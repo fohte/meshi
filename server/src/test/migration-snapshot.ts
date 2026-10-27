@@ -69,6 +69,7 @@ export const migrationSnapshotSchema = z.object({
   before: preservedStateSchema,
   rolled_back: preservedStateSchema,
   after: preservedStateSchema,
+  after_rerun: preservedStateSchema,
   failed_migration_observed: z.boolean(),
   version_assignments: z.array(
     z.object({

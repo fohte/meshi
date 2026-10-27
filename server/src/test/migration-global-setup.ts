@@ -32,6 +32,15 @@ const migrationJournalSchema = z.object({
   entries: z.array(migrationEntrySchema).min(1),
 })
 
+const migrationIndexForTag = (
+  journal: z.infer<typeof migrationJournalSchema>,
+  tag: string,
+): number =>
+  z
+    .number()
+    .int()
+    .parse(journal.entries.find((entry) => entry.tag === tag)?.idx)
+
 const fixtureFoods = [
   { id: 'legacy-valid', name: 'Legacy valid food' },
   { id: 'legacy-web', name: 'Legacy web source food' },
@@ -40,7 +49,8 @@ const fixtureFoods = [
   { id: 'legacy-model', name: 'Legacy model source food' },
   { id: 'legacy-unknown', name: 'Legacy unknown food' },
 ] as const
-const nutritionVersionsMigrationCount = 2
+const firstNutritionVersionMigrationTag = '0021_gray_doctor_faustus'
+const lastNutritionVersionMigrationTag = '0022_daily_charles_xavier'
 
 const databaseUrlSchema = z.url()
 
@@ -392,16 +402,20 @@ export default async function setup(): Promise<() => Promise<void> | void> {
         await readFile(path.join(sourceFolder, 'meta/_journal.json'), 'utf8'),
       ),
     )
-    const latestMigrationIndex = z
-      .number()
-      .int()
-      .parse(journal.entries.at(-1)?.idx)
+    const firstNutritionVersionMigrationIndex = migrationIndexForTag(
+      journal,
+      firstNutritionVersionMigrationTag,
+    )
+    const lastNutritionVersionMigrationIndex = migrationIndexForTag(
+      journal,
+      lastNutritionVersionMigrationTag,
+    )
     const beforeFolder = await createMigrationFolder(
       migrationRoot,
       'before',
       sourceFolder,
       journal,
-      latestMigrationIndex - nutritionVersionsMigrationCount,
+      firstNutritionVersionMigrationIndex - 1,
       false,
     )
     const failingFolder = await createMigrationFolder(
@@ -409,7 +423,7 @@ export default async function setup(): Promise<() => Promise<void> | void> {
       'failing',
       sourceFolder,
       journal,
-      latestMigrationIndex,
+      lastNutritionVersionMigrationIndex,
       true,
     )
     const finalFolder = await createMigrationFolder(
@@ -417,7 +431,7 @@ export default async function setup(): Promise<() => Promise<void> | void> {
       'final',
       sourceFolder,
       journal,
-      latestMigrationIndex,
+      lastNutritionVersionMigrationIndex,
       false,
     )
 
@@ -453,11 +467,14 @@ export default async function setup(): Promise<() => Promise<void> | void> {
 
     await migrate(drizzle(sql), { migrationsFolder: finalFolder })
     const after = await capturePreservedState(sql, true)
+    await migrate(drizzle(sql), { migrationsFolder: finalFolder })
+    const afterRerun = await capturePreservedState(sql, true)
     const details = await captureMigratedDetails(sql)
     const migrationSnapshot = migrationSnapshotSchema.parse({
       before,
       rolled_back: rolledBack,
       after,
+      after_rerun: afterRerun,
       failed_migration_observed: failedMigrationObserved,
       ...details,
     })
