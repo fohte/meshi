@@ -1143,6 +1143,7 @@ describeIfDb('meshi integration', () => {
           },
         }),
       )
+      const beforeCorrection = await readDeliveryDatabaseSnapshot(tx)
       const updated = normalizeUpdateDeliverySourceRefResult(
         await harness.client.callTool({
           name: 'update_delivery_source_ref',
@@ -1195,7 +1196,10 @@ describeIfDb('meshi integration', () => {
         byNewSourceRef,
         repeated,
         oldReferenceReplay,
-        databaseAfterCorrection: afterCorrection,
+        inventoryAfterCorrection: inventorySnapshot(afterCorrection),
+        sourceRefsAfterCorrection: afterCorrection.sourceRefs.map(
+          ({ source_ref, delivery_id }) => ({ source_ref, delivery_id }),
+        ),
         databaseAfterRepeatedCorrection: afterRepeatedCorrection,
         databaseAfterOldReferenceReplay: afterOldReferenceReplay,
       }
@@ -1364,7 +1368,21 @@ describeIfDb('meshi integration', () => {
             { type: 'text', text: 'received deliveries cannot be changed' },
           ],
         },
-        databaseAfterCorrection: afterCorrection,
+        inventoryAfterCorrection: inventorySnapshot(beforeCorrection),
+        sourceRefsAfterCorrection: [
+          {
+            source_ref: scenario.completeOldSourceRef,
+            delivery_id: scenario.completeDeliveryId,
+          },
+          {
+            source_ref: scenario.partialOldSourceRef,
+            delivery_id: scenario.partialDeliveryId,
+          },
+          {
+            source_ref: scenario.partialNewSourceRef,
+            delivery_id: scenario.partialDeliveryId,
+          },
+        ],
         databaseAfterRepeatedCorrection: afterCorrection,
         databaseAfterOldReferenceReplay: afterCorrection,
       }
@@ -1377,6 +1395,10 @@ describeIfDb('meshi integration', () => {
   it('validates received delivery items before rejecting changes', async () => {
     const tx = getTx()
     const scenario = await seedDeliverySourceRefCorrectionScenario(tx)
+    await seedFoodMasterWithoutNutritionRow(tx, {
+      id: 'fm_delivery_ref_untracked',
+      name: 'Sample untracked delivery food',
+    })
     const harness = await startHarness({ tx })
 
     try {

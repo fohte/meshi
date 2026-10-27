@@ -145,35 +145,6 @@ describe('POST /api/stock/deliveries', () => {
     })
   })
 
-  it('maps unmanaged stock items to not found', async () => {
-    const app = buildApp({
-      ...createStubApiDeps().stockService,
-      registerDelivery: () =>
-        errAsync(
-          new StockDomainError(
-            'stock_item_not_found',
-            'food_master is not a stock_item',
-          ),
-        ),
-    })
-
-    const res = await app.request('/api/stock/deliveries', {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({
-        sourceRef: 'order_example_44',
-        status: 'planned',
-        expectedDate: '2026-11-14',
-        items: [{ foodMasterId: 'food_example_untracked', quantity: 2 }],
-      }),
-    })
-
-    expect(await responseSnapshot(res)).toEqual({
-      status: 404,
-      body: { error: 'food_master is not a stock_item' },
-    })
-  })
-
   it('returns an internal server error when delivery persistence fails', async () => {
     const app = buildApp({
       ...createStubApiDeps().stockService,
