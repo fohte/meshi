@@ -136,7 +136,8 @@ export const createDrizzleFoodMatcher = (
             SELECT fm.id, fm.name, COALESCE(fmn.is_estimated, false) AS is_estimated, q AS matched_query,
                    GREATEST(similarity(fm.name, q), word_similarity(q, fm.name)) AS name_sim
             FROM food_masters fm
-            LEFT JOIN food_master_nutrition fmn ON fmn.food_master_id = fm.id
+            LEFT JOIN food_master_nutrition fmn
+              ON fmn.food_master_id = fm.id AND fmn.is_current = true
             CROSS JOIN unnest(${queries}::text[]) AS q
             WHERE fm.name % q OR fm.name %> q OR strpos(lower(fm.name), lower(q)) > 0
             UNION ALL
@@ -144,7 +145,8 @@ export const createDrizzleFoodMatcher = (
                    GREATEST(similarity(fma.alias, q), word_similarity(q, fma.alias)) AS name_sim
             FROM food_master_aliases fma
             JOIN food_masters fm ON fm.id = fma.food_master_id
-            LEFT JOIN food_master_nutrition fmn ON fmn.food_master_id = fm.id
+            LEFT JOIN food_master_nutrition fmn
+              ON fmn.food_master_id = fm.id AND fmn.is_current = true
             CROSS JOIN unnest(${queries}::text[]) AS q
             WHERE fma.alias % q OR fma.alias %> q OR strpos(lower(fma.alias), lower(q)) > 0
           ) _

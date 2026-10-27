@@ -8,7 +8,10 @@ import {
   type MealSetDomainError,
 } from '#domain/meal-set/index'
 import { describeIfDb, setupDrizzleTx } from '#test/db'
-import { seedFoodMaster, seedFoodMasterWithoutNutrition } from '#test/seed'
+import {
+  seedFoodMasterNutritionVersion,
+  seedFoodMasterWithoutNutrition,
+} from '#test/seed'
 
 const CREATED_AT_PLACEHOLDER = new Date('2000-01-01T00:00:00.000Z')
 
@@ -129,12 +132,25 @@ describeIfDb('MealSetService with DrizzleMealSetRepository', () => {
     ])
   })
 
-  it('includes per-unit kcal and null when a food has no energy value', async () => {
+  it('uses current per-unit kcal and returns null when a food has no energy value', async () => {
     const tx = getTx()
-    await seedFoodMaster(tx, {
+    await seedFoodMasterWithoutNutrition(tx, {
       id: 'fm_meal_set_with_kcal',
       name: 'alpha sample food',
-      isEstimated: false,
+    })
+    await seedFoodMasterNutritionVersion(tx, {
+      foodMasterId: 'fm_meal_set_with_kcal',
+      versionNo: 1,
+      isCurrent: false,
+      changeKind: 'initial',
+      source: 'user_input',
+      nutrients: { energy_kcal: 11 },
+    })
+    await seedFoodMasterNutritionVersion(tx, {
+      foodMasterId: 'fm_meal_set_with_kcal',
+      versionNo: 2,
+      isCurrent: true,
+      changeKind: 'product_update',
       source: 'user_input',
       nutrients: { energy_kcal: 45.5 },
     })

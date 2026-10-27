@@ -215,17 +215,33 @@ const seedFoodMaster = async (
     INSERT INTO food_masters (id, name)
     VALUES (${args.id}, ${args.name})
   `
-  await tx`
-    INSERT INTO food_master_nutrition (food_master_id, is_estimated, source)
-    VALUES (${args.id}, ${args.isEstimated ?? false}, 'user_input')
-  `
-  const rows = Object.entries(args.nutrition).map(([code, value]) => ({
-    food_master_id: args.id,
+  const nutritionEntries = Object.entries(args.nutrition)
+  const nutritionVersionId =
+    nutritionEntries.length === 0
+      ? null
+      : z.object({ id: z.uuid() }).parse(
+          (
+            await tx`
+                INSERT INTO food_master_nutrition (
+                  food_master_id,
+                  version_no,
+                  is_current,
+                  change_kind,
+                  is_estimated,
+                  source
+                )
+                VALUES (${args.id}, 1, true, 'initial', ${args.isEstimated ?? false}, 'user_input')
+                RETURNING id
+              `
+          )[0],
+        ).id
+  const rows = nutritionEntries.map(([code, value]) => ({
+    nutrition_version_id: nutritionVersionId,
     nutrient_code: code,
     value: String(value),
   }))
   if (rows.length > 0) {
-    await tx`INSERT INTO food_master_nutrients ${tx(rows, 'food_master_id', 'nutrient_code', 'value')}`
+    await tx`INSERT INTO food_master_nutrients ${tx(rows, 'nutrition_version_id', 'nutrient_code', 'value')}`
   }
 }
 
@@ -241,10 +257,26 @@ const seedMealLog = async (
   },
 ): Promise<void> => {
   await tx`
-    INSERT INTO meal_logs (id, food_master_id, eaten_date, meal_type, quantity, created_at)
+    INSERT INTO meal_logs (
+      id,
+      food_master_id,
+      nutrition_version_id,
+      nutrition_version_origin,
+      eaten_date,
+      meal_type,
+      quantity,
+      created_at
+    )
     VALUES (
       ${args.id},
       ${args.foodMasterId},
+      (
+        SELECT id
+        FROM food_master_nutrition
+        WHERE food_master_id = ${args.foodMasterId}
+          AND is_current = true
+      ),
+      'recorded',
       ${args.eatenDate},
       ${args.mealType},
       ${String(args.quantity)},

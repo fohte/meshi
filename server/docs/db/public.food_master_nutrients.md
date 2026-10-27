@@ -2,54 +2,47 @@
 
 ## Description
 
-Nutrient values associated with registered foods.
+Nutrient values associated with nutrition versions.
 
 ## Columns
 
-| Name           | Type    | Default | Nullable | Children | Parents                                                         | Comment                                                               |
-| -------------- | ------- | ------- | -------- | -------- | --------------------------------------------------------------- | --------------------------------------------------------------------- |
-| food_master_id | text    |         | false    |          | [public.food_master_nutrition](public.food_master_nutrition.md) | Identifier of the food master this nutrient value belongs to.         |
-| nutrient_code  | text    |         | false    |          | [public.nutrient_definitions](public.nutrient_definitions.md)   | Identifier of the nutrient.                                           |
-| value          | numeric |         | false    |          |                                                                 | Nutrient value for the food master; its quantity basis is not stored. |
+| Name                 | Type    | Default | Nullable | Children | Parents                                                         | Comment                                                             |
+| -------------------- | ------- | ------- | -------- | -------- | --------------------------------------------------------------- | ------------------------------------------------------------------- |
+| nutrient_code        | text    |         | false    |          | [public.nutrient_definitions](public.nutrient_definitions.md)   | Identifier of the nutrient.                                         |
+| value                | numeric |         | false    |          |                                                                 | Nutrient value for the nutrition version.                           |
+| nutrition_version_id | uuid    |         | false    |          | [public.food_master_nutrition](public.food_master_nutrition.md) | Identifier of the nutrition version this nutrient value belongs to. |
 
 ## Constraints
 
-| Name                                          | Type        | Definition                                                                                                        |
-| --------------------------------------------- | ----------- | ----------------------------------------------------------------------------------------------------------------- |
-| food_master_nutrients_food_master_id_not_null | n           | NOT NULL food_master_id                                                                                           |
-| food_master_nutrients_nutrient_code_not_null  | n           | NOT NULL nutrient_code                                                                                            |
-| food_master_nutrients_value_nonneg            | CHECK       | CHECK ((value >= (0)::numeric))                                                                                   |
-| food_master_nutrients_value_not_null          | n           | NOT NULL value                                                                                                    |
-| food_master_nutrients_pkey                    | PRIMARY KEY | PRIMARY KEY (food_master_id, nutrient_code)                                                                       |
-| food_master_nutrients_nutrient_code_fk        | FOREIGN KEY | FOREIGN KEY (nutrient_code) REFERENCES nutrient_definitions(code) ON UPDATE CASCADE ON DELETE RESTRICT            |
-| food_master_nutrients_food_master_id_fk       | FOREIGN KEY | FOREIGN KEY (food_master_id) REFERENCES food_master_nutrition(food_master_id) ON UPDATE CASCADE ON DELETE CASCADE |
+| Name                                                | Type        | Definition                                                                                                  |
+| --------------------------------------------------- | ----------- | ----------------------------------------------------------------------------------------------------------- |
+| food_master_nutrients_nutrient_code_not_null        | n           | NOT NULL nutrient_code                                                                                      |
+| food_master_nutrients_nutrition_version_id_not_null | n           | NOT NULL nutrition_version_id                                                                               |
+| food_master_nutrients_value_nonneg                  | CHECK       | CHECK ((value >= (0)::numeric))                                                                             |
+| food_master_nutrients_value_not_null                | n           | NOT NULL value                                                                                              |
+| food_master_nutrients_nutrient_code_fk              | FOREIGN KEY | FOREIGN KEY (nutrient_code) REFERENCES nutrient_definitions(code) ON UPDATE CASCADE ON DELETE RESTRICT      |
+| food_master_nutrients_nutrition_version_id_fk       | FOREIGN KEY | FOREIGN KEY (nutrition_version_id) REFERENCES food_master_nutrition(id) ON UPDATE CASCADE ON DELETE CASCADE |
+| food_master_nutrients_pkey                          | PRIMARY KEY | PRIMARY KEY (nutrition_version_id, nutrient_code)                                                           |
 
 ## Indexes
 
-| Name                                    | Definition                                                                                                                 |
-| --------------------------------------- | -------------------------------------------------------------------------------------------------------------------------- |
-| food_master_nutrients_pkey              | CREATE UNIQUE INDEX food_master_nutrients_pkey ON public.food_master_nutrients USING btree (food_master_id, nutrient_code) |
-| food_master_nutrients_nutrient_code_idx | CREATE INDEX food_master_nutrients_nutrient_code_idx ON public.food_master_nutrients USING btree (nutrient_code)           |
+| Name                                    | Definition                                                                                                                       |
+| --------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------- |
+| food_master_nutrients_nutrient_code_idx | CREATE INDEX food_master_nutrients_nutrient_code_idx ON public.food_master_nutrients USING btree (nutrient_code)                 |
+| food_master_nutrients_pkey              | CREATE UNIQUE INDEX food_master_nutrients_pkey ON public.food_master_nutrients USING btree (nutrition_version_id, nutrient_code) |
 
 ## Relations
 
 ```mermaid
 erDiagram
 
-"public.food_master_nutrients" }o--|| "public.food_master_nutrition" : "FOREIGN KEY (food_master_id) REFERENCES food_master_nutrition(food_master_id) ON UPDATE CASCADE ON DELETE CASCADE"
 "public.food_master_nutrients" }o--|| "public.nutrient_definitions" : "FOREIGN KEY (nutrient_code) REFERENCES nutrient_definitions(code) ON UPDATE CASCADE ON DELETE RESTRICT"
+"public.food_master_nutrients" }o--|| "public.food_master_nutrition" : "FOREIGN KEY (nutrition_version_id) REFERENCES food_master_nutrition(id) ON UPDATE CASCADE ON DELETE CASCADE"
 
 "public.food_master_nutrients" {
-  text food_master_id FK
   text nutrient_code FK
   numeric value
-}
-"public.food_master_nutrition" {
-  text food_master_id FK
-  boolean is_estimated
-  food_source source
-  text source_url
-  text source_composition_code FK
+  uuid nutrition_version_id FK
 }
 "public.nutrient_definitions" {
   text code
@@ -57,6 +50,25 @@ erDiagram
   nutrient_unit unit
   boolean is_major
   integer sort_order
+}
+"public.food_master_nutrition" {
+  text food_master_id FK
+  boolean is_estimated
+  food_source source
+  text source_url
+  text source_composition_code FK
+  uuid id
+  integer version_no
+  boolean is_current
+  text change_kind
+  uuid corrects_version_id FK
+  text serving_basis
+  text net_content
+  date checked_on
+  date effective_from
+  text reason
+  boolean legacy_evidence
+  timestamp_with_time_zone created_at
 }
 ```
 

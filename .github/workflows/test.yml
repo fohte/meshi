@@ -138,8 +138,11 @@ jobs:
       # mise-action resolves these URLs before the database has a published port.
       - name: Refresh database URLs
         run: |
-          echo "DATABASE_URL=$(scripts/db-url server dev)" >> "$GITHUB_ENV"
-          echo "TEST_DATABASE_URL=$(scripts/db-url server test)" >> "$GITHUB_ENV"
+          {
+            echo "DATABASE_URL=$(scripts/db-url server dev)"
+            echo "TEST_DATABASE_URL=$(scripts/db-url server test)"
+            echo "MIGRATION_TEST_DATABASE_URL=$(scripts/db-url server migration-test)"
+          } >> "$GITHUB_ENV"
 
       - name: Get pnpm store directory
         id: pnpm-store
@@ -157,6 +160,9 @@ jobs:
 
       - name: Run tests
         run: pnpm --filter server run test
+
+      - name: Run migration tests
+        run: pnpm --filter server run test:migrations
 
       # Build the SPA package separately from the API and DB package.
       - name: Build web

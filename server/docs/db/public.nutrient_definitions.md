@@ -53,9 +53,9 @@ erDiagram
   numeric value
 }
 "public.food_master_nutrients" {
-  text food_master_id FK
   text nutrient_code FK
   numeric value
+  uuid nutrition_version_id FK
 }
 ```
 

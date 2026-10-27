@@ -26,8 +26,12 @@ const FOOD_MASTER_NUTRITION_FOOD_MASTER_ID_FK =
   'food_master_nutrition_food_master_id_fk'
 
 const existingNutritionRowsSchema = z.array(
-  z.object({ source: z.enum(foodSourceEnum.enumValues) }),
+  z.object({
+    id: z.string(),
+    source: z.enum(foodSourceEnum.enumValues),
+  }),
 )
+const nutritionVersionRowSchema = z.object({ id: z.string() })
 
 const nutritionAlreadyExists = (foodMasterId: string, cause?: unknown) =>
   new FoodMasterDomainError(
@@ -114,9 +118,9 @@ export const createFoodMasterNutritionFiller = (
       )
     }
 
-    const existingNutrition = await tx<{ source: unknown }[]>`
-      SELECT source FROM food_master_nutrition
-      WHERE food_master_id = ${input.foodMasterId}
+    const existingNutrition = await tx<Record<string, unknown>[]>`
+      SELECT id, source FROM food_master_nutrition
+      WHERE food_master_id = ${input.foodMasterId} AND is_current = true
     `
     const parsedExistingNutrition =
       existingNutritionRowsSchema.safeParse(existingNutrition)
@@ -128,7 +132,8 @@ export const createFoodMasterNutritionFiller = (
         ),
       )
     }
-    const existingSource = parsedExistingNutrition.data[0]?.source
+    const existingVersion = parsedExistingNutrition.data[0]
+    const existingSource = existingVersion?.source
     if (
       existingSource !== undefined &&
       (existingSource !== 'model_estimate' ||
@@ -137,40 +142,75 @@ export const createFoodMasterNutritionFiller = (
       return err(nutritionAlreadyExists(input.foodMasterId))
     }
 
-    if (existingSource === 'model_estimate') {
+    let nutritionVersionId: string
+    if (existingSource === 'model_estimate' && existingVersion !== undefined) {
+      nutritionVersionId = existingVersion.id
       await tx`
         UPDATE food_master_nutrition
         SET is_estimated = ${normalized.isEstimated},
             source = ${normalized.source},
             source_url = ${normalized.sourceUrl},
-            source_composition_code = ${normalized.sourceCompositionCode}
-        WHERE food_master_id = ${input.foodMasterId}
+            source_composition_code = ${normalized.sourceCompositionCode},
+            legacy_evidence = false
+        WHERE id = ${nutritionVersionId}
       `
       await tx`
         DELETE FROM food_master_nutrients
-        WHERE food_master_id = ${input.foodMasterId}
+        WHERE nutrition_version_id = ${nutritionVersionId}
       `
     } else {
-      await tx`
+      const insertedVersion = await tx<Record<string, unknown>[]>`
         INSERT INTO food_master_nutrition (
-          food_master_id, is_estimated, source, source_url, source_composition_code
+          food_master_id, version_no, is_current, change_kind, is_estimated,
+          source, source_url, source_composition_code
         )
         VALUES (
-          ${input.foodMasterId},
+          ${input.foodMasterId}, 1, true, 'initial',
           ${normalized.isEstimated},
           ${normalized.source},
           ${normalized.sourceUrl},
           ${normalized.sourceCompositionCode}
         )
+        RETURNING id
       `
+      const parsedVersion = z
+        .array(nutritionVersionRowSchema)
+        .safeParse(insertedVersion)
+      if (!parsedVersion.success || parsedVersion.data[0] === undefined) {
+        return err(
+          new FoodMasterDomainError(
+            'persistence_failed',
+            'failed to insert food_master_nutrition row',
+          ),
+        )
+      }
+      nutritionVersionId = parsedVersion.data[0].id
     }
 
     const nutrientRows = nutrientCodes.map((code) => ({
-      food_master_id: input.foodMasterId,
+      nutrition_version_id: nutritionVersionId,
       nutrient_code: code,
       value: String(normalized.nutrition[code]),
     }))
-    await tx`INSERT INTO food_master_nutrients ${tx(nutrientRows, 'food_master_id', 'nutrient_code', 'value')}`
+    await tx`INSERT INTO food_master_nutrients ${tx(nutrientRows, 'nutrition_version_id', 'nutrient_code', 'value')}`
+
+    if (existingVersion === undefined) {
+      await tx`
+        WITH filled_logs AS (
+          UPDATE meal_logs
+          SET nutrition_version_id = ${nutritionVersionId},
+              nutrition_version_origin = 'filled'
+          WHERE food_master_id = ${input.foodMasterId}
+            AND nutrition_version_id IS NULL
+          RETURNING id
+        )
+        INSERT INTO meal_log_nutrition_changes (
+          meal_log_id, from_version_id, to_version_id, reason
+        )
+        SELECT id, NULL, ${nutritionVersionId}, '補完'
+        FROM filled_logs
+      `
+    }
 
     return ok(
       normalized.isEstimated ? ('estimated' as const) : ('confirmed' as const),

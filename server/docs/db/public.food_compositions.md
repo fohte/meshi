@@ -50,6 +50,18 @@ erDiagram
   food_source source
   text source_url
   text source_composition_code FK
+  uuid id
+  integer version_no
+  boolean is_current
+  text change_kind
+  uuid corrects_version_id FK
+  text serving_basis
+  text net_content
+  date checked_on
+  date effective_from
+  text reason
+  boolean legacy_evidence
+  timestamp_with_time_zone created_at
 }
 ```
 

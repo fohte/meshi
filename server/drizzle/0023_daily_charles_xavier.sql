@@ -1,0 +1,1 @@
+CREATE INDEX "food_master_nutrition_corrects_version_id_idx" ON "food_master_nutrition" USING btree ("food_master_id","corrects_version_id") WHERE "food_master_nutrition"."corrects_version_id" IS NOT NULL;

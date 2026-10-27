@@ -7,6 +7,7 @@ import { describeIfDb, setupDrizzleTx } from '#test/db'
 import {
   seedFoodComposition,
   seedFoodMaster,
+  seedFoodMasterNutritionVersion,
   seedFoodMasterWithoutNutrition,
   seedMealLog,
 } from '#test/seed'
@@ -18,6 +19,47 @@ describeIfDb('createFoodBrowseService', () => {
   const getTx = setupDrizzleTx()
 
   describe('search', () => {
+    it('enriches a match from its current nutrition version', async () => {
+      const tx = getTx()
+      await seedFoodMasterWithoutNutrition(tx, {
+        id: 'fm_versioned',
+        name: 'versioned food',
+      })
+      await seedFoodMasterNutritionVersion(tx, {
+        foodMasterId: 'fm_versioned',
+        versionNo: 1,
+        isCurrent: false,
+        changeKind: 'initial',
+        isEstimated: true,
+        source: 'model_estimate',
+        nutrients: { energy_kcal: 11 },
+      })
+      await seedFoodMasterNutritionVersion(tx, {
+        foodMasterId: 'fm_versioned',
+        versionNo: 2,
+        isCurrent: true,
+        changeKind: 'product_update',
+        source: 'user_input',
+        nutrients: { energy_kcal: 23 },
+      })
+      const service = createFoodBrowseService(tx, createDrizzleFoodMatcher(tx))
+
+      const result = (await service.search('versioned', 5))._unsafeUnwrap()
+
+      expect(result).toEqual([
+        {
+          foodMasterId: 'fm_versioned',
+          compositionCode: null,
+          name: 'versioned food',
+          isEstimated: false,
+          nutritionStatus: 'confirmed',
+          reason: 'fuzzy_name',
+          source: 'user_input',
+          energyKcalPerUnit: 23,
+        },
+      ])
+    })
+
     it('enriches a food_master match with its source and per-unit kcal', async () => {
       const tx = getTx()
       await seedFoodMaster(tx, {
@@ -102,6 +144,78 @@ describeIfDb('createFoodBrowseService', () => {
   })
 
   describe('listRecent', () => {
+    it('uses the current nutrition version for recent and frequent foods', async () => {
+      const tx = getTx()
+      await seedFoodMasterWithoutNutrition(tx, {
+        id: 'fm_versioned_recent',
+        name: 'versioned recent food',
+      })
+      const oldVersionId = await seedFoodMasterNutritionVersion(tx, {
+        foodMasterId: 'fm_versioned_recent',
+        versionNo: 1,
+        isCurrent: false,
+        changeKind: 'initial',
+        isEstimated: true,
+        source: 'model_estimate',
+        nutrients: { energy_kcal: 11 },
+      })
+      await seedFoodMasterNutritionVersion(tx, {
+        foodMasterId: 'fm_versioned_recent',
+        versionNo: 2,
+        isCurrent: true,
+        changeKind: 'product_update',
+        source: 'user_input',
+        nutrients: { energy_kcal: 23 },
+      })
+      await seedMealLog(tx, {
+        id: 'ml_versioned_recent',
+        foodMasterId: 'fm_versioned_recent',
+        nutritionVersionId: oldVersionId,
+        nutritionVersionOrigin: 'migrated',
+        eatenDate: toJstDateString(daysAgo(1)),
+        mealType: 'dinner',
+        quantity: 1,
+      })
+      const service = createFoodBrowseService(tx, createDrizzleFoodMatcher(tx))
+
+      const [recent, frequent] = await Promise.all([
+        service.listRecent(5),
+        service.listFrequent(5),
+      ])
+
+      expect(
+        Object.fromEntries([
+          ['recent', recent._unsafeUnwrap()],
+          ['frequent', frequent._unsafeUnwrap()],
+        ]),
+      ).toEqual({
+        recent: [
+          {
+            foodMasterId: 'fm_versioned_recent',
+            compositionCode: null,
+            name: 'versioned recent food',
+            isEstimated: false,
+            nutritionStatus: 'confirmed',
+            reason: 'history_recent',
+            source: 'user_input',
+            energyKcalPerUnit: 23,
+          },
+        ],
+        frequent: [
+          {
+            foodMasterId: 'fm_versioned_recent',
+            compositionCode: null,
+            name: 'versioned recent food',
+            isEstimated: false,
+            nutritionStatus: 'confirmed',
+            reason: 'history_frequent',
+            source: 'user_input',
+            energyKcalPerUnit: 23,
+          },
+        ],
+      })
+    })
+
     it('orders foods by most recently eaten, newest first', async () => {
       const tx = getTx()
       await seedFoodMaster(tx, {

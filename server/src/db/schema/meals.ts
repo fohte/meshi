@@ -10,10 +10,11 @@ import {
   text,
   timestamp,
   uniqueIndex,
+  uuid,
 } from 'drizzle-orm/pg-core'
 
 import { mealTypeEnum } from '#db/schema/enums'
-import { foodMasters } from '#db/schema/foods'
+import { foodMasterNutrition, foodMasters } from '#db/schema/foods'
 import type { JstDate } from '#lib/jst-date'
 
 export const mealSets = pgTable(
@@ -71,6 +72,8 @@ export const mealLogs = pgTable(
   {
     id: text('id').primaryKey(),
     foodMasterId: text('food_master_id').notNull(),
+    nutritionVersionId: uuid('nutrition_version_id'),
+    nutritionVersionOrigin: text('nutrition_version_origin').notNull(),
     // JST calendar date, no time component — see src/lib/jst-date.ts.
     eatenDate: date('eaten_date', { mode: 'string' })
       .$type<JstDate>()
@@ -92,12 +95,69 @@ export const mealLogs = pgTable(
     })
       .onUpdate('cascade')
       .onDelete('restrict'),
+    foreignKey({
+      name: 'meal_logs_food_master_nutrition_version_fk',
+      columns: [table.foodMasterId, table.nutritionVersionId],
+      foreignColumns: [
+        foodMasterNutrition.foodMasterId,
+        foodMasterNutrition.id,
+      ],
+    }).onUpdate('cascade'),
     index('meal_logs_eaten_date_idx').on(table.eatenDate.desc()),
     index('meal_logs_food_master_id_eaten_date_idx').on(
       table.foodMasterId,
       table.eatenDate.desc(),
     ),
+    index('meal_logs_nutrition_version_id_idx').on(table.nutritionVersionId),
     check('meal_logs_quantity_positive', sql`${table.quantity} > 0`),
+    check(
+      'meal_logs_nutrition_version_origin_check',
+      sql`${table.nutritionVersionOrigin} IN ('recorded', 'migrated', 'filled', 'reassigned')`,
+    ),
+  ],
+)
+
+export const mealLogNutritionChanges = pgTable(
+  'meal_log_nutrition_changes',
+  {
+    id: uuid('id')
+      .primaryKey()
+      .default(sql`uuidv7()`),
+    mealLogId: text('meal_log_id').notNull(),
+    fromVersionId: uuid('from_version_id'),
+    toVersionId: uuid('to_version_id').notNull(),
+    reason: text('reason').notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true, mode: 'date' })
+      .notNull()
+      .default(sql`now()`),
+  },
+  (table) => [
+    foreignKey({
+      name: 'meal_log_nutrition_changes_meal_log_id_fk',
+      columns: [table.mealLogId],
+      foreignColumns: [mealLogs.id],
+    })
+      .onUpdate('cascade')
+      .onDelete('cascade'),
+    foreignKey({
+      name: 'meal_log_nutrition_changes_from_version_id_fk',
+      columns: [table.fromVersionId],
+      foreignColumns: [foodMasterNutrition.id],
+    })
+      .onUpdate('cascade')
+      .onDelete('cascade'),
+    foreignKey({
+      name: 'meal_log_nutrition_changes_to_version_id_fk',
+      columns: [table.toVersionId],
+      foreignColumns: [foodMasterNutrition.id],
+    })
+      .onUpdate('cascade')
+      .onDelete('cascade'),
+    index('meal_log_nutrition_changes_meal_log_id_idx').on(table.mealLogId),
+    index('meal_log_nutrition_changes_from_version_id_idx').on(
+      table.fromVersionId,
+    ),
+    index('meal_log_nutrition_changes_to_version_id_idx').on(table.toVersionId),
   ],
 )
 

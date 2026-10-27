@@ -9,6 +9,7 @@ import { describeIfDb, setupDrizzleTx } from '#test/db'
 import { jstDate } from '#test/jst-date'
 import {
   seedFoodMaster,
+  seedFoodMasterNutritionVersion,
   seedFoodMasterWithoutNutrition,
   seedMealLog,
 } from '#test/seed'
@@ -38,9 +39,23 @@ describeIfDb('DayDetailService.query', () => {
 
   it('enriches entries with food name, per-item kcal, and the estimated flag', async () => {
     const tx = getTx()
-    await seedFoodMaster(tx, {
+    await seedFoodMasterWithoutNutrition(tx, {
       id: 'rice',
       name: 'ごはん',
+    })
+    const oldRiceVersionId = await seedFoodMasterNutritionVersion(tx, {
+      foodMasterId: 'rice',
+      versionNo: 1,
+      isCurrent: false,
+      changeKind: 'initial',
+      source: 'user_input',
+      nutrients: { energy_kcal: 11 },
+    })
+    await seedFoodMasterNutritionVersion(tx, {
+      foodMasterId: 'rice',
+      versionNo: 2,
+      isCurrent: true,
+      changeKind: 'product_update',
       source: 'user_input',
       nutrients: { energy_kcal: 156 },
     })
@@ -64,6 +79,8 @@ describeIfDb('DayDetailService.query', () => {
     await seedMealLog(tx, {
       id: 'log-1',
       foodMasterId: 'rice',
+      nutritionVersionId: oldRiceVersionId,
+      nutritionVersionOrigin: 'migrated',
       eatenDate: jstDate('2026-06-01'),
       mealType: 'breakfast',
       quantity: 2,
