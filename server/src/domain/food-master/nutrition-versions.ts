@@ -69,7 +69,9 @@ const toVersion = (
 const invalidChange = (message: string): FoodMasterDomainError =>
   new FoodMasterDomainError('invalid_nutrition_version_change', message)
 
-const normalizeOptionalText = (value: string | undefined): string | null => {
+const normalizeOptionalText = (
+  value: string | null | undefined,
+): string | null => {
   const normalized = value?.trim()
   return normalized === undefined || normalized === '' ? null : normalized
 }
@@ -304,12 +306,12 @@ export const createFoodMasterNutritionVersionOperations = (
       input.changeKind === 'correction' ? (input.reason?.trim() ?? null) : null
     const servingBasis = normalizeOptionalText(
       input.servingBasis === undefined
-        ? (correctedVersion?.serving_basis ?? undefined)
+        ? correctedVersion?.serving_basis
         : input.servingBasis,
     )
     const netContent = normalizeOptionalText(
       input.netContent === undefined
-        ? (correctedVersion?.net_content ?? undefined)
+        ? correctedVersion?.net_content
         : input.netContent,
     )
     const effectiveFrom =

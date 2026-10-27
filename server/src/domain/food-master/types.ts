@@ -53,10 +53,10 @@ export interface AddFoodMasterNutritionVersionInput {
   readonly isEstimated: boolean
   readonly sourceUrl?: string
   readonly sourceCompositionCode?: string
-  readonly servingBasis?: string
-  readonly netContent?: string
+  readonly servingBasis?: string | null
+  readonly netContent?: string | null
   readonly checkedOn?: string
-  readonly effectiveFrom?: string
+  readonly effectiveFrom?: string | null
 }
 
 export interface FoodMaster {

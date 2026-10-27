@@ -748,6 +748,21 @@ describe('MeshiMcpServer tools/list', () => {
     }
   })
 
+  it('explains how correction metadata handles omitted and unknown values', async () => {
+    const h = await start()
+    try {
+      const result = await h.client.listTools()
+      const tool = result.tools.find(
+        (candidate) => candidate.name === 'add_food_nutrition_version',
+      )
+      expect(tool?.description).toEqual(
+        '同じ food_master_id に栄養バージョンを追加する。change_kind=product_update は商品情報の更新に使い、checked_on を指定する。effective_from は実際の適用開始日が分かる場合だけ指定し、不明なら null を指定する。checked_on は情報を確認した日で、商品変更日を意味しない。change_kind=correction は誤登録の訂正に使い、corrects_version_id と reason を必ず指定する。訂正元が現行なら新バージョンが現行になり、過去バージョンなら現行は変わらない。訂正時に serving_basis、net_content、effective_from を省略すると訂正元の値を引き継ぎ、値を指定すると置き換える。これらを不明にする場合は null を指定する。栄養値は meal_logs.quantity が掛ける食品 1 つ分の値を指定する。出典の基準量が食品 1 つ分と異なる場合は食品 1 つ分へ換算する。source=web_search は is_estimated=false と source_url を指定する。source=composition_table_estimate は is_estimated=true と source_composition_code を指定する。source=user_input はユーザー本人が伝えた値に限り、source_url と source_composition_code は指定しない。source=model_estimate は is_estimated=true とし、出典 URL と composition code は指定しない。serving_basis と net_content は分かる値を記録する。既存の食事ログの数量、食品 ID、栄養バージョンは変更しない。',
+      )
+    } finally {
+      await h.close()
+    }
+  })
+
   it('requires a preview and a reason before changing a meal log version', async () => {
     const h = await start()
     try {
@@ -3436,6 +3451,95 @@ describe('food nutrition versions', () => {
           ],
           list: ['fm_version_alpha'],
         },
+      })
+    } finally {
+      await h.close()
+    }
+  })
+
+  it('allows explicit null correction metadata through MCP', async () => {
+    const correctionVersion: FoodMasterNutritionVersion = {
+      id: 'nutrition_version_cleared',
+      foodMasterId: 'fm_version_cleared',
+      versionNo: 2,
+      changeKind: 'correction',
+      correctsVersionId: '11111111-1111-4111-8111-111111111111',
+      isCurrent: true,
+      servingBasis: null,
+      netContent: null,
+      nutrition: { energy_kcal: 105 },
+      source: 'user_input',
+      sourceUrl: null,
+      sourceCompositionCode: null,
+      isEstimated: false,
+      checkedOn: null,
+      effectiveFrom: null,
+      reason: 'synthetic correction reason',
+      mealLogCount: 0,
+    }
+    const calls: AddFoodMasterNutritionVersionInput[] = []
+    const h = await start({
+      foodMasterOverrides: {
+        addNutritionVersion(input) {
+          calls.push(input)
+          return okAsync(correctionVersion)
+        },
+      },
+    })
+    try {
+      const result = await h.client.callTool({
+        name: 'add_food_nutrition_version',
+        arguments: {
+          food_master_id: 'fm_version_cleared',
+          change_kind: 'correction',
+          corrects_version_id: '11111111-1111-4111-8111-111111111111',
+          reason: 'synthetic correction reason',
+          nutrition: { energy_kcal: 105 },
+          source: 'user_input',
+          is_estimated: false,
+          serving_basis: null,
+          net_content: null,
+          effective_from: null,
+        },
+      })
+
+      expect(observation({ result, calls })).toEqual({
+        result: {
+          content: [{ type: 'text', text: '栄養バージョンを追加しました。' }],
+          structuredContent: {
+            nutrition_version_id: 'nutrition_version_cleared',
+            food_master_id: 'fm_version_cleared',
+            version_no: 2,
+            change_kind: 'correction',
+            corrects_version_id: '11111111-1111-4111-8111-111111111111',
+            is_current: true,
+            serving_basis: null,
+            net_content: null,
+            nutrition: { energy_kcal: 105 },
+            source: 'user_input',
+            source_url: null,
+            source_composition_code: null,
+            is_estimated: false,
+            checked_on: null,
+            effective_from: null,
+            reason: 'synthetic correction reason',
+            meal_log_count: 0,
+          },
+        },
+        calls: [
+          {
+            foodMasterId: 'fm_version_cleared',
+            changeKind: 'correction',
+            correctsVersionId: '11111111-1111-4111-8111-111111111111',
+            reason: 'synthetic correction reason',
+            nutrition: { energy_kcal: 105 },
+            source: 'user_input',
+            isEstimated: false,
+            servingBasis: null,
+            netContent: null,
+            effectiveFrom: null,
+          },
+        ],
       })
     } finally {
       await h.close()
