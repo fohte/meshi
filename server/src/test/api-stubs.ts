@@ -95,6 +95,20 @@ export const createStubApiDeps = (): ApiDeps => ({
           'foodMasterService.fillNutrition not stubbed',
         ),
       ),
+    addNutritionVersion: () =>
+      errAsync(
+        new FoodMasterDomainError(
+          'persistence_failed',
+          'foodMasterService.addNutritionVersion not stubbed',
+        ),
+      ),
+    listNutritionVersions: () =>
+      errAsync(
+        new FoodMasterDomainError(
+          'persistence_failed',
+          'foodMasterService.listNutritionVersions not stubbed',
+        ),
+      ),
     registerWithSimilarNameCheck: () =>
       errAsync(
         new FoodMasterDomainError(

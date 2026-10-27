@@ -37,6 +37,20 @@ const notStubbed = (name: string): FoodMasterService => ({
         `${name}.fillNutrition not stubbed`,
       ),
     ),
+  addNutritionVersion: () =>
+    errAsync(
+      new FoodMasterDomainError(
+        'persistence_failed',
+        `${name}.addNutritionVersion not stubbed`,
+      ),
+    ),
+  listNutritionVersions: () =>
+    errAsync(
+      new FoodMasterDomainError(
+        'persistence_failed',
+        `${name}.listNutritionVersions not stubbed`,
+      ),
+    ),
   registerWithSimilarNameCheck: () =>
     errAsync(
       new FoodMasterDomainError(

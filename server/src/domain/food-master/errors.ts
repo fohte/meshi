@@ -21,6 +21,9 @@ type FoodMasterErrorCode =
   | 'similar_name_exists'
   | 'composition_not_found'
   | 'food_master_not_found'
+  | 'nutrition_version_required'
+  | 'nutrition_version_not_found'
+  | 'invalid_nutrition_version_change'
   | 'same_food_master'
   | 'persistence_failed'
 

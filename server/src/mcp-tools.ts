@@ -11,12 +11,14 @@ import type { MealSkipService } from '#domain/meal-skip/meal-skip-service'
 import type { StockService } from '#domain/stock/types'
 import type { UserProfileService } from '#domain/user-profile/user-profile-service'
 import type { Logger } from '#logger'
+import { registerAddFoodNutritionVersionTool } from '#mcp-tools/add-food-nutrition-version'
 import { registerCountStockTool } from '#mcp-tools/count-stock'
 import { registerDeleteMealLogTool } from '#mcp-tools/delete-meal-log'
 import { registerFillFoodNutritionTool } from '#mcp-tools/fill-food-nutrition'
 import { registerFoodFromCompositionTool } from '#mcp-tools/food-composition'
 import { registerGetStockStatusTool } from '#mcp-tools/get-stock-status'
 import { registerListDeliveriesTool } from '#mcp-tools/list-deliveries'
+import { registerListFoodNutritionVersionsTool } from '#mcp-tools/list-food-nutrition-versions'
 import { registerMealLoggingTools } from '#mcp-tools/meal-logging'
 import { registerMealSkipTools } from '#mcp-tools/meal-skip'
 import { registerMergeFoodMasterTool } from '#mcp-tools/merge-food-master'
@@ -83,6 +85,8 @@ export const registerMeshiTools = (
   registerFoodTool(server, { foodMasterService, logger })
   registerFoodWithoutNutritionTool(server, { foodMasterService, logger })
   registerFillFoodNutritionTool(server, { foodMasterService, logger })
+  registerAddFoodNutritionVersionTool(server, { foodMasterService, logger })
+  registerListFoodNutritionVersionsTool(server, { foodMasterService, logger })
   registerMergeFoodMasterTool(server, { foodMasterService, logger })
 
   registerQueryMealsTool(server, { mealHistoryService, logger })

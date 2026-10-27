@@ -191,6 +191,8 @@ const createFakeFoodMasterService = (
   }
   const foodMasterService: FoodMasterService = {
     fillNutrition: unused,
+    addNutritionVersion: unused,
+    listNutritionVersions: unused,
     registerWithSimilarNameCheck: unused,
     registerWithoutNutritionWithSimilarNameCheck: unused,
     getById: unused,

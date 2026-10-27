@@ -7,13 +7,16 @@ import { errorMessage, FoodMasterDomainError } from '#domain/food-master/errors'
 import { defaultIdGenerator, type IdGenerator } from '#domain/food-master/id'
 import { mergeFoodMasters } from '#domain/food-master/merge-repository'
 import { createFoodMasterNutritionFiller } from '#domain/food-master/nutrition'
+import { createFoodMasterNutritionVersionOperations } from '#domain/food-master/nutrition-versions'
 import { createFoodMasterRegistrar } from '#domain/food-master/registration'
 import { toNutritionMap } from '#domain/food-master/rows'
 import type {
+  AddFoodMasterNutritionVersionInput,
   FillFoodNutritionInput,
   FillFoodNutritionResult,
   FoodMaster,
   FoodMasterId,
+  FoodMasterNutritionVersion,
   MergeFoodMasterResult,
   NutritionMap,
   RegisterFoodMasterInput,
@@ -34,6 +37,15 @@ export interface FoodMasterRepository {
   fillNutrition(
     input: FillFoodNutritionInput,
   ): ResultAsync<FillFoodNutritionResult, FoodMasterDomainError>
+  addNutritionVersion(
+    input: AddFoodMasterNutritionVersionInput,
+  ): ResultAsync<FoodMasterNutritionVersion, FoodMasterDomainError>
+  listNutritionVersions(
+    foodMasterId: FoodMasterId,
+  ): ResultAsync<
+    ReadonlyArray<FoodMasterNutritionVersion>,
+    FoodMasterDomainError
+  >
   registerWithoutNutrition(
     input: RegisterFoodMasterWithoutNutritionInput,
   ): ResultAsync<FoodMaster, FoodMasterDomainError>
@@ -111,6 +123,11 @@ export const createFoodMasterRepository = (
   )
   const { register, registerWithoutNutrition } = registrar
   const fillNutrition = createFoodMasterNutritionFiller(
+    sql,
+    generateId,
+    wrapInTransaction,
+  )
+  const nutritionVersionOperations = createFoodMasterNutritionVersionOperations(
     sql,
     generateId,
     wrapInTransaction,
@@ -297,6 +314,8 @@ export const createFoodMasterRepository = (
   return {
     register,
     fillNutrition,
+    addNutritionVersion: nutritionVersionOperations.add,
+    listNutritionVersions: nutritionVersionOperations.list,
     registerWithoutNutrition,
     findById,
     findComposition,
