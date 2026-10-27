@@ -63,6 +63,7 @@ const foodEatHistoryEntrySchema = z.object({
   eatenDate: z.string(),
   mealType: mealTypeSchema,
   quantity: z.number(),
+  energyKcalPerUnit: z.number().nullable(),
 })
 
 const foodDetailSchema = z.object({

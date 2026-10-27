@@ -38,6 +38,7 @@ const observation = <T extends object>(value: T): T => value
 
 interface FakeRepoOptions {
   readonly foodMasters: ReadonlyArray<FoodMasterRef>
+  readonly storedFoodMasters?: ReadonlyArray<FoodMasterRef>
   readonly existingLogs?: ReadonlyArray<FoundMealLog>
 }
 
@@ -51,6 +52,12 @@ const createFakeRepository = (
   batchDeleted: string[][]
 } => {
   const foodMasterById = new Map(options.foodMasters.map((f) => [f.id, f]))
+  const storedFoodById = new Map(
+    (options.storedFoodMasters ?? options.foodMasters).map((food) => [
+      food.id,
+      food,
+    ]),
+  )
   const logs = new Map(
     (options.existingLogs ?? []).map((found) => [found.log.id, found]),
   )
@@ -68,6 +75,9 @@ const createFakeRepository = (
     },
     insertMealLog: (input) => {
       inserted.push(input)
+      const food = storedFoodById.get(input.foodMasterId)
+      if (food === undefined)
+        return errAsync(new FoodMasterNotFoundError(input.foodMasterId))
       const row: MealLogRow = {
         id: input.id,
         foodMasterId: input.foodMasterId,
@@ -76,20 +86,27 @@ const createFakeRepository = (
         quantity: input.quantity,
         createdAt: CREATED_AT,
       }
+      logs.set(input.id, { log: row, food })
       return okAsync(row)
     },
     insertMealLogs: (inputs) => {
       batchInserted.push([...inputs])
-      return okAsync(
-        inputs.map((input): MealLogRow => ({
-          id: input.id,
-          foodMasterId: input.foodMasterId,
-          eatenDate: input.eatenDate,
-          mealType: input.mealType,
-          quantity: input.quantity,
-          createdAt: CREATED_AT,
-        })),
-      )
+      const rows = inputs.map((input): MealLogRow => ({
+        id: input.id,
+        foodMasterId: input.foodMasterId,
+        eatenDate: input.eatenDate,
+        mealType: input.mealType,
+        quantity: input.quantity,
+        createdAt: CREATED_AT,
+      }))
+      for (const row of rows) {
+        const food = storedFoodById.get(row.foodMasterId)
+        if (food === undefined) {
+          return errAsync(new FoodMasterNotFoundError(row.foodMasterId))
+        }
+        logs.set(row.id, { log: row, food })
+      }
+      return okAsync(rows)
     },
     updateMealLog: (input) => {
       updated.push(input)
@@ -110,7 +127,13 @@ const createFakeRepository = (
         ...(input.mealType === undefined ? {} : { mealType: input.mealType }),
         ...(input.quantity === undefined ? {} : { quantity: input.quantity }),
       }
-      logs.set(input.id, { log: merged, food: existing.food })
+      const food =
+        merged.foodMasterId === existing.log.foodMasterId
+          ? existing.food
+          : storedFoodById.get(merged.foodMasterId)
+      if (food === undefined)
+        return errAsync(new FoodMasterNotFoundError(merged.foodMasterId))
+      logs.set(input.id, { log: merged, food })
       return okAsync(merged)
     },
     findMealLogById: (id) => okAsync(logs.get(id) ?? null),
@@ -251,9 +274,14 @@ const buildService = (
   foodMasters: ReadonlyArray<FoodMasterRef>,
   existingLogs: ReadonlyArray<FoundMealLog> = [],
   foodMasterServiceOptions: FakeFoodMasterServiceOptions = {},
+  storedFoodMasters?: ReadonlyArray<FoodMasterRef>,
 ) => {
   const { repository, inserted, batchInserted, updated, batchDeleted } =
-    createFakeRepository({ foodMasters, existingLogs })
+    createFakeRepository({
+      foodMasters,
+      existingLogs,
+      ...(storedFoodMasters === undefined ? {} : { storedFoodMasters }),
+    })
   const { foodMasterService, learnedAliases } = createFakeFoodMasterService(
     foodMasterServiceOptions,
   )
@@ -313,6 +341,37 @@ describe('MealLogService.record', () => {
         quantity: 1,
       },
     ])
+  })
+
+  it('returns the nutrition version actually recorded by the repository', async () => {
+    const storedVersion: FoodMasterRef = {
+      ...RICE,
+      isEstimated: true,
+      nutritionStatus: 'estimated',
+      nutritionPerUnit: { energy_kcal: 111 },
+    }
+    const { service } = buildService([RICE], [], {}, [storedVersion])
+
+    const result = (
+      await service.record({
+        foodMasterId: 'fm_rice',
+        eatenDate: EATEN_DATE,
+        mealType: 'dinner',
+        quantity: 2,
+      })
+    )._unsafeUnwrap()
+
+    expect(result).toEqual({
+      id: 'ml_1',
+      foodMasterId: 'fm_rice',
+      eatenDate: EATEN_DATE,
+      mealType: 'dinner',
+      quantity: 2,
+      createdAt: CREATED_AT,
+      nutrition: { energy_kcal: 222 },
+      isEstimated: true,
+      nutritionStatus: 'estimated',
+    })
   })
 
   it('scales nutrition linearly for quantity=2', async () => {

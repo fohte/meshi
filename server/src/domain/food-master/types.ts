@@ -1,4 +1,6 @@
 import type { foodSourceEnum } from '#db/schema'
+import type { MealType } from '#domain/meal-log/types'
+import type { JstDate } from '#lib/jst-date'
 
 export type FoodSource = (typeof foodSourceEnum.enumValues)[number]
 
@@ -6,7 +8,7 @@ export const NUTRITION_STATUSES = ['confirmed', 'estimated', 'unknown'] as const
 
 export type NutritionStatus = (typeof NUTRITION_STATUSES)[number]
 
-export type KnownNutritionStatus = Exclude<NutritionStatus, 'unknown'>
+type KnownNutritionStatus = Exclude<NutritionStatus, 'unknown'>
 
 export const nutritionStatusFromIsEstimated = (
   isEstimated: boolean | null,
@@ -42,10 +44,7 @@ export interface SimilarFoodMasterCandidate {
 
 // Same shape for a dry-run plan and an applied merge — `applied` is the only
 // discriminator, so a caller can preview a merge and later apply it while
-// rendering the result the same way both times. On any conflict the
-// survivor's data always wins: `discardedNutrition` is the loser's entire
-// nutrition — nutrients are never moved, only ever discarded via the loser
-// row's ON DELETE CASCADE.
+// rendering the result the same way both times.
 export interface MergeFoodMasterResult {
   readonly survivorId: FoodMasterId
   readonly loserId: FoodMasterId
@@ -55,7 +54,10 @@ export interface MergeFoodMasterResult {
   // references to it still resolve — null when that exact string is already
   // an alias elsewhere (INSERT ... ON CONFLICT (alias) DO NOTHING no-ops).
   readonly nameMovedAsAlias: string | null
-  readonly discardedNutrition: NutritionMap
+  readonly movedNutritionVersions: ReadonlyArray<{
+    readonly previousVersionNo: number
+    readonly versionNo: number
+  }>
   readonly movedMealLogCount: number
 }
 
@@ -75,6 +77,22 @@ export interface FillFoodNutritionInput {
   readonly source: Exclude<FoodSource, 'composition_table_estimate'>
   readonly isEstimated: boolean
   readonly sourceUrl?: string
+}
+
+export interface FillFoodNutritionResult {
+  readonly nutritionStatus: KnownNutritionStatus
+  readonly nutritionVersionNo: number
+  readonly assignedMealLogs: ReadonlyArray<{
+    readonly id: string
+    readonly eatenDate: JstDate
+    readonly mealType: MealType
+    readonly quantity: number
+  }>
+  readonly affectedDayTotals: ReadonlyArray<{
+    readonly date: JstDate
+    readonly totalsBefore: NutritionMap
+    readonly totalsAfter: NutritionMap
+  }>
 }
 
 export interface RegisterFoodMasterWithoutNutritionInput {

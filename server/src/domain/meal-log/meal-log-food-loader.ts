@@ -17,7 +17,7 @@ import type { FoodMasterRef } from '#domain/meal-log/types'
 
 type Db = ReturnType<typeof drizzle>
 
-export const loadNutrition = async (
+const loadNutrition = async (
   db: Db,
   foodMasterId: string,
 ): Promise<Record<string, number>> => {
@@ -37,6 +37,27 @@ export const loadNutrition = async (
         eq(foodMasterNutrition.isCurrent, true),
       ),
     )
+
+  const nutrition: Record<string, number> = {}
+  for (const row of rows) {
+    nutrition[row.nutrientCode] = Number(row.value)
+  }
+  return nutrition
+}
+
+export const loadNutritionVersion = async (
+  db: Db,
+  nutritionVersionId: string | null,
+): Promise<Record<string, number>> => {
+  if (nutritionVersionId === null) return {}
+
+  const rows = await db
+    .select({
+      nutrientCode: foodMasterNutrients.nutrientCode,
+      value: foodMasterNutrients.value,
+    })
+    .from(foodMasterNutrients)
+    .where(eq(foodMasterNutrients.nutritionVersionId, nutritionVersionId))
 
   const nutrition: Record<string, number> = {}
   for (const row of rows) {

@@ -4,9 +4,9 @@ import { FoodMasterDomainError } from '#domain/food-master/errors'
 import type { FoodMasterRepository } from '#domain/food-master/repository'
 import type {
   FillFoodNutritionInput,
+  FillFoodNutritionResult,
   FoodMaster,
   FoodMasterId,
-  KnownNutritionStatus,
   MergeFoodMasterResult,
   RegisteredFromComposition,
   RegisterFoodMasterInput,
@@ -18,7 +18,7 @@ import type {
 export interface FoodMasterService {
   fillNutrition(
     input: FillFoodNutritionInput,
-  ): ResultAsync<KnownNutritionStatus, FoodMasterDomainError>
+  ): ResultAsync<FillFoodNutritionResult, FoodMasterDomainError>
   registerWithSimilarNameCheck(
     input: RegisterFoodMasterInput,
     confirmedDistinctFromMasterIds?: ReadonlyArray<FoodMasterId>,

@@ -82,7 +82,6 @@ const FoodDetailContent = ({
   const [showAllNutrients, setShowAllNutrients] = useState(false)
   const majorDefinitions = nutrientDefinitions.filter((d) => d.isMajor)
   const minorDefinitions = nutrientDefinitions.filter((d) => !d.isMajor)
-  const energyKcalPerUnit = food.nutrition['energy_kcal']
 
   return (
     <div>
@@ -182,9 +181,9 @@ const FoodDetailContent = ({
           <div className={styles.historyList}>
             {food.history.map((entry) => {
               const kcal =
-                energyKcalPerUnit === undefined
+                entry.energyKcalPerUnit === null
                   ? null
-                  : energyKcalPerUnit * entry.quantity
+                  : entry.energyKcalPerUnit * entry.quantity
               return (
                 <div key={entry.id} className={styles.historyRow}>
                   <span className={styles.historyDate}>

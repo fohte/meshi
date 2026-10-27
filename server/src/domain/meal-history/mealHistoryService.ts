@@ -66,8 +66,7 @@ export const createMealHistoryService = (sql: Sql): MealHistoryService => {
                   SUM(fmn.value * ml.quantity) AS value
                 FROM meal_logs ml
                 INNER JOIN food_master_nutrition nutrition
-                  ON nutrition.food_master_id = ml.food_master_id
-                  AND nutrition.is_current = true
+                  ON nutrition.id = ml.nutrition_version_id
                 INNER JOIN food_master_nutrients fmn
                   ON fmn.nutrition_version_id = nutrition.id
                 WHERE ml.eaten_date >= ${periodFrom}::date
@@ -95,11 +94,8 @@ export const createMealHistoryService = (sql: Sql): MealHistoryService => {
                       nd.code AS nutrient_code
                     FROM meal_logs ml
                     CROSS JOIN nutrient_definitions nd
-                    LEFT JOIN food_master_nutrition nutrition
-                      ON nutrition.food_master_id = ml.food_master_id
-                      AND nutrition.is_current = true
                     LEFT JOIN food_master_nutrients fmn
-                      ON fmn.nutrition_version_id = nutrition.id
+                      ON fmn.nutrition_version_id = ml.nutrition_version_id
                       AND fmn.nutrient_code = nd.code
                     WHERE ml.eaten_date >= ${periodFrom}::date
                       AND ml.eaten_date < ${periodTo}::date
@@ -133,8 +129,8 @@ export const createMealHistoryService = (sql: Sql): MealHistoryService => {
                 FROM meal_logs ml
                 INNER JOIN food_masters fm ON fm.id = ml.food_master_id
                 LEFT JOIN food_master_nutrition nutrition
-                  ON nutrition.food_master_id = fm.id
-                  AND nutrition.is_current = true
+                  ON nutrition.id = ml.nutrition_version_id
+                  AND nutrition.food_master_id = ml.food_master_id
                 WHERE ml.eaten_date >= ${periodFrom}::date
                   AND ml.eaten_date < ${periodTo}::date
                   AND (

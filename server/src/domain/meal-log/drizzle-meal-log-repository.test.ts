@@ -22,7 +22,9 @@ import { describeIfDb, setupDrizzleTx } from '#test/db'
 import { jstDate } from '#test/jst-date'
 import {
   seedFoodMaster,
+  seedFoodMasterNutritionVersion,
   seedFoodMasterWithoutNutrition,
+  seedMealLog,
   seedStockItem,
   seedStockLot,
   seedStockMovement,
@@ -186,6 +188,68 @@ describeIfDb('createDrizzleMealLogRepository', () => {
           protein_g: 2.5,
           carb_g: 37.1,
         },
+      },
+    })
+  })
+
+  it('loads nutrition from the version referenced by the meal log', async () => {
+    const tx = getTx()
+    await seedFoodMasterWithoutNutrition(tx, {
+      id: 'fm_versioned_lookup',
+      name: 'versioned food',
+    })
+    const oldVersionId = await seedFoodMasterNutritionVersion(tx, {
+      foodMasterId: 'fm_versioned_lookup',
+      versionNo: 1,
+      isCurrent: false,
+      changeKind: 'initial',
+      isEstimated: true,
+      source: 'model_estimate',
+      nutrients: { energy_kcal: 11, protein_g: 1 },
+    })
+    await seedFoodMasterNutritionVersion(tx, {
+      foodMasterId: 'fm_versioned_lookup',
+      versionNo: 2,
+      isCurrent: true,
+      changeKind: 'product_update',
+      source: 'user_input',
+      nutrients: { energy_kcal: 23, protein_g: 2 },
+    })
+    await seedMealLog(tx, {
+      id: 'ml_versioned_lookup',
+      foodMasterId: 'fm_versioned_lookup',
+      nutritionVersionId: oldVersionId,
+      nutritionVersionOrigin: 'migrated',
+      eatenDate: jstDate('2026-06-15'),
+      mealType: 'lunch',
+      quantity: 2,
+      createdAt: CREATED_AT_PLACEHOLDER,
+    })
+    const repo = createDrizzleMealLogRepository(tx)
+
+    const found = (
+      await repo.findMealLogById('ml_versioned_lookup')
+    )._unsafeUnwrap()
+
+    expect(
+      found === null
+        ? null
+        : { log: normalizeRow(found.log), food: found.food },
+    ).toEqual({
+      log: {
+        id: 'ml_versioned_lookup',
+        foodMasterId: 'fm_versioned_lookup',
+        eatenDate: jstDate('2026-06-15'),
+        mealType: 'lunch',
+        quantity: 2,
+        createdAt: CREATED_AT_PLACEHOLDER,
+      },
+      food: {
+        id: 'fm_versioned_lookup',
+        name: 'versioned food',
+        isEstimated: true,
+        nutritionStatus: 'estimated',
+        nutritionPerUnit: { energy_kcal: 11, protein_g: 1 },
       },
     })
   })

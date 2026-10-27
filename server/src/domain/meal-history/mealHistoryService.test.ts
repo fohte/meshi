@@ -13,6 +13,8 @@ import {
   seedNutrientDefinition,
 } from '#test/seed'
 
+const observation = <T extends object>(value: T): T => value
+
 const seedNutrientDefinitions = async (sql: postgres.Sql): Promise<void> => {
   await seedNutrientDefinition(sql, {
     code: 'energy_kcal',
@@ -154,7 +156,7 @@ describeIfDb('MealHistoryService.query', () => {
     })
   })
 
-  it('aggregates the current version when a log references an older version', async () => {
+  it('keeps the full aggregate unchanged when a new current version is added', async () => {
     const tx = getTx()
     await seedNutrientDefinitions(tx)
     await seedFoodMasterWithoutNutrition(tx, {
@@ -164,18 +166,10 @@ describeIfDb('MealHistoryService.query', () => {
     const oldVersionId = await seedFoodMasterNutritionVersion(tx, {
       foodMasterId: 'versioned-food',
       versionNo: 1,
-      isCurrent: false,
+      isCurrent: true,
       changeKind: 'initial',
       source: 'user_input',
       nutrients: { energy_kcal: 11, protein_g: 1 },
-    })
-    await seedFoodMasterNutritionVersion(tx, {
-      foodMasterId: 'versioned-food',
-      versionNo: 2,
-      isCurrent: true,
-      changeKind: 'product_update',
-      source: 'user_input',
-      nutrients: { energy_kcal: 23, protein_g: 2 },
     })
     await seedMealLog(tx, {
       id: 'versioned-log',
@@ -188,21 +182,36 @@ describeIfDb('MealHistoryService.query', () => {
       createdAt: new Date('2026-06-01T03:04:05.789Z'),
     })
 
-    const result = (
-      await createMealHistoryService(tx).query({
+    const service = createMealHistoryService(tx)
+    const query = () =>
+      service.query({
         periodFrom: jstDate('2026-06-01'),
         periodTo: jstDate('2026-06-02'),
         nutrientCodes: ['energy_kcal', 'protein_g'],
       })
-    )._unsafeUnwrap()
+    const before = (await query())._unsafeUnwrap()
+    await tx`
+      UPDATE food_master_nutrition
+      SET is_current = false
+      WHERE id = ${oldVersionId}
+    `
+    await seedFoodMasterNutritionVersion(tx, {
+      foodMasterId: 'versioned-food',
+      versionNo: 2,
+      isCurrent: true,
+      changeKind: 'product_update',
+      source: 'user_input',
+      nutrients: { energy_kcal: 23, protein_g: 2 },
+    })
+    const after = (await query())._unsafeUnwrap()
 
-    expect(result).toEqual({
-      totals: { energy_kcal: 23, protein_g: 2 },
+    const expected = {
+      totals: { energy_kcal: 11, protein_g: 1 },
       incompleteNutrients: [],
       perDay: [
         {
           date: '2026-06-01',
-          totals: { energy_kcal: 23, protein_g: 2 },
+          totals: { energy_kcal: 11, protein_g: 1 },
           incompleteNutrients: [],
           hasUnknownValues: false,
         },
@@ -221,7 +230,9 @@ describeIfDb('MealHistoryService.query', () => {
       ],
       hasEstimatedValues: false,
       hasUnknownValues: false,
-    })
+    }
+    const expectedResult = { before: expected, after: expected }
+    expect(observation({ before, after })).toEqual(expectedResult)
   })
 
   it('filters entries and aggregation by foodFilter', async () => {

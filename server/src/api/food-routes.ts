@@ -118,6 +118,7 @@ export const mountFoodRoutes = (
             eatenDate: entry.eatenDate,
             mealType: entry.mealType,
             quantity: entry.quantity,
+            energyKcalPerUnit: entry.energyKcalPerUnit,
           })),
         })
       },

@@ -21,7 +21,7 @@ import {
 } from '#domain/meal-log/errors'
 import {
   loadFoodMaster,
-  loadNutrition,
+  loadNutritionVersion,
 } from '#domain/meal-log/meal-log-food-loader'
 import type {
   FoundMealLog,
@@ -460,8 +460,8 @@ export const createDrizzleMealLogRepository = (
             .leftJoin(
               foodMasterNutrition,
               and(
-                eq(foodMasterNutrition.foodMasterId, foodMasters.id),
-                eq(foodMasterNutrition.isCurrent, true),
+                eq(foodMasterNutrition.id, mealLogs.nutritionVersionId),
+                eq(foodMasterNutrition.foodMasterId, mealLogs.foodMasterId),
               ),
             )
             .where(eq(mealLogs.id, id))
@@ -471,7 +471,10 @@ export const createDrizzleMealLogRepository = (
           const row = rows[0]
           if (row === undefined) return null
 
-          const nutritionPerUnit = await loadNutrition(db, row.food.id)
+          const nutritionPerUnit = await loadNutritionVersion(
+            db,
+            row.log.nutritionVersionId,
+          )
           return {
             log: toRow(row.log),
             food: {

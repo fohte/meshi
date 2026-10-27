@@ -181,7 +181,7 @@ describeIfDb('DayDetailService.query', () => {
           eatenDate: '2026-06-01',
           mealType: 'breakfast',
           quantity: 2,
-          kcal: 312,
+          kcal: 22,
           isEstimated: false,
           nutritionStatus: 'confirmed',
         },

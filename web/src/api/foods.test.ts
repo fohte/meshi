@@ -84,6 +84,7 @@ describe('fetchFoodDetail', () => {
           eatenDate: '2026-07-29',
           mealType: 'breakfast',
           quantity: 100,
+          energyKcalPerUnit: null,
         },
       ],
     })
@@ -106,6 +107,7 @@ describe('fetchFoodDetail', () => {
           eatenDate: '2026-07-29',
           mealType: 'breakfast',
           quantity: 100,
+          energyKcalPerUnit: null,
         },
       ],
     })
