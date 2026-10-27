@@ -1,5 +1,9 @@
 import type { NutritionStatus } from '#domain/food-master/types'
-import type { MealHistoryAggregate } from '#domain/meal-history/types'
+import type {
+  MealHistoryAggregate,
+  MealHistoryNutritionVersion,
+  NutritionVersionOrigin,
+} from '#domain/meal-history/types'
 import type { MealType } from '#domain/meal-log/types'
 
 interface MealHistoryPayloadEntry {
@@ -10,6 +14,18 @@ interface MealHistoryPayloadEntry {
   readonly meal_type: MealType
   readonly quantity: number
   readonly nutrition_status: NutritionStatus
+  readonly nutrition_version: MealHistoryPayloadNutritionVersion | null
+  readonly nutrition_version_origin: NutritionVersionOrigin
+  readonly nutrition_version_differences: Array<MealHistoryPayloadNutritionVersion>
+}
+
+interface MealHistoryPayloadNutritionVersion {
+  readonly version_no: number
+  readonly change_kind: MealHistoryNutritionVersion['changeKind']
+  readonly source: MealHistoryNutritionVersion['source']
+  readonly is_estimated: boolean
+  readonly checked_on: string | null
+  readonly effective_from: string | null
 }
 
 interface MealHistoryPayloadBase {
@@ -65,9 +81,28 @@ export function toMealHistoryPayload(
       meal_type: entry.mealType,
       quantity: entry.quantity,
       nutrition_status: entry.nutritionStatus,
+      nutrition_version:
+        entry.nutritionVersion === null
+          ? null
+          : toMealHistoryPayloadNutritionVersion(entry.nutritionVersion),
+      nutrition_version_origin: entry.nutritionVersionOrigin,
+      nutrition_version_differences: entry.nutritionVersionDifferences.map(
+        toMealHistoryPayloadNutritionVersion,
+      ),
       ...(options.includeRecordedAt ? { recorded_at: entry.recordedAt } : {}),
     })),
     has_estimated_values: aggregate.hasEstimatedValues,
     has_unknown_values: aggregate.hasUnknownValues,
   }
 }
+
+const toMealHistoryPayloadNutritionVersion = (
+  version: MealHistoryNutritionVersion,
+): MealHistoryPayloadNutritionVersion => ({
+  version_no: version.versionNo,
+  change_kind: version.changeKind,
+  source: version.source,
+  is_estimated: version.isEstimated,
+  checked_on: version.checkedOn,
+  effective_from: version.effectiveFrom,
+})

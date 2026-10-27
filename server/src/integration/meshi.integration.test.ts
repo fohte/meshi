@@ -45,8 +45,10 @@ import { createNullLogger } from '#test/logger'
 import {
   seedDelivery,
   seedFoodMaster as seedFoodMasterRow,
+  seedFoodMasterNutritionVersion,
   seedFoodMasterWithoutNutrition as seedFoodMasterWithoutNutritionRow,
   seedMealLog as seedMealLogRow,
+  seedNutrientDefinition,
   seedStockItem,
   seedStockLot,
   seedStockMovement,
@@ -679,6 +681,16 @@ describeIfDb('meshi integration', () => {
               quantity: 2,
               recorded_at: '2026-06-12T03:30:45Z',
               nutrition_status: 'confirmed',
+              nutrition_version: {
+                version_no: 1,
+                change_kind: 'initial',
+                source: 'user_input',
+                is_estimated: false,
+                checked_on: null,
+                effective_from: null,
+              },
+              nutrition_version_origin: 'recorded',
+              nutrition_version_differences: [],
             },
           ],
           has_estimated_values: false,
@@ -690,6 +702,257 @@ describeIfDb('meshi integration', () => {
             text: '食事履歴を取得しました。',
           },
         ],
+      })
+    } finally {
+      await harness.close()
+    }
+  })
+
+  it('returns nutrition version provenance and differing alternatives for each meal log', async () => {
+    const tx = getTx()
+    await seedNutrientDefinition(tx, {
+      code: 'energy_kcal',
+      displayName: 'energy',
+      unit: 'kcal',
+      isMajor: true,
+      sortOrder: 1,
+    })
+
+    await seedFoodMasterWithoutNutritionRow(tx, {
+      id: 'fictional-citrus-food',
+      name: 'Fictional Citrus',
+    })
+    const confirmedVersionId = await seedFoodMasterNutritionVersion(tx, {
+      foodMasterId: 'fictional-citrus-food',
+      versionNo: 1,
+      isCurrent: true,
+      changeKind: 'initial',
+      source: 'user_input',
+      isEstimated: false,
+      checkedOn: '2026-09-30',
+      effectiveFrom: '2026-09-29',
+      nutrients: { energy_kcal: 100 },
+    })
+
+    await seedFoodMasterWithoutNutritionRow(tx, {
+      id: 'fictional-berry-food',
+      name: 'Fictional Berry',
+    })
+    await seedFoodMasterNutritionVersion(tx, {
+      foodMasterId: 'fictional-berry-food',
+      versionNo: 1,
+      isCurrent: true,
+      changeKind: 'initial',
+      source: 'user_input',
+      isEstimated: false,
+      nutrients: { energy_kcal: 250 },
+    })
+
+    await seedFoodMasterWithoutNutritionRow(tx, {
+      id: 'fictional-plum-food',
+      name: 'Fictional Plum',
+    })
+    const undatedVersionId = await seedFoodMasterNutritionVersion(tx, {
+      foodMasterId: 'fictional-plum-food',
+      versionNo: 1,
+      isCurrent: true,
+      changeKind: 'initial',
+      source: 'user_input',
+      isEstimated: false,
+      checkedOn: '2026-09-28',
+      nutrients: { energy_kcal: 75 },
+    })
+
+    await seedFoodMasterWithoutNutritionRow(tx, {
+      id: 'fictional-melon-food',
+      name: 'Fictional Melon',
+    })
+    const differingVersionId = await seedFoodMasterNutritionVersion(tx, {
+      foodMasterId: 'fictional-melon-food',
+      versionNo: 1,
+      isCurrent: false,
+      changeKind: 'initial',
+      source: 'user_input',
+      isEstimated: false,
+      checkedOn: '2026-09-01',
+      effectiveFrom: '2026-09-01',
+      nutrients: { energy_kcal: 80 },
+    })
+    await seedFoodMasterNutritionVersion(tx, {
+      foodMasterId: 'fictional-melon-food',
+      versionNo: 2,
+      isCurrent: true,
+      changeKind: 'product_update',
+      source: 'web_search',
+      isEstimated: false,
+      sourceUrl: 'https://nutrition.example.invalid/fictional-melon',
+      checkedOn: '2026-10-01',
+      nutrients: { energy_kcal: 95 },
+    })
+
+    await seedMealLogRow(tx, {
+      id: 'fictional-log-confirmed',
+      foodMasterId: 'fictional-citrus-food',
+      nutritionVersionId: confirmedVersionId,
+      eatenDate: jstDate('2026-10-01'),
+      mealType: 'breakfast',
+      quantity: 1,
+      createdAt: new Date('2026-10-01T01:00:00.000Z'),
+    })
+    await seedMealLogRow(tx, {
+      id: 'fictional-log-unknown-version',
+      foodMasterId: 'fictional-berry-food',
+      nutritionVersionId: null,
+      nutritionVersionOrigin: 'migrated',
+      eatenDate: jstDate('2026-10-01'),
+      mealType: 'lunch',
+      quantity: 1,
+      createdAt: new Date('2026-10-01T02:00:00.000Z'),
+    })
+    await seedMealLogRow(tx, {
+      id: 'fictional-log-unknown-effective-date',
+      foodMasterId: 'fictional-plum-food',
+      nutritionVersionId: undatedVersionId,
+      nutritionVersionOrigin: 'filled',
+      eatenDate: jstDate('2026-10-01'),
+      mealType: 'dinner',
+      quantity: 1,
+      createdAt: new Date('2026-10-01T03:00:00.000Z'),
+    })
+    await seedMealLogRow(tx, {
+      id: 'fictional-log-with-difference',
+      foodMasterId: 'fictional-melon-food',
+      nutritionVersionId: differingVersionId,
+      nutritionVersionOrigin: 'reassigned',
+      eatenDate: jstDate('2026-10-01'),
+      mealType: 'snack',
+      quantity: 1,
+      createdAt: new Date('2026-10-01T04:00:00.000Z'),
+    })
+
+    const harness = await startHarness({ tx })
+
+    try {
+      const result = normalizeResult(
+        await harness.client.callTool({
+          name: 'query_meals',
+          arguments: {
+            period_from: '2026-10-01',
+            period_to: '2026-10-02',
+          },
+        }),
+      )
+
+      expect(result).toEqual({
+        structuredContent: {
+          totals: { energy_kcal: 255 },
+          incomplete_nutrients: [
+            'carbohydrate_g',
+            'energy_kcal',
+            'fat_g',
+            'protein_g',
+          ],
+          per_day: [
+            {
+              date: '2026-10-01',
+              totals: { energy_kcal: 255 },
+              incomplete_nutrients: [
+                'carbohydrate_g',
+                'energy_kcal',
+                'fat_g',
+                'protein_g',
+              ],
+              has_unknown_values: true,
+            },
+          ],
+          entries: [
+            {
+              meal_log_id: 'fictional-log-confirmed',
+              food_master_id: 'fictional-citrus-food',
+              food_name: 'Fictional Citrus',
+              eaten_date: '2026-10-01',
+              meal_type: 'breakfast',
+              quantity: 1,
+              nutrition_status: 'confirmed',
+              nutrition_version: {
+                version_no: 1,
+                change_kind: 'initial',
+                source: 'user_input',
+                is_estimated: false,
+                checked_on: '2026-09-30',
+                effective_from: '2026-09-29',
+              },
+              nutrition_version_origin: 'recorded',
+              nutrition_version_differences: [],
+              recorded_at: '2026-10-01T01:00:00Z',
+            },
+            {
+              meal_log_id: 'fictional-log-unknown-version',
+              food_master_id: 'fictional-berry-food',
+              food_name: 'Fictional Berry',
+              eaten_date: '2026-10-01',
+              meal_type: 'lunch',
+              quantity: 1,
+              nutrition_status: 'unknown',
+              nutrition_version: null,
+              nutrition_version_origin: 'migrated',
+              nutrition_version_differences: [],
+              recorded_at: '2026-10-01T02:00:00Z',
+            },
+            {
+              meal_log_id: 'fictional-log-unknown-effective-date',
+              food_master_id: 'fictional-plum-food',
+              food_name: 'Fictional Plum',
+              eaten_date: '2026-10-01',
+              meal_type: 'dinner',
+              quantity: 1,
+              nutrition_status: 'confirmed',
+              nutrition_version: {
+                version_no: 1,
+                change_kind: 'initial',
+                source: 'user_input',
+                is_estimated: false,
+                checked_on: '2026-09-28',
+                effective_from: null,
+              },
+              nutrition_version_origin: 'filled',
+              nutrition_version_differences: [],
+              recorded_at: '2026-10-01T03:00:00Z',
+            },
+            {
+              meal_log_id: 'fictional-log-with-difference',
+              food_master_id: 'fictional-melon-food',
+              food_name: 'Fictional Melon',
+              eaten_date: '2026-10-01',
+              meal_type: 'snack',
+              quantity: 1,
+              nutrition_status: 'confirmed',
+              nutrition_version: {
+                version_no: 1,
+                change_kind: 'initial',
+                source: 'user_input',
+                is_estimated: false,
+                checked_on: '2026-09-01',
+                effective_from: '2026-09-01',
+              },
+              nutrition_version_origin: 'reassigned',
+              nutrition_version_differences: [
+                {
+                  version_no: 2,
+                  change_kind: 'product_update',
+                  source: 'web_search',
+                  is_estimated: false,
+                  checked_on: '2026-10-01',
+                  effective_from: null,
+                },
+              ],
+              recorded_at: '2026-10-01T04:00:00Z',
+            },
+          ],
+          has_estimated_values: false,
+          has_unknown_values: true,
+        },
+        content: [{ type: 'text', text: '食事履歴を取得しました。' }],
       })
     } finally {
       await harness.close()
@@ -782,6 +1045,16 @@ describeIfDb('meshi integration', () => {
                 quantity: 1.5,
                 recorded_at: '2026-06-12T03:30:45Z',
                 nutrition_status: 'confirmed',
+                nutrition_version: {
+                  version_no: 1,
+                  change_kind: 'initial',
+                  source: 'web_search',
+                  is_estimated: false,
+                  checked_on: null,
+                  effective_from: null,
+                },
+                nutrition_version_origin: 'filled',
+                nutrition_version_differences: [],
               },
             ],
             has_estimated_values: false,
@@ -1103,6 +1376,16 @@ describeIfDb('meshi integration', () => {
                 quantity: 3,
                 recorded_at: '2026-04-17T03:30:00Z',
                 nutrition_status: 'confirmed',
+                nutrition_version: {
+                  version_no: 1,
+                  change_kind: 'initial',
+                  source: 'user_input',
+                  is_estimated: false,
+                  checked_on: null,
+                  effective_from: null,
+                },
+                nutrition_version_origin: 'recorded',
+                nutrition_version_differences: [],
               },
             ],
             has_estimated_values: false,
