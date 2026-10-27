@@ -177,7 +177,7 @@ describeIfDb('MealHistoryService.query', () => {
     })
   })
 
-  it('keeps recorded totals and reports alternatives when a new version is added', async () => {
+  it('keeps recorded totals and reports alternatives when a new version removes a nutrient', async () => {
     const tx = getTx()
     await seedNutrientDefinitions(tx)
     await seedFoodMasterWithoutNutrition(tx, {
@@ -223,7 +223,7 @@ describeIfDb('MealHistoryService.query', () => {
         isCurrent: true,
         changeKind: 'product_update',
         source: 'user_input',
-        nutrients: { energy_kcal: 23, protein_g: 2 },
+        nutrients: { energy_kcal: 11 },
       })
       const after = (await query())._unsafeUnwrap()
       return { before, after }
