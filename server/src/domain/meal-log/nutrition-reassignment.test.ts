@@ -172,7 +172,7 @@ describeIfDb('MealLogNutritionReassignmentService', () => {
     })
   })
 
-  it('applies the reviewed version and records the reason without changing other logs', async () => {
+  it('applies a reviewed version with an unknown source and records a null from-version', async () => {
     const tx = getTx()
     const versions = await createVersions(tx, 'fm_reassign_apply')
     await seedMealLog(tx, {
@@ -292,6 +292,180 @@ describeIfDb('MealLogNutritionReassignmentService', () => {
           from_version_id: null,
           to_version_id: versions.replacementVersionId,
           reason: 'Corrected the registered nutrition values',
+        },
+      ],
+    })
+  })
+
+  it('rejects every selected log when the replacement belongs to another food', async () => {
+    const tx = getTx()
+    const sourceVersions = await createVersions(
+      tx,
+      'fm_reassign_foreign_source',
+    )
+    const targetVersions = await createVersions(
+      tx,
+      'fm_reassign_foreign_target',
+    )
+    await seedMealLog(tx, {
+      id: 'ml_reassign_foreign_first',
+      foodMasterId: 'fm_reassign_foreign_source',
+      nutritionVersionId: sourceVersions.originalVersionId,
+      eatenDate: jstDate('2026-03-16'),
+      mealType: 'lunch',
+      quantity: 1,
+    })
+    await seedMealLog(tx, {
+      id: 'ml_reassign_foreign_second',
+      foodMasterId: 'fm_reassign_foreign_source',
+      nutritionVersionId: sourceVersions.originalVersionId,
+      eatenDate: jstDate('2026-03-17'),
+      mealType: 'dinner',
+      quantity: 2,
+    })
+
+    const outcome = await createMealLogNutritionReassignmentService(tx)
+      .reassign({
+        mealLogIds: ['ml_reassign_foreign_first', 'ml_reassign_foreign_second'],
+        toNutritionVersionId: targetVersions.replacementVersionId,
+        reason: 'Reassigned to a verified product version',
+        apply: true,
+        expectedFromVersions: [
+          {
+            mealLogId: 'ml_reassign_foreign_first',
+            nutritionVersionId: sourceVersions.originalVersionId,
+          },
+          {
+            mealLogId: 'ml_reassign_foreign_second',
+            nutritionVersionId: sourceVersions.originalVersionId,
+          },
+        ],
+      })
+      .match(
+        (value) => ({ success: value }),
+        (error) => ({
+          error: { name: error.name, code: error.code, message: error.message },
+        }),
+      )
+    const persistedMealLogs = await readPersistedMealLogs(tx, [
+      'ml_reassign_foreign_first',
+      'ml_reassign_foreign_second',
+    ])
+
+    expect(observation({ outcome, persistedMealLogs })).toEqual({
+      outcome: {
+        error: {
+          name: 'MealLogNutritionReassignmentError',
+          code: 'meal_log/different_food_master',
+          message:
+            'all meal_logs and the target nutrition version must belong to the same food_master',
+        },
+      },
+      persistedMealLogs: [
+        {
+          id: 'ml_reassign_foreign_first',
+          food_master_id: 'fm_reassign_foreign_source',
+          nutrition_version_id: sourceVersions.originalVersionId,
+          nutrition_version_origin: 'recorded',
+          quantity: '1',
+          from_version_id: null,
+          to_version_id: null,
+          reason: null,
+        },
+        {
+          id: 'ml_reassign_foreign_second',
+          food_master_id: 'fm_reassign_foreign_source',
+          nutrition_version_id: sourceVersions.originalVersionId,
+          nutrition_version_origin: 'recorded',
+          quantity: '2',
+          from_version_id: null,
+          to_version_id: null,
+          reason: null,
+        },
+      ],
+    })
+  })
+
+  it('rejects every selected log when one already uses the replacement version', async () => {
+    const tx = getTx()
+    const versions = await createVersions(tx, 'fm_reassign_unchanged')
+    await seedMealLog(tx, {
+      id: 'ml_reassign_unchanged_current',
+      foodMasterId: 'fm_reassign_unchanged',
+      nutritionVersionId: versions.replacementVersionId,
+      eatenDate: jstDate('2026-03-16'),
+      mealType: 'lunch',
+      quantity: 1,
+    })
+    await seedMealLog(tx, {
+      id: 'ml_reassign_unchanged_other',
+      foodMasterId: 'fm_reassign_unchanged',
+      nutritionVersionId: versions.originalVersionId,
+      eatenDate: jstDate('2026-03-17'),
+      mealType: 'dinner',
+      quantity: 2,
+    })
+
+    const outcome = await createMealLogNutritionReassignmentService(tx)
+      .reassign({
+        mealLogIds: [
+          'ml_reassign_unchanged_current',
+          'ml_reassign_unchanged_other',
+        ],
+        toNutritionVersionId: versions.replacementVersionId,
+        reason: 'Reassigned to a verified product version',
+        apply: true,
+        expectedFromVersions: [
+          {
+            mealLogId: 'ml_reassign_unchanged_current',
+            nutritionVersionId: versions.replacementVersionId,
+          },
+          {
+            mealLogId: 'ml_reassign_unchanged_other',
+            nutritionVersionId: versions.originalVersionId,
+          },
+        ],
+      })
+      .match(
+        (value) => ({ success: value }),
+        (error) => ({
+          error: { name: error.name, code: error.code, message: error.message },
+        }),
+      )
+    const persistedMealLogs = await readPersistedMealLogs(tx, [
+      'ml_reassign_unchanged_current',
+      'ml_reassign_unchanged_other',
+    ])
+
+    expect(observation({ outcome, persistedMealLogs })).toEqual({
+      outcome: {
+        error: {
+          name: 'MealLogNutritionReassignmentError',
+          code: 'meal_log/nutrition_version_unchanged',
+          message:
+            'target nutrition version is already assigned to a selected meal_log',
+        },
+      },
+      persistedMealLogs: [
+        {
+          id: 'ml_reassign_unchanged_current',
+          food_master_id: 'fm_reassign_unchanged',
+          nutrition_version_id: versions.replacementVersionId,
+          nutrition_version_origin: 'recorded',
+          quantity: '1',
+          from_version_id: null,
+          to_version_id: null,
+          reason: null,
+        },
+        {
+          id: 'ml_reassign_unchanged_other',
+          food_master_id: 'fm_reassign_unchanged',
+          nutrition_version_id: versions.originalVersionId,
+          nutrition_version_origin: 'recorded',
+          quantity: '2',
+          from_version_id: null,
+          to_version_id: null,
+          reason: null,
         },
       ],
     })
