@@ -9,7 +9,9 @@ import { jstDate } from '#test/jst-date'
 import {
   seedFoodComposition,
   seedFoodMasterNutritionVersion,
+  seedFoodMasterWithoutNutrition,
   seedMealLog,
+  seedNutrientDefinition,
 } from '#test/seed'
 
 const observation = <T extends object>(value: T): T => value
@@ -45,7 +47,10 @@ describeIfDb('food master nutrition versions', () => {
 
   it('adds a product update without changing past logs or daily totals', async () => {
     const tx = getTx()
-    await tx`INSERT INTO food_masters (id, name) VALUES ('fm_version_product', 'sample pantry item')`
+    await seedFoodMasterWithoutNutrition(tx, {
+      id: 'fm_version_product',
+      name: 'sample pantry item',
+    })
     const initialVersionId = await seedFoodMasterNutritionVersion(tx, {
       foodMasterId: 'fm_version_product',
       versionNo: 1,
@@ -245,7 +250,10 @@ describeIfDb('food master nutrition versions', () => {
 
   it('keeps old corrections historical and makes a correction current only when its target is current', async () => {
     const tx = getTx()
-    await tx`INSERT INTO food_masters (id, name) VALUES ('fm_version_correction', 'sample pantry grain')`
+    await seedFoodMasterWithoutNutrition(tx, {
+      id: 'fm_version_correction',
+      name: 'sample pantry grain',
+    })
     const initialVersionId = await seedFoodMasterNutritionVersion(tx, {
       foodMasterId: 'fm_version_correction',
       versionNo: 1,
@@ -390,10 +398,80 @@ describeIfDb('food master nutrition versions', () => {
     ])
   })
 
-  it('rejects unsupported evidence and corrections from another food', async () => {
+  it('rejects evidence that does not satisfy the source rules', async () => {
     const tx = getTx()
-    await tx`INSERT INTO food_masters (id, name) VALUES ('fm_version_primary', 'sample pantry pulse')`
-    await tx`INSERT INTO food_masters (id, name) VALUES ('fm_version_other', 'sample pantry seed')`
+    await seedFoodMasterWithoutNutrition(tx, {
+      id: 'fm_version_primary',
+      name: 'sample pantry pulse',
+    })
+    const primaryVersionId = await seedFoodMasterNutritionVersion(tx, {
+      foodMasterId: 'fm_version_primary',
+      versionNo: 1,
+      isCurrent: true,
+      changeKind: 'initial',
+      source: 'user_input',
+      isEstimated: false,
+      nutrients: { energy_kcal: 90 },
+    })
+    const service = createFoodMasterService(
+      createFoodMasterRepository(tx, { wrapInTransaction: false }),
+    )
+    const missingEvidence = await service.addNutritionVersion({
+      foodMasterId: 'fm_version_primary',
+      changeKind: 'product_update',
+      nutrition: { energy_kcal: 95 },
+      source: 'web_search',
+      isEstimated: false,
+      checkedOn: '2026-07-12',
+    })
+    const versions = (
+      await service.listNutritionVersions('fm_version_primary')
+    )._unsafeUnwrap()
+
+    expect(
+      observation({
+        missingEvidence: missingEvidence.match(
+          () => null,
+          (error) => ({ code: error.code, details: error.details }),
+        ),
+        versions: versions.map((version) => ({
+          id:
+            version.id === primaryVersionId ? 'version-1' : '<unknown-version>',
+          versionNo: version.versionNo,
+          isCurrent: version.isCurrent,
+          nutrition: version.nutrition,
+        })),
+      }),
+    ).toEqual({
+      missingEvidence: {
+        code: 'missing_source_url',
+        details: {
+          source: 'web_search',
+          sourceUrl: null,
+          sourceCompositionCode: null,
+        },
+      },
+      versions: [
+        {
+          id: 'version-1',
+          versionNo: 1,
+          isCurrent: true,
+          nutrition: { energy_kcal: 90 },
+        },
+      ],
+    })
+  })
+
+  it('rejects a correction that refers to another food', async () => {
+    const tx = getTx()
+    await seedFoodMasterWithoutNutrition(tx, {
+      id: 'fm_version_primary',
+      name: 'sample pantry pulse',
+    })
+    await seedFoodMasterWithoutNutrition(tx, {
+      id: 'fm_version_other',
+      name: 'sample pantry seed',
+    })
     const primaryVersionId = await seedFoodMasterNutritionVersion(tx, {
       foodMasterId: 'fm_version_primary',
       versionNo: 1,
@@ -415,14 +493,6 @@ describeIfDb('food master nutrition versions', () => {
     const service = createFoodMasterService(
       createFoodMasterRepository(tx, { wrapInTransaction: false }),
     )
-    const missingEvidence = await service.addNutritionVersion({
-      foodMasterId: 'fm_version_primary',
-      changeKind: 'product_update',
-      nutrition: { energy_kcal: 95 },
-      source: 'web_search',
-      isEstimated: false,
-      checkedOn: '2026-07-12',
-    })
     const wrongFoodCorrection = await service.addNutritionVersion({
       foodMasterId: 'fm_version_primary',
       changeKind: 'correction',
@@ -438,11 +508,7 @@ describeIfDb('food master nutrition versions', () => {
 
     expect(
       observation({
-        missingEvidence: missingEvidence.match(
-          () => null,
-          (error) => ({ code: error.code, details: error.details }),
-        ),
-        wrongFoodCorrection: wrongFoodCorrection.match(
+        error: wrongFoodCorrection.match(
           () => null,
           (error) => ({ code: error.code, details: error.details }),
         ),
@@ -455,15 +521,7 @@ describeIfDb('food master nutrition versions', () => {
         })),
       }),
     ).toEqual({
-      missingEvidence: {
-        code: 'missing_source_url',
-        details: {
-          source: 'web_search',
-          sourceUrl: null,
-          sourceCompositionCode: null,
-        },
-      },
-      wrongFoodCorrection: {
+      error: {
         code: 'nutrition_version_not_found',
         details: {
           foodMasterId: 'fm_version_primary',
@@ -478,6 +536,49 @@ describeIfDb('food master nutrition versions', () => {
           nutrition: { energy_kcal: 90 },
         },
       ],
+    })
+  })
+
+  it('rejects a nutrition version when the food has no nutrition history', async () => {
+    const tx = getTx()
+    await seedFoodMasterWithoutNutrition(tx, {
+      id: 'fm_version_empty',
+      name: 'sample pantry flour',
+    })
+    await seedNutrientDefinition(tx, {
+      code: 'energy_kcal',
+      displayName: 'energy',
+      unit: 'kcal',
+    })
+    const service = createFoodMasterService(
+      createFoodMasterRepository(tx, { wrapInTransaction: false }),
+    )
+    const addResult = await service.addNutritionVersion({
+      foodMasterId: 'fm_version_empty',
+      changeKind: 'product_update',
+      nutrition: { energy_kcal: 105 },
+      source: 'user_input',
+      isEstimated: false,
+      checkedOn: '2026-07-12',
+    })
+    const versions = (
+      await service.listNutritionVersions('fm_version_empty')
+    )._unsafeUnwrap()
+
+    expect(
+      observation({
+        error: addResult.match(
+          () => null,
+          (error) => ({ code: error.code, details: error.details }),
+        ),
+        versions,
+      }),
+    ).toEqual({
+      error: {
+        code: 'nutrition_version_required',
+        details: { foodMasterId: 'fm_version_empty' },
+      },
+      versions: [],
     })
   })
 })

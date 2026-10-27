@@ -2,6 +2,7 @@ import type { McpServer } from '@modelcontextprotocol/server'
 
 import type { FoodMasterService } from '#domain/food-master/service'
 import type { Logger } from '#logger'
+import { toFoodNutritionVersionPayload } from '#mcp-tools/nutrition-version-payload'
 import {
   listFoodNutritionVersionsInput,
   listFoodNutritionVersionsStructuredOutput,
@@ -29,25 +30,7 @@ export const registerListFoodNutritionVersionsTool = (
       logger.log(TOOL_CALLED, { tool: 'list_food_nutrition_versions' })
       return foodMasterService.listNutritionVersions(args.food_master_id).match(
         (versions) => {
-          const nutritionVersions = versions.map((version) => ({
-            nutrition_version_id: version.id,
-            food_master_id: version.foodMasterId,
-            version_no: version.versionNo,
-            change_kind: version.changeKind,
-            corrects_version_id: version.correctsVersionId,
-            is_current: version.isCurrent,
-            serving_basis: version.servingBasis,
-            net_content: version.netContent,
-            nutrition: version.nutrition,
-            source: version.source,
-            source_url: version.sourceUrl,
-            source_composition_code: version.sourceCompositionCode,
-            is_estimated: version.isEstimated,
-            checked_on: version.checkedOn,
-            effective_from: version.effectiveFrom,
-            reason: version.reason,
-            meal_log_count: version.mealLogCount,
-          }))
+          const nutritionVersions = versions.map(toFoodNutritionVersionPayload)
           const payload = {
             food_master_id: args.food_master_id,
             nutrition_versions: nutritionVersions,
