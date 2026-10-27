@@ -17,6 +17,7 @@ import { createDrizzleFoodMatcher } from '#domain/food-matcher/index'
 import { createMealHistoryService } from '#domain/meal-history/index'
 import { createDrizzleMealLogRepository } from '#domain/meal-log/drizzle-meal-log-repository'
 import { createMealLogService } from '#domain/meal-log/meal-log-service'
+import { createMealLogNutritionReassignmentService } from '#domain/meal-log/nutrition-reassignment'
 import type { MealType } from '#domain/meal-log/types'
 import {
   createDrizzleMealSetRepository,
@@ -176,6 +177,8 @@ const startHarness = async (opts: HarnessOptions): Promise<Harness> => {
     profileService: userProfileService,
     foodSearchService,
     mealLogService,
+    mealLogNutritionReassignmentService:
+      createMealLogNutritionReassignmentService(tx),
     mealSkipService,
     mealSetService,
     stockService,
