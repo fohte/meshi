@@ -1374,6 +1374,42 @@ describeIfDb('meshi integration', () => {
     }
   })
 
+  it('validates received delivery items before rejecting changes', async () => {
+    const tx = getTx()
+    const scenario = await seedDeliverySourceRefCorrectionScenario(tx)
+    const harness = await startHarness({ tx })
+
+    try {
+      const before = await readDeliveryDatabaseSnapshot(tx)
+      const registration = normalizeResult(
+        await harness.client.callTool({
+          name: 'register_delivery',
+          arguments: {
+            source_ref: scenario.partialOldSourceRef,
+            status: 'planned',
+            expected_date: '2031-07-06',
+            items: [
+              { food_master_id: 'fm_delivery_ref_untracked', quantity: 1 },
+            ],
+          },
+        }),
+      )
+      const after = await readDeliveryDatabaseSnapshot(tx)
+      const actual = { registration, before, after }
+      const expected = {
+        registration: {
+          isError: true,
+          content: [{ type: 'text', text: 'food_master is not a stock_item' }],
+        },
+        before,
+        after: before,
+      }
+      expect(observation(actual)).toEqual(expected)
+    } finally {
+      await harness.close()
+    }
+  })
+
   it('corrects a cancelled delivery without changing its status', async () => {
     const tx = getTx()
     const deliveryId = 'dly_ref_correction_cancelled'
