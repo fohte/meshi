@@ -15,6 +15,7 @@ import { registerDeleteMealLogTool } from '#mcp-tools/delete-meal-log'
 import { registerFillFoodNutritionTool } from '#mcp-tools/fill-food-nutrition'
 import { registerFoodFromCompositionTool } from '#mcp-tools/food-composition'
 import { registerGetStockStatusTool } from '#mcp-tools/get-stock-status'
+import { registerListDeliveriesTool } from '#mcp-tools/list-deliveries'
 import { registerMealLoggingTools } from '#mcp-tools/meal-logging'
 import { registerMealSkipTools } from '#mcp-tools/meal-skip'
 import { registerMergeFoodMasterTool } from '#mcp-tools/merge-food-master'
@@ -97,6 +98,7 @@ export const registerMeshiTools = (
   registerReceiveDeliveryTool(server, { stockService, logger })
   registerUpdateStockLotTool(server, { stockService, logger })
   registerGetStockStatusTool(server, { stockService, logger })
+  registerListDeliveriesTool(server, { stockService, logger })
 
   server.registerTool(
     'get_profile',
