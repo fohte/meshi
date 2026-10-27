@@ -127,6 +127,16 @@ describeIfDb('MealHistoryService.query', () => {
           quantity: 2,
           recordedAt: '2026-06-01T03:04:05Z',
           nutritionStatus: 'confirmed',
+          nutritionVersion: {
+            versionNo: 1,
+            changeKind: 'initial',
+            source: 'user_input',
+            isEstimated: false,
+            checkedOn: null,
+            effectiveFrom: null,
+          },
+          nutritionVersionOrigin: 'recorded',
+          nutritionVersionDifferences: [],
         },
         {
           id: 'log-2',
@@ -137,6 +147,16 @@ describeIfDb('MealHistoryService.query', () => {
           quantity: 0.5,
           recordedAt: '2026-06-01T03:04:05Z',
           nutritionStatus: 'confirmed',
+          nutritionVersion: {
+            versionNo: 1,
+            changeKind: 'initial',
+            source: 'user_input',
+            isEstimated: false,
+            checkedOn: null,
+            effectiveFrom: null,
+          },
+          nutritionVersionOrigin: 'recorded',
+          nutritionVersionDifferences: [],
         },
         {
           id: 'log-4',
@@ -147,6 +167,9 @@ describeIfDb('MealHistoryService.query', () => {
           quantity: 1,
           recordedAt: '2026-06-01T03:04:05Z',
           nutritionStatus: 'unknown',
+          nutritionVersion: null,
+          nutritionVersionOrigin: 'recorded',
+          nutritionVersionDifferences: [],
         },
       ],
       hasEstimatedValues: false,
@@ -154,7 +177,7 @@ describeIfDb('MealHistoryService.query', () => {
     })
   })
 
-  it('keeps the full aggregate unchanged when a new current version is added', async () => {
+  it('keeps recorded totals and reports alternatives when a new version removes a nutrient', async () => {
     const tx = getTx()
     await seedNutrientDefinitions(tx)
     await seedFoodMasterWithoutNutrition(tx, {
@@ -200,41 +223,94 @@ describeIfDb('MealHistoryService.query', () => {
         isCurrent: true,
         changeKind: 'product_update',
         source: 'user_input',
-        nutrients: { energy_kcal: 23, protein_g: 2 },
+        nutrients: { energy_kcal: 11 },
       })
       const after = (await query())._unsafeUnwrap()
       return { before, after }
     }
 
-    const expected = {
-      totals: { energy_kcal: 11, protein_g: 1 },
-      incompleteNutrients: [],
-      perDay: [
-        {
-          date: '2026-06-01',
-          totals: { energy_kcal: 11, protein_g: 1 },
-          incompleteNutrients: [],
-          hasUnknownValues: false,
-        },
-      ],
-      entries: [
-        {
-          id: 'versioned-log',
-          foodMasterId: 'versioned-food',
-          foodName: 'versioned food',
-          eatenDate: '2026-06-01',
-          mealType: 'lunch',
-          quantity: 1,
-          recordedAt: '2026-06-01T03:04:05Z',
-          nutritionStatus: 'confirmed',
-        },
-      ],
-      hasEstimatedValues: false,
-      hasUnknownValues: false,
-    }
     expect(await queryBeforeAndAfterVersionChange()).toEqual({
-      before: expected,
-      after: expected,
+      before: {
+        totals: { energy_kcal: 11, protein_g: 1 },
+        incompleteNutrients: [],
+        perDay: [
+          {
+            date: '2026-06-01',
+            totals: { energy_kcal: 11, protein_g: 1 },
+            incompleteNutrients: [],
+            hasUnknownValues: false,
+          },
+        ],
+        entries: [
+          {
+            id: 'versioned-log',
+            foodMasterId: 'versioned-food',
+            foodName: 'versioned food',
+            eatenDate: '2026-06-01',
+            mealType: 'lunch',
+            quantity: 1,
+            recordedAt: '2026-06-01T03:04:05Z',
+            nutritionStatus: 'confirmed',
+            nutritionVersion: {
+              versionNo: 1,
+              changeKind: 'initial',
+              source: 'user_input',
+              isEstimated: false,
+              checkedOn: null,
+              effectiveFrom: null,
+            },
+            nutritionVersionOrigin: 'migrated',
+            nutritionVersionDifferences: [],
+          },
+        ],
+        hasEstimatedValues: false,
+        hasUnknownValues: false,
+      },
+      after: {
+        totals: { energy_kcal: 11, protein_g: 1 },
+        incompleteNutrients: [],
+        perDay: [
+          {
+            date: '2026-06-01',
+            totals: { energy_kcal: 11, protein_g: 1 },
+            incompleteNutrients: [],
+            hasUnknownValues: false,
+          },
+        ],
+        entries: [
+          {
+            id: 'versioned-log',
+            foodMasterId: 'versioned-food',
+            foodName: 'versioned food',
+            eatenDate: '2026-06-01',
+            mealType: 'lunch',
+            quantity: 1,
+            recordedAt: '2026-06-01T03:04:05Z',
+            nutritionStatus: 'confirmed',
+            nutritionVersion: {
+              versionNo: 1,
+              changeKind: 'initial',
+              source: 'user_input',
+              isEstimated: false,
+              checkedOn: null,
+              effectiveFrom: null,
+            },
+            nutritionVersionOrigin: 'migrated',
+            nutritionVersionDifferences: [
+              {
+                versionNo: 2,
+                changeKind: 'product_update',
+                source: 'user_input',
+                isEstimated: false,
+                checkedOn: null,
+                effectiveFrom: null,
+              },
+            ],
+          },
+        ],
+        hasEstimatedValues: false,
+        hasUnknownValues: false,
+      },
     })
   })
 
@@ -300,6 +376,16 @@ describeIfDb('MealHistoryService.query', () => {
           quantity: 0.5,
           recordedAt: '2026-06-01T03:04:05Z',
           nutritionStatus: 'confirmed',
+          nutritionVersion: {
+            versionNo: 1,
+            changeKind: 'initial',
+            source: 'user_input',
+            isEstimated: false,
+            checkedOn: null,
+            effectiveFrom: null,
+          },
+          nutritionVersionOrigin: 'recorded',
+          nutritionVersionDifferences: [],
         },
       ],
       hasEstimatedValues: false,
@@ -381,6 +467,16 @@ describeIfDb('MealHistoryService.query', () => {
           quantity: 1,
           recordedAt: '2026-06-01T03:00:00Z',
           nutritionStatus: 'confirmed',
+          nutritionVersion: {
+            versionNo: 1,
+            changeKind: 'initial',
+            source: 'user_input',
+            isEstimated: false,
+            checkedOn: null,
+            effectiveFrom: null,
+          },
+          nutritionVersionOrigin: 'recorded',
+          nutritionVersionDifferences: [],
         },
         {
           id: 'log-partial-day-one',
@@ -391,6 +487,16 @@ describeIfDb('MealHistoryService.query', () => {
           quantity: 1,
           recordedAt: '2026-06-01T04:00:00Z',
           nutritionStatus: 'confirmed',
+          nutritionVersion: {
+            versionNo: 1,
+            changeKind: 'initial',
+            source: 'user_input',
+            isEstimated: false,
+            checkedOn: null,
+            effectiveFrom: null,
+          },
+          nutritionVersionOrigin: 'recorded',
+          nutritionVersionDifferences: [],
         },
         {
           id: 'log-complete-day-two',
@@ -401,6 +507,16 @@ describeIfDb('MealHistoryService.query', () => {
           quantity: 1,
           recordedAt: '2026-06-02T03:00:00Z',
           nutritionStatus: 'confirmed',
+          nutritionVersion: {
+            versionNo: 1,
+            changeKind: 'initial',
+            source: 'user_input',
+            isEstimated: false,
+            checkedOn: null,
+            effectiveFrom: null,
+          },
+          nutritionVersionOrigin: 'recorded',
+          nutritionVersionDifferences: [],
         },
       ],
       hasEstimatedValues: false,
@@ -453,6 +569,9 @@ describeIfDb('MealHistoryService.query', () => {
           quantity: 1,
           recordedAt: '2026-06-01T03:04:05Z',
           nutritionStatus: 'unknown',
+          nutritionVersion: null,
+          nutritionVersionOrigin: 'recorded',
+          nutritionVersionDifferences: [],
         },
       ],
       hasEstimatedValues: false,
@@ -508,6 +627,16 @@ describeIfDb('MealHistoryService.query', () => {
           quantity: 1,
           recordedAt: '2026-06-01T03:04:05Z',
           nutritionStatus: 'confirmed',
+          nutritionVersion: {
+            versionNo: 1,
+            changeKind: 'initial',
+            source: 'user_input',
+            isEstimated: false,
+            checkedOn: null,
+            effectiveFrom: null,
+          },
+          nutritionVersionOrigin: 'recorded',
+          nutritionVersionDifferences: [],
         },
       ],
       hasEstimatedValues: false,
@@ -563,6 +692,16 @@ describeIfDb('MealHistoryService.query', () => {
           quantity: 1,
           recordedAt: '2026-06-01T03:04:05Z',
           nutritionStatus: 'confirmed',
+          nutritionVersion: {
+            versionNo: 1,
+            changeKind: 'initial',
+            source: 'user_input',
+            isEstimated: false,
+            checkedOn: null,
+            effectiveFrom: null,
+          },
+          nutritionVersionOrigin: 'recorded',
+          nutritionVersionDifferences: [],
         },
       ],
       hasEstimatedValues: false,
@@ -638,6 +777,16 @@ describeIfDb('MealHistoryService.query', () => {
           quantity: 1,
           recordedAt: '2026-06-01T03:04:05Z',
           nutritionStatus: 'confirmed',
+          nutritionVersion: {
+            versionNo: 1,
+            changeKind: 'initial',
+            source: 'user_input',
+            isEstimated: false,
+            checkedOn: null,
+            effectiveFrom: null,
+          },
+          nutritionVersionOrigin: 'recorded',
+          nutritionVersionDifferences: [],
         },
         {
           id: 'log-2',
@@ -648,6 +797,16 @@ describeIfDb('MealHistoryService.query', () => {
           quantity: 2.5,
           recordedAt: '2026-06-01T03:04:05Z',
           nutritionStatus: 'estimated',
+          nutritionVersion: {
+            versionNo: 1,
+            changeKind: 'initial',
+            source: 'user_input',
+            isEstimated: true,
+            checkedOn: null,
+            effectiveFrom: null,
+          },
+          nutritionVersionOrigin: 'recorded',
+          nutritionVersionDifferences: [],
         },
       ],
       hasEstimatedValues: true,
@@ -746,6 +905,16 @@ describeIfDb(
                 quantity: 2,
                 recordedAt: '2026-06-01T03:04:05Z',
                 nutritionStatus: 'confirmed',
+                nutritionVersion: {
+                  versionNo: 1,
+                  changeKind: 'initial',
+                  source: 'user_input',
+                  isEstimated: false,
+                  checkedOn: null,
+                  effectiveFrom: null,
+                },
+                nutritionVersionOrigin: 'recorded',
+                nutritionVersionDifferences: [],
               },
             ],
             hasEstimatedValues: false,
