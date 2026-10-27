@@ -43,6 +43,32 @@ const readPersistedMealLogs = async (
   return persistedMealLogsSchema.parse(rows)
 }
 
+interface ReassignmentApplyInput {
+  readonly mealLogIds: ReadonlyArray<string>
+  readonly toNutritionVersionId: string
+  readonly reason: string
+  readonly expectedFromVersions: ReadonlyArray<{
+    readonly mealLogId: string
+    readonly nutritionVersionId: string | null
+  }>
+}
+
+const applyReassignmentAndReadLogs = async (
+  tx: Sql,
+  input: ReassignmentApplyInput,
+) => {
+  const outcome = await createMealLogNutritionReassignmentService(tx)
+    .reassign({ ...input, apply: true })
+    .match(
+      (value) => ({ success: value }),
+      (error) => ({
+        error: { name: error.name, code: error.code, message: error.message },
+      }),
+    )
+  const persistedMealLogs = await readPersistedMealLogs(tx, input.mealLogIds)
+  return observation({ outcome, persistedMealLogs })
+}
+
 const createVersions = async (
   tx: Sql,
   foodMasterId: string,
@@ -172,7 +198,7 @@ describeIfDb('MealLogNutritionReassignmentService', () => {
     })
   })
 
-  it('applies a reviewed version with an unknown source and records a null from-version', async () => {
+  it('applies a reviewed version to an unassigned log and records a null from-version', async () => {
     const tx = getTx()
     const versions = await createVersions(tx, 'fm_reassign_apply')
     await seedMealLog(tx, {
@@ -324,35 +350,23 @@ describeIfDb('MealLogNutritionReassignmentService', () => {
       quantity: 2,
     })
 
-    const outcome = await createMealLogNutritionReassignmentService(tx)
-      .reassign({
-        mealLogIds: ['ml_reassign_foreign_first', 'ml_reassign_foreign_second'],
-        toNutritionVersionId: targetVersions.replacementVersionId,
-        reason: 'Reassigned to a verified product version',
-        apply: true,
-        expectedFromVersions: [
-          {
-            mealLogId: 'ml_reassign_foreign_first',
-            nutritionVersionId: sourceVersions.originalVersionId,
-          },
-          {
-            mealLogId: 'ml_reassign_foreign_second',
-            nutritionVersionId: sourceVersions.originalVersionId,
-          },
-        ],
-      })
-      .match(
-        (value) => ({ success: value }),
-        (error) => ({
-          error: { name: error.name, code: error.code, message: error.message },
-        }),
-      )
-    const persistedMealLogs = await readPersistedMealLogs(tx, [
-      'ml_reassign_foreign_first',
-      'ml_reassign_foreign_second',
-    ])
+    const observed = await applyReassignmentAndReadLogs(tx, {
+      mealLogIds: ['ml_reassign_foreign_first', 'ml_reassign_foreign_second'],
+      toNutritionVersionId: targetVersions.replacementVersionId,
+      reason: 'Reassigned to a verified product version',
+      expectedFromVersions: [
+        {
+          mealLogId: 'ml_reassign_foreign_first',
+          nutritionVersionId: sourceVersions.originalVersionId,
+        },
+        {
+          mealLogId: 'ml_reassign_foreign_second',
+          nutritionVersionId: sourceVersions.originalVersionId,
+        },
+      ],
+    })
 
-    expect(observation({ outcome, persistedMealLogs })).toEqual({
+    expect(observed).toEqual({
       outcome: {
         error: {
           name: 'MealLogNutritionReassignmentError',
@@ -406,38 +420,26 @@ describeIfDb('MealLogNutritionReassignmentService', () => {
       quantity: 2,
     })
 
-    const outcome = await createMealLogNutritionReassignmentService(tx)
-      .reassign({
-        mealLogIds: [
-          'ml_reassign_unchanged_current',
-          'ml_reassign_unchanged_other',
-        ],
-        toNutritionVersionId: versions.replacementVersionId,
-        reason: 'Reassigned to a verified product version',
-        apply: true,
-        expectedFromVersions: [
-          {
-            mealLogId: 'ml_reassign_unchanged_current',
-            nutritionVersionId: versions.replacementVersionId,
-          },
-          {
-            mealLogId: 'ml_reassign_unchanged_other',
-            nutritionVersionId: versions.originalVersionId,
-          },
-        ],
-      })
-      .match(
-        (value) => ({ success: value }),
-        (error) => ({
-          error: { name: error.name, code: error.code, message: error.message },
-        }),
-      )
-    const persistedMealLogs = await readPersistedMealLogs(tx, [
-      'ml_reassign_unchanged_current',
-      'ml_reassign_unchanged_other',
-    ])
+    const observed = await applyReassignmentAndReadLogs(tx, {
+      mealLogIds: [
+        'ml_reassign_unchanged_current',
+        'ml_reassign_unchanged_other',
+      ],
+      toNutritionVersionId: versions.replacementVersionId,
+      reason: 'Reassigned to a verified product version',
+      expectedFromVersions: [
+        {
+          mealLogId: 'ml_reassign_unchanged_current',
+          nutritionVersionId: versions.replacementVersionId,
+        },
+        {
+          mealLogId: 'ml_reassign_unchanged_other',
+          nutritionVersionId: versions.originalVersionId,
+        },
+      ],
+    })
 
-    expect(observation({ outcome, persistedMealLogs })).toEqual({
+    expect(observed).toEqual({
       outcome: {
         error: {
           name: 'MealLogNutritionReassignmentError',
