@@ -3443,6 +3443,64 @@ describe('reassign_meal_log_nutrition', () => {
       await h.close()
     }
   })
+
+  it('returns a structured conflict when a reviewed version changed', async () => {
+    const message =
+      'meal_log nutrition version changed since preview: mcp_fixture_meal_reassign'
+    const h = await start({
+      mealLogNutritionReassignmentService: {
+        reassign: () =>
+          errAsync(
+            new DomainError(message, 'meal_log/nutrition_version_changed'),
+          ),
+      },
+    })
+    try {
+      const result = await h.client.callTool({
+        name: 'reassign_meal_log_nutrition',
+        arguments: {
+          meal_log_ids: ['mcp_fixture_meal_reassign'],
+          to_nutrition_version_id: '00000000-0000-7000-8000-000000000002',
+          reason: 'Corrected registered values',
+          dry_run: false,
+          expected_from_versions: [
+            {
+              meal_log_id: 'mcp_fixture_meal_reassign',
+              nutrition_version_id: '00000000-0000-7000-8000-000000000001',
+            },
+          ],
+        },
+      })
+      expect(observation({ result, logs: h.logs })).toEqual({
+        result: {
+          content: [{ type: 'text', text: message }],
+          isError: true,
+          structuredContent: {
+            error: {
+              code: 'meal_log/nutrition_version_changed',
+              message,
+            },
+          },
+        },
+        logs: [
+          {
+            event: 'meshi.tool_called',
+            payload: { tool: 'reassign_meal_log_nutrition' },
+          },
+          {
+            event: 'meshi.tool_failed',
+            payload: {
+              tool: 'reassign_meal_log_nutrition',
+              code: 'meal_log/nutrition_version_changed',
+              message,
+            },
+          },
+        ],
+      })
+    } finally {
+      await h.close()
+    }
+  })
 })
 
 describe('fill_food_nutrition', () => {

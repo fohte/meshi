@@ -88,6 +88,7 @@ const nutrientRowSchema = z.object({
 })
 
 const dailyNutritionRowSchema = z.object({
+  scenario: z.enum(['before', 'after']),
   date: jstDateSchema,
   nutrient_code: z.string(),
   value: numericValueSchema,
@@ -135,46 +136,48 @@ const readNutrition = async (
 const readDailyTotals = async (
   tx: SqlOrTx,
   dates: ReadonlyArray<JstDate>,
-  replacements?: {
-    readonly mealLogIds: ReadonlyArray<string>
-    readonly nutritionVersionId: string
-  },
+  mealLogIds: ReadonlyArray<string>,
+  toNutritionVersionId: string,
 ): Promise<
-  Result<ReadonlyMap<JstDate, NutritionMap>, MealLogPersistenceError>
+  Result<
+    {
+      readonly before: ReadonlyMap<JstDate, NutritionMap>
+      readonly after: ReadonlyMap<JstDate, NutritionMap>
+    },
+    MealLogPersistenceError
+  >
 > => {
-  const totals = new Map<JstDate, Record<string, number>>(
+  const totalsBefore = new Map<JstDate, Record<string, number>>(
     dates.map((date) => [date, {}]),
   )
-  if (dates.length === 0) return ok(totals)
+  const totalsAfter = new Map<JstDate, Record<string, number>>(
+    dates.map((date) => [date, {}]),
+  )
+  if (dates.length === 0) {
+    return ok({ before: totalsBefore, after: totalsAfter })
+  }
 
-  const rows =
-    replacements === undefined
-      ? await tx<Record<string, unknown>[]>`
-          SELECT to_char(ml.eaten_date, 'YYYY-MM-DD') AS date,
-                 nutrients.nutrient_code,
-                 SUM(nutrients.value * ml.quantity) AS value
-          FROM meal_logs AS ml
-          JOIN food_master_nutrients AS nutrients
-            ON nutrients.nutrition_version_id = ml.nutrition_version_id
-          WHERE ml.eaten_date = ANY(${tx.array([...dates])}::date[])
-          GROUP BY date, nutrients.nutrient_code
-          ORDER BY date, nutrients.nutrient_code
-        `
-      : await tx<Record<string, unknown>[]>`
-          SELECT to_char(ml.eaten_date, 'YYYY-MM-DD') AS date,
-                 nutrients.nutrient_code,
-                 SUM(nutrients.value * ml.quantity) AS value
-          FROM meal_logs AS ml
-          JOIN food_master_nutrients AS nutrients
-            ON nutrients.nutrition_version_id = CASE
-              WHEN ml.id = ANY(${tx.array([...replacements.mealLogIds])}::text[])
-                THEN ${replacements.nutritionVersionId}::uuid
-              ELSE ml.nutrition_version_id
-            END
-          WHERE ml.eaten_date = ANY(${tx.array([...dates])}::date[])
-          GROUP BY date, nutrients.nutrient_code
-          ORDER BY date, nutrients.nutrient_code
-        `
+  const rows = await tx<Record<string, unknown>[]>`
+    WITH scenarios (scenario) AS (
+      VALUES ('before'::text), ('after'::text)
+    )
+    SELECT scenarios.scenario,
+           to_char(ml.eaten_date, 'YYYY-MM-DD') AS date,
+           nutrients.nutrient_code,
+           SUM(nutrients.value * ml.quantity) AS value
+    FROM scenarios
+    CROSS JOIN meal_logs AS ml
+    JOIN food_master_nutrients AS nutrients
+      ON nutrients.nutrition_version_id = CASE
+        WHEN scenarios.scenario = 'after'
+         AND ml.id = ANY(${tx.array([...mealLogIds])}::text[])
+          THEN ${toNutritionVersionId}::uuid
+        ELSE ml.nutrition_version_id
+      END
+    WHERE ml.eaten_date = ANY(${tx.array([...dates])}::date[])
+    GROUP BY scenarios.scenario, date, nutrients.nutrient_code
+    ORDER BY scenarios.scenario, date, nutrients.nutrient_code
+  `
   const parsed = parseRows(
     z.array(dailyNutritionRowSchema),
     rows,
@@ -183,10 +186,11 @@ const readDailyTotals = async (
   if (parsed.isErr()) return err(parsed.error)
 
   for (const row of parsed.value) {
+    const totals = row.scenario === 'before' ? totalsBefore : totalsAfter
     const day = totals.get(row.date)
     if (day !== undefined) day[row.nutrient_code] = row.value
   }
-  return ok(totals)
+  return ok({ before: totalsBefore, after: totalsAfter })
 }
 
 const expectedVersionsMatch = (
@@ -334,8 +338,13 @@ const reassignInTransaction = async (
   const affectedDates = [
     ...new Set(logs.map((log) => log.eaten_date)),
   ].toSorted()
-  const totalsBefore = await readDailyTotals(tx, affectedDates)
-  if (totalsBefore.isErr()) return err(totalsBefore.error)
+  const dayTotals = await readDailyTotals(
+    tx,
+    affectedDates,
+    input.mealLogIds,
+    target.id,
+  )
+  if (dayTotals.isErr()) return err(dayTotals.error)
 
   if (input.apply) {
     const updatedRows = await tx<Record<string, unknown>[]>`
@@ -363,28 +372,38 @@ const reassignInTransaction = async (
       )
     }
 
-    for (const log of logs) {
-      await tx`
-        INSERT INTO meal_log_nutrition_changes (
-          meal_log_id, from_version_id, to_version_id, reason
-        ) VALUES (
-          ${log.id}, ${log.nutrition_version_id}, ${target.id}, ${input.reason}
-        )
-      `
+    const changeRows = await tx<Record<string, unknown>[]>`
+      INSERT INTO meal_log_nutrition_changes (
+        meal_log_id, from_version_id, to_version_id, reason
+      )
+      SELECT proposed.meal_log_id, proposed.from_version_id,
+             ${target.id}, ${input.reason}
+      FROM unnest(
+        ${tx.array(logs.map(({ id }) => id))}::text[],
+        ${tx.array(logs.map(({ nutrition_version_id }) => nutrition_version_id))}::uuid[]
+      ) AS proposed(meal_log_id, from_version_id)
+      RETURNING meal_log_id
+    `
+    const parsedChangeRows = parseRows(
+      z.array(z.object({ meal_log_id: z.string() })),
+      changeRows,
+      'meal_log_nutrition_changes insert',
+    )
+    if (parsedChangeRows.isErr()) return err(parsedChangeRows.error)
+    const changedIds = new Set(
+      parsedChangeRows.value.map(({ meal_log_id }) => meal_log_id),
+    )
+    if (
+      changedIds.size !== logs.length ||
+      logs.some((log) => !changedIds.has(log.id))
+    ) {
+      return err(
+        new MealLogPersistenceError(
+          'meal_log_nutrition_changes insert returned an unexpected number of rows',
+        ),
+      )
     }
   }
-
-  const totalsAfter = await readDailyTotals(
-    tx,
-    affectedDates,
-    input.apply
-      ? undefined
-      : {
-          mealLogIds: input.mealLogIds,
-          nutritionVersionId: target.id,
-        },
-  )
-  if (totalsAfter.isErr()) return err(totalsAfter.error)
 
   const targetNutrition = nutritionResult.value.get(target.id) ?? {}
   return ok({
@@ -413,8 +432,8 @@ const reassignInTransaction = async (
     })),
     affectedDayTotals: affectedDates.map((date) => ({
       date,
-      totalsBefore: totalsBefore.value.get(date) ?? {},
-      totalsAfter: totalsAfter.value.get(date) ?? {},
+      totalsBefore: dayTotals.value.before.get(date) ?? {},
+      totalsAfter: dayTotals.value.after.get(date) ?? {},
     })),
   })
 }
