@@ -739,6 +739,22 @@ describeIfDb('meshi integration', () => {
           structuredContent: {
             food_master_id: 'fm_pending_alpha',
             nutrition_status: 'confirmed',
+            nutrition_version_no: 1,
+            assigned_meal_logs: [
+              {
+                meal_log_id: 'ml_pending_alpha',
+                eaten_date: '2026-06-12',
+                meal_type: 'lunch',
+                quantity: 1.5,
+              },
+            ],
+            affected_day_totals: [
+              {
+                date: '2026-06-12',
+                totals_before: {},
+                totals_after: { energy_kcal: 360, protein_g: 18 },
+              },
+            ],
           },
         },
         queryResult: {

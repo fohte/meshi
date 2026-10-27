@@ -17,7 +17,7 @@ import type { FoodMasterRef } from '#domain/meal-log/types'
 
 type Db = ReturnType<typeof drizzle>
 
-export const loadNutrition = async (
+const loadNutrition = async (
   db: Db,
   foodMasterId: string,
 ): Promise<Record<string, number>> => {

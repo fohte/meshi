@@ -352,7 +352,7 @@ const makeFoodMasterService = (
         applied: !dryRun,
         movedAliases: ['alternate_label'],
         nameMovedAsAlias: 'removed_food_label',
-        discardedNutrition: { energy_kcal: 118 },
+        movedNutritionVersions: [{ previousVersionNo: 1, versionNo: 2 }],
         movedMealLogCount: 3,
       })
     },
@@ -769,7 +769,7 @@ describe('MeshiMcpServer tools/list', () => {
         (tool) => tool.name === 'fill_food_nutrition',
       )
       expect(fillFoodNutrition?.description).toEqual(
-        '栄養値が未登録の food_master に栄養値を補完する。food_master_id を指定する。nutrition.energy_kcal は必須。source=model_estimate の栄養値は source=web_search または source=user_input の値で置き換えられる。その他の source がある食品と、source=model_estimate の値を別の推定値で置き換えることはできない。公式情報はメーカーまたは店の公式ページを優先し、まとめサイトやブログは使わない。source_url はこの商品とサイズの栄養値を載せたページにする。source=web_search は is_estimated=false かつ source_url 必須。source=user_input はユーザー本人が値を伝えた場合だけ使い、source_url は指定しない。公式情報もユーザーが伝えた値もない場合は一般的な材料と量から推定してよい。推定値は source=model_estimate と is_estimated=true を指定し、source_url と source_composition_code は指定しない。登録前にユーザーの確認を取らず、登録後に推定値であることを伝える。栄養値は出典が示す 1 つ分 (1 個、1 食、100g など) のまま渡す。',
+        '栄養値が未登録の food_master に栄養値を補完する。food_master_id を指定する。nutrition.energy_kcal は必須。補完のたびに新しい栄養バージョンを作り、既存バージョンの値は保持する。source=model_estimate の栄養値は source=web_search または source=user_input の値で補完でき、推定値を参照する過去ログはそのまま保持する。栄養バージョンが未割当の過去ログだけ新バージョンへ割り当て、応答に対象ログと影響日の合計前後を含める。その他の source がある食品と、source=model_estimate の値を別の推定値で置き換えることはできない。公式情報はメーカーまたは店の公式ページを優先し、まとめサイトやブログは使わない。source_url はこの商品とサイズの栄養値を載せたページにする。source=web_search は is_estimated=false かつ source_url 必須。source=user_input はユーザー本人が値を伝えた場合だけ使い、source_url は指定しない。公式情報もユーザーが伝えた値もない場合は一般的な材料と量から推定してよい。推定値は source=model_estimate と is_estimated=true を指定し、source_url と source_composition_code は指定しない。登録前にユーザーの確認を取らず、登録後に推定値であることを伝える。栄養値は出典が示す 1 つ分 (1 個、1 食、100g など) のまま渡す。',
       )
     } finally {
       await h.close()
@@ -1107,7 +1107,7 @@ describe('MeshiMcpServer tools/list', () => {
         (candidate) => candidate.name === 'merge_food_master',
       )
       expect(tool?.description).toEqual(
-        '同じ食品を指す 2 つの食品マスタを統合する。survivor_food_master_id に残す食品、loser_food_master_id に統合する食品を指定する。survivor は、より信頼できる情報が揃っている食品を選ぶ。値が衝突した場合は survivor を優先し、loser の栄養情報はすべて破棄する。loser の別名と食事ログは survivor に移り、loser の名前は同じ文字列の別名が既に存在しない場合に survivor の別名へ加わる。dry_run は既定で true で、変更せずに移動・破棄の内容を返す。試し実行の結果をユーザーに見せて確認を得てから dry_run=false を指定する。実際に統合すると取り消せない。',
+        '同じ食品を指す 2 つの食品マスタを統合する。survivor_food_master_id に残す食品、loser_food_master_id に統合する食品を指定する。survivor は、より信頼できる情報が揃っている食品を選ぶ。survivor の現行栄養値を維持し、loser の全栄養バージョンを survivor の続き番号で現行ではない履歴として残す。loser の食事ログは元の栄養バージョンと割り当ての経緯を保ったまま survivor に移る。loser の別名も survivor に移り、loser の名前は同じ文字列の別名が既に存在しない場合に survivor の別名へ加わる。dry_run は既定で true で、変更せずに移動内容を返す。試し実行の結果をユーザーに見せて確認を得てから dry_run=false を指定する。実際に統合すると取り消せない。',
       )
     } finally {
       await h.close()
@@ -1167,7 +1167,9 @@ describe('merge_food_master', () => {
             applied: false,
             moved_aliases: ['alternate_label'],
             name_moved_as_alias: 'removed_food_label',
-            discarded_nutrition: { energy_kcal: 118 },
+            moved_nutrition_versions: [
+              { previous_version_no: 1, version_no: 2 },
+            ],
             moved_meal_log_count: 3,
           },
         },
@@ -1204,7 +1206,9 @@ describe('merge_food_master', () => {
             applied: true,
             moved_aliases: ['alternate_label'],
             name_moved_as_alias: 'removed_food_label',
-            discarded_nutrition: { energy_kcal: 118 },
+            moved_nutrition_versions: [
+              { previous_version_no: 1, version_no: 2 },
+            ],
             moved_meal_log_count: 3,
           },
         },
@@ -3204,7 +3208,25 @@ describe('fill_food_nutrition', () => {
       foodMasterOverrides: {
         fillNutrition: (input) => {
           calls.push(input)
-          return okAsync('confirmed')
+          return okAsync({
+            nutritionStatus: 'confirmed',
+            nutritionVersionNo: 1,
+            assignedMealLogs: [
+              {
+                id: 'ml_unknown_alpha',
+                eatenDate: jstDate('2026-06-01'),
+                mealType: 'lunch',
+                quantity: 1.5,
+              },
+            ],
+            affectedDayTotals: [
+              {
+                date: jstDate('2026-06-01'),
+                totalsBefore: {},
+                totalsAfter: { energy_kcal: 472.5 },
+              },
+            ],
+          })
         },
       },
     })
@@ -3226,6 +3248,22 @@ describe('fill_food_nutrition', () => {
           structuredContent: {
             food_master_id: 'fm_unknown_alpha',
             nutrition_status: 'confirmed',
+            nutrition_version_no: 1,
+            assigned_meal_logs: [
+              {
+                meal_log_id: 'ml_unknown_alpha',
+                eaten_date: '2026-06-01',
+                meal_type: 'lunch',
+                quantity: 1.5,
+              },
+            ],
+            affected_day_totals: [
+              {
+                date: '2026-06-01',
+                totals_before: {},
+                totals_after: { energy_kcal: 472.5 },
+              },
+            ],
           },
         },
         calls: [
@@ -3249,7 +3287,12 @@ describe('fill_food_nutrition', () => {
       foodMasterOverrides: {
         fillNutrition: (input) => {
           calls.push(input)
-          return okAsync('estimated')
+          return okAsync({
+            nutritionStatus: 'estimated',
+            nutritionVersionNo: 1,
+            assignedMealLogs: [],
+            affectedDayTotals: [],
+          })
         },
       },
     })
@@ -3270,6 +3313,9 @@ describe('fill_food_nutrition', () => {
           structuredContent: {
             food_master_id: 'fm_unknown_alpha',
             nutrition_status: 'estimated',
+            nutrition_version_no: 1,
+            assigned_meal_logs: [],
+            affected_day_totals: [],
           },
         },
         calls: [
@@ -3292,7 +3338,12 @@ describe('fill_food_nutrition', () => {
       foodMasterOverrides: {
         fillNutrition: (input) => {
           calls.push(input)
-          return okAsync('confirmed')
+          return okAsync({
+            nutritionStatus: 'confirmed',
+            nutritionVersionNo: 1,
+            assignedMealLogs: [],
+            affectedDayTotals: [],
+          })
         },
       },
     })

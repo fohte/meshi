@@ -253,7 +253,12 @@ export const mergeFoodMasterStructuredOutput = z.object({
   applied: z.boolean(),
   moved_aliases: z.array(z.string()),
   name_moved_as_alias: z.string().nullable(),
-  discarded_nutrition: nutritionMap,
+  moved_nutrition_versions: z.array(
+    z.object({
+      previous_version_no: z.number().int().positive(),
+      version_no: z.number().int().positive(),
+    }),
+  ),
   moved_meal_log_count: z.number().int().nonnegative(),
 })
 
@@ -312,6 +317,26 @@ export const fillFoodNutritionInput = z.object({
 export const fillFoodNutritionStructuredOutput = z.object({
   food_master_id: z.string().optional(),
   nutrition_status: z.enum(['confirmed', 'estimated']).optional(),
+  nutrition_version_no: z.number().int().positive().optional(),
+  assigned_meal_logs: z
+    .array(
+      z.object({
+        meal_log_id: z.string(),
+        eaten_date: jstDateSchema,
+        meal_type: z.enum(MEAL_TYPES),
+        quantity: z.number(),
+      }),
+    )
+    .optional(),
+  affected_day_totals: z
+    .array(
+      z.object({
+        date: jstDateSchema,
+        totals_before: nutritionMap,
+        totals_after: nutritionMap,
+      }),
+    )
+    .optional(),
   error: z
     .object({
       code: z.string(),

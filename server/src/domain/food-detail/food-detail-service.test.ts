@@ -11,6 +11,7 @@ import { jstDate } from '#test/jst-date'
 import {
   seedFoodMaster,
   seedFoodMasterAlias,
+  seedFoodMasterNutritionVersion,
   seedFoodMasterWithoutNutrition,
   seedMealLog,
 } from '#test/seed'
@@ -113,12 +114,14 @@ describeIfDb('createFoodDetailService', () => {
           eatenDate: toJstDateString(newerEatenAt),
           mealType: 'snack',
           quantity: 1,
+          energyKcalPerUnit: null,
         },
         {
           id: 'ml_older',
           eatenDate: toJstDateString(olderEatenAt),
           mealType: 'breakfast',
           quantity: 60,
+          energyKcalPerUnit: null,
         },
       ],
       totalEatenCount: 2,
@@ -160,9 +163,62 @@ describeIfDb('createFoodDetailService', () => {
           eatenDate: '2026-06-15',
           mealType: 'dinner',
           quantity: 1,
+          energyKcalPerUnit: null,
         },
       ],
       totalEatenCount: 1,
     })
+  })
+
+  it('returns the nutrition value referenced by each historical meal log', async () => {
+    const tx = getTx()
+    await seedFoodMasterWithoutNutrition(tx, {
+      id: 'fm_versioned',
+      name: 'versioned food',
+    })
+    const oldVersionId = await seedFoodMasterNutritionVersion(tx, {
+      foodMasterId: 'fm_versioned',
+      versionNo: 1,
+      isCurrent: false,
+      changeKind: 'initial',
+      source: 'user_input',
+      nutrients: { energy_kcal: 11 },
+    })
+    await seedFoodMasterNutritionVersion(tx, {
+      foodMasterId: 'fm_versioned',
+      versionNo: 2,
+      isCurrent: true,
+      changeKind: 'product_update',
+      source: 'user_input',
+      nutrients: { energy_kcal: 23 },
+    })
+    await seedMealLog(tx, {
+      id: 'ml_versioned',
+      foodMasterId: 'fm_versioned',
+      nutritionVersionId: oldVersionId,
+      nutritionVersionOrigin: 'migrated',
+      eatenDate: jstDate('2026-06-15'),
+      mealType: 'dinner',
+      quantity: 2,
+    })
+    const foodMasterService = createFoodMasterService(
+      createFoodMasterRepository(tx),
+    )
+
+    const result = (
+      await createFoodDetailService(tx, foodMasterService).getById(
+        'fm_versioned',
+      )
+    )._unsafeUnwrap()
+
+    expect(result === null ? null : result.history).toEqual([
+      {
+        id: 'ml_versioned',
+        eatenDate: '2026-06-15',
+        mealType: 'dinner',
+        quantity: 2,
+        energyKcalPerUnit: 11,
+      },
+    ])
   })
 })

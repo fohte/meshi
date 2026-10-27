@@ -22,7 +22,9 @@ import { describeIfDb, setupDrizzleTx } from '#test/db'
 import { jstDate } from '#test/jst-date'
 import {
   seedFoodMaster,
+  seedFoodMasterNutritionVersion,
   seedFoodMasterWithoutNutrition,
+  seedMealLog,
   seedStockItem,
   seedStockLot,
   seedStockMovement,
@@ -170,7 +172,7 @@ describeIfDb('createDrizzleMealLogRepository', () => {
       createdAt: CREATED_AT_PLACEHOLDER,
     }
 
-    expect(normalizeRow(inserted)).toEqual(expectedRow)
+    expect(normalizeRow(inserted.log)).toEqual(expectedRow)
     expect(
       fetched === null
         ? null
@@ -186,6 +188,125 @@ describeIfDb('createDrizzleMealLogRepository', () => {
           protein_g: 2.5,
           carb_g: 37.1,
         },
+      },
+    })
+  })
+
+  it('loads nutrition from the version referenced by the meal log', async () => {
+    const tx = getTx()
+    await seedFoodMasterWithoutNutrition(tx, {
+      id: 'fm_versioned_lookup',
+      name: 'versioned food',
+    })
+    const oldVersionId = await seedFoodMasterNutritionVersion(tx, {
+      foodMasterId: 'fm_versioned_lookup',
+      versionNo: 1,
+      isCurrent: false,
+      changeKind: 'initial',
+      isEstimated: true,
+      source: 'model_estimate',
+      nutrients: { energy_kcal: 11, protein_g: 1 },
+    })
+    await seedFoodMasterNutritionVersion(tx, {
+      foodMasterId: 'fm_versioned_lookup',
+      versionNo: 2,
+      isCurrent: true,
+      changeKind: 'product_update',
+      source: 'user_input',
+      nutrients: { energy_kcal: 23, protein_g: 2 },
+    })
+    await seedMealLog(tx, {
+      id: 'ml_versioned_lookup',
+      foodMasterId: 'fm_versioned_lookup',
+      nutritionVersionId: oldVersionId,
+      nutritionVersionOrigin: 'migrated',
+      eatenDate: jstDate('2026-06-15'),
+      mealType: 'lunch',
+      quantity: 2,
+      createdAt: CREATED_AT_PLACEHOLDER,
+    })
+    const repo = createDrizzleMealLogRepository(tx)
+
+    const found = (
+      await repo.findMealLogById('ml_versioned_lookup')
+    )._unsafeUnwrap()
+
+    expect(
+      found === null
+        ? null
+        : { log: normalizeRow(found.log), food: found.food },
+    ).toEqual({
+      log: {
+        id: 'ml_versioned_lookup',
+        foodMasterId: 'fm_versioned_lookup',
+        eatenDate: jstDate('2026-06-15'),
+        mealType: 'lunch',
+        quantity: 2,
+        createdAt: CREATED_AT_PLACEHOLDER,
+      },
+      food: {
+        id: 'fm_versioned_lookup',
+        name: 'versioned food',
+        isEstimated: true,
+        nutritionStatus: 'estimated',
+        nutritionPerUnit: { energy_kcal: 11, protein_g: 1 },
+      },
+    })
+  })
+
+  it('returns the referenced nutrition version when updating a meal log', async () => {
+    const tx = getTx()
+    await seedFoodMasterWithoutNutrition(tx, {
+      id: 'fm_versioned_update',
+      name: 'versioned update item',
+    })
+    const referencedVersionId = await seedFoodMasterNutritionVersion(tx, {
+      foodMasterId: 'fm_versioned_update',
+      versionNo: 1,
+      isCurrent: false,
+      changeKind: 'initial',
+      source: 'user_input',
+      nutrients: { energy_kcal: 11, protein_g: 1 },
+    })
+    await seedFoodMasterNutritionVersion(tx, {
+      foodMasterId: 'fm_versioned_update',
+      versionNo: 2,
+      isCurrent: true,
+      changeKind: 'product_update',
+      source: 'user_input',
+      nutrients: { energy_kcal: 23, protein_g: 2 },
+    })
+    await seedMealLog(tx, {
+      id: 'ml_versioned_update',
+      foodMasterId: 'fm_versioned_update',
+      nutritionVersionId: referencedVersionId,
+      nutritionVersionOrigin: 'migrated',
+      eatenDate: jstDate('2026-06-15'),
+      mealType: 'lunch',
+      quantity: 1,
+      createdAt: CREATED_AT_PLACEHOLDER,
+    })
+    const repo = createDrizzleMealLogRepository(tx)
+
+    const updated = (
+      await repo.updateMealLog({ id: 'ml_versioned_update', quantity: 2.5 })
+    )._unsafeUnwrap()
+
+    expect(updated).toEqual({
+      log: {
+        id: 'ml_versioned_update',
+        foodMasterId: 'fm_versioned_update',
+        eatenDate: jstDate('2026-06-15'),
+        mealType: 'lunch',
+        quantity: 2.5,
+        createdAt: CREATED_AT_PLACEHOLDER,
+      },
+      food: {
+        id: 'fm_versioned_update',
+        name: 'versioned update item',
+        isEstimated: false,
+        nutritionStatus: 'confirmed',
+        nutritionPerUnit: { energy_kcal: 11, protein_g: 1 },
       },
     })
   })
@@ -536,7 +657,7 @@ describeIfDb('createDrizzleMealLogRepository', () => {
       ])
     )._unsafeUnwrap()
     const movements = await Promise.all(
-      inserted.map((row) => readMealMovements(tx, row.id)),
+      inserted.map((row) => readMealMovements(tx, row.log.id)),
     )
 
     expect(
@@ -825,7 +946,7 @@ describeIfDb('createDrizzleMealLogRepository', () => {
       ])
     )._unsafeUnwrap()
 
-    expect(inserted.map(normalizeRow)).toEqual([
+    expect(inserted.map((row) => normalizeRow(row.log))).toEqual([
       {
         id: 'ml_batch_alpha',
         foodMasterId: 'fm_batch_alpha',
@@ -883,7 +1004,7 @@ describeIfDb('createDrizzleMealLogRepository', () => {
 
     expect(
       observation({
-        row: normalizeRow(updated),
+        row: normalizeRow(updated.log),
         nutritionVersionReferences: await readNutritionVersionReferences(tx, [
           'ml_patch',
         ]),
@@ -1008,7 +1129,7 @@ describeIfDb('createDrizzleMealLogRepository', () => {
 
     expect(
       observation({
-        row: normalizeRow(updated),
+        row: normalizeRow(updated.log),
         nutritionVersionReferences: await readNutritionVersionReferences(tx, [
           'ml_repoint_unknown',
         ]),

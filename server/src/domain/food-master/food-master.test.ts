@@ -10,6 +10,7 @@ import type {
   RegisteredFromComposition,
   RegisterFoodMasterInput,
 } from '#domain/food-master/types'
+import { createMealHistoryService } from '#domain/meal-history/mealHistoryService'
 import { similarFoodMasterCandidateOutput } from '#mcp-tools/schemas'
 import { captureDomainError } from '#test/capture-domain-error'
 import { describeIfDb, setupTx } from '#test/db'
@@ -17,6 +18,7 @@ import { createCountingIdGenerator, type IdCounter } from '#test/id-counter'
 import { jstDate } from '#test/jst-date'
 import {
   seedFoodComposition,
+  seedFoodMaster,
   seedFoodMasterWithoutNutrition,
   seedMealLog,
 } from '#test/seed'
@@ -721,7 +723,7 @@ describeIfDb('FoodMasterService + Repository', () => {
       name: 'sample takeaway bowl',
     })
 
-    const status = (
+    const fillResult = (
       await service.fillNutrition({
         foodMasterId: 'fm_pending_alpha',
         nutrition: { energy_kcal: 240, protein_g: 12 },
@@ -736,11 +738,21 @@ describeIfDb('FoodMasterService + Repository', () => {
 
     expect(
       observation({
-        status,
+        result: {
+          nutritionStatus: fillResult.nutritionStatus,
+          nutritionVersionNo: fillResult.nutritionVersionNo,
+          assignedMealLogs: fillResult.assignedMealLogs,
+          affectedDayTotals: fillResult.affectedDayTotals,
+        },
         foodMaster: foodMaster === null ? null : normalize(foodMaster),
       }),
     ).toEqual({
-      status: 'confirmed',
+      result: {
+        nutritionStatus: 'confirmed',
+        nutritionVersionNo: 1,
+        assignedMealLogs: [],
+        affectedDayTotals: [],
+      },
       foodMaster: {
         id: 'fm_pending_alpha',
         name: 'sample takeaway bowl',
@@ -762,6 +774,20 @@ describeIfDb('FoodMasterService + Repository', () => {
       id: 'fm_pending_logs',
       name: 'Unknown nutrition item',
     })
+    await seedFoodMaster(tx, {
+      id: 'fm_known_same_day',
+      name: 'Known nutrition item',
+      nutrients: { energy_kcal: 100 },
+      isEstimated: false,
+      source: 'user_input',
+    })
+    await seedMealLog(tx, {
+      id: 'ml_known_same_day',
+      foodMasterId: 'fm_known_same_day',
+      eatenDate: jstDate('2026-06-15'),
+      mealType: 'breakfast',
+      quantity: 1,
+    })
     for (const [id, quantity] of [
       ['ml_pending_logs_first', 1.25],
       ['ml_pending_logs_second', 2],
@@ -775,12 +801,14 @@ describeIfDb('FoodMasterService + Repository', () => {
       })
     }
 
-    await service.fillNutrition({
-      foodMasterId: 'fm_pending_logs',
-      nutrition: { energy_kcal: 240 },
-      source: 'user_input',
-      isEstimated: false,
-    })
+    const fillResult = (
+      await service.fillNutrition({
+        foodMasterId: 'fm_pending_logs',
+        nutrition: { energy_kcal: 240 },
+        source: 'user_input',
+        isEstimated: false,
+      })
+    )._unsafeUnwrap()
 
     const rows = await tx<
       {
@@ -809,26 +837,54 @@ describeIfDb('FoodMasterService + Repository', () => {
       ORDER BY logs.id
     `
 
-    expect(rows).toEqual([
-      {
-        id: 'ml_pending_logs_first',
-        quantity: '1.25',
-        nutrition_version_origin: 'filled',
-        version_matches_current: true,
-        change_from_unknown: true,
-        change_targets_current: true,
-        reason: '補完',
+    const expectedResult = {
+      fillResult: {
+        nutritionStatus: 'confirmed',
+        nutritionVersionNo: 1,
+        assignedMealLogs: [
+          {
+            id: 'ml_pending_logs_first',
+            eatenDate: jstDate('2026-06-15'),
+            mealType: 'lunch',
+            quantity: 1.25,
+          },
+          {
+            id: 'ml_pending_logs_second',
+            eatenDate: jstDate('2026-06-15'),
+            mealType: 'lunch',
+            quantity: 2,
+          },
+        ],
+        affectedDayTotals: [
+          {
+            date: jstDate('2026-06-15'),
+            totalsBefore: { energy_kcal: 100 },
+            totalsAfter: { energy_kcal: 880 },
+          },
+        ],
       },
-      {
-        id: 'ml_pending_logs_second',
-        quantity: '2',
-        nutrition_version_origin: 'filled',
-        version_matches_current: true,
-        change_from_unknown: true,
-        change_targets_current: true,
-        reason: '補完',
-      },
-    ])
+      rows: [
+        {
+          id: 'ml_pending_logs_first',
+          quantity: '1.25',
+          nutrition_version_origin: 'filled',
+          version_matches_current: true,
+          change_from_unknown: true,
+          change_targets_current: true,
+          reason: '補完',
+        },
+        {
+          id: 'ml_pending_logs_second',
+          quantity: '2',
+          nutrition_version_origin: 'filled',
+          version_matches_current: true,
+          change_from_unknown: true,
+          change_targets_current: true,
+          reason: '補完',
+        },
+      ],
+    }
+    expect(observation({ fillResult, rows })).toEqual(expectedResult)
   })
 
   it('fills unknown nutrition with a model estimate and persists the source', async () => {
@@ -837,7 +893,7 @@ describeIfDb('FoodMasterService + Repository', () => {
       name: 'sample bakery pastry',
     })
 
-    const status = (
+    const fillResult = (
       await service.fillNutrition({
         foodMasterId: 'fm_pending_model_estimate',
         nutrition: { energy_kcal: 285, protein_g: 5 },
@@ -851,7 +907,7 @@ describeIfDb('FoodMasterService + Repository', () => {
 
     expect(
       observation({
-        status,
+        status: fillResult.nutritionStatus,
         foodMaster: foodMaster === null ? null : normalize(foodMaster),
       }),
     ).toEqual({
@@ -884,7 +940,7 @@ describeIfDb('FoodMasterService + Repository', () => {
         source: 'user_input',
         isEstimated: true,
       })
-    )._unsafeUnwrap()
+    )._unsafeUnwrap().nutritionStatus
     const foodMaster = (
       await service.getById('fm_pending_beta')
     )._unsafeUnwrap()
@@ -919,7 +975,7 @@ describeIfDb('FoodMasterService + Repository', () => {
       isEstimated: true,
     })
 
-    const status = (
+    const fillResult = (
       await service.fillNutrition({
         foodMasterId: 'fm_test_0001',
         nutrition: { energy_kcal: 430, protein_g: 18 },
@@ -932,11 +988,16 @@ describeIfDb('FoodMasterService + Repository', () => {
 
     expect(
       observation({
-        status,
+        fillResult,
         foodMaster: foodMaster === null ? null : normalize(foodMaster),
       }),
     ).toEqual({
-      status: 'confirmed',
+      fillResult: {
+        nutritionStatus: 'confirmed',
+        nutritionVersionNo: 2,
+        assignedMealLogs: [],
+        affectedDayTotals: [],
+      },
       foodMaster: {
         id: 'fm_test_0001',
         name: 'sample takeaway bowl',
@@ -960,7 +1021,7 @@ describeIfDb('FoodMasterService + Repository', () => {
       isEstimated: true,
     })
 
-    const status = (
+    const fillResult = (
       await service.fillNutrition({
         foodMasterId: 'fm_test_0001',
         nutrition: { energy_kcal: 190, protein_g: 8 },
@@ -972,11 +1033,16 @@ describeIfDb('FoodMasterService + Repository', () => {
 
     expect(
       observation({
-        status,
+        fillResult,
         foodMaster: foodMaster === null ? null : normalize(foodMaster),
       }),
     ).toEqual({
-      status: 'confirmed',
+      fillResult: {
+        nutritionStatus: 'confirmed',
+        nutritionVersionNo: 2,
+        assignedMealLogs: [],
+        affectedDayTotals: [],
+      },
       foodMaster: {
         id: 'fm_test_0001',
         name: 'sample market side',
@@ -992,7 +1058,7 @@ describeIfDb('FoodMasterService + Repository', () => {
     })
   })
 
-  it('keeps the nutrition version id when replacing a model estimate', async () => {
+  it('keeps estimated meal totals unchanged when filling a new correction version', async () => {
     const tx = getTx()
     const foodMaster = (
       await repository.register({
@@ -1002,26 +1068,184 @@ describeIfDb('FoodMasterService + Repository', () => {
         isEstimated: true,
       })
     )._unsafeUnwrap()
-    const before = await tx<{ id: string }[]>`
-      SELECT id FROM food_master_nutrition
-      WHERE food_master_id = ${foodMaster.id} AND is_current = true
-    `
-
-    await service.fillNutrition({
+    await seedMealLog(tx, {
+      id: 'ml_estimate_before_fill',
       foodMasterId: foodMaster.id,
-      nutrition: { energy_kcal: 190 },
-      source: 'user_input',
-      isEstimated: false,
+      eatenDate: jstDate('2026-06-15'),
+      mealType: 'lunch',
+      quantity: 2,
+      createdAt: new Date('2026-06-15T03:04:05.789Z'),
     })
+    const historyService = createMealHistoryService(tx)
+    const queryHistory = () =>
+      historyService.query({
+        periodFrom: jstDate('2026-06-15'),
+        periodTo: jstDate('2026-06-16'),
+        nutrientCodes: ['energy_kcal', 'protein_g'],
+      })
+    const before = (await queryHistory())._unsafeUnwrap()
 
-    const after = await tx<{ id: string; is_current: boolean }[]>`
-      SELECT id, is_current FROM food_master_nutrition
-      WHERE food_master_id = ${foodMaster.id} AND is_current = true
+    const fillResult = (
+      await service.fillNutrition({
+        foodMasterId: foodMaster.id,
+        nutrition: { energy_kcal: 190 },
+        source: 'user_input',
+        isEstimated: false,
+      })
+    )._unsafeUnwrap()
+    const after = (await queryHistory())._unsafeUnwrap()
+
+    const versionRows = await tx<
+      {
+        version_no: number
+        is_current: boolean
+        change_kind: string
+        corrects_previous_version: boolean
+        reason: string | null
+        is_estimated: boolean
+        source: string
+      }[]
+    >`
+      SELECT nutrition.version_no, nutrition.is_current,
+             nutrition.change_kind,
+             COALESCE(
+               nutrition.corrects_version_id = (
+                 SELECT previous.id FROM food_master_nutrition AS previous
+                 WHERE previous.food_master_id = ${foodMaster.id}
+                   AND previous.version_no = 1
+               ),
+               false
+             ) AS corrects_previous_version,
+             nutrition.reason, nutrition.is_estimated, nutrition.source
+      FROM food_master_nutrition AS nutrition
+      WHERE nutrition.food_master_id = ${foodMaster.id}
+      ORDER BY nutrition.version_no
+    `
+    const nutrientRows = await tx<
+      { version_no: number; nutrient_code: string; value: number }[]
+    >`
+      SELECT nutrition.version_no, nutrients.nutrient_code,
+             nutrients.value::float8 AS value
+      FROM food_master_nutrition AS nutrition
+      JOIN food_master_nutrients AS nutrients
+        ON nutrients.nutrition_version_id = nutrition.id
+      WHERE nutrition.food_master_id = ${foodMaster.id}
+      ORDER BY nutrition.version_no, nutrients.nutrient_code
+    `
+    const logReferences = await tx<
+      {
+        references_original_version: boolean
+        nutrition_version_origin: string
+      }[]
+    >`
+      SELECT logs.nutrition_version_id = original.id
+               AS references_original_version,
+             logs.nutrition_version_origin
+      FROM meal_logs AS logs
+      JOIN food_master_nutrition AS original
+        ON original.food_master_id = logs.food_master_id
+       AND original.version_no = 1
+      WHERE logs.id = 'ml_estimate_before_fill'
     `
 
-    expect(observation({ beforeId: before[0]?.id ?? null, after })).toEqual({
-      beforeId: before[0]?.id ?? null,
-      after: [{ id: before[0]?.id, is_current: true }],
+    expect(
+      observation({
+        fillResult,
+        before,
+        after,
+        versionRows,
+        nutrientRows,
+        logReferences,
+      }),
+    ).toEqual({
+      fillResult: {
+        nutritionStatus: 'confirmed',
+        nutritionVersionNo: 2,
+        assignedMealLogs: [],
+        affectedDayTotals: [],
+      },
+      before: {
+        totals: { energy_kcal: 410 },
+        incompleteNutrients: ['protein_g'],
+        perDay: [
+          {
+            date: '2026-06-15',
+            totals: { energy_kcal: 410 },
+            incompleteNutrients: ['protein_g'],
+            hasUnknownValues: false,
+          },
+        ],
+        entries: [
+          {
+            id: 'ml_estimate_before_fill',
+            foodMasterId: foodMaster.id,
+            foodName: 'Estimated nutrition item',
+            eatenDate: '2026-06-15',
+            mealType: 'lunch',
+            quantity: 2,
+            recordedAt: '2026-06-15T03:04:05Z',
+            nutritionStatus: 'estimated',
+          },
+        ],
+        hasEstimatedValues: true,
+        hasUnknownValues: false,
+      },
+      after: {
+        totals: { energy_kcal: 410 },
+        incompleteNutrients: ['protein_g'],
+        perDay: [
+          {
+            date: '2026-06-15',
+            totals: { energy_kcal: 410 },
+            incompleteNutrients: ['protein_g'],
+            hasUnknownValues: false,
+          },
+        ],
+        entries: [
+          {
+            id: 'ml_estimate_before_fill',
+            foodMasterId: foodMaster.id,
+            foodName: 'Estimated nutrition item',
+            eatenDate: '2026-06-15',
+            mealType: 'lunch',
+            quantity: 2,
+            recordedAt: '2026-06-15T03:04:05Z',
+            nutritionStatus: 'estimated',
+          },
+        ],
+        hasEstimatedValues: true,
+        hasUnknownValues: false,
+      },
+      versionRows: [
+        {
+          version_no: 1,
+          is_current: false,
+          change_kind: 'initial',
+          corrects_previous_version: false,
+          reason: null,
+          is_estimated: true,
+          source: 'model_estimate',
+        },
+        {
+          version_no: 2,
+          is_current: true,
+          change_kind: 'correction',
+          corrects_previous_version: true,
+          reason: '推定値の栄養値を補完により訂正',
+          is_estimated: false,
+          source: 'user_input',
+        },
+      ],
+      nutrientRows: [
+        { version_no: 1, nutrient_code: 'energy_kcal', value: 205 },
+        { version_no: 2, nutrient_code: 'energy_kcal', value: 190 },
+      ],
+      logReferences: [
+        {
+          references_original_version: true,
+          nutrition_version_origin: 'recorded',
+        },
+      ],
     })
   })
 

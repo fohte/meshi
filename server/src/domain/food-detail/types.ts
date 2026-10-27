@@ -15,6 +15,7 @@ export interface FoodEatHistoryEntry {
   readonly eatenDate: JstDate
   readonly mealType: MealType
   readonly quantity: number
+  readonly energyKcalPerUnit: number | null
 }
 
 export interface FoodDetail {

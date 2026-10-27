@@ -11,9 +11,9 @@ import { createFoodMasterRegistrar } from '#domain/food-master/registration'
 import { toNutritionMap } from '#domain/food-master/rows'
 import type {
   FillFoodNutritionInput,
+  FillFoodNutritionResult,
   FoodMaster,
   FoodMasterId,
-  KnownNutritionStatus,
   MergeFoodMasterResult,
   NutritionMap,
   RegisterFoodMasterInput,
@@ -33,7 +33,7 @@ export interface FoodMasterRepository {
   ): ResultAsync<FoodMaster, FoodMasterDomainError>
   fillNutrition(
     input: FillFoodNutritionInput,
-  ): ResultAsync<KnownNutritionStatus, FoodMasterDomainError>
+  ): ResultAsync<FillFoodNutritionResult, FoodMasterDomainError>
   registerWithoutNutrition(
     input: RegisterFoodMasterWithoutNutritionInput,
   ): ResultAsync<FoodMaster, FoodMasterDomainError>
