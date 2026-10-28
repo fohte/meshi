@@ -1,5 +1,6 @@
 import type { MealType } from '#api/day-detail'
 import { MealTypeSelector } from '#components/MealTypeSelector/MealTypeSelector'
+import { NutritionBasis } from '#components/NutritionBasis/NutritionBasis'
 import styles from '#meal-log-sheet/MealLogDetailForm.module.css'
 import { previewKcal, type SingleSheetState } from '#meal-log-sheet/sheet-state'
 
@@ -84,6 +85,14 @@ export const MealLogDetailForm = ({
           className={styles.dateInput}
         />
       </div>
+
+      {state.mode === 'edit' && (
+        <NutritionBasis
+          nutritionVersion={state.nutritionVersion}
+          nutritionVersionOrigin={state.nutritionVersionOrigin}
+          nutritionVersionDifferences={state.nutritionVersionDifferences}
+        />
+      )}
     </div>
   )
 }

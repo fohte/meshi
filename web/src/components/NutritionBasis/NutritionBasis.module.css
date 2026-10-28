@@ -1,0 +1,82 @@
+.basis {
+  border: var(--border-width) solid var(--color-border);
+  background: var(--color-bg);
+  padding: 12px;
+}
+
+.title {
+  margin: 0 0 10px;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.details {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 0;
+}
+
+.row {
+  display: grid;
+  grid-template-columns: 82px minmax(0, 1fr);
+  gap: 10px;
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+.row dt {
+  color: var(--color-muted);
+}
+
+.row dd {
+  min-width: 0;
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.unknownValue {
+  color: var(--color-muted);
+  font-style: italic;
+}
+
+.uncertainOrigin {
+  border-left: 2px solid var(--color-muted-2);
+  background: var(--color-surface);
+  padding: 6px 8px;
+  margin-left: -8px;
+}
+
+.unknownVersion {
+  border-left: 2px solid var(--color-muted-2);
+  background: var(--color-surface);
+  padding: 8px 10px;
+  margin: 0;
+  color: var(--color-muted);
+  font-size: 12px;
+}
+
+.differences {
+  border-left: 2px solid var(--color-accent);
+  background: var(--color-surface);
+  padding: 8px 10px;
+  margin-top: 10px;
+}
+
+.differencesHeading {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+.differencesList {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin: 7px 0 0;
+  padding-left: 18px;
+  color: var(--color-text-secondary);
+  font-size: 11px;
+  line-height: 1.6;
+  overflow-wrap: anywhere;
+}

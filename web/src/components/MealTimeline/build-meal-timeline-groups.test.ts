@@ -13,6 +13,16 @@ const entry = (overrides: Partial<DayDetailEntry>): DayDetailEntry => ({
   kcal: 234,
   isEstimated: false,
   nutritionStatus: 'confirmed',
+  nutritionVersion: {
+    versionNo: 1,
+    changeKind: 'initial',
+    source: 'web_search',
+    isEstimated: false,
+    checkedOn: '2026-07-20',
+    effectiveFrom: null,
+  },
+  nutritionVersionOrigin: 'recorded',
+  nutritionVersionDifferences: [],
   ...overrides,
 })
 
@@ -41,6 +51,7 @@ describe('buildMealTimelineGroups', () => {
             name: '白米',
             isEstimated: false,
             isUnknown: false,
+            hasNutritionVersionDifferences: false,
             quantityText: '×150',
             kcalText: '234 kcal',
           },
@@ -127,6 +138,7 @@ describe('buildMealTimelineGroups', () => {
             name: '白米',
             isEstimated: false,
             isUnknown: false,
+            hasNutritionVersionDifferences: false,
             quantityText: '×150',
             kcalText: '234 kcal',
           },
@@ -204,6 +216,7 @@ describe('buildMealTimelineGroups', () => {
             name: 'ごはん',
             isEstimated: false,
             isUnknown: false,
+            hasNutritionVersionDifferences: false,
             quantityText: '×1.5',
             kcalText: '234 kcal',
           },
@@ -246,6 +259,7 @@ describe('buildMealTimelineGroups', () => {
             kcal: null,
             isEstimated: false,
             nutritionStatus: 'unknown',
+            nutritionVersion: null,
           }),
         ],
         [],
@@ -276,6 +290,7 @@ describe('buildMealTimelineGroups', () => {
             name: '不明なメニュー',
             isEstimated: false,
             isUnknown: true,
+            hasNutritionVersionDifferences: false,
             quantityText: '×1',
             kcalText: '不明',
           },
@@ -327,8 +342,112 @@ describe('buildMealTimelineGroups', () => {
             name: '栄養値が一部不明の食事',
             isEstimated: false,
             isUnknown: true,
+            hasNutritionVersionDifferences: false,
             quantityText: '×1',
             kcalText: '不明',
+          },
+        ],
+      },
+      {
+        mealType: 'dinner',
+        label: '夕食',
+        status: 'unrecorded',
+        kcalText: null,
+        items: [],
+      },
+      {
+        mealType: 'snack',
+        label: '間食',
+        status: 'unrecorded',
+        kcalText: null,
+        items: [],
+      },
+    ])
+  })
+
+  it('marks different nutrition versions without changing existing nutrition marks or kcal', () => {
+    const differences = [
+      {
+        versionNo: 9,
+        changeKind: 'product_update' as const,
+        source: 'web_search' as const,
+        isEstimated: false,
+        checkedOn: '2026-10-12',
+        effectiveFrom: null,
+      },
+    ]
+
+    expect(
+      buildMealTimelineGroups(
+        [
+          entry({
+            id: 'entry_diff',
+            foodName: '比較用メニュー',
+            quantity: 1,
+            kcal: 80,
+            nutritionVersion: {
+              versionNo: 8,
+              changeKind: 'initial',
+              source: 'web_search',
+              isEstimated: false,
+              checkedOn: '2026-10-10',
+              effectiveFrom: null,
+            },
+            nutritionVersionDifferences: differences,
+          }),
+          entry({
+            id: 'entry_estimated_diff',
+            mealType: 'lunch',
+            foodName: '推定の比較用メニュー',
+            quantity: 1,
+            kcal: 90,
+            isEstimated: true,
+            nutritionStatus: 'estimated',
+            nutritionVersion: {
+              versionNo: 8,
+              changeKind: 'initial',
+              source: 'model_estimate',
+              isEstimated: true,
+              checkedOn: null,
+              effectiveFrom: null,
+            },
+            nutritionVersionDifferences: differences,
+          }),
+        ],
+        [],
+      ),
+    ).toEqual([
+      {
+        mealType: 'breakfast',
+        label: '朝食',
+        status: 'eaten',
+        kcalText: '80 kcal',
+        items: [
+          {
+            id: 'entry_diff',
+            name: '比較用メニュー',
+            isEstimated: false,
+            isUnknown: false,
+            hasNutritionVersionDifferences: true,
+            quantityText: '×1',
+            kcalText: '80 kcal',
+          },
+        ],
+      },
+      {
+        mealType: 'lunch',
+        label: '昼食',
+        status: 'eaten',
+        kcalText: '90 kcal',
+        items: [
+          {
+            id: 'entry_estimated_diff',
+            name: '推定の比較用メニュー',
+            isEstimated: true,
+            isUnknown: false,
+            hasNutritionVersionDifferences: true,
+            quantityText: '×1',
+            kcalText: '90 kcal',
           },
         ],
       },
