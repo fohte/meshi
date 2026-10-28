@@ -46,7 +46,14 @@ const ENTRIES: ReadonlyArray<DayDetailEntry> = [
     kcal: 480,
     isEstimated: true,
     nutritionStatus: 'estimated',
-    nutritionVersion: null,
+    nutritionVersion: {
+      versionNo: 7,
+      changeKind: 'initial',
+      source: 'model_estimate',
+      isEstimated: true,
+      checkedOn: null,
+      effectiveFrom: null,
+    },
     nutritionVersionOrigin: 'recorded',
     nutritionVersionDifferences: [],
   },
@@ -62,7 +69,14 @@ const UNKNOWN_ENTRY: DayDetailEntry = {
   kcal: null,
   isEstimated: false,
   nutritionStatus: 'unknown',
-  nutritionVersion: null,
+  nutritionVersion: {
+    versionNo: 8,
+    changeKind: 'initial',
+    source: 'web_search',
+    isEstimated: false,
+    checkedOn: '2026-07-10',
+    effectiveFrom: null,
+  },
   nutritionVersionOrigin: 'recorded',
   nutritionVersionDifferences: [],
 }
@@ -111,7 +125,14 @@ const ENTRY_WITH_DIFFERENT_VERSION: DayDetailEntry = {
   kcal: 260,
   isEstimated: false,
   nutritionStatus: 'confirmed',
-  nutritionVersion: null,
+  nutritionVersion: {
+    versionNo: 48,
+    changeKind: 'initial',
+    source: 'web_search',
+    isEstimated: false,
+    checkedOn: '2026-07-20',
+    effectiveFrom: null,
+  },
   nutritionVersionOrigin: 'recorded',
   nutritionVersionDifferences: [
     {
