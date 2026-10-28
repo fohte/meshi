@@ -154,6 +154,9 @@ const enrichEntries = (
               : food.kcalPerUnit * entry.quantity,
         isEstimated: entry.nutritionStatus === 'estimated',
         nutritionStatus: entry.nutritionStatus,
+        nutritionVersion: entry.nutritionVersion,
+        nutritionVersionOrigin: entry.nutritionVersionOrigin,
+        nutritionVersionDifferences: entry.nutritionVersionDifferences,
       }
     })
 
