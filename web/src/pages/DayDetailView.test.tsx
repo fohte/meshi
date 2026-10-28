@@ -5,6 +5,7 @@ import { MemoryRouter } from 'react-router'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { z } from 'zod'
 
+import { MealLogSheetProvider } from '#meal-log-sheet/MealLogSheetProvider'
 import { DayDetailView } from '#pages/DayDetailView'
 import { performAct, setInputValue } from '#test/test-helpers'
 
@@ -46,6 +47,16 @@ const dayDetail = {
       kcal: 100,
       isEstimated: false,
       nutritionStatus: 'confirmed',
+      nutritionVersion: {
+        versionNo: 32,
+        changeKind: 'initial',
+        source: 'web_search',
+        isEstimated: false,
+        checkedOn: '2093-04-02',
+        effectiveFrom: '2093-04-01',
+      },
+      nutritionVersionOrigin: 'recorded',
+      nutritionVersionDifferences: [],
     },
     {
       id: 'entry_fixture_002',
@@ -57,6 +68,9 @@ const dayDetail = {
       kcal: 80,
       isEstimated: false,
       nutritionStatus: 'confirmed',
+      nutritionVersion: null,
+      nutritionVersionOrigin: 'recorded',
+      nutritionVersionDifferences: [],
     },
     {
       id: 'entry_fixture_003',
@@ -68,6 +82,9 @@ const dayDetail = {
       kcal: 160,
       isEstimated: false,
       nutritionStatus: 'confirmed',
+      nutritionVersion: null,
+      nutritionVersionOrigin: 'recorded',
+      nutritionVersionDifferences: [],
     },
     {
       id: 'entry_fixture_004',
@@ -79,6 +96,9 @@ const dayDetail = {
       kcal: 90,
       isEstimated: false,
       nutritionStatus: 'confirmed',
+      nutritionVersion: null,
+      nutritionVersionOrigin: 'recorded',
+      nutritionVersionDifferences: [],
     },
   ],
   skippedMealTypes: [],
@@ -181,11 +201,13 @@ const setupPage = (
 
 const renderPage = (root: Root, queryClient: QueryClient): void => {
   root.render(
-    <MemoryRouter>
-      <QueryClientProvider client={queryClient}>
-        <DayDetailView date="2093-04-12" />
-      </QueryClientProvider>
-    </MemoryRouter>,
+    <QueryClientProvider client={queryClient}>
+      <MealLogSheetProvider>
+        <MemoryRouter>
+          <DayDetailView date="2093-04-12" />
+        </MemoryRouter>
+      </MealLogSheetProvider>
+    </QueryClientProvider>,
   )
 }
 
@@ -227,6 +249,21 @@ const saveOutput = (
   },
 })
 
+const nutritionBasisOutput = (container: HTMLElement) => {
+  const basis = container.querySelector(
+    'section[aria-labelledby="nutrition-basis-title"]',
+  )
+  return {
+    title: basis?.querySelector('h3')?.textContent ?? null,
+    rows:
+      basis === null
+        ? null
+        : Array.from(basis.querySelectorAll('dt, dd')).map(
+            (element) => element.textContent,
+          ),
+  }
+}
+
 const cleanupPage = async (
   container: HTMLElement,
   root: Root,
@@ -244,6 +281,58 @@ afterEach(() => {
 })
 
 describe('DayDetailView', () => {
+  it('shows the nutrition basis for a meal log opened from the day view', async () => {
+    const requests: Array<RequestRecord> = []
+    const { container, root, queryClient } = setupPage(
+      () => jsonResponse({}),
+      requests,
+    )
+
+    try {
+      await performAct(() => {
+        renderPage(root, queryClient)
+      })
+      await waitFor(() =>
+        Array.from(container.querySelectorAll('button')).some((button) =>
+          button.textContent.includes('テスト食品_001'),
+        ),
+      )
+      const mealLogButton = Array.from(
+        container.querySelectorAll<HTMLButtonElement>('button'),
+      ).find((button) => button.textContent.includes('テスト食品_001'))
+      if (mealLogButton === undefined) {
+        throw new Error('day detail entry button was not rendered')
+      }
+      await performAct(() => {
+        mealLogButton.click()
+      })
+      await waitFor(
+        () =>
+          container.querySelector(
+            'section[aria-labelledby="nutrition-basis-title"]',
+          ) !== null,
+      )
+
+      expect(nutritionBasisOutput(container)).toEqual({
+        title: '栄養の根拠',
+        rows: [
+          'バージョン',
+          'v32 · 初回登録',
+          '値の出所',
+          'Web検索 (推定値ではない)',
+          '確認日',
+          '2093-04-02',
+          '適用開始日',
+          '2093-04-01',
+          '採用の経緯',
+          '記録した時点の現行バージョン',
+        ],
+      })
+    } finally {
+      await cleanupPage(container, root, queryClient)
+    }
+  })
+
   it('saves a meal set with repeated food quantities combined', async () => {
     const requests: Array<RequestRecord> = []
     const saveResponse = (body: unknown): Response => {

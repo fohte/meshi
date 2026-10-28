@@ -13,6 +13,9 @@ const entry = (overrides: Partial<DayDetailEntry>): DayDetailEntry => ({
   kcal: 120,
   isEstimated: false,
   nutritionStatus: 'confirmed',
+  nutritionVersion: null,
+  nutritionVersionOrigin: 'recorded',
+  nutritionVersionDifferences: [],
   ...overrides,
 })
 

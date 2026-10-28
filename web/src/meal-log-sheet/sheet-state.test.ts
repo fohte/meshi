@@ -37,6 +37,25 @@ const ENTRY: DayDetailEntry = {
   kcal: 234,
   isEstimated: false,
   nutritionStatus: 'confirmed',
+  nutritionVersion: {
+    versionNo: 7,
+    changeKind: 'correction',
+    source: 'user_input',
+    isEstimated: false,
+    checkedOn: '2026-09-10',
+    effectiveFrom: '2026-09-01',
+  },
+  nutritionVersionOrigin: 'reassigned',
+  nutritionVersionDifferences: [
+    {
+      versionNo: 8,
+      changeKind: 'product_update',
+      source: 'web_search',
+      isEstimated: false,
+      checkedOn: null,
+      effectiveFrom: null,
+    },
+  ],
 }
 
 const MEAL_SET: MealSet = {
@@ -137,6 +156,25 @@ describe('buildEditState', () => {
       mealType: 'breakfast',
       date: '2026-07-29',
       justSaved: false,
+      nutritionVersion: {
+        versionNo: 7,
+        changeKind: 'correction',
+        source: 'user_input',
+        isEstimated: false,
+        checkedOn: '2026-09-10',
+        effectiveFrom: '2026-09-01',
+      },
+      nutritionVersionOrigin: 'reassigned',
+      nutritionVersionDifferences: [
+        {
+          versionNo: 8,
+          changeKind: 'product_update',
+          source: 'web_search',
+          isEstimated: false,
+          checkedOn: null,
+          effectiveFrom: null,
+        },
+      ],
     })
   })
 })
