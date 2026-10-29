@@ -26,6 +26,8 @@ export default config(
       'web/vite.config.ts',
       'web/vitest.config.ts',
       'server/vitest.config.ts',
+      'web/.storybook/vitest.setup.screenshot.ts',
+      'web/vitest.screenshot.config.ts',
     ],
     rules: { 'no-restricted-imports': 'off' },
   },

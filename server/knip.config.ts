@@ -23,6 +23,12 @@ export default {
     server: {
       project,
     },
-    web: {},
+    web: {
+      ignoreDependencies: [
+        'reg-suit',
+        'reg-publish-s3-plugin',
+        'reg-simple-keygen-plugin',
+      ],
+    },
   },
 }
