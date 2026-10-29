@@ -43,15 +43,30 @@ describe('seedFoodMaster', () => {
       },
       {
         table: 'food_master_nutrition',
-        params: ['fm_reversed', false, 'user_input', null, null],
+        params: [
+          'fm_reversed',
+          1,
+          true,
+          'initial',
+          null,
+          false,
+          'user_input',
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+        ],
       },
       {
         table: 'food_master_nutrients',
-        params: ['fm_reversed', 'energy_kcal', 20],
+        params: ['00000000-0000-7000-8000-000000000001', 'energy_kcal', 20],
       },
       {
         table: 'food_master_nutrients',
-        params: ['fm_reversed', 'protein_g', 4],
+        params: ['00000000-0000-7000-8000-000000000001', 'protein_g', 4],
       },
       {
         table: 'nutrient_definitions',
@@ -67,15 +82,30 @@ describe('seedFoodMaster', () => {
       },
       {
         table: 'food_master_nutrition',
-        params: ['fm_sorted', false, 'user_input', null, null],
+        params: [
+          'fm_sorted',
+          1,
+          true,
+          'initial',
+          null,
+          false,
+          'user_input',
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+        ],
       },
       {
         table: 'food_master_nutrients',
-        params: ['fm_sorted', 'energy_kcal', 20],
+        params: ['00000000-0000-7000-8000-000000000002', 'energy_kcal', 20],
       },
       {
         table: 'food_master_nutrients',
-        params: ['fm_sorted', 'protein_g', 4],
+        params: ['00000000-0000-7000-8000-000000000002', 'protein_g', 4],
       },
     ])
   })

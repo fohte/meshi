@@ -13,6 +13,13 @@ const buildApp = (dayDetailService: DayDetailService): Hono => {
   return app
 }
 
+const responseOutput = async (
+  response: Response,
+): Promise<{ status: number; body: unknown }> => ({
+  status: response.status,
+  body: await response.json(),
+})
+
 const stubEmptyDetail: DayDetailService = {
   query: () =>
     okAsync({
@@ -62,49 +69,159 @@ describe('GET /api/days/:date', () => {
         okAsync({
           totals: { energy_kcal: 312, protein_g: 5 },
           incompleteNutrients: ['protein_g'],
-          hasEstimatedValues: true,
-          hasUnknownValues: false,
+          hasEstimatedValues: false,
+          hasUnknownValues: true,
           entries: [
             {
-              id: 'log-1',
-              foodMasterId: 'rice',
-              foodName: 'ごはん',
+              id: 'log-recorded',
+              foodMasterId: 'sample-food',
+              foodName: '架空の食品',
               eatenDate: jstDate('2026-07-29'),
               mealType: 'breakfast',
-              quantity: 200,
-              kcal: 312,
+              quantity: 2,
+              kcal: 192,
               isEstimated: false,
               nutritionStatus: 'confirmed',
+              nutritionVersion: {
+                versionNo: 1,
+                changeKind: 'initial',
+                source: 'user_input',
+                isEstimated: false,
+                checkedOn: '2026-07-01',
+                effectiveFrom: '2026-07-01',
+              },
+              nutritionVersionOrigin: 'recorded',
+              nutritionVersionDifferences: [],
+            },
+            {
+              id: 'log-migrated',
+              foodMasterId: 'sample-food',
+              foodName: '架空の食品',
+              eatenDate: jstDate('2026-07-29'),
+              mealType: 'lunch',
+              quantity: 1,
+              kcal: 120,
+              isEstimated: false,
+              nutritionStatus: 'confirmed',
+              nutritionVersion: {
+                versionNo: 1,
+                changeKind: 'initial',
+                source: 'user_input',
+                isEstimated: false,
+                checkedOn: null,
+                effectiveFrom: null,
+              },
+              nutritionVersionOrigin: 'migrated',
+              nutritionVersionDifferences: [
+                {
+                  versionNo: 2,
+                  changeKind: 'product_update',
+                  source: 'user_input',
+                  isEstimated: false,
+                  checkedOn: '2026-07-15',
+                  effectiveFrom: '2026-07-10',
+                },
+              ],
+            },
+            {
+              id: 'log-unversioned',
+              foodMasterId: 'unknown-food',
+              foodName: '名称不明の食品',
+              eatenDate: jstDate('2026-07-29'),
+              mealType: 'snack',
+              quantity: 1,
+              kcal: null,
+              isEstimated: false,
+              nutritionStatus: 'unknown',
+              nutritionVersion: null,
+              nutritionVersionOrigin: 'recorded',
+              nutritionVersionDifferences: [],
             },
           ],
-          skippedMealTypes: ['lunch'],
+          skippedMealTypes: ['dinner'],
         }),
     }
     const app = buildApp(dayDetailService)
 
     const res = await app.request('/api/days/2026-07-29')
 
-    expect(res.status).toBe(200)
-    expect(await res.json()).toEqual({
-      date: '2026-07-29',
-      totals: { energy_kcal: 312, protein_g: 5 },
-      incompleteNutrients: ['protein_g'],
-      hasEstimatedValues: true,
-      hasUnknownValues: false,
-      skippedMealTypes: ['lunch'],
-      entries: [
-        {
-          id: 'log-1',
-          foodMasterId: 'rice',
-          foodName: 'ごはん',
-          eatenDate: '2026-07-29',
-          mealType: 'breakfast',
-          quantity: 200,
-          kcal: 312,
-          isEstimated: false,
-          nutritionStatus: 'confirmed',
-        },
-      ],
+    expect(await responseOutput(res)).toEqual({
+      status: 200,
+      body: {
+        date: '2026-07-29',
+        totals: { energy_kcal: 312, protein_g: 5 },
+        incompleteNutrients: ['protein_g'],
+        hasEstimatedValues: false,
+        hasUnknownValues: true,
+        skippedMealTypes: ['dinner'],
+        entries: [
+          {
+            id: 'log-recorded',
+            foodMasterId: 'sample-food',
+            foodName: '架空の食品',
+            eatenDate: '2026-07-29',
+            mealType: 'breakfast',
+            quantity: 2,
+            kcal: 192,
+            isEstimated: false,
+            nutritionStatus: 'confirmed',
+            nutritionVersion: {
+              versionNo: 1,
+              changeKind: 'initial',
+              source: 'user_input',
+              isEstimated: false,
+              checkedOn: '2026-07-01',
+              effectiveFrom: '2026-07-01',
+            },
+            nutritionVersionOrigin: 'recorded',
+            nutritionVersionDifferences: [],
+          },
+          {
+            id: 'log-migrated',
+            foodMasterId: 'sample-food',
+            foodName: '架空の食品',
+            eatenDate: '2026-07-29',
+            mealType: 'lunch',
+            quantity: 1,
+            kcal: 120,
+            isEstimated: false,
+            nutritionStatus: 'confirmed',
+            nutritionVersion: {
+              versionNo: 1,
+              changeKind: 'initial',
+              source: 'user_input',
+              isEstimated: false,
+              checkedOn: null,
+              effectiveFrom: null,
+            },
+            nutritionVersionOrigin: 'migrated',
+            nutritionVersionDifferences: [
+              {
+                versionNo: 2,
+                changeKind: 'product_update',
+                source: 'user_input',
+                isEstimated: false,
+                checkedOn: '2026-07-15',
+                effectiveFrom: '2026-07-10',
+              },
+            ],
+          },
+          {
+            id: 'log-unversioned',
+            foodMasterId: 'unknown-food',
+            foodName: '名称不明の食品',
+            eatenDate: '2026-07-29',
+            mealType: 'snack',
+            quantity: 1,
+            kcal: null,
+            isEstimated: false,
+            nutritionStatus: 'unknown',
+            nutritionVersion: null,
+            nutritionVersionOrigin: 'recorded',
+            nutritionVersionDifferences: [],
+          },
+        ],
+      },
     })
   })
 

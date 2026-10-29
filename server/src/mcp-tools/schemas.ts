@@ -5,6 +5,8 @@ import { NUTRITION_STATUSES } from '#domain/food-master/types'
 import { hasDuplicateAfterTrim } from '#domain/food-master/validation'
 import { MEAL_TYPES } from '#domain/meal-log/types'
 import { jstDateSchema } from '#lib/jst-date'
+import { mealHistoryStructuredOutput } from '#mcp-tools/meal-history-schemas'
+import { nutritionMap } from '#mcp-tools/nutrition-map-schema'
 import { stockStorageLocationOutput } from '#mcp-tools/stock-status-schemas'
 
 export {
@@ -16,51 +18,7 @@ export {
   getStockStatusInput,
   getStockStatusStructuredOutput,
 } from '#mcp-tools/stock-status-schemas'
-
-// z.number() rejects NaN and Infinity by default in zod v4, so it is safe to
-// reuse this schema on the MCP input boundary (update_profile.daily_targets).
-const nutritionMap = z.record(z.string().min(1), z.number())
-
-export const mealHistoryStructuredOutput = z.object({
-  totals: nutritionMap,
-  incomplete_nutrients: z
-    .array(z.string())
-    .describe(
-      '期間内の食事に値のない食品が 1 件以上ある栄養素コード。値のない行は不明として扱います。',
-    ),
-  per_day: z.array(
-    z.object({
-      date: jstDateSchema,
-      totals: nutritionMap,
-      incomplete_nutrients: z
-        .array(z.string())
-        .describe(
-          'この日の食事に値のない食品が 1 件以上ある栄養素コード。値のない行は不明として扱います。',
-        ),
-      has_unknown_values: z.boolean(),
-    }),
-  ),
-  entries: z.array(
-    z.object({
-      meal_log_id: z
-        .string()
-        .describe('食事記録 ID。後で記録を削除・修正するときに指定する。'),
-      food_master_id: z.string(),
-      food_name: z.string(),
-      eaten_date: jstDateSchema,
-      meal_type: z.enum(MEAL_TYPES),
-      quantity: z.number(),
-      nutrition_status: z.enum(NUTRITION_STATUSES),
-      recorded_at: z.iso
-        .datetime({ offset: true })
-        .describe(
-          'meal_logs.created_at を UTC の ISO 8601 形式で秒精度にした値',
-        ),
-    }),
-  ),
-  has_estimated_values: z.boolean(),
-  has_unknown_values: z.boolean(),
-})
+export { mealHistoryStructuredOutput }
 
 export const profileStructuredOutput = z.object({
   likes: z.array(z.string()),
@@ -253,7 +211,12 @@ export const mergeFoodMasterStructuredOutput = z.object({
   applied: z.boolean(),
   moved_aliases: z.array(z.string()),
   name_moved_as_alias: z.string().nullable(),
-  discarded_nutrition: nutritionMap,
+  moved_nutrition_versions: z.array(
+    z.object({
+      previous_version_no: z.number().int().positive(),
+      version_no: z.number().int().positive(),
+    }),
+  ),
   moved_meal_log_count: z.number().int().nonnegative(),
 })
 
@@ -312,6 +275,26 @@ export const fillFoodNutritionInput = z.object({
 export const fillFoodNutritionStructuredOutput = z.object({
   food_master_id: z.string().optional(),
   nutrition_status: z.enum(['confirmed', 'estimated']).optional(),
+  nutrition_version_no: z.number().int().positive().optional(),
+  assigned_meal_logs: z
+    .array(
+      z.object({
+        meal_log_id: z.string(),
+        eaten_date: jstDateSchema,
+        meal_type: z.enum(MEAL_TYPES),
+        quantity: z.number(),
+      }),
+    )
+    .optional(),
+  affected_day_totals: z
+    .array(
+      z.object({
+        date: jstDateSchema,
+        totals_before: nutritionMap,
+        totals_after: nutritionMap,
+      }),
+    )
+    .optional(),
   error: z
     .object({
       code: z.string(),

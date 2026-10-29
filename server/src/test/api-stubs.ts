@@ -95,6 +95,20 @@ export const createStubApiDeps = (): ApiDeps => ({
           'foodMasterService.fillNutrition not stubbed',
         ),
       ),
+    addNutritionVersion: () =>
+      errAsync(
+        new FoodMasterDomainError(
+          'persistence_failed',
+          'foodMasterService.addNutritionVersion not stubbed',
+        ),
+      ),
+    listNutritionVersions: () =>
+      errAsync(
+        new FoodMasterDomainError(
+          'persistence_failed',
+          'foodMasterService.listNutritionVersions not stubbed',
+        ),
+      ),
     registerWithSimilarNameCheck: () =>
       errAsync(
         new FoodMasterDomainError(
@@ -173,6 +187,13 @@ export const createStubApiDeps = (): ApiDeps => ({
           'stockService.registerDelivery not stubbed',
         ),
       ),
+    updateDeliverySourceRef: () =>
+      errAsync(
+        new StockDomainError(
+          'persistence_failed',
+          'stockService.updateDeliverySourceRef not stubbed',
+        ),
+      ),
     receiveDelivery: () =>
       errAsync(
         new StockDomainError(
@@ -180,6 +201,7 @@ export const createStubApiDeps = (): ApiDeps => ({
           'stockService.receiveDelivery not stubbed',
         ),
       ),
+    listDeliveries: () => okAsync([]),
     getStockStatus: () =>
       okAsync({
         stockItems: [],

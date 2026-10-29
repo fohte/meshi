@@ -5,16 +5,20 @@ import type { FoodSearchService } from '#domain/food-browse/food-search-service'
 import type { FoodMasterService } from '#domain/food-master/service'
 import type { MealHistoryService } from '#domain/meal-history/types'
 import type { MealLogService } from '#domain/meal-log/meal-log-service'
+import type { MealLogNutritionReassignmentService } from '#domain/meal-log/nutrition-reassignment'
 import type { MealSetService } from '#domain/meal-set/meal-set-service'
 import type { MealSkipService } from '#domain/meal-skip/meal-skip-service'
 import type { StockService } from '#domain/stock/types'
 import type { UserProfileService } from '#domain/user-profile/user-profile-service'
 import type { Logger } from '#logger'
+import { registerAddFoodNutritionVersionTool } from '#mcp-tools/add-food-nutrition-version'
 import { registerCountStockTool } from '#mcp-tools/count-stock'
 import { registerDeleteMealLogTool } from '#mcp-tools/delete-meal-log'
 import { registerFillFoodNutritionTool } from '#mcp-tools/fill-food-nutrition'
 import { registerFoodFromCompositionTool } from '#mcp-tools/food-composition'
 import { registerGetStockStatusTool } from '#mcp-tools/get-stock-status'
+import { registerListDeliveriesTool } from '#mcp-tools/list-deliveries'
+import { registerListFoodNutritionVersionsTool } from '#mcp-tools/list-food-nutrition-versions'
 import { registerMealLoggingTools } from '#mcp-tools/meal-logging'
 import { registerMealSkipTools } from '#mcp-tools/meal-skip'
 import { registerMergeFoodMasterTool } from '#mcp-tools/merge-food-master'
@@ -25,6 +29,7 @@ import {
   TOOL_SUCCEEDED,
 } from '#mcp-tools/payloads'
 import { registerQueryMealsTool } from '#mcp-tools/query-meals'
+import { registerReassignMealLogNutritionTool } from '#mcp-tools/reassign-meal-log-nutrition'
 import { registerReceiveDeliveryTool } from '#mcp-tools/receive-delivery'
 import { registerRecommendationContextTool } from '#mcp-tools/recommendation'
 import { registerRegisterDeliveryTool } from '#mcp-tools/register-delivery'
@@ -33,6 +38,7 @@ import { registerFoodWithoutNutritionTool } from '#mcp-tools/register-food-witho
 import { registerMealSetTool } from '#mcp-tools/register-meal-set'
 import { profileStructuredOutput, updateProfileInput } from '#mcp-tools/schemas'
 import { registerSetStockItemTool } from '#mcp-tools/set-stock-item'
+import { registerUpdateDeliverySourceRefTool } from '#mcp-tools/update-delivery-source-ref'
 import { registerUpdateMealLogTool } from '#mcp-tools/update-meal-log'
 import { registerUpdateStockLotTool } from '#mcp-tools/update-stock-lot'
 
@@ -41,6 +47,7 @@ export interface MeshiToolDeps {
   readonly profileService: UserProfileService
   readonly foodSearchService: FoodSearchService
   readonly mealLogService: MealLogService
+  readonly mealLogNutritionReassignmentService: MealLogNutritionReassignmentService
   readonly mealSetService: MealSetService
   readonly mealSkipService: MealSkipService
   readonly stockService: StockService
@@ -58,6 +65,7 @@ export const registerMeshiTools = (
     foodSearchService,
     foodMasterService,
     mealLogService,
+    mealLogNutritionReassignmentService,
     mealSetService,
     mealSkipService,
     stockService,
@@ -77,9 +85,15 @@ export const registerMeshiTools = (
   registerFoodTool(server, { foodMasterService, logger })
   registerFoodWithoutNutritionTool(server, { foodMasterService, logger })
   registerFillFoodNutritionTool(server, { foodMasterService, logger })
+  registerAddFoodNutritionVersionTool(server, { foodMasterService, logger })
+  registerListFoodNutritionVersionsTool(server, { foodMasterService, logger })
   registerMergeFoodMasterTool(server, { foodMasterService, logger })
 
   registerQueryMealsTool(server, { mealHistoryService, logger })
+  registerReassignMealLogNutritionTool(server, {
+    mealLogNutritionReassignmentService,
+    logger,
+  })
   registerDeleteMealLogTool(server, { mealLogService, logger })
   registerUpdateMealLogTool(server, {
     mealLogService,
@@ -94,9 +108,11 @@ export const registerMeshiTools = (
   registerSetStockItemTool(server, { stockService, logger })
   registerCountStockTool(server, { stockService, logger })
   registerRegisterDeliveryTool(server, { stockService, logger })
+  registerUpdateDeliverySourceRefTool(server, { stockService, logger })
   registerReceiveDeliveryTool(server, { stockService, logger })
   registerUpdateStockLotTool(server, { stockService, logger })
   registerGetStockStatusTool(server, { stockService, logger })
+  registerListDeliveriesTool(server, { stockService, logger })
 
   server.registerTool(
     'get_profile',

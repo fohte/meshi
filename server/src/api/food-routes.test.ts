@@ -210,6 +210,7 @@ describe('GET /api/foods/:id', () => {
           eatenDate: jstDate('2026-07-29'),
           mealType: 'breakfast',
           quantity: 100,
+          energyKcalPerUnit: 1.68,
         },
       ],
       totalEatenCount: 1,
@@ -238,6 +239,7 @@ describe('GET /api/foods/:id', () => {
           eatenDate: '2026-07-29',
           mealType: 'breakfast',
           quantity: 100,
+          energyKcalPerUnit: 1.68,
         },
       ],
     })

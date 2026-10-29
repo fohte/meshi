@@ -38,7 +38,7 @@ type SourceEvidenceViolation =
   | 'missing_composition_code'
   | 'unexpected_composition_code'
 
-// Mirrors the evidence rules encoded by the food-master CHECK constraints in schema.ts.
+// Mirrors the evidence rules encoded by the food-master CHECK constraints in schema/foods.ts.
 const validateSourceEvidence = (
   input: SourceEvidenceInput,
 ): SourceEvidenceViolation | null => {

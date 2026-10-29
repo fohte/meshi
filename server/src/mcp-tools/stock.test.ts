@@ -6,11 +6,14 @@ import { StockDomainError } from '#domain/stock/errors'
 import type {
   CountStockInput,
   Delivery,
+  ListDeliveriesInput,
+  ListedDelivery,
   ReceiveDeliveryInput,
   RegisterDeliveryInput,
   StockItem,
   StockService,
   StockStatus,
+  UpdateDeliverySourceRefInput,
   UpdatedStockLot,
   UpdateStockLotInput,
 } from '#domain/stock/types'
@@ -18,6 +21,8 @@ import { createMcpServer } from '#mcp'
 import { createStubMcpDeps } from '#test/mcp-stubs'
 
 const VALIDATION_ERROR_TEXT = '<schema validation error>'
+
+const observation = <T extends object>(value: T): T => value
 
 const normalizeValidationError = <
   T extends { content?: { type: string }[]; [key: string]: unknown },
@@ -40,11 +45,17 @@ const createStockServiceStub = (
     readonly stockItem?: StockItem
     readonly status?: StockStatus
     readonly delivery?: Delivery
+    readonly listedDeliveries?: ReadonlyArray<ListedDelivery>
+    readonly listDeliveriesError?: StockDomainError
+    readonly updatedDelivery?: ListedDelivery
+    readonly updateDeliverySourceRefError?: StockDomainError
   } = {},
   onCount?: (input: CountStockInput) => void,
   onRegister?: (input: RegisterDeliveryInput) => void,
   onReceive?: (input: ReceiveDeliveryInput) => void,
   onUpdateStockLot?: (input: UpdateStockLotInput) => void,
+  onListDeliveries?: (input: ListDeliveriesInput) => void,
+  onUpdateDeliverySourceRef?: (input: UpdateDeliverySourceRefInput) => void,
 ): StockService => ({
   setStockItem(input) {
     return okAsync(
@@ -98,6 +109,13 @@ const createStockServiceStub = (
       },
     )
   },
+  updateDeliverySourceRef(input) {
+    onUpdateDeliverySourceRef?.(input)
+    if (overrides.updateDeliverySourceRefError !== undefined) {
+      return errAsync(overrides.updateDeliverySourceRefError)
+    }
+    return okAsync(overrides.updatedDelivery ?? listedDeliveryFixture)
+  },
   receiveDelivery(input) {
     onReceive?.(input)
     return okAsync(
@@ -127,6 +145,13 @@ const createStockServiceStub = (
       },
     )
   },
+  listDeliveries(input) {
+    onListDeliveries?.(input)
+    if (overrides.listDeliveriesError !== undefined) {
+      return errAsync(overrides.listDeliveriesError)
+    }
+    return okAsync(overrides.listedDeliveries ?? [])
+  },
 })
 
 const connect = async (
@@ -149,6 +174,305 @@ const connect = async (
     },
   }
 }
+
+const listedDeliveryFixture: ListedDelivery = {
+  id: 'dly_received_sample',
+  sourceRef: 'ref_order_sample',
+  sourceRefHistory: [
+    {
+      sourceRef: 'ref_order_sample',
+      createdAt: '2031-05-01T00:00:00.000Z',
+    },
+  ],
+  status: 'received',
+  expectedDate: '2031-05-01',
+  receivedDate: '2031-05-02',
+  changeDeadline: '2031-04-28',
+  items: [
+    {
+      foodMasterId: 'fm_sample_grain',
+      foodName: 'Sample grain packet',
+      stockLotId: 'stl_consumed_sample',
+      quantity: 2,
+      remainingQuantity: 0,
+    },
+  ],
+}
+
+const updatedDeliveryFixture: ListedDelivery = {
+  ...listedDeliveryFixture,
+  sourceRef: 'ref_corrected_sample',
+  sourceRefHistory: [
+    ...listedDeliveryFixture.sourceRefHistory,
+    {
+      sourceRef: 'ref_corrected_sample',
+      createdAt: '2031-05-02T00:00:00.000Z',
+    },
+  ],
+}
+
+it('routes list_deliveries filters and defaults limit to twenty', async () => {
+  const inputs: ListDeliveriesInput[] = []
+  const h = await connect(
+    createStockServiceStub(
+      { listedDeliveries: [listedDeliveryFixture] },
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      (input) => inputs.push(input),
+    ),
+  )
+  try {
+    await h.client.callTool({
+      name: 'list_deliveries',
+      arguments: {
+        delivery_id: ' dly_received_sample ',
+        source_ref: ' ref_order_sample ',
+        status: 'received',
+      },
+    })
+    expect(inputs).toEqual([
+      {
+        deliveryId: 'dly_received_sample',
+        sourceRef: 'ref_order_sample',
+        status: 'received',
+        limit: 20,
+      },
+    ])
+  } finally {
+    await h.close()
+  }
+})
+
+it('returns lot balances from list_deliveries', async () => {
+  const h = await connect(
+    createStockServiceStub({ listedDeliveries: [listedDeliveryFixture] }),
+  )
+  try {
+    const result = await h.client.callTool({
+      name: 'list_deliveries',
+      arguments: {},
+    })
+
+    expect(result).toEqual({
+      content: [{ type: 'text', text: '1 件の配送を取得しました。' }],
+      structuredContent: {
+        deliveries: [
+          {
+            delivery_id: 'dly_received_sample',
+            source_ref: 'ref_order_sample',
+            source_ref_history: [
+              {
+                source_ref: 'ref_order_sample',
+                created_at: '2031-05-01T00:00:00.000Z',
+              },
+            ],
+            status: 'received',
+            expected_date: '2031-05-01',
+            received_date: '2031-05-02',
+            change_deadline: '2031-04-28',
+            items: [
+              {
+                food_master_id: 'fm_sample_grain',
+                food_name: 'Sample grain packet',
+                stock_lot_id: 'stl_consumed_sample',
+                quantity: 2,
+                remaining_quantity: 0,
+              },
+            ],
+          },
+        ],
+      },
+    })
+  } finally {
+    await h.close()
+  }
+})
+
+it('returns a tool error when list_deliveries fails', async () => {
+  const h = await connect(
+    createStockServiceStub({
+      listDeliveriesError: new StockDomainError(
+        'persistence_failed',
+        'delivery lookup failed',
+      ),
+    }),
+  )
+  try {
+    const result = await h.client.callTool({
+      name: 'list_deliveries',
+      arguments: {},
+    })
+
+    expect(result).toEqual({
+      isError: true,
+      content: [{ type: 'text', text: 'delivery lookup failed' }],
+    })
+  } finally {
+    await h.close()
+  }
+})
+
+it('marks list_deliveries as read-only', async () => {
+  const h = await connect(createStockServiceStub())
+  try {
+    const listedTool = (await h.client.listTools()).tools.find(
+      (tool) => tool.name === 'list_deliveries',
+    )
+
+    expect(listedTool?.annotations).toEqual({ readOnlyHint: true })
+  } finally {
+    await h.close()
+  }
+})
+
+it('rejects list_deliveries limits above fifty', async () => {
+  const h = await connect(createStockServiceStub())
+  try {
+    const result = await h.client.callTool({
+      name: 'list_deliveries',
+      arguments: { limit: 51 },
+    })
+
+    expect(normalizeValidationError(result)).toEqual({
+      content: [{ type: 'text', text: VALIDATION_ERROR_TEXT }],
+      isError: true,
+    })
+  } finally {
+    await h.close()
+  }
+})
+
+it('routes update_delivery_source_ref and returns the listed delivery shape', async () => {
+  const inputs: UpdateDeliverySourceRefInput[] = []
+  const h = await connect(
+    createStockServiceStub(
+      { updatedDelivery: updatedDeliveryFixture },
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      (input) => inputs.push(input),
+    ),
+  )
+  try {
+    const result = await h.client.callTool({
+      name: 'update_delivery_source_ref',
+      arguments: {
+        delivery_id: ' dly_received_sample ',
+        source_ref: ' ref_corrected_sample ',
+      },
+    })
+
+    const actual = { inputs, result }
+    const expected = {
+      inputs: [
+        {
+          deliveryId: 'dly_received_sample',
+          sourceRef: 'ref_corrected_sample',
+        },
+      ],
+      result: {
+        content: [{ type: 'text', text: '配送の参照を訂正しました。' }],
+        structuredContent: {
+          delivery_id: 'dly_received_sample',
+          source_ref: 'ref_corrected_sample',
+          source_ref_history: [
+            {
+              source_ref: 'ref_order_sample',
+              created_at: '2031-05-01T00:00:00.000Z',
+            },
+            {
+              source_ref: 'ref_corrected_sample',
+              created_at: '2031-05-02T00:00:00.000Z',
+            },
+          ],
+          status: 'received',
+          expected_date: '2031-05-01',
+          received_date: '2031-05-02',
+          change_deadline: '2031-04-28',
+          items: [
+            {
+              food_master_id: 'fm_sample_grain',
+              food_name: 'Sample grain packet',
+              stock_lot_id: 'stl_consumed_sample',
+              quantity: 2,
+              remaining_quantity: 0,
+            },
+          ],
+        },
+      },
+    }
+    expect(observation(actual)).toEqual(expected)
+  } finally {
+    await h.close()
+  }
+})
+
+const invalidUpdateDeliverySourceRefArguments: ReadonlyArray<{
+  readonly name: string
+  readonly arguments: Record<string, unknown>
+}> = [
+  {
+    name: 'blank source references',
+    arguments: {
+      delivery_id: 'dly_received_sample',
+      source_ref: '   ',
+    },
+  },
+  {
+    name: 'unknown update fields',
+    arguments: {
+      delivery_id: 'dly_received_sample',
+      source_ref: 'ref_corrected_sample',
+      status: 'received',
+    },
+  },
+]
+
+it.each(invalidUpdateDeliverySourceRefArguments)(
+  'rejects $name for update_delivery_source_ref',
+  async ({ arguments: input }) => {
+    const h = await connect(createStockServiceStub())
+    try {
+      const result = await h.client.callTool({
+        name: 'update_delivery_source_ref',
+        arguments: input,
+      })
+
+      expect(normalizeValidationError(result)).toEqual({
+        content: [{ type: 'text', text: VALIDATION_ERROR_TEXT }],
+        isError: true,
+      })
+    } finally {
+      await h.close()
+    }
+  },
+)
+
+it('describes the inventory boundary for update_delivery_source_ref', async () => {
+  const h = await connect(createStockServiceStub())
+  try {
+    const tool = (await h.client.listTools()).tools.find(
+      (candidate) => candidate.name === 'update_delivery_source_ref',
+    )
+
+    const actual = {
+      description: tool?.description,
+      annotations: tool?.annotations,
+    }
+    const expected = {
+      description:
+        '配送の source_ref だけを訂正する。受領済みや取消済みでも使え、参照の訂正では在庫や食事ログの関連・残数は変わらない。受領前の明細・到着予定日は register_delivery、残数は count_stock、賞味期限・食べ切り目標日は update_stock_lot を使う。受領日・受領数は訂正できない。',
+      annotations: { readOnlyHint: false },
+    }
+    expect(observation(actual)).toEqual(expected)
+  } finally {
+    await h.close()
+  }
+})
 
 it('routes set_stock_item arguments and returns the saved settings', async () => {
   const h = await connect(createStockServiceStub())

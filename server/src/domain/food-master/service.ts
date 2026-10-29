@@ -3,10 +3,12 @@ import { errAsync, type ResultAsync } from 'neverthrow'
 import { FoodMasterDomainError } from '#domain/food-master/errors'
 import type { FoodMasterRepository } from '#domain/food-master/repository'
 import type {
+  AddFoodMasterNutritionVersionInput,
   FillFoodNutritionInput,
+  FillFoodNutritionResult,
   FoodMaster,
   FoodMasterId,
-  KnownNutritionStatus,
+  FoodMasterNutritionVersion,
   MergeFoodMasterResult,
   RegisteredFromComposition,
   RegisterFoodMasterInput,
@@ -18,7 +20,16 @@ import type {
 export interface FoodMasterService {
   fillNutrition(
     input: FillFoodNutritionInput,
-  ): ResultAsync<KnownNutritionStatus, FoodMasterDomainError>
+  ): ResultAsync<FillFoodNutritionResult, FoodMasterDomainError>
+  addNutritionVersion(
+    input: AddFoodMasterNutritionVersionInput,
+  ): ResultAsync<FoodMasterNutritionVersion, FoodMasterDomainError>
+  listNutritionVersions(
+    foodMasterId: FoodMasterId,
+  ): ResultAsync<
+    ReadonlyArray<FoodMasterNutritionVersion>,
+    FoodMasterDomainError
+  >
   registerWithSimilarNameCheck(
     input: RegisterFoodMasterInput,
     confirmedDistinctFromMasterIds?: ReadonlyArray<FoodMasterId>,
@@ -106,6 +117,9 @@ export const createFoodMasterService = (
 
   return {
     fillNutrition: (input) => repo.fillNutrition(input),
+    addNutritionVersion: (input) => repo.addNutritionVersion(input),
+    listNutritionVersions: (foodMasterId) =>
+      repo.listNutritionVersions(foodMasterId),
     registerWithSimilarNameCheck,
     registerWithoutNutritionWithSimilarNameCheck,
     getById: (id) => repo.findById(id),

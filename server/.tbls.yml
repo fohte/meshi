@@ -42,26 +42,46 @@ comments:
       food_master_id: 'Identifier of the food master this alias belongs to.'
       alias: 'Alternate name used for matching a food master.'
   - table: food_master_nutrients
-    tableComment: 'Nutrient values associated with registered foods.'
+    tableComment: 'Nutrient values associated with nutrition versions.'
     columnComments:
-      food_master_id: 'Identifier of the food master this nutrient value belongs to.'
+      nutrition_version_id: 'Identifier of the nutrition version this nutrient value belongs to.'
       nutrient_code: 'Identifier of the nutrient.'
-      value: 'Nutrient value for the food master; its quantity basis is not stored.'
+      value: 'Nutrient value for the nutrition version.'
   - table: food_master_nutrition
-    tableComment: 'Nutrition source and estimation metadata for a food master.'
+    tableComment: 'Versioned nutrition metadata for registered foods.'
     columnComments:
+      id: 'Identifier of the nutrition version.'
       food_master_id: 'Identifier of the food master this nutrition metadata belongs to.'
+      version_no: 'Sequential version number within the food master.'
+      is_current: 'Whether this is the current nutrition version.'
+      change_kind: 'Kind of change that created this nutrition version.'
+      corrects_version_id: 'Identifier of the nutrition version corrected by this version, when applicable.'
       is_estimated: 'Whether the nutrition values are estimated.'
       source: 'Origin of the nutrition values: web search, food composition table, user input, or a model estimate.'
       source_url: 'URL of the web page used as evidence for the nutrition values.'
       source_composition_code: 'Code of the food composition entry used as evidence.'
+      serving_basis: 'Description of what one food unit represents.'
+      net_content: 'Net content represented by one food unit.'
+      checked_on: 'Date the nutrition information was checked.'
+      effective_from: 'Date the nutrition information became applicable.'
+      reason: 'Reason for this nutrition change.'
+      legacy_evidence: 'Whether the source evidence predates current evidence requirements.'
   - table: meal_logs
     tableComment: 'Recorded food consumption entries.'
     columnComments:
       food_master_id: 'Identifier of the food recorded in this meal log.'
+      nutrition_version_id: 'Identifier of the nutrition version assigned to this meal log, when known.'
+      nutrition_version_origin: 'How the nutrition version was assigned to this meal log.'
       eaten_date: 'Asia/Tokyo calendar date on which the food was eaten.'
       meal_type: 'Meal category: breakfast, lunch, dinner, or snack.'
       quantity: "Multiplier applied to the food master's nutrient values."
+  - table: meal_log_nutrition_changes
+    tableComment: 'Nutrition version replacements recorded for meal logs.'
+    columnComments:
+      meal_log_id: 'Identifier of the meal log whose nutrition version changed.'
+      from_version_id: 'Identifier of the previous nutrition version, when known.'
+      to_version_id: 'Identifier of the replacement nutrition version.'
+      reason: 'Reason for replacing the nutrition version.'
   - table: meal_skips
     tableComment: 'Meals marked as skipped for a date and meal type.'
     columnComments:
@@ -122,6 +142,11 @@ comments:
       expected_date: 'Date the delivery is expected to arrive.'
       received_date: 'Date the delivery was received.'
       change_deadline: 'Deadline for changing or cancelling the delivery, when known.'
+  - table: delivery_source_refs
+    tableComment: 'External references assigned to deliveries, including corrected references.'
+    columnComments:
+      source_ref: 'Unique external identifier used to resolve a delivery.'
+      delivery_id: 'Identifier of the delivery that used this reference.'
   - table: stock_movements
     tableComment: 'Quantity changes recorded against stock lots.'
     columnComments:

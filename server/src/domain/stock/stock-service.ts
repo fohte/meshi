@@ -5,11 +5,13 @@ import { StockDomainError } from '#domain/stock/errors'
 import { calculateStockStatus } from '#domain/stock/stock-status-calculator'
 import type {
   CountStockInput,
+  ListDeliveriesInput,
   ReceiveDeliveryInput,
   RegisterDeliveryInput,
   SetStockItemInput,
   StockRepository,
   StockService,
+  UpdateDeliverySourceRefInput,
   UpdateStockLotInput,
 } from '#domain/stock/types'
 import { toJstDateString } from '#lib/jst-date'
@@ -186,6 +188,22 @@ export const createStockService = (
     })
   },
 
+  updateDeliverySourceRef(input: UpdateDeliverySourceRefInput) {
+    const deliveryId = input.deliveryId.trim()
+    if (deliveryId === '') {
+      return errAsync(
+        new StockDomainError('invalid_input', 'delivery_id must not be empty'),
+      )
+    }
+    const sourceRef = input.sourceRef.trim()
+    if (sourceRef === '') {
+      return errAsync(
+        new StockDomainError('invalid_input', 'source_ref must not be empty'),
+      )
+    }
+    return repository.updateDeliverySourceRef({ deliveryId, sourceRef })
+  },
+
   receiveDelivery(input: ReceiveDeliveryInput) {
     const deliveryId = input.deliveryId.trim()
     if (deliveryId === '') {
@@ -214,6 +232,10 @@ export const createStockService = (
       deliveryId,
       ...(items === undefined ? {} : { items }),
     })
+  },
+
+  listDeliveries(input: ListDeliveriesInput) {
+    return repository.listDeliveries(input)
   },
 
   getStockStatus() {

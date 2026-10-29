@@ -17,7 +17,8 @@
     "convert-food-composition": "tsx scripts/convert-food-composition.ts",
     "test": "conc pnpm:test:type pnpm:test:unit",
     "test:type": "tsc --noEmit",
-    "test:unit": "vitest run"
+    "test:unit": "vitest run",
+    "test:migrations": "vitest run --config vitest.migrations.config.ts"
   },
   "files": [
     "dist",

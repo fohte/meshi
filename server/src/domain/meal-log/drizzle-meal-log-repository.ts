@@ -1,4 +1,4 @@
-import { eq, inArray } from 'drizzle-orm'
+import { and, asc, eq, inArray } from 'drizzle-orm'
 import { drizzle } from 'drizzle-orm/postgres-js'
 import {
   err,
@@ -10,20 +10,19 @@ import {
 } from 'neverthrow'
 
 import type { Sql } from '#db/index'
-import {
-  foodMasterNutrients,
-  foodMasterNutrition,
-  foodMasters,
-  mealLogs,
-} from '#db/schema'
+import { foodMasterNutrition, foodMasters, mealLogs } from '#db/schema'
 import { defaultIdGenerator, type IdGenerator } from '#domain/food-master/id'
-import { nutritionStatusFromIsEstimated } from '#domain/food-master/types'
+import {
+  loadFoundMealLogs,
+  toRow,
+} from '#domain/meal-log/drizzle-meal-log-reader'
 import {
   DomainError,
   FoodMasterNotFoundError,
   MealLogNotFoundError,
   MealLogPersistenceError,
 } from '#domain/meal-log/errors'
+import { loadFoodMaster } from '#domain/meal-log/meal-log-food-loader'
 import type {
   FoundMealLog,
   InsertMealLogInput,
@@ -31,99 +30,64 @@ import type {
   MealLogWriteResult,
   UpdateMealLogPatch,
 } from '#domain/meal-log/meal-log-repository'
-import type {
-  FoodMasterRef,
-  MealLogDeletionResult,
-  MealLogRow,
-  MealType,
-} from '#domain/meal-log/types'
+import type { MealLogDeletionResult } from '#domain/meal-log/types'
 import {
   clearMealStockMovements,
   consumeStockForMealLog,
 } from '#domain/stock/drizzle-meal-stock-sync'
-import type { JstDate } from '#lib/jst-date'
 
 type Db = ReturnType<typeof drizzle>
 type Transaction = Parameters<Parameters<Db['transaction']>[0]>[0]
 type DbSession = Db | Transaction
 
+const loadCurrentNutritionVersionIds = async (
+  session: DbSession,
+  foodMasterIds: ReadonlyArray<string>,
+): Promise<Result<ReadonlyMap<string, string | null>, DomainError>> => {
+  const ids = [...new Set(foodMasterIds)].toSorted()
+  if (ids.length === 0) return ok(new Map())
+
+  const foodRows = await session
+    .select({
+      foodMasterId: foodMasters.id,
+    })
+    .from(foodMasters)
+    .where(inArray(foodMasters.id, ids))
+    .orderBy(asc(foodMasters.id))
+    .for('key share', { of: foodMasters })
+
+  const foundFoodMasterIds = new Set(foodRows.map((row) => row.foodMasterId))
+  const missingId = ids.find((id) => !foundFoodMasterIds.has(id))
+  if (missingId !== undefined) {
+    return err(new FoodMasterNotFoundError(missingId))
+  }
+
+  const versionRows = await session
+    .select({
+      foodMasterId: foodMasterNutrition.foodMasterId,
+      nutritionVersionId: foodMasterNutrition.id,
+    })
+    .from(foodMasterNutrition)
+    .where(
+      and(
+        inArray(foodMasterNutrition.foodMasterId, ids),
+        eq(foodMasterNutrition.isCurrent, true),
+      ),
+    )
+    .orderBy(asc(foodMasterNutrition.foodMasterId))
+    .for('share')
+  const currentVersions = new Map(
+    versionRows.map((row) => [row.foodMasterId, row.nutritionVersionId]),
+  )
+  return ok(
+    new Map(ids.map((id) => [id, currentVersions.get(id) ?? null] as const)),
+  )
+}
+
 export interface DrizzleMealLogRepositoryOptions {
   readonly wrapDeleteManyInTransaction?: boolean
   readonly generateId?: IdGenerator
 }
-
-const loadNutrition = async (
-  db: Db,
-  foodMasterId: string,
-): Promise<Record<string, number>> => {
-  const rows = await db
-    .select({
-      nutrientCode: foodMasterNutrients.nutrientCode,
-      value: foodMasterNutrients.value,
-    })
-    .from(foodMasterNutrients)
-    .where(eq(foodMasterNutrients.foodMasterId, foodMasterId))
-
-  const nutrition: Record<string, number> = {}
-  for (const row of rows) {
-    nutrition[row.nutrientCode] = Number(row.value)
-  }
-  return nutrition
-}
-
-const loadFoodMaster = (
-  db: Db,
-  foodMasterId: string,
-): ResultAsync<FoodMasterRef, DomainError> =>
-  ResultAsync.fromPromise(
-    (async (): Promise<Result<FoodMasterRef, DomainError>> => {
-      const masterRows = await db
-        .select({
-          id: foodMasters.id,
-          name: foodMasters.name,
-          isEstimated: foodMasterNutrition.isEstimated,
-        })
-        .from(foodMasters)
-        .leftJoin(
-          foodMasterNutrition,
-          eq(foodMasterNutrition.foodMasterId, foodMasters.id),
-        )
-        .where(eq(foodMasters.id, foodMasterId))
-        .limit(1)
-
-      const master = masterRows[0]
-      if (master === undefined) {
-        return err(new FoodMasterNotFoundError(foodMasterId))
-      }
-
-      const nutritionPerUnit = await loadNutrition(db, foodMasterId)
-      return ok({
-        id: master.id,
-        name: master.name,
-        isEstimated: master.isEstimated ?? false,
-        nutritionStatus: nutritionStatusFromIsEstimated(master.isEstimated),
-        nutritionPerUnit,
-      })
-    })(),
-    (caughtErr) =>
-      new MealLogPersistenceError('failed to load food_master', caughtErr),
-  ).andThen((result) => result)
-
-const toRow = (row: {
-  id: string
-  foodMasterId: string
-  eatenDate: JstDate
-  mealType: MealType
-  quantity: string
-  createdAt: Date
-}): MealLogRow => ({
-  id: row.id,
-  foodMasterId: row.foodMasterId,
-  eatenDate: row.eatenDate,
-  mealType: row.mealType,
-  quantity: Number(row.quantity),
-  createdAt: row.createdAt,
-})
 
 export const createDrizzleMealLogRepository = (
   sql: Sql,
@@ -166,10 +130,10 @@ export const createDrizzleMealLogRepository = (
   }
 
   const withStockShortfall = (
-    row: MealLogRow,
+    found: FoundMealLog,
     stockShortfall: number | null,
   ): MealLogWriteResult => ({
-    ...row,
+    ...found,
     ...(stockShortfall === null ? {} : { stockShortfall }),
   })
 
@@ -235,11 +199,19 @@ export const createDrizzleMealLogRepository = (
       input: InsertMealLogInput,
     ): ResultAsync<MealLogWriteResult, DomainError> =>
       runInTransaction(async (session) => {
+        const currentVersions = await loadCurrentNutritionVersionIds(session, [
+          input.foodMasterId,
+        ])
+        if (currentVersions.isErr()) return err(currentVersions.error)
+
         const [inserted] = await session
           .insert(mealLogs)
           .values({
             id: input.id,
             foodMasterId: input.foodMasterId,
+            nutritionVersionId:
+              currentVersions.value.get(input.foodMasterId) ?? null,
+            nutritionVersionOrigin: 'recorded',
             eatenDate: input.eatenDate,
             mealType: input.mealType,
             quantity: input.quantity.toString(),
@@ -256,9 +228,16 @@ export const createDrizzleMealLogRepository = (
           foodMasterId: row.foodMasterId,
           quantity: row.quantity,
         })
-        return stockResult.map((shortfall) =>
-          withStockShortfall(row, shortfall),
-        )
+        if (stockResult.isErr()) return err(stockResult.error)
+        const found = (await loadFoundMealLogs(session, [row.id])).get(row.id)
+        if (found === undefined) {
+          return err(
+            new MealLogPersistenceError(
+              'meal_logs insert returned no row when loading its nutrition version',
+            ),
+          )
+        }
+        return ok(withStockShortfall(found, stockResult.value))
       }, 'failed to insert meal_log'),
 
     insertMealLogs: (
@@ -267,12 +246,21 @@ export const createDrizzleMealLogRepository = (
       inputs.length === 0
         ? okAsync([])
         : runInTransaction(async (session) => {
+            const currentVersions = await loadCurrentNutritionVersionIds(
+              session,
+              inputs.map((input) => input.foodMasterId),
+            )
+            if (currentVersions.isErr()) return err(currentVersions.error)
+
             const inserted = await session
               .insert(mealLogs)
               .values(
                 inputs.map((input) => ({
                   id: input.id,
                   foodMasterId: input.foodMasterId,
+                  nutritionVersionId:
+                    currentVersions.value.get(input.foodMasterId) ?? null,
+                  nutritionVersionOrigin: 'recorded',
                   eatenDate: input.eatenDate,
                   mealType: input.mealType,
                   quantity: input.quantity.toString(),
@@ -289,7 +277,7 @@ export const createDrizzleMealLogRepository = (
             const rowsById = new Map(
               inserted.map((row) => [row.id, row] as const),
             )
-            const writtenRows: MealLogWriteResult[] = []
+            const stockShortfalls = new Map<string, number | null>()
             for (const input of inputs) {
               const insertedRow = rowsById.get(input.id)
               if (insertedRow === undefined) {
@@ -306,7 +294,24 @@ export const createDrizzleMealLogRepository = (
                 quantity: row.quantity,
               })
               if (stockResult.isErr()) return err(stockResult.error)
-              writtenRows.push(withStockShortfall(row, stockResult.value))
+              stockShortfalls.set(input.id, stockResult.value)
+            }
+            const foundById = await loadFoundMealLogs(
+              session,
+              inputs.map((input) => input.id),
+            )
+            const writtenRows: MealLogWriteResult[] = []
+            for (const input of inputs) {
+              const found = foundById.get(input.id)
+              const stockShortfall = stockShortfalls.get(input.id)
+              if (found === undefined || stockShortfall === undefined) {
+                return err(
+                  new MealLogPersistenceError(
+                    'meal_logs bulk insert returned incomplete stored nutrition rows',
+                  ),
+                )
+              }
+              writtenRows.push(withStockShortfall(found, stockShortfall))
             }
             return ok(writtenRows)
           }, 'failed to insert meal_logs'),
@@ -315,6 +320,28 @@ export const createDrizzleMealLogRepository = (
       input: UpdateMealLogPatch,
     ): ResultAsync<MealLogWriteResult, DomainError> =>
       runInTransaction(async (session) => {
+        const existingRows = await session
+          .select({ foodMasterId: mealLogs.foodMasterId })
+          .from(mealLogs)
+          .where(eq(mealLogs.id, input.id))
+          .limit(1)
+        const initialFoodMasterId = existingRows[0]?.foodMasterId
+        if (initialFoodMasterId === undefined) {
+          return err(
+            new MealLogPersistenceError('meal_logs update returned no rows'),
+          )
+        }
+
+        let currentVersions: ReadonlyMap<string, string | null> | undefined
+        if (input.foodMasterId !== undefined) {
+          const loadedVersions = await loadCurrentNutritionVersionIds(session, [
+            initialFoodMasterId,
+            input.foodMasterId,
+          ])
+          if (loadedVersions.isErr()) return err(loadedVersions.error)
+          currentVersions = loadedVersions.value
+        }
+
         const [existing] = await session
           .select({
             foodMasterId: mealLogs.foodMasterId,
@@ -330,10 +357,12 @@ export const createDrizzleMealLogRepository = (
         }
 
         const foodMasterId = input.foodMasterId ?? existing.foodMasterId
+        const foodMasterChanged =
+          input.foodMasterId !== undefined &&
+          input.foodMasterId !== existing.foodMasterId
         const quantity = input.quantity ?? Number(existing.quantity)
         const shouldSyncStock =
-          foodMasterId !== existing.foodMasterId ||
-          quantity !== Number(existing.quantity)
+          foodMasterChanged || quantity !== Number(existing.quantity)
         if (shouldSyncStock) {
           await clearMealStockMovements(session, input.id)
         }
@@ -344,6 +373,13 @@ export const createDrizzleMealLogRepository = (
             ...(input.foodMasterId === undefined
               ? {}
               : { foodMasterId: input.foodMasterId }),
+            ...(foodMasterChanged
+              ? {
+                  nutritionVersionId:
+                    currentVersions?.get(foodMasterId) ?? null,
+                  nutritionVersionOrigin: 'recorded',
+                }
+              : {}),
             ...(input.eatenDate === undefined
               ? {}
               : { eatenDate: input.eatenDate }),
@@ -362,16 +398,25 @@ export const createDrizzleMealLogRepository = (
           )
         }
         const row = toRow(updated)
-        if (!shouldSyncStock) return ok(withStockShortfall(row, null))
-
-        const stockResult = await consumeMealStock(session, {
-          mealLogId: row.id,
-          foodMasterId: row.foodMasterId,
-          quantity: row.quantity,
-        })
-        return stockResult.map((shortfall) =>
-          withStockShortfall(row, shortfall),
-        )
+        let stockShortfall: number | null = null
+        if (shouldSyncStock) {
+          const stockResult = await consumeMealStock(session, {
+            mealLogId: row.id,
+            foodMasterId: row.foodMasterId,
+            quantity: row.quantity,
+          })
+          if (stockResult.isErr()) return err(stockResult.error)
+          stockShortfall = stockResult.value
+        }
+        const found = (await loadFoundMealLogs(session, [row.id])).get(row.id)
+        if (found === undefined) {
+          return err(
+            new MealLogPersistenceError(
+              'meal_logs update returned no row when loading its nutrition version',
+            ),
+          )
+        }
+        return ok(withStockShortfall(found, stockShortfall))
       }, 'failed to update meal_log'),
 
     deleteMealLog: (id: string): ResultAsync<boolean, DomainError> =>
@@ -412,42 +457,9 @@ export const createDrizzleMealLogRepository = (
       id: string,
     ): ResultAsync<FoundMealLog | null, DomainError> =>
       ResultAsync.fromPromise(
-        (async (): Promise<FoundMealLog | null> => {
-          const rows = await db
-            .select({
-              log: mealLogs,
-              food: {
-                id: foodMasters.id,
-                name: foodMasters.name,
-                isEstimated: foodMasterNutrition.isEstimated,
-              },
-            })
-            .from(mealLogs)
-            .innerJoin(foodMasters, eq(mealLogs.foodMasterId, foodMasters.id))
-            .leftJoin(
-              foodMasterNutrition,
-              eq(foodMasterNutrition.foodMasterId, foodMasters.id),
-            )
-            .where(eq(mealLogs.id, id))
-            .limit(1)
-          // The FK on meal_logs.food_master_id is ON DELETE RESTRICT, so an existing
-          // meal_log always has its food_master.
-          const row = rows[0]
-          if (row === undefined) return null
-
-          const nutritionPerUnit = await loadNutrition(db, row.food.id)
-          return {
-            log: toRow(row.log),
-            food: {
-              ...row.food,
-              isEstimated: row.food.isEstimated ?? false,
-              nutritionStatus: nutritionStatusFromIsEstimated(
-                row.food.isEstimated,
-              ),
-              nutritionPerUnit,
-            },
-          }
-        })(),
+        loadFoundMealLogs(db, [id]).then(
+          (foundById) => foundById.get(id) ?? null,
+        ),
         (caughtErr) =>
           new MealLogPersistenceError('failed to load meal_log', caughtErr),
       ),

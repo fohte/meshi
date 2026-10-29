@@ -108,6 +108,9 @@ export const MealTimeline = ({
                     ) : item.isEstimated ? (
                       <span className={styles.itemEstimateMark}> ~</span>
                     ) : null}
+                    {item.hasNutritionVersionDifferences && (
+                      <span className={styles.itemVersionDiffMark}> ≠</span>
+                    )}
                   </div>
                   <div className={styles.itemMeta}>{item.quantityText}</div>
                 </div>

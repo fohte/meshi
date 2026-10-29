@@ -1,9 +1,9 @@
-import { desc, eq } from 'drizzle-orm'
+import { and, desc, eq } from 'drizzle-orm'
 import { drizzle } from 'drizzle-orm/postgres-js'
 import { ok, ResultAsync } from 'neverthrow'
 
 import type { Sql } from '#db/index'
-import { mealLogs } from '#db/schema'
+import { foodMasterNutrients, mealLogs } from '#db/schema'
 import type {
   FoodDetail,
   FoodDetailService,
@@ -19,8 +19,21 @@ const loadHistory = async (
   foodMasterId: string,
 ): Promise<ReadonlyArray<FoodEatHistoryEntry>> => {
   const rows = await db
-    .select()
+    .select({
+      id: mealLogs.id,
+      eatenDate: mealLogs.eatenDate,
+      mealType: mealLogs.mealType,
+      quantity: mealLogs.quantity,
+      energyKcalPerUnit: foodMasterNutrients.value,
+    })
     .from(mealLogs)
+    .leftJoin(
+      foodMasterNutrients,
+      and(
+        eq(foodMasterNutrients.nutritionVersionId, mealLogs.nutritionVersionId),
+        eq(foodMasterNutrients.nutrientCode, 'energy_kcal'),
+      ),
+    )
     .where(eq(mealLogs.foodMasterId, foodMasterId))
     .orderBy(desc(mealLogs.eatenDate), desc(mealLogs.createdAt))
 
@@ -29,6 +42,8 @@ const loadHistory = async (
     eatenDate: row.eatenDate,
     mealType: row.mealType,
     quantity: Number(row.quantity),
+    energyKcalPerUnit:
+      row.energyKcalPerUnit === null ? null : Number(row.energyKcalPerUnit),
   }))
 }
 

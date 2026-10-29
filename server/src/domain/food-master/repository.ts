@@ -7,13 +7,16 @@ import { errorMessage, FoodMasterDomainError } from '#domain/food-master/errors'
 import { defaultIdGenerator, type IdGenerator } from '#domain/food-master/id'
 import { mergeFoodMasters } from '#domain/food-master/merge-repository'
 import { createFoodMasterNutritionFiller } from '#domain/food-master/nutrition'
+import { createFoodMasterNutritionVersionOperations } from '#domain/food-master/nutrition-versions'
 import { createFoodMasterRegistrar } from '#domain/food-master/registration'
 import { toNutritionMap } from '#domain/food-master/rows'
 import type {
+  AddFoodMasterNutritionVersionInput,
   FillFoodNutritionInput,
+  FillFoodNutritionResult,
   FoodMaster,
   FoodMasterId,
-  KnownNutritionStatus,
+  FoodMasterNutritionVersion,
   MergeFoodMasterResult,
   NutritionMap,
   RegisterFoodMasterInput,
@@ -33,7 +36,16 @@ export interface FoodMasterRepository {
   ): ResultAsync<FoodMaster, FoodMasterDomainError>
   fillNutrition(
     input: FillFoodNutritionInput,
-  ): ResultAsync<KnownNutritionStatus, FoodMasterDomainError>
+  ): ResultAsync<FillFoodNutritionResult, FoodMasterDomainError>
+  addNutritionVersion(
+    input: AddFoodMasterNutritionVersionInput,
+  ): ResultAsync<FoodMasterNutritionVersion, FoodMasterDomainError>
+  listNutritionVersions(
+    foodMasterId: FoodMasterId,
+  ): ResultAsync<
+    ReadonlyArray<FoodMasterNutritionVersion>,
+    FoodMasterDomainError
+  >
   registerWithoutNutrition(
     input: RegisterFoodMasterWithoutNutritionInput,
   ): ResultAsync<FoodMaster, FoodMasterDomainError>
@@ -115,6 +127,11 @@ export const createFoodMasterRepository = (
     generateId,
     wrapInTransaction,
   )
+  const nutritionVersionOperations = createFoodMasterNutritionVersionOperations(
+    sql,
+    generateId,
+    wrapInTransaction,
+  )
 
   const findById = (
     id: FoodMasterId,
@@ -124,7 +141,8 @@ export const createFoodMasterRepository = (
         SELECT fm.id, fm.name, fmn.is_estimated, fmn.source,
                fmn.source_url, fmn.source_composition_code, fm.created_at
         FROM food_masters fm
-        LEFT JOIN food_master_nutrition fmn ON fmn.food_master_id = fm.id
+        LEFT JOIN food_master_nutrition fmn
+          ON fmn.food_master_id = fm.id AND fmn.is_current = true
         WHERE fm.id = ${id}
       `,
       (caughtErr) =>
@@ -154,9 +172,12 @@ export const createFoodMasterRepository = (
               SELECT alias FROM food_master_aliases WHERE food_master_id = ${id}
             `,
             sql<{ nutrient_code: string; value: string }[]>`
-              SELECT nutrient_code, value
-              FROM food_master_nutrients
-              WHERE food_master_id = ${id}
+              SELECT nutrients.nutrient_code, nutrients.value
+              FROM food_master_nutrition nutrition
+              INNER JOIN food_master_nutrients nutrients
+                ON nutrients.nutrition_version_id = nutrition.id
+              WHERE nutrition.food_master_id = ${id}
+                AND nutrition.is_current = true
             `,
           ])
 
@@ -293,6 +314,8 @@ export const createFoodMasterRepository = (
   return {
     register,
     fillNutrition,
+    addNutritionVersion: nutritionVersionOperations.add,
+    listNutritionVersions: nutritionVersionOperations.list,
     registerWithoutNutrition,
     findById,
     findComposition,

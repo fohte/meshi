@@ -1,4 +1,5 @@
 import { err, errAsync, ok, type Result, ResultAsync } from 'neverthrow'
+import { z } from 'zod'
 
 import type { Sql } from '#db/index'
 import { getConstraintName, isUniqueViolation } from '#db/pg-error'
@@ -21,6 +22,8 @@ import {
 
 const FOOD_MASTERS_NAME_CONSTRAINT = 'food_masters_name_key'
 const FOOD_MASTER_ALIASES_ALIAS_CONSTRAINT = 'food_master_aliases_alias_key'
+
+const nutritionVersionRowSchema = z.object({ id: z.string() })
 
 interface NormalizedInput {
   readonly name: string
@@ -192,19 +195,32 @@ export const createFoodMasterRegistrar = (
       )
     }
 
+    let nutritionVersionId: string | null = null
     if (normalized.hasNutritionRecord) {
-      await tx`
+      const insertedVersion = await tx<Record<string, unknown>[]>`
         INSERT INTO food_master_nutrition (
-          food_master_id, is_estimated, source, source_url, source_composition_code
+          food_master_id, version_no, is_current, change_kind, is_estimated,
+          source, source_url, source_composition_code
         )
         VALUES (
-          ${id},
-          ${normalized.isEstimated},
-          ${normalized.source},
-          ${normalized.sourceUrl},
+          ${id}, 1, true, 'initial', ${normalized.isEstimated},
+          ${normalized.source}, ${normalized.sourceUrl},
           ${normalized.sourceCompositionCode}
         )
+        RETURNING id
       `
+      const parsedVersion = z
+        .array(nutritionVersionRowSchema)
+        .safeParse(insertedVersion)
+      if (!parsedVersion.success || parsedVersion.data[0] === undefined) {
+        return err(
+          new FoodMasterDomainError(
+            'persistence_failed',
+            'failed to insert food_master_nutrition row',
+          ),
+        )
+      }
+      nutritionVersionId = parsedVersion.data[0].id
     }
 
     if (normalized.aliases.length > 0) {
@@ -218,11 +234,11 @@ export const createFoodMasterRegistrar = (
 
     if (nutrientCodes.length > 0) {
       const nutrientRows = nutrientCodes.map((code) => ({
-        food_master_id: id,
+        nutrition_version_id: nutritionVersionId,
         nutrient_code: code,
         value: String(normalized.nutrition[code]),
       }))
-      await tx`INSERT INTO food_master_nutrients ${tx(nutrientRows, 'food_master_id', 'nutrient_code', 'value')}`
+      await tx`INSERT INTO food_master_nutrients ${tx(nutrientRows, 'nutrition_version_id', 'nutrient_code', 'value')}`
     }
 
     return ok({

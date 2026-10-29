@@ -18,6 +18,7 @@ interface MealTimelineItem {
   readonly name: string
   readonly isEstimated: boolean
   readonly isUnknown: boolean
+  readonly hasNutritionVersionDifferences: boolean
   readonly quantityText: string
   readonly kcalText: string
 }
@@ -69,6 +70,8 @@ export const buildMealTimelineGroups = (
             name: entry.foodName,
             isEstimated: entry.isEstimated,
             isUnknown,
+            hasNutritionVersionDifferences:
+              entry.nutritionVersionDifferences.length > 0,
             quantityText: `×${formatQuantity(entry.quantity)}`,
             kcalText: isUnknown
               ? '不明'

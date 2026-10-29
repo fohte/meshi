@@ -4,14 +4,20 @@ import { z } from 'zod'
 import { createAsText, type Sql } from '#db/index'
 import { numericValueSchema } from '#db/numeric-value-schema'
 import { nutritionStatusFromIsEstimated } from '#domain/food-master/types'
-import type {
-  MealHistoryDayTotals,
-  MealHistoryService,
-  MealLogEntry,
-  NutrientCode,
-  NutritionMap,
+import {
+  nutritionVersionSchema,
+  type NutritionVersionWire,
+} from '#domain/meal-history/nutritionVersionSchema'
+import {
+  type MealHistoryDayTotals,
+  type MealHistoryNutritionVersion,
+  MealHistoryQueryError,
+  type MealHistoryService,
+  type MealLogEntry,
+  type NutrientCode,
+  NUTRITION_VERSION_ORIGINS,
+  type NutritionMap,
 } from '#domain/meal-history/types'
-import { MealHistoryQueryError } from '#domain/meal-history/types'
 import { MEAL_TYPES } from '#domain/meal-log/types'
 import { type JstDate, jstDateSchema } from '#lib/jst-date'
 
@@ -35,6 +41,9 @@ const entryRowSchema = z.object({
   quantity: numericValueSchema,
   recorded_at: z.iso.datetime({ offset: true }),
   is_estimated: z.boolean().nullable(),
+  nutrition_version: nutritionVersionSchema.nullable(),
+  nutrition_version_origin: z.enum(NUTRITION_VERSION_ORIGINS),
+  nutrition_version_differences: z.array(nutritionVersionSchema),
 })
 
 export const createMealHistoryService = (sql: Sql): MealHistoryService => {
@@ -65,8 +74,10 @@ export const createMealHistoryService = (sql: Sql): MealHistoryService => {
                   fmn.nutrient_code AS nutrient_code,
                   SUM(fmn.value * ml.quantity) AS value
                 FROM meal_logs ml
+                INNER JOIN food_master_nutrition nutrition
+                  ON nutrition.id = ml.nutrition_version_id
                 INNER JOIN food_master_nutrients fmn
-                  ON fmn.food_master_id = ml.food_master_id
+                  ON fmn.nutrition_version_id = nutrition.id
                 WHERE ml.eaten_date >= ${periodFrom}::date
                   AND ml.eaten_date < ${periodTo}::date
                   AND (
@@ -93,7 +104,7 @@ export const createMealHistoryService = (sql: Sql): MealHistoryService => {
                     FROM meal_logs ml
                     CROSS JOIN nutrient_definitions nd
                     LEFT JOIN food_master_nutrients fmn
-                      ON fmn.food_master_id = ml.food_master_id
+                      ON fmn.nutrition_version_id = ml.nutrition_version_id
                       AND fmn.nutrient_code = nd.code
                     WHERE ml.eaten_date >= ${periodFrom}::date
                       AND ml.eaten_date < ${periodTo}::date
@@ -107,7 +118,7 @@ export const createMealHistoryService = (sql: Sql): MealHistoryService => {
                           ELSE nd.code = ANY(${nutrientCodes ?? []}::text[])
                         END
                       )
-                      AND fmn.food_master_id IS NULL
+                      AND fmn.nutrition_version_id IS NULL
                     GROUP BY day, nd.code
                     ORDER BY day, nd.code
                   `,
@@ -123,10 +134,63 @@ export const createMealHistoryService = (sql: Sql): MealHistoryService => {
                     ml.created_at AT TIME ZONE 'UTC',
                     'YYYY-MM-DD"T"HH24:MI:SS"Z"'
                   ) AS recorded_at,
-                  fmn.is_estimated AS is_estimated
+                  nutrition.is_estimated AS is_estimated,
+                  CASE
+                    WHEN nutrition.id IS NULL THEN NULL
+                    ELSE jsonb_build_object(
+                      'version_no', nutrition.version_no,
+                      'change_kind', nutrition.change_kind,
+                      'source', nutrition.source,
+                      'is_estimated', nutrition.is_estimated,
+                      'checked_on', to_char(nutrition.checked_on, 'YYYY-MM-DD'),
+                      'effective_from', to_char(nutrition.effective_from, 'YYYY-MM-DD')
+                    )
+                  END AS nutrition_version,
+                  ml.nutrition_version_origin AS nutrition_version_origin,
+                  version_differences.versions AS nutrition_version_differences
                 FROM meal_logs ml
                 INNER JOIN food_masters fm ON fm.id = ml.food_master_id
-                LEFT JOIN food_master_nutrition fmn ON fmn.food_master_id = fm.id
+                LEFT JOIN food_master_nutrition nutrition
+                  ON nutrition.id = ml.nutrition_version_id
+                  AND nutrition.food_master_id = ml.food_master_id
+                LEFT JOIN LATERAL (
+                  SELECT COALESCE(
+                    jsonb_agg(
+                      jsonb_build_object(
+                        'version_no', alternative.version_no,
+                        'change_kind', alternative.change_kind,
+                        'source', alternative.source,
+                        'is_estimated', alternative.is_estimated,
+                        'checked_on', to_char(alternative.checked_on, 'YYYY-MM-DD'),
+                        'effective_from', to_char(alternative.effective_from, 'YYYY-MM-DD')
+                      ) ORDER BY alternative.version_no
+                    ),
+                    '[]'::jsonb
+                  ) AS versions
+                  FROM food_master_nutrition alternative
+                  WHERE nutrition.id IS NOT NULL
+                    AND alternative.food_master_id = ml.food_master_id
+                    AND alternative.id <> nutrition.id
+                    AND EXISTS (
+                      SELECT 1
+                      FROM (
+                        SELECT nutrient_code
+                        FROM food_master_nutrients
+                        WHERE nutrition_version_id = nutrition.id
+                        UNION
+                        SELECT nutrient_code
+                        FROM food_master_nutrients
+                        WHERE nutrition_version_id = alternative.id
+                      ) nutrient_codes
+                      LEFT JOIN food_master_nutrients selected_value
+                        ON selected_value.nutrition_version_id = nutrition.id
+                        AND selected_value.nutrient_code = nutrient_codes.nutrient_code
+                      LEFT JOIN food_master_nutrients alternative_value
+                        ON alternative_value.nutrition_version_id = alternative.id
+                        AND alternative_value.nutrient_code = nutrient_codes.nutrient_code
+                      WHERE selected_value.value IS DISTINCT FROM alternative_value.value
+                    )
+                ) version_differences ON true
                 WHERE ml.eaten_date >= ${periodFrom}::date
                   AND ml.eaten_date < ${periodTo}::date
                   AND (
@@ -201,6 +265,13 @@ export const createMealHistoryService = (sql: Sql): MealHistoryService => {
           quantity: row.quantity,
           recordedAt: row.recorded_at,
           nutritionStatus: nutritionStatusFromIsEstimated(row.is_estimated),
+          nutritionVersion:
+            row.nutrition_version === null
+              ? null
+              : mapNutritionVersion(row.nutrition_version),
+          nutritionVersionOrigin: row.nutrition_version_origin,
+          nutritionVersionDifferences:
+            row.nutrition_version_differences.map(mapNutritionVersion),
         }))
         const hasEstimatedValues = entryParsed.data.some(
           (row) =>
@@ -223,6 +294,17 @@ export const createMealHistoryService = (sql: Sql): MealHistoryService => {
     },
   }
 }
+
+const mapNutritionVersion = (
+  version: NutritionVersionWire,
+): MealHistoryNutritionVersion => ({
+  versionNo: version.version_no,
+  changeKind: version.change_kind,
+  source: version.source,
+  isEstimated: version.is_estimated,
+  checkedOn: version.checked_on,
+  effectiveFrom: version.effective_from,
+})
 
 const buildPerDay = (
   rows: ReadonlyArray<{

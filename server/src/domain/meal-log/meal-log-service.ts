@@ -1,11 +1,4 @@
-import {
-  err,
-  errAsync,
-  ok,
-  okAsync,
-  Result,
-  type ResultAsync,
-} from 'neverthrow'
+import { err, errAsync, ok, okAsync, Result, ResultAsync } from 'neverthrow'
 
 import type { FoodMasterService } from '#domain/food-master/service'
 import {
@@ -18,14 +11,12 @@ import {
   MealLogNotFoundError,
   MealLogPersistenceError,
 } from '#domain/meal-log/errors'
-import type {
-  MealLogRepository,
-  MealLogWriteResult,
-} from '#domain/meal-log/meal-log-repository'
+import type { MealLogRepository } from '#domain/meal-log/meal-log-repository'
 import type {
   FoodMasterRef,
   MealLogDeletionResult,
   MealLogResult,
+  MealLogRow,
   NutritionMap,
   RecordMealLogInput,
   RecordMealLogItemInput,
@@ -113,7 +104,7 @@ export const createMealLogService = (
     if (input.eatenDate > toJstDateString(deps.now())) {
       return errAsync(new FutureEatenDateError(input.eatenDate))
     }
-    return validateRecordItem(deps.repository, input).andThen((food) =>
+    return validateRecordItem(deps.repository, input).andThen(() =>
       deps.repository
         .insertMealLog({
           id: deps.idGenerator(),
@@ -122,7 +113,7 @@ export const createMealLogService = (
           mealType: input.mealType,
           quantity: input.quantity,
         })
-        .map((log) => buildResult(log, food)),
+        .map(buildResult),
     )
   },
   recordMany(input) {
@@ -149,8 +140,7 @@ export const createMealLogService = (
     )
 
     return validatedItems.andThen((items) => {
-      const plannedItems = items.map(({ item, food }) => ({
-        food,
+      const plannedItems = items.map(({ item }) => ({
         insertInput: {
           id: deps.idGenerator(),
           foodMasterId: item.foodMasterId,
@@ -163,9 +153,11 @@ export const createMealLogService = (
       return deps.repository
         .insertMealLogs(plannedItems.map(({ insertInput }) => insertInput))
         .andThen((rows) => {
-          const rowsById = new Map(rows.map((row) => [row.id, row] as const))
+          const rowsById = new Map(
+            rows.map((row) => [row.log.id, row] as const),
+          )
           return Result.combine(
-            plannedItems.map(({ food, insertInput }) => {
+            plannedItems.map(({ insertInput }) => {
               const row = rowsById.get(insertInput.id)
               return row === undefined
                 ? err(
@@ -174,8 +166,8 @@ export const createMealLogService = (
                     ),
                   )
                 : ok({
-                    ...buildResult(row, food),
-                    foodName: food.name,
+                    ...buildResult(row),
+                    foodName: row.food.name,
                   })
             }),
           )
@@ -205,7 +197,7 @@ export const createMealLogService = (
         input.mealType === undefined &&
         input.quantity === undefined
       ) {
-        return okAsync(buildResult(found.log, found.food))
+        return okAsync(buildResult(found))
       }
       const newFoodMasterId =
         input.foodMasterId !== undefined &&
@@ -239,36 +231,30 @@ export const createMealLogService = (
               ? {}
               : { quantity: input.quantity }),
           })
-          .andThen((log) =>
-            newFoodMasterId === undefined
-              ? okAsync(buildResult(log, food))
-              : // Learn from the correction: the old food's name is what the
-                // user's phrasing actually matched to the wrong food_master.
-                // Recording it as an alias on the corrected one means the
-                // same phrasing finds the right food next time. addAlias
-                // never errors on an alias collision (ON CONFLICT DO
-                // NOTHING) — an error here is a genuine persistence failure,
-                // which should surface rather than be silently discarded.
-                deps.foodMasterService
-                  .addAlias(newFoodMasterId, found.food.name)
-                  .mapErr(
-                    (e) =>
-                      new MealLogPersistenceError(
-                        'failed to learn food_master alias',
-                        e,
-                      ),
-                  )
-                  .map(() => buildResult(log, food)),
-          )
+          .andThen((log) => {
+            // The user's phrasing matched the old food name, so preserve it as
+            // an alias on the corrected food for future searches.
+            const aliasResult =
+              newFoodMasterId === undefined
+                ? okAsync(undefined)
+                : deps.foodMasterService
+                    .addAlias(newFoodMasterId, found.food.name)
+                    .mapErr(
+                      (e) =>
+                        new MealLogPersistenceError(
+                          'failed to learn food_master alias',
+                          e,
+                        ),
+                    )
+            return aliasResult.map(() => buildResult(log))
+          })
       })
     })
   },
   getById(id) {
     return deps.repository
       .findMealLogById(id)
-      .map((found) =>
-        found === null ? null : buildResult(found.log, found.food),
-      )
+      .map((found) => (found === null ? null : buildResult(found)))
   },
   delete(id) {
     return deps.repository
@@ -283,13 +269,17 @@ export const createMealLogService = (
 })
 
 const buildResult = (
-  log: MealLogWriteResult,
-  food: FoodMasterRef,
+  found: { readonly log: MealLogRow; readonly food: FoodMasterRef } & {
+    readonly stockShortfall?: number
+  },
 ): MealLogResult => ({
-  ...log,
-  nutrition: scaleNutrition(food.nutritionPerUnit, log.quantity),
-  isEstimated: food.isEstimated,
-  nutritionStatus: food.nutritionStatus,
+  ...found.log,
+  ...(found.stockShortfall === undefined
+    ? {}
+    : { stockShortfall: found.stockShortfall }),
+  nutrition: scaleNutrition(found.food.nutritionPerUnit, found.log.quantity),
+  isEstimated: found.food.isEstimated,
+  nutritionStatus: found.food.nutritionStatus,
 })
 
 const scaleNutrition = (

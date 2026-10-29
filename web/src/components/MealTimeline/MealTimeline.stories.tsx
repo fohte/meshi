@@ -18,6 +18,16 @@ const ENTRIES: ReadonlyArray<DayDetailEntry> = [
     kcal: 234,
     isEstimated: false,
     nutritionStatus: 'confirmed',
+    nutritionVersion: {
+      versionNo: 1,
+      changeKind: 'initial',
+      source: 'web_search',
+      isEstimated: false,
+      checkedOn: '2026-07-20',
+      effectiveFrom: null,
+    },
+    nutritionVersionOrigin: 'recorded',
+    nutritionVersionDifferences: [],
   },
   {
     id: 'l2',
@@ -29,6 +39,16 @@ const ENTRIES: ReadonlyArray<DayDetailEntry> = [
     kcal: 300,
     isEstimated: false,
     nutritionStatus: 'confirmed',
+    nutritionVersion: {
+      versionNo: 1,
+      changeKind: 'initial',
+      source: 'web_search',
+      isEstimated: false,
+      checkedOn: '2026-07-20',
+      effectiveFrom: null,
+    },
+    nutritionVersionOrigin: 'recorded',
+    nutritionVersionDifferences: [],
   },
   {
     id: 'l3',
@@ -40,6 +60,16 @@ const ENTRIES: ReadonlyArray<DayDetailEntry> = [
     kcal: 480,
     isEstimated: true,
     nutritionStatus: 'estimated',
+    nutritionVersion: {
+      versionNo: 7,
+      changeKind: 'initial',
+      source: 'model_estimate',
+      isEstimated: true,
+      checkedOn: null,
+      effectiveFrom: null,
+    },
+    nutritionVersionOrigin: 'recorded',
+    nutritionVersionDifferences: [],
   },
 ]
 
@@ -53,6 +83,9 @@ const UNKNOWN_ENTRY: DayDetailEntry = {
   kcal: null,
   isEstimated: false,
   nutritionStatus: 'unknown',
+  nutritionVersion: null,
+  nutritionVersionOrigin: 'recorded',
+  nutritionVersionDifferences: [],
 }
 
 const meta: Meta<typeof MealTimeline> = {
@@ -89,6 +122,44 @@ export const WithUnknownNutrition: Story = {
   args: { groups: buildMealTimelineGroups([...ENTRIES, UNKNOWN_ENTRY], []) },
 }
 
+const ENTRY_WITH_DIFFERENT_VERSION: DayDetailEntry = {
+  id: 'l6',
+  foodMasterId: 'versioned-food',
+  foodName: 'バージョン差のあるメニュー',
+  eatenDate: '2026-07-29',
+  mealType: 'lunch',
+  quantity: 1,
+  kcal: 260,
+  isEstimated: false,
+  nutritionStatus: 'confirmed',
+  nutritionVersion: {
+    versionNo: 48,
+    changeKind: 'initial',
+    source: 'web_search',
+    isEstimated: false,
+    checkedOn: '2026-07-20',
+    effectiveFrom: null,
+  },
+  nutritionVersionOrigin: 'recorded',
+  nutritionVersionDifferences: [
+    {
+      versionNo: 49,
+      changeKind: 'product_update',
+      source: 'web_search',
+      isEstimated: false,
+      checkedOn: '2026-07-22',
+      effectiveFrom: null,
+    },
+  ],
+}
+
+export const WithDifferentNutritionVersion: Story = {
+  name: '昼食に栄養値の異なるバージョンがある食品を含んでいます',
+  args: {
+    groups: buildMealTimelineGroups([ENTRY_WITH_DIFFERENT_VERSION], []),
+  },
+}
+
 const ENTRY_WITHOUT_KCAL: DayDetailEntry = {
   id: 'l5',
   foodMasterId: 'meal-without-kcal',
@@ -99,6 +170,16 @@ const ENTRY_WITHOUT_KCAL: DayDetailEntry = {
   kcal: null,
   isEstimated: false,
   nutritionStatus: 'confirmed',
+  nutritionVersion: {
+    versionNo: 1,
+    changeKind: 'initial',
+    source: 'web_search',
+    isEstimated: false,
+    checkedOn: '2026-07-20',
+    effectiveFrom: null,
+  },
+  nutritionVersionOrigin: 'recorded',
+  nutritionVersionDifferences: [],
 }
 
 const MEAL_PHOTO: MealPhoto = {

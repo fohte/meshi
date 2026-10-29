@@ -1,12 +1,39 @@
 import type { ResultAsync } from 'neverthrow'
 
-import type { NutritionStatus } from '#domain/food-master/types'
+import type { FoodSource, NutritionStatus } from '#domain/food-master/types'
 import type { MealType } from '#domain/meal-log/types'
 import type { JstDate } from '#lib/jst-date'
 
 export type NutrientCode = string
 
 export type NutritionMap = Readonly<Record<NutrientCode, number>>
+
+export const NUTRITION_VERSION_CHANGE_KINDS = [
+  'initial',
+  'product_update',
+  'correction',
+] as const
+
+type NutritionVersionChangeKind =
+  (typeof NUTRITION_VERSION_CHANGE_KINDS)[number]
+
+export const NUTRITION_VERSION_ORIGINS = [
+  'recorded',
+  'migrated',
+  'filled',
+  'reassigned',
+] as const
+
+export type NutritionVersionOrigin = (typeof NUTRITION_VERSION_ORIGINS)[number]
+
+export interface MealHistoryNutritionVersion {
+  readonly versionNo: number
+  readonly changeKind: NutritionVersionChangeKind
+  readonly source: FoodSource
+  readonly isEstimated: boolean
+  readonly checkedOn: string | null
+  readonly effectiveFrom: string | null
+}
 
 interface QueryMealHistoryInput {
   // JST calendar date (see src/lib/jst-date.ts), inclusive.
@@ -27,6 +54,9 @@ export interface MealLogEntry {
   readonly quantity: number
   readonly recordedAt: string
   readonly nutritionStatus: NutritionStatus
+  readonly nutritionVersion: MealHistoryNutritionVersion | null
+  readonly nutritionVersionOrigin: NutritionVersionOrigin
+  readonly nutritionVersionDifferences: ReadonlyArray<MealHistoryNutritionVersion>
 }
 
 export interface MealHistoryDayTotals {

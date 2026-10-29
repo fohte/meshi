@@ -44,6 +44,11 @@ export interface RegisterDeliveryInput {
   readonly items: ReadonlyArray<DeliveryItemInput>
 }
 
+export interface UpdateDeliverySourceRefInput {
+  readonly deliveryId: string
+  readonly sourceRef: string
+}
+
 export interface ReceiveDeliveryInput {
   readonly deliveryId: string
   readonly receivedDate: string
@@ -64,6 +69,28 @@ export interface Delivery {
   readonly receivedDate: string | null
   readonly changeDeadline: string | null
   readonly items: ReadonlyArray<DeliveryItem>
+}
+
+export interface ListDeliveriesInput {
+  readonly deliveryId?: string
+  readonly sourceRef?: string
+  readonly status?: Delivery['status']
+  readonly limit: number
+}
+
+interface DeliverySourceRefHistoryItem {
+  readonly sourceRef: string
+  readonly createdAt: string
+}
+
+interface DeliveryLotItem extends DeliveryItem {
+  readonly stockLotId: string
+  readonly remainingQuantity: number | null
+}
+
+export interface ListedDelivery extends Omit<Delivery, 'items'> {
+  readonly sourceRefHistory: ReadonlyArray<DeliverySourceRefHistoryItem>
+  readonly items: ReadonlyArray<DeliveryLotItem>
 }
 
 interface StockStorageLocation {
@@ -198,9 +225,15 @@ export interface StockRepository {
   registerDelivery(
     input: RegisterDeliveryInput,
   ): ResultAsync<Delivery, StockDomainError>
+  updateDeliverySourceRef(
+    input: UpdateDeliverySourceRefInput,
+  ): ResultAsync<ListedDelivery, StockDomainError>
   receiveDelivery(
     input: ReceiveDeliveryInput,
   ): ResultAsync<Delivery, StockDomainError>
+  listDeliveries(
+    input: ListDeliveriesInput,
+  ): ResultAsync<ReadonlyArray<ListedDelivery>, StockDomainError>
   getStockStatus(
     today: JstDate,
   ): ResultAsync<StockStatusSnapshot, StockDomainError>
@@ -219,8 +252,14 @@ export interface StockService {
   registerDelivery(
     input: RegisterDeliveryInput,
   ): ResultAsync<Delivery, StockDomainError>
+  updateDeliverySourceRef(
+    input: UpdateDeliverySourceRefInput,
+  ): ResultAsync<ListedDelivery, StockDomainError>
   receiveDelivery(
     input: ReceiveDeliveryInput,
   ): ResultAsync<Delivery, StockDomainError>
+  listDeliveries(
+    input: ListDeliveriesInput,
+  ): ResultAsync<ReadonlyArray<ListedDelivery>, StockDomainError>
   getStockStatus(): ResultAsync<StockStatus, StockDomainError>
 }

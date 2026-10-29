@@ -38,6 +38,9 @@ export interface CreateSheetState extends SingleSheetStateFields {
 export interface EditSheetState extends SingleSheetStateFields {
   readonly mode: 'edit'
   readonly mealLogId: string
+  readonly nutritionVersion: DayDetailEntry['nutritionVersion']
+  readonly nutritionVersionOrigin: DayDetailEntry['nutritionVersionOrigin']
+  readonly nutritionVersionDifferences: DayDetailEntry['nutritionVersionDifferences']
 }
 
 interface MealSetRecordItem {
@@ -105,6 +108,9 @@ export const buildEditState = (entry: DayDetailEntry): EditSheetState => ({
   mealType: entry.mealType,
   date: entry.eatenDate,
   justSaved: false,
+  nutritionVersion: entry.nutritionVersion,
+  nutritionVersionOrigin: entry.nutritionVersionOrigin,
+  nutritionVersionDifferences: entry.nutritionVersionDifferences,
 })
 
 export const previewKcal = (state: SingleSheetState): number | null => {

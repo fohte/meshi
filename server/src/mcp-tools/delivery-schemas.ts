@@ -63,3 +63,50 @@ export const deliveryStructuredOutput = z.object({
   change_deadline: z.iso.date().nullable(),
   items: z.array(deliveryStructuredItemOutput),
 })
+
+export const listDeliveriesInput = z
+  .object({
+    delivery_id: z.string().trim().min(1).optional(),
+    source_ref: z.string().trim().min(1).optional(),
+    status: z.enum(['planned', 'received', 'cancelled']).optional(),
+    limit: z.number().int().min(1).max(50).optional(),
+  })
+  .strict()
+
+export const updateDeliverySourceRefInput = z
+  .object({
+    delivery_id: z.string().trim().min(1),
+    source_ref: z.string().trim().min(1),
+  })
+  .strict()
+
+const deliverySourceRefHistoryOutput = z.object({
+  source_ref: z.string(),
+  created_at: z.iso.datetime({ offset: true }),
+})
+
+const listedDeliveryStructuredOutput = z.object({
+  delivery_id: z.string(),
+  source_ref: z.string().nullable(),
+  source_ref_history: z.array(deliverySourceRefHistoryOutput),
+  status: z.enum(['planned', 'received', 'cancelled']),
+  expected_date: z.iso.date(),
+  received_date: z.iso.date().nullable(),
+  change_deadline: z.iso.date().nullable(),
+  items: z.array(
+    z.object({
+      food_master_id: z.string(),
+      food_name: z.string(),
+      stock_lot_id: z.string(),
+      quantity: z.number(),
+      remaining_quantity: z.number().nullable(),
+    }),
+  ),
+})
+
+export const listDeliveriesStructuredOutput = z.object({
+  deliveries: z.array(listedDeliveryStructuredOutput),
+})
+
+export const updateDeliverySourceRefStructuredOutput =
+  listedDeliveryStructuredOutput

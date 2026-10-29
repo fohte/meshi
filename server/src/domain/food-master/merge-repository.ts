@@ -4,7 +4,7 @@ import { z } from 'zod'
 import type { Sql } from '#db/index'
 import { FoodMasterDomainError } from '#domain/food-master/errors'
 import type { IdGenerator } from '#domain/food-master/id'
-import { toNutritionMap, type TxSql } from '#domain/food-master/rows'
+import type { TxSql } from '#domain/food-master/rows'
 import { runInSavepoint } from '#domain/food-master/savepoint'
 import type {
   FoodMasterId,
@@ -38,10 +38,12 @@ const stockLotMergeRowSchema = z.object({
   loser_lot_id: z.string(),
 })
 const nutrientRowSchema = z.object({
-  nutrient_code: z.string(),
-  value: z.string(),
+  previous_version_no: z.number().int(),
+  version_no: z.number().int(),
 })
 const countRowSchema = z.object({ count: z.number() })
+const versionNoRowSchema = z.object({ version_no: z.number().int() })
+const maxVersionNoRowSchema = z.object({ max_version_no: z.number().int() })
 
 // Every raw-SQL query result below goes through this before use — Postgres
 // is a process other than this one, and `sql<T[]>`'s type parameter alone
@@ -61,6 +63,57 @@ const parseRows = <T>(
     )
   }
   return ok(parsed.data)
+}
+
+const loadNutritionVersionPlan = async (
+  sql: Sql | TxSql,
+  survivorId: FoodMasterId,
+  loserId: FoodMasterId,
+): Promise<
+  Result<
+    {
+      readonly survivorMaxVersionNo: number
+      readonly movedNutritionVersions: ReadonlyArray<{
+        readonly previousVersionNo: number
+        readonly versionNo: number
+      }>
+    },
+    FoodMasterDomainError
+  >
+> => {
+  const [loserVersionRowsRaw, survivorMaxRowsRaw] = await Promise.all([
+    sql<Record<string, unknown>[]>`
+      SELECT version_no FROM food_master_nutrition
+      WHERE food_master_id = ${loserId}
+      ORDER BY version_no
+    `,
+    sql<Record<string, unknown>[]>`
+      SELECT COALESCE(MAX(version_no), 0)::int AS max_version_no
+      FROM food_master_nutrition
+      WHERE food_master_id = ${survivorId}
+    `,
+  ])
+  const loserVersionRows = parseRows(versionNoRowSchema, loserVersionRowsRaw)
+  if (loserVersionRows.isErr()) return err(loserVersionRows.error)
+  const survivorMaxRows = parseRows(maxVersionNoRowSchema, survivorMaxRowsRaw)
+  if (survivorMaxRows.isErr()) return err(survivorMaxRows.error)
+  const survivorMaxVersionNo = survivorMaxRows.value[0]?.max_version_no
+  if (survivorMaxVersionNo === undefined) {
+    return err(
+      new FoodMasterDomainError(
+        'persistence_failed',
+        'survivor nutrition version query returned no rows',
+      ),
+    )
+  }
+
+  return ok({
+    survivorMaxVersionNo,
+    movedNutritionVersions: loserVersionRows.value.map((row, index) => ({
+      previousVersionNo: row.version_no,
+      versionNo: survivorMaxVersionNo + index + 1,
+    })),
+  })
 }
 
 const mergeDeliveryLots = async (
@@ -127,41 +180,33 @@ const planMerge = async (
   if (survivor === undefined) return err(notFoundError(survivorId))
   if (loser === undefined) return err(notFoundError(loserId))
 
-  const [
-    movedAliasRowsRaw,
-    nameConflictRowsRaw,
-    discardedNutritionRowsRaw,
-    mealLogCountRowsRaw,
-  ] = await Promise.all([
-    sql<Record<string, unknown>[]>`
+  const [movedAliasRowsRaw, nameConflictRowsRaw, mealLogCountRowsRaw] =
+    await Promise.all([
+      sql<Record<string, unknown>[]>`
       SELECT alias FROM food_master_aliases WHERE food_master_id = ${loserId}
     `,
-    sql<Record<string, unknown>[]>`
+      sql<Record<string, unknown>[]>`
       SELECT EXISTS(
         SELECT 1 FROM food_master_aliases WHERE alias = ${loser.name}
       ) AS conflicts
     `,
-    sql<Record<string, unknown>[]>`
-      SELECT nutrient_code, value
-      FROM food_master_nutrients
-      WHERE food_master_id = ${loserId}
-    `,
-    sql<Record<string, unknown>[]>`
+      sql<Record<string, unknown>[]>`
       SELECT count(*)::int AS count FROM meal_logs WHERE food_master_id = ${loserId}
     `,
-  ])
+    ])
 
   const movedAliasRows = parseRows(aliasRowSchema, movedAliasRowsRaw)
   if (movedAliasRows.isErr()) return err(movedAliasRows.error)
   const nameConflictRows = parseRows(existsRowSchema, nameConflictRowsRaw)
   if (nameConflictRows.isErr()) return err(nameConflictRows.error)
-  const discardedNutritionRows = parseRows(
-    nutrientRowSchema,
-    discardedNutritionRowsRaw,
-  )
-  if (discardedNutritionRows.isErr()) return err(discardedNutritionRows.error)
   const mealLogCountRows = parseRows(countRowSchema, mealLogCountRowsRaw)
   if (mealLogCountRows.isErr()) return err(mealLogCountRows.error)
+  const nutritionVersionPlan = await loadNutritionVersionPlan(
+    sql,
+    survivorId,
+    loserId,
+  )
+  if (nutritionVersionPlan.isErr()) return err(nutritionVersionPlan.error)
 
   return ok({
     survivorId,
@@ -170,7 +215,7 @@ const planMerge = async (
     movedAliases: movedAliasRows.value.map((r) => r.alias),
     nameMovedAsAlias:
       nameConflictRows.value[0]?.conflicts === true ? null : loser.name,
-    discardedNutrition: toNutritionMap(discardedNutritionRows.value),
+    movedNutritionVersions: nutritionVersionPlan.value.movedNutritionVersions,
     movedMealLogCount: mealLogCountRows.value[0]?.count ?? 0,
   })
 }
@@ -202,16 +247,19 @@ const applyMerge = async (
   if (survivor === undefined) return err(notFoundError(survivorId))
   if (loser === undefined) return err(notFoundError(loserId))
 
-  // Read before the DELETE below cascades these rows away.
-  const discardedNutritionRows = parseRows(
-    nutrientRowSchema,
+  const nutritionVersionPlan = await loadNutritionVersionPlan(
+    tx,
+    survivorId,
+    loserId,
+  )
+  if (nutritionVersionPlan.isErr()) return err(nutritionVersionPlan.error)
+  const mealLogRows = parseRows(
+    idRowSchema,
     await tx<Record<string, unknown>[]>`
-      SELECT nutrient_code, value
-      FROM food_master_nutrients
-      WHERE food_master_id = ${loserId}
+      SELECT id FROM meal_logs WHERE food_master_id = ${loserId}
     `,
   )
-  if (discardedNutritionRows.isErr()) return err(discardedNutritionRows.error)
+  if (mealLogRows.isErr()) return err(mealLogRows.error)
 
   const movedAliasRows = parseRows(
     aliasRowSchema,
@@ -237,15 +285,47 @@ const applyMerge = async (
   )
   if (nameAliasRows.isErr()) return err(nameAliasRows.error)
 
-  const movedMealLogRows = parseRows(
-    idRowSchema,
+  const movedNutritionVersionRows = parseRows(
+    nutrientRowSchema,
     await tx<Record<string, unknown>[]>`
-      UPDATE meal_logs SET food_master_id = ${survivorId}
-      WHERE food_master_id = ${loserId}
-      RETURNING id
+      WITH loser_versions AS (
+        SELECT id, version_no AS previous_version_no,
+               row_number() OVER (ORDER BY version_no, id)::int AS position
+        FROM food_master_nutrition
+        WHERE food_master_id = ${loserId}
+      ), moved_versions AS (
+        UPDATE food_master_nutrition AS nutrition
+        SET food_master_id = ${survivorId},
+            version_no = ${nutritionVersionPlan.value.survivorMaxVersionNo} + loser_versions.position,
+            is_current = false
+        FROM loser_versions
+        WHERE nutrition.id = loser_versions.id
+        RETURNING nutrition.id, nutrition.version_no
+      )
+      SELECT loser_versions.previous_version_no, moved_versions.version_no
+      FROM loser_versions
+      JOIN moved_versions ON moved_versions.id = loser_versions.id
+      ORDER BY loser_versions.position
     `,
   )
-  if (movedMealLogRows.isErr()) return err(movedMealLogRows.error)
+  if (movedNutritionVersionRows.isErr()) {
+    return err(movedNutritionVersionRows.error)
+  }
+  if (
+    movedNutritionVersionRows.value.length !==
+    nutritionVersionPlan.value.movedNutritionVersions.length
+  ) {
+    return err(
+      new FoodMasterDomainError(
+        'persistence_failed',
+        'nutrition version merge returned an unexpected number of rows',
+      ),
+    )
+  }
+  await tx`
+    UPDATE meal_logs SET food_master_id = ${survivorId}
+    WHERE food_master_id = ${loserId} AND nutrition_version_id IS NULL
+  `
 
   await tx`
     INSERT INTO meal_set_items (meal_set_id, food_master_id, quantity)
@@ -277,8 +357,8 @@ const applyMerge = async (
     WHERE food_master_id = ${loserId}
   `
 
-  // Referencing rows have been repointed or removed above; aliases and nutrition
-  // rows cascade away whatever was deliberately left under loserId.
+  // Referencing rows have been repointed or removed above; nutrition versions
+  // and aliases have already moved to the survivor.
   await tx`DELETE FROM food_masters WHERE id = ${loserId}`
 
   return ok({
@@ -287,8 +367,11 @@ const applyMerge = async (
     applied: true,
     movedAliases: movedAliasRows.value.map((r) => r.alias),
     nameMovedAsAlias: nameAliasRows.value.length > 0 ? loser.name : null,
-    discardedNutrition: toNutritionMap(discardedNutritionRows.value),
-    movedMealLogCount: movedMealLogRows.value.length,
+    movedNutritionVersions: movedNutritionVersionRows.value.map((row) => ({
+      previousVersionNo: row.previous_version_no,
+      versionNo: row.version_no,
+    })),
+    movedMealLogCount: mealLogRows.value.length,
   })
 }
 

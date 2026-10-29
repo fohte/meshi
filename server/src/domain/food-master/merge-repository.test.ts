@@ -2,6 +2,7 @@ import { beforeEach, expect, it } from 'vitest'
 
 import { createFoodMasterRepository } from '#domain/food-master/index'
 import type { FoodMasterRepository } from '#domain/food-master/repository'
+import { createMealHistoryService } from '#domain/meal-history/mealHistoryService'
 import { captureDomainError } from '#test/capture-domain-error'
 import { describeIfDb, setupTx } from '#test/db'
 import { createCountingIdGenerator, type IdCounter } from '#test/id-counter'
@@ -10,6 +11,8 @@ import {
   seedDelivery,
   seedFoodMaster,
   seedFoodMasterAlias,
+  seedFoodMasterNutritionVersion,
+  seedFoodMasterWithoutNutrition,
   seedMealLog,
   seedMealSet,
   seedMealSetItem,
@@ -18,6 +21,8 @@ import {
   seedStockMovement,
   seedStorageLocation,
 } from '#test/seed'
+
+const observation = <T extends object>(value: T): T => value
 
 describeIfDb('mergeFoodMasters (merge-repository)', () => {
   const getTx = setupTx()
@@ -102,7 +107,12 @@ describeIfDb('mergeFoodMasters (merge-repository)', () => {
       foodMasterId: string
       nutrientCode: string
     }>
-    readonly mealLogs: ReadonlyArray<{ id: string; foodMasterId: string }>
+    readonly mealLogs: ReadonlyArray<{
+      id: string
+      foodMasterId: string
+      nutritionVersionOrigin: string
+      referencesCurrentVersion: boolean
+    }>
     readonly stockItems: ReadonlyArray<{
       foodMasterId: string
       storageLocationId: string | null
@@ -164,17 +174,38 @@ describeIfDb('mergeFoodMasters (merge-repository)', () => {
       >`
         SELECT food_master_id, is_estimated, source, source_url,
                source_composition_code
-        FROM food_master_nutrition ORDER BY food_master_id
+        FROM food_master_nutrition
+        WHERE is_current = true
+        ORDER BY food_master_id
       `,
       tx<{ food_master_id: string; alias: string }[]>`
         SELECT food_master_id, alias FROM food_master_aliases ORDER BY alias
       `,
       tx<{ food_master_id: string; nutrient_code: string }[]>`
-        SELECT food_master_id, nutrient_code FROM food_master_nutrients
-        ORDER BY food_master_id, nutrient_code
+        SELECT nutrition.food_master_id, nutrients.nutrient_code
+        FROM food_master_nutrients AS nutrients
+        JOIN food_master_nutrition AS nutrition
+          ON nutrition.id = nutrients.nutrition_version_id
+        WHERE nutrition.is_current = true
+        ORDER BY nutrition.food_master_id, nutrients.nutrient_code
       `,
-      tx<{ id: string; food_master_id: string }[]>`
-        SELECT id, food_master_id FROM meal_logs ORDER BY id
+      tx<
+        {
+          id: string
+          food_master_id: string
+          nutrition_version_origin: string
+          references_current_version: boolean
+        }[]
+      >`
+        SELECT logs.id, logs.food_master_id,
+               logs.nutrition_version_origin,
+               logs.nutrition_version_id = current.id
+                 AS references_current_version
+        FROM meal_logs AS logs
+        LEFT JOIN food_master_nutrition AS current
+          ON current.food_master_id = logs.food_master_id
+         AND current.is_current = true
+        ORDER BY logs.id
       `,
       tx<
         {
@@ -244,6 +275,8 @@ describeIfDb('mergeFoodMasters (merge-repository)', () => {
       mealLogs: mealLogs.map((r) => ({
         id: r.id,
         foodMasterId: r.food_master_id,
+        nutritionVersionOrigin: r.nutrition_version_origin,
+        referencesCurrentVersion: r.references_current_version,
       })),
       stockItems: stockItems.map((r) => ({
         foodMasterId: r.food_master_id,
@@ -292,7 +325,7 @@ describeIfDb('mergeFoodMasters (merge-repository)', () => {
       applied: false,
       movedAliases: ['loser alias'],
       nameMovedAsAlias: 'loser food',
-      discardedNutrition: { energy_kcal: 50, protein_g: 5 },
+      movedNutritionVersions: [{ previousVersionNo: 1, versionNo: 2 }],
       movedMealLogCount: 1,
     })
 
@@ -312,7 +345,7 @@ describeIfDb('mergeFoodMasters (merge-repository)', () => {
       applied: true,
       movedAliases: ['loser alias'],
       nameMovedAsAlias: 'loser food',
-      discardedNutrition: { energy_kcal: 50, protein_g: 5 },
+      movedNutritionVersions: [{ previousVersionNo: 1, versionNo: 2 }],
       movedMealLogCount: 1,
     })
   })
@@ -338,12 +371,21 @@ describeIfDb('mergeFoodMasters (merge-repository)', () => {
         { foodMasterId: 'fm_survivor', alias: 'loser food' },
         { foodMasterId: 'fm_survivor', alias: 'survivor alias' },
       ],
-      // The loser's own nutrients (energy_kcal, protein_g) are gone —
-      // cascade-deleted with the loser row, never moved to the survivor.
+      // The loser's nutrients remain in its moved, non-current version.
       nutrients: [{ foodMasterId: 'fm_survivor', nutrientCode: 'energy_kcal' }],
       mealLogs: [
-        { id: 'ml_loser', foodMasterId: 'fm_survivor' },
-        { id: 'ml_survivor', foodMasterId: 'fm_survivor' },
+        {
+          id: 'ml_loser',
+          foodMasterId: 'fm_survivor',
+          nutritionVersionOrigin: 'recorded',
+          referencesCurrentVersion: false,
+        },
+        {
+          id: 'ml_survivor',
+          foodMasterId: 'fm_survivor',
+          nutritionVersionOrigin: 'recorded',
+          referencesCurrentVersion: true,
+        },
       ],
       mealSets: [{ id: 'ms_common_pair', name: 'common pair' }],
       mealSetItems: [
@@ -358,6 +400,307 @@ describeIfDb('mergeFoodMasters (merge-repository)', () => {
       stockLots: [],
       stockMovements: [],
     })
+  })
+
+  it('keeps daily aggregates and every referenced version when merging multiple versions', async () => {
+    const tx = getTx()
+    await seedFoodMasterWithoutNutrition(tx, {
+      id: 'fm_merge_survivor',
+      name: 'survivor food',
+    })
+    await seedFoodMasterWithoutNutrition(tx, {
+      id: 'fm_merge_loser',
+      name: 'loser food',
+    })
+    const survivorOldVersionId = await seedFoodMasterNutritionVersion(tx, {
+      foodMasterId: 'fm_merge_survivor',
+      versionNo: 1,
+      isCurrent: false,
+      changeKind: 'initial',
+      source: 'user_input',
+      nutrients: { energy_kcal: 100 },
+    })
+    const survivorCurrentVersionId = await seedFoodMasterNutritionVersion(tx, {
+      foodMasterId: 'fm_merge_survivor',
+      versionNo: 2,
+      isCurrent: true,
+      changeKind: 'product_update',
+      source: 'user_input',
+      nutrients: { energy_kcal: 120 },
+    })
+    const loserOldVersionId = await seedFoodMasterNutritionVersion(tx, {
+      foodMasterId: 'fm_merge_loser',
+      versionNo: 1,
+      isCurrent: false,
+      changeKind: 'initial',
+      source: 'user_input',
+      nutrients: { energy_kcal: 50 },
+    })
+    const loserCurrentVersionId = await seedFoodMasterNutritionVersion(tx, {
+      foodMasterId: 'fm_merge_loser',
+      versionNo: 2,
+      isCurrent: true,
+      changeKind: 'correction',
+      correctsVersionId: loserOldVersionId,
+      reason: 'corrected source value',
+      source: 'user_input',
+      nutrients: { energy_kcal: 60 },
+    })
+    for (const mealLog of [
+      {
+        id: 'ml_survivor_old',
+        foodMasterId: 'fm_merge_survivor',
+        nutritionVersionId: survivorOldVersionId,
+        eatenDate: jstDate('2026-06-01'),
+        quantity: 1,
+      },
+      {
+        id: 'ml_survivor_current',
+        foodMasterId: 'fm_merge_survivor',
+        nutritionVersionId: survivorCurrentVersionId,
+        eatenDate: jstDate('2026-06-02'),
+        quantity: 2,
+      },
+      {
+        id: 'ml_loser_old',
+        foodMasterId: 'fm_merge_loser',
+        nutritionVersionId: loserOldVersionId,
+        eatenDate: jstDate('2026-06-01'),
+        quantity: 3,
+      },
+      {
+        id: 'ml_loser_current',
+        foodMasterId: 'fm_merge_loser',
+        nutritionVersionId: loserCurrentVersionId,
+        eatenDate: jstDate('2026-06-02'),
+        quantity: 4,
+      },
+    ] as const) {
+      await seedMealLog(tx, {
+        ...mealLog,
+        mealType: 'lunch',
+        nutritionVersionOrigin: 'migrated',
+      })
+    }
+
+    const historyService = createMealHistoryService(tx)
+    const readAggregate = async () => {
+      const result = (
+        await historyService.query({
+          periodFrom: jstDate('2026-06-01'),
+          periodTo: jstDate('2026-06-03'),
+          nutrientCodes: ['energy_kcal'],
+        })
+      )._unsafeUnwrap()
+      return {
+        totals: result.totals,
+        incompleteNutrients: result.incompleteNutrients,
+        perDay: result.perDay,
+        hasEstimatedValues: result.hasEstimatedValues,
+        hasUnknownValues: result.hasUnknownValues,
+      }
+    }
+    const before = await readAggregate()
+
+    ;(
+      await repo.merge('fm_merge_survivor', 'fm_merge_loser', false)
+    )._unsafeUnwrap()
+
+    const after = await readAggregate()
+    const versionRows = await tx<
+      {
+        version_no: number
+        is_current: boolean
+        change_kind: string
+        corrects_previous_version: boolean
+        energy_kcal: number
+      }[]
+    >`
+      SELECT nutrition.version_no, nutrition.is_current,
+             nutrition.change_kind,
+             COALESCE(
+               nutrition.corrects_version_id = (
+                 SELECT previous.id
+                 FROM food_master_nutrition AS previous
+                 WHERE previous.food_master_id = nutrition.food_master_id
+                   AND previous.version_no = nutrition.version_no - 1
+               ),
+               false
+             ) AS corrects_previous_version,
+             nutrients.value::float8 AS energy_kcal
+      FROM food_master_nutrition AS nutrition
+      JOIN food_master_nutrients AS nutrients
+        ON nutrients.nutrition_version_id = nutrition.id
+       AND nutrients.nutrient_code = 'energy_kcal'
+      WHERE nutrition.food_master_id = 'fm_merge_survivor'
+      ORDER BY nutrition.version_no
+    `
+    const mealLogRows = await tx<
+      {
+        id: string
+        food_master_id: string
+        version_no: number
+        version_is_current: boolean
+        nutrition_version_origin: string
+      }[]
+    >`
+      SELECT logs.id, logs.food_master_id, nutrition.version_no,
+             nutrition.is_current AS version_is_current,
+             logs.nutrition_version_origin
+      FROM meal_logs AS logs
+      JOIN food_master_nutrition AS nutrition
+        ON nutrition.id = logs.nutrition_version_id
+      WHERE logs.id IN (
+        'ml_survivor_old', 'ml_survivor_current', 'ml_loser_old',
+        'ml_loser_current'
+      )
+      ORDER BY logs.id
+    `
+
+    const expectedAggregate = {
+      totals: { energy_kcal: 730 },
+      incompleteNutrients: [],
+      perDay: [
+        {
+          date: '2026-06-01',
+          totals: { energy_kcal: 250 },
+          incompleteNutrients: [],
+          hasUnknownValues: false,
+        },
+        {
+          date: '2026-06-02',
+          totals: { energy_kcal: 480 },
+          incompleteNutrients: [],
+          hasUnknownValues: false,
+        },
+      ],
+      hasEstimatedValues: false,
+      hasUnknownValues: false,
+    }
+    const expectedResult = {
+      before: expectedAggregate,
+      after: expectedAggregate,
+      versionRows: [
+        {
+          version_no: 1,
+          is_current: false,
+          change_kind: 'initial',
+          corrects_previous_version: false,
+          energy_kcal: 100,
+        },
+        {
+          version_no: 2,
+          is_current: true,
+          change_kind: 'product_update',
+          corrects_previous_version: false,
+          energy_kcal: 120,
+        },
+        {
+          version_no: 3,
+          is_current: false,
+          change_kind: 'initial',
+          corrects_previous_version: false,
+          energy_kcal: 50,
+        },
+        {
+          version_no: 4,
+          is_current: false,
+          change_kind: 'correction',
+          corrects_previous_version: true,
+          energy_kcal: 60,
+        },
+      ],
+      mealLogRows: [
+        {
+          id: 'ml_loser_current',
+          food_master_id: 'fm_merge_survivor',
+          version_no: 4,
+          version_is_current: false,
+          nutrition_version_origin: 'migrated',
+        },
+        {
+          id: 'ml_loser_old',
+          food_master_id: 'fm_merge_survivor',
+          version_no: 3,
+          version_is_current: false,
+          nutrition_version_origin: 'migrated',
+        },
+        {
+          id: 'ml_survivor_current',
+          food_master_id: 'fm_merge_survivor',
+          version_no: 2,
+          version_is_current: true,
+          nutrition_version_origin: 'migrated',
+        },
+        {
+          id: 'ml_survivor_old',
+          food_master_id: 'fm_merge_survivor',
+          version_no: 1,
+          version_is_current: false,
+          nutrition_version_origin: 'migrated',
+        },
+      ],
+    }
+    expect(observation({ before, after, versionRows, mealLogRows })).toEqual(
+      expectedResult,
+    )
+  })
+
+  it('preserves loser nutrition when the survivor has no current version', async () => {
+    const tx = getTx()
+    await seedFoodMasterWithoutNutrition(tx, {
+      id: 'fm_survivor_unknown',
+      name: 'Unknown nutrition survivor',
+    })
+    await seedFoodMaster(tx, {
+      id: 'fm_loser_known',
+      name: 'Known nutrition loser',
+      source: 'user_input',
+      nutrients: { energy_kcal: 100 },
+    })
+    await seedMealLog(tx, {
+      id: 'ml_loser_known',
+      foodMasterId: 'fm_loser_known',
+      eatenDate: jstDate('2026-06-03'),
+      mealType: 'dinner',
+      quantity: 1.5,
+    })
+
+    ;(
+      await repo.merge('fm_survivor_unknown', 'fm_loser_known', false)
+    )._unsafeUnwrap()
+
+    const rows = await tx<
+      {
+        id: string
+        food_master_id: string
+        nutrition_version_origin: string
+        nutrition_version_no: number | null
+        version_is_current: boolean | null
+        nutrition_change_count: number
+      }[]
+    >`
+      SELECT logs.id, logs.food_master_id, logs.nutrition_version_origin,
+             nutrition.version_no AS nutrition_version_no,
+             nutrition.is_current AS version_is_current,
+             (SELECT count(*)::int FROM meal_log_nutrition_changes AS changes
+              WHERE changes.meal_log_id = logs.id) AS nutrition_change_count
+      FROM meal_logs AS logs
+      LEFT JOIN food_master_nutrition AS nutrition
+        ON nutrition.id = logs.nutrition_version_id
+      WHERE logs.id = 'ml_loser_known'
+    `
+
+    expect(rows).toEqual([
+      {
+        id: 'ml_loser_known',
+        food_master_id: 'fm_survivor_unknown',
+        nutrition_version_origin: 'recorded',
+        nutrition_version_no: 1,
+        version_is_current: false,
+        nutrition_change_count: 0,
+      },
+    ])
   })
 
   const snapshotStock = async (): Promise<{
@@ -747,7 +1090,7 @@ describeIfDb('mergeFoodMasters (merge-repository)', () => {
       applied: false,
       movedAliases: [],
       nameMovedAsAlias: null,
-      discardedNutrition: {},
+      movedNutritionVersions: [{ previousVersionNo: 1, versionNo: 2 }],
       movedMealLogCount: 0,
     })
   })
@@ -765,7 +1108,7 @@ describeIfDb('mergeFoodMasters (merge-repository)', () => {
       applied: true,
       movedAliases: [],
       nameMovedAsAlias: null,
-      discardedNutrition: {},
+      movedNutritionVersions: [{ previousVersionNo: 1, versionNo: 2 }],
       movedMealLogCount: 0,
     })
 

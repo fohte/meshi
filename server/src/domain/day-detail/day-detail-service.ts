@@ -3,7 +3,7 @@ import { drizzle } from 'drizzle-orm/postgres-js'
 import { okAsync, ResultAsync } from 'neverthrow'
 
 import type { Sql } from '#db/index'
-import { foodMasterNutrients, foodMasters } from '#db/schema'
+import { foodMasterNutrients, foodMasters, mealLogs } from '#db/schema'
 import { NUTRIENT_CODES } from '#db/seed/nutrient-definitions'
 import type {
   DayDetail,
@@ -72,9 +72,7 @@ const enrichEntries = (
   aggregate: MealHistoryAggregate,
   skips: ReadonlyArray<MealSkipRow>,
 ): ResultAsync<DayDetail, DayDetailQueryError> => {
-  const foodMasterIds = [
-    ...new Set(aggregate.entries.map((entry) => entry.foodMasterId)),
-  ]
+  const mealLogIds = aggregate.entries.map((entry) => entry.id)
 
   const eatenMealTypes = new Set(
     aggregate.entries.map((entry) => entry.mealType),
@@ -88,7 +86,7 @@ const enrichEntries = (
     skippedSet.has(mealType),
   )
 
-  if (foodMasterIds.length === 0) {
+  if (mealLogIds.length === 0) {
     return okAsync({
       totals: aggregate.totals,
       incompleteNutrients: aggregate.incompleteNutrients,
@@ -102,19 +100,23 @@ const enrichEntries = (
   return ResultAsync.fromPromise(
     db
       .select({
-        id: foodMasters.id,
+        id: mealLogs.id,
         name: foodMasters.name,
         kcalPerUnit: foodMasterNutrients.value,
       })
-      .from(foodMasters)
+      .from(mealLogs)
+      .innerJoin(foodMasters, eq(mealLogs.foodMasterId, foodMasters.id))
       .leftJoin(
         foodMasterNutrients,
         and(
-          eq(foodMasterNutrients.foodMasterId, foodMasters.id),
+          eq(
+            foodMasterNutrients.nutritionVersionId,
+            mealLogs.nutritionVersionId,
+          ),
           eq(foodMasterNutrients.nutrientCode, ENERGY_KCAL_CODE),
         ),
       )
-      .where(inArray(foodMasters.id, foodMasterIds)),
+      .where(inArray(mealLogs.id, mealLogIds)),
     (caughtErr) =>
       new DayDetailQueryError('day detail enrichment lookup failed', caughtErr),
   ).map((foodRows) => {
@@ -136,7 +138,7 @@ const enrichEntries = (
     )
 
     const entries: DayDetailEntry[] = aggregate.entries.map((entry) => {
-      const food = foodById.get(entry.foodMasterId)
+      const food = foodById.get(entry.id)
       return {
         id: entry.id,
         foodMasterId: entry.foodMasterId,
@@ -152,6 +154,9 @@ const enrichEntries = (
               : food.kcalPerUnit * entry.quantity,
         isEstimated: entry.nutritionStatus === 'estimated',
         nutritionStatus: entry.nutritionStatus,
+        nutritionVersion: entry.nutritionVersion,
+        nutritionVersionOrigin: entry.nutritionVersionOrigin,
+        nutritionVersionDifferences: entry.nutritionVersionDifferences,
       }
     })
 

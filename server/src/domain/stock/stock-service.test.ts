@@ -9,6 +9,7 @@ import type {
   RegisterDeliveryInput,
   SetStockItemInput,
   StockRepository,
+  UpdateDeliverySourceRefInput,
   UpdateStockLotInput,
 } from '#domain/stock/types'
 
@@ -43,6 +44,19 @@ const repository: StockRepository = {
       changeDeadline: input.changeDeadline ?? null,
       items: [],
     }),
+  updateDeliverySourceRef: (input: UpdateDeliverySourceRefInput) =>
+    okAsync({
+      id: input.deliveryId,
+      sourceRef: input.sourceRef,
+      sourceRefHistory: [
+        { sourceRef: input.sourceRef, createdAt: '2031-01-01T00:00:00.000Z' },
+      ],
+      status: 'received' as const,
+      expectedDate: '2031-01-01',
+      receivedDate: '2031-01-02',
+      changeDeadline: null,
+      items: [],
+    }),
   receiveDelivery: (input: ReceiveDeliveryInput) =>
     okAsync({
       id: input.deliveryId,
@@ -53,6 +67,7 @@ const repository: StockRepository = {
       changeDeadline: null,
       items: [],
     }),
+  listDeliveries: () => okAsync([]),
   getStockStatus: () =>
     okAsync({ stockItems: [], plannedDeliveries: [], recentConsumption: [] }),
 }
@@ -187,6 +202,57 @@ it('trims the stock lot ID and preserves an explicit null date', async () => {
     eatBy: '2031-05-12',
   })
 })
+
+it('trims the delivery ID and source reference before updating', async () => {
+  const result = await stockService.updateDeliverySourceRef({
+    deliveryId: ' dly_test ',
+    sourceRef: ' ref_test ',
+  })
+
+  expect(result._unsafeUnwrap()).toEqual({
+    id: 'dly_test',
+    sourceRef: 'ref_test',
+    sourceRefHistory: [
+      {
+        sourceRef: 'ref_test',
+        createdAt: '2031-01-01T00:00:00.000Z',
+      },
+    ],
+    status: 'received',
+    expectedDate: '2031-01-01',
+    receivedDate: '2031-01-02',
+    changeDeadline: null,
+    items: [],
+  })
+})
+
+const invalidDeliverySourceRefInputs: ReadonlyArray<{
+  readonly name: string
+  readonly input: UpdateDeliverySourceRefInput
+  readonly message: string
+}> = [
+  {
+    name: 'blank delivery ID',
+    input: { deliveryId: ' ', sourceRef: 'ref_test' },
+    message: 'delivery_id must not be empty',
+  },
+  {
+    name: 'blank source reference',
+    input: { deliveryId: 'dly_test', sourceRef: '  ' },
+    message: 'source_ref must not be empty',
+  },
+]
+
+it.each(invalidDeliverySourceRefInputs)(
+  'rejects $name when updating a delivery source reference',
+  async ({ input, message }) => {
+    const result = await stockService.updateDeliverySourceRef(input)
+
+    expect(result._unsafeUnwrapErr()).toEqual(
+      new StockDomainError('invalid_input', message),
+    )
+  },
+)
 
 const invalidDeliveryInputs: ReadonlyArray<{
   readonly name: string

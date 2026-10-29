@@ -74,6 +74,8 @@ erDiagram
   timestamp_with_time_zone created_at
   meal_type meal_type
   date eaten_date
+  uuid nutrition_version_id FK
+  text nutrition_version_origin
 }
 ```
 

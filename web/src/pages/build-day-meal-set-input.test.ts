@@ -13,6 +13,16 @@ const entry = (overrides: Partial<DayDetailEntry>): DayDetailEntry => ({
   kcal: 120,
   isEstimated: false,
   nutritionStatus: 'confirmed',
+  nutritionVersion: {
+    versionNo: 1,
+    changeKind: 'initial',
+    source: 'web_search',
+    isEstimated: false,
+    checkedOn: '2093-04-02',
+    effectiveFrom: '2093-04-01',
+  },
+  nutritionVersionOrigin: 'recorded',
+  nutritionVersionDifferences: [],
   ...overrides,
 })
 

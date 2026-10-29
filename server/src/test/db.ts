@@ -169,6 +169,7 @@ const createSqlCapture = (): {
 } => {
   const params: unknown[] = []
   const calls: Array<{ query: string; params: unknown[] }> = []
+  let nutritionVersionSequence = 0
   const tag = (
     first: TemplateStringsArray | readonly string[],
     ...rest: unknown[]
@@ -181,6 +182,17 @@ const createSqlCapture = (): {
       '',
     )
     calls.push({ query, params: rest })
+    if (
+      query.includes('INSERT INTO food_master_nutrition') &&
+      query.includes('RETURNING id')
+    ) {
+      nutritionVersionSequence += 1
+      return Promise.resolve([
+        {
+          id: `00000000-0000-7000-8000-${String(nutritionVersionSequence).padStart(12, '0')}`,
+        },
+      ])
+    }
     return Promise.resolve([])
   }
   const fakeSql = Object.assign(tag, {

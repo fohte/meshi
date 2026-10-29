@@ -25,7 +25,7 @@ export interface UpdateMealLogPatch {
   readonly quantity?: number
 }
 
-export interface MealLogWriteResult extends MealLogRow {
+export interface MealLogWriteResult extends FoundMealLog {
   readonly stockShortfall?: number
 }
 

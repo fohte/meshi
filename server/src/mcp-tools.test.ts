@@ -6,8 +6,10 @@ import type { FoodSearchService } from '#domain/food-browse/food-search-service'
 import { FoodMasterDomainError } from '#domain/food-master/errors'
 import type { FoodMasterService } from '#domain/food-master/service'
 import type {
+  AddFoodMasterNutritionVersionInput,
   FillFoodNutritionInput,
   FoodMaster,
+  FoodMasterNutritionVersion,
   RegisterFoodMasterInput,
   RegisterFoodMasterWithoutNutritionInput,
   RegisterFromCompositionInput,
@@ -26,6 +28,7 @@ import {
   MealLogPersistenceError,
 } from '#domain/meal-log/errors'
 import type { MealLogService } from '#domain/meal-log/meal-log-service'
+import type { MealLogNutritionReassignmentService } from '#domain/meal-log/nutrition-reassignment'
 import type {
   MealLogDeletionResult,
   MealLogResult,
@@ -58,6 +61,15 @@ import { jstDate } from '#test/jst-date'
 import { createStubMcpDeps } from '#test/mcp-stubs'
 
 const VALIDATION_ERROR_TEXT = '<schema validation error>'
+
+type MealLogNutritionReassignmentInput = Parameters<
+  MealLogNutritionReassignmentService['reassign']
+>[0]
+type MealLogNutritionReassignmentResult = ReturnType<
+  Awaited<
+    ReturnType<MealLogNutritionReassignmentService['reassign']>
+  >['_unsafeUnwrap']
+>
 
 // zod's exact error message (JSON shape, field ordering, "code" names) is an
 // implementation detail of the MCP SDK / zod version, not part of this app's
@@ -111,6 +123,16 @@ const successMealHistory: MealHistoryAggregate = {
       quantity: 1,
       recordedAt: '2026-06-12T03:30:45Z',
       nutritionStatus: 'confirmed',
+      nutritionVersion: {
+        versionNo: 1,
+        changeKind: 'initial',
+        source: 'user_input',
+        isEstimated: false,
+        checkedOn: null,
+        effectiveFrom: null,
+      },
+      nutritionVersionOrigin: 'recorded',
+      nutritionVersionDifferences: [],
     },
     {
       id: 'log-2',
@@ -121,6 +143,9 @@ const successMealHistory: MealHistoryAggregate = {
       quantity: 1,
       recordedAt: '2026-06-12T05:30:45Z',
       nutritionStatus: 'unknown',
+      nutritionVersion: null,
+      nutritionVersionOrigin: 'recorded',
+      nutritionVersionDifferences: [],
     },
   ],
   hasEstimatedValues: false,
@@ -214,6 +239,16 @@ const recommendationHistory: MealHistoryAggregate = {
       quantity: 1.25,
       recordedAt: '2025-11-23T04:05:06Z',
       nutritionStatus: 'estimated',
+      nutritionVersion: {
+        versionNo: 1,
+        changeKind: 'initial',
+        source: 'model_estimate',
+        isEstimated: true,
+        checkedOn: null,
+        effectiveFrom: null,
+      },
+      nutritionVersionOrigin: 'recorded',
+      nutritionVersionDifferences: [],
     },
     {
       id: 'meal_log_epsilon',
@@ -224,6 +259,9 @@ const recommendationHistory: MealHistoryAggregate = {
       quantity: 1,
       recordedAt: '2025-11-23T06:05:06Z',
       nutritionStatus: 'unknown',
+      nutritionVersion: null,
+      nutritionVersionOrigin: 'recorded',
+      nutritionVersionDifferences: [],
     },
   ],
   hasEstimatedValues: true,
@@ -335,6 +373,8 @@ const makeFoodMasterService = (
     errAsync(new FoodMasterDomainError('persistence_failed', 'not stubbed'))
   return {
     fillNutrition: unused,
+    addNutritionVersion: unused,
+    listNutritionVersions: unused,
     registerWithSimilarNameCheck: unused,
     registerWithoutNutritionWithSimilarNameCheck: unused,
     getById: (id) => okAsync(foodMasters.get(id) ?? null),
@@ -352,7 +392,7 @@ const makeFoodMasterService = (
         applied: !dryRun,
         movedAliases: ['alternate_label'],
         nameMovedAsAlias: 'removed_food_label',
-        discardedNutrition: { energy_kcal: 118 },
+        movedNutritionVersions: [{ previousVersionNo: 1, versionNo: 2 }],
         movedMealLogCount: 3,
       })
     },
@@ -567,6 +607,7 @@ interface HarnessConfig {
   >
   recordMealLogError?: DomainError
   foodMasterOverrides?: Partial<FoodMasterService>
+  mealLogNutritionReassignmentService?: Partial<MealLogNutritionReassignmentService>
 }
 
 const start = async (config: HarnessConfig = {}): Promise<Harness> => {
@@ -612,6 +653,11 @@ const start = async (config: HarnessConfig = {}): Promise<Harness> => {
         : errAsync(config.recordMealLogError)
     },
   }
+  const mealLogNutritionReassignmentService: MealLogNutritionReassignmentService =
+    {
+      ...createStubMcpDeps().mealLogNutritionReassignmentService,
+      ...config.mealLogNutritionReassignmentService,
+    }
   const mealSetService: MealSetService = {
     register(input) {
       directMealToolCalls.registerMealSets.push(input)
@@ -644,6 +690,7 @@ const start = async (config: HarnessConfig = {}): Promise<Harness> => {
     foodMasterService,
     mealHistoryService,
     mealLogService,
+    mealLogNutritionReassignmentService,
     mealSkipService,
     stockService: createStubMcpDeps().stockService,
     profileService,
@@ -673,12 +720,13 @@ const start = async (config: HarnessConfig = {}): Promise<Harness> => {
 }
 
 describe('MeshiMcpServer tools/list', () => {
-  it('exposes the twenty-two public tools with stable names', async () => {
+  it('exposes the twenty-seven public tools with stable names', async () => {
     const h = await start()
     try {
       const result = await h.client.listTools()
       const names = result.tools.map((t) => t.name).sort()
       expect(names).toEqual([
+        'add_food_nutrition_version',
         'cancel_meal_skip',
         'count_stock',
         'delete_meal_log',
@@ -686,8 +734,11 @@ describe('MeshiMcpServer tools/list', () => {
         'get_profile',
         'get_recommendation_context',
         'get_stock_status',
+        'list_deliveries',
+        'list_food_nutrition_versions',
         'merge_food_master',
         'query_meals',
+        'reassign_meal_log_nutrition',
         'receive_delivery',
         'record_meal_log',
         'record_meal_skip',
@@ -698,6 +749,7 @@ describe('MeshiMcpServer tools/list', () => {
         'register_meal_set',
         'search_foods',
         'set_stock_item',
+        'update_delivery_source_ref',
         'update_meal_log',
         'update_profile',
         'update_stock_lot',
@@ -715,7 +767,37 @@ describe('MeshiMcpServer tools/list', () => {
         (tool) => tool.name === 'query_meals',
       )
       expect(queryMeals?.description).toEqual(
-        'JST の period_from 以上、period_to 未満の食事履歴と栄養集計を返す。質問の解釈と集計結果の説明は ChatGPT が行う。後で記録を削除・修正するときは各記録の meal_log_id を使う。',
+        'JST の period_from 以上、period_to 未満の食事履歴と栄養集計を返す。質問の解釈と集計結果の説明は ChatGPT が行う。後で記録を削除・修正するときは各記録の meal_log_id を使う。採用バージョンが null なら不明を表す。checked_on と effective_from の null もそれぞれ不明を表し、確認日は適用開始日を意味しない。nutrition_version_differences に要素がある場合は同じ食品に栄養値の異なるバージョンがあるため、記録の値を確定値として扱わない。',
+      )
+    } finally {
+      await h.close()
+    }
+  })
+
+  it('explains how correction metadata handles omitted and unknown values', async () => {
+    const h = await start()
+    try {
+      const result = await h.client.listTools()
+      const tool = result.tools.find(
+        (candidate) => candidate.name === 'add_food_nutrition_version',
+      )
+      expect(tool?.description).toEqual(
+        '同じ food_master_id に栄養バージョンを追加する。change_kind=product_update は商品情報の更新に使い、checked_on を指定する。effective_from は実際の適用開始日が分かる場合だけ指定し、不明なら null を指定する。checked_on は情報を確認した日で、商品変更日を意味しない。change_kind=correction は誤登録の訂正に使い、corrects_version_id と reason を必ず指定する。訂正元が現行なら新バージョンが現行になり、過去バージョンなら現行は変わらない。訂正時に serving_basis、net_content、effective_from を省略すると訂正元の値を引き継ぎ、値を指定すると置き換える。これらを不明にする場合は null を指定する。栄養値は meal_logs.quantity が掛ける食品 1 つ分の値を指定する。出典の基準量が食品 1 つ分と異なる場合は食品 1 つ分へ換算する。source=web_search は is_estimated=false と source_url を指定する。source=composition_table_estimate は is_estimated=true と source_composition_code を指定する。source=user_input はユーザー本人が伝えた値に限り、source_url と source_composition_code は指定しない。source=model_estimate は is_estimated=true とし、出典 URL と composition code は指定しない。serving_basis と net_content は分かる値を記録する。既存の食事ログの数量、食品 ID、栄養バージョンは変更しない。',
+      )
+    } finally {
+      await h.close()
+    }
+  })
+
+  it('requires a preview and a reason before changing a meal log version', async () => {
+    const h = await start()
+    try {
+      const result = await h.client.listTools()
+      const tool = result.tools.find(
+        (candidate) => candidate.name === 'reassign_meal_log_nutrition',
+      )
+      expect(tool?.description).toEqual(
+        'query_meals で確認した meal_log_id を指定し、選んだ食事ログの栄養バージョンを同じ食品の別バージョンへ差し替える。最初は dry_run=true で実行し、ログごとの前後の栄養値と影響日の合計を確認する。適用するときは dry_run=false とし、プレビューで返した各ログの before_nutrition_version.id を expected_from_versions に渡す。栄養バージョンが未割当だったログは nutrition_version_id=null を渡す。1 件でもプレビュー後にバージョンが変わっていた場合は全件を拒否する。reason は変更記録に保存される。数量、食品 ID、ログ件数は変更しない。',
       )
     } finally {
       await h.close()
@@ -767,7 +849,7 @@ describe('MeshiMcpServer tools/list', () => {
         (tool) => tool.name === 'fill_food_nutrition',
       )
       expect(fillFoodNutrition?.description).toEqual(
-        '栄養値が未登録の food_master に栄養値を補完する。food_master_id を指定する。nutrition.energy_kcal は必須。source=model_estimate の栄養値は source=web_search または source=user_input の値で置き換えられる。その他の source がある食品と、source=model_estimate の値を別の推定値で置き換えることはできない。公式情報はメーカーまたは店の公式ページを優先し、まとめサイトやブログは使わない。source_url はこの商品とサイズの栄養値を載せたページにする。source=web_search は is_estimated=false かつ source_url 必須。source=user_input はユーザー本人が値を伝えた場合だけ使い、source_url は指定しない。公式情報もユーザーが伝えた値もない場合は一般的な材料と量から推定してよい。推定値は source=model_estimate と is_estimated=true を指定し、source_url と source_composition_code は指定しない。登録前にユーザーの確認を取らず、登録後に推定値であることを伝える。栄養値は出典が示す 1 つ分 (1 個、1 食、100g など) のまま渡す。',
+        '栄養値が未登録の food_master に栄養値を補完する。food_master_id を指定する。nutrition.energy_kcal は必須。補完のたびに新しい栄養バージョンを作り、既存バージョンの値は保持する。source=model_estimate の栄養値は source=web_search または source=user_input の値で補完でき、推定値を参照する過去ログはそのまま保持する。栄養バージョンが未割当の過去ログだけ新バージョンへ割り当て、応答に対象ログと影響日の合計前後を含める。その他の source がある食品と、source=model_estimate の値を別の推定値で置き換えることはできない。公式情報はメーカーまたは店の公式ページを優先し、まとめサイトやブログは使わない。source_url はこの商品とサイズの栄養値を載せたページにする。source=web_search は is_estimated=false かつ source_url 必須。source=user_input はユーザー本人が値を伝えた場合だけ使い、source_url は指定しない。公式情報もユーザーが伝えた値もない場合は一般的な材料と量から推定してよい。推定値は source=model_estimate と is_estimated=true を指定し、source_url と source_composition_code は指定しない。登録前にユーザーの確認を取らず、登録後に推定値であることを伝える。栄養値は出典が示す 1 つ分 (1 個、1 食、100g など) のまま渡す。',
       )
     } finally {
       await h.close()
@@ -798,10 +880,33 @@ describe('MeshiMcpServer tools/list', () => {
         // eslint-disable-next-line @typescript-eslint/no-unsafe-type-assertion -- the SDK reports inputSchema as a generic record; we read top-level keys only.
         const schema = tool.inputSchema as {
           properties?: Record<string, unknown>
+          oneOf?: ReadonlyArray<{ properties?: Record<string, unknown> }>
         }
-        propsByTool[tool.name] = Object.keys(schema.properties ?? {}).sort()
+        propsByTool[tool.name] = [
+          ...new Set([
+            ...Object.keys(schema.properties ?? {}),
+            ...(schema.oneOf ?? []).flatMap((variant) =>
+              Object.keys(variant.properties ?? {}),
+            ),
+          ]),
+        ].sort()
       }
       expect(propsByTool).toEqual({
+        add_food_nutrition_version: [
+          'change_kind',
+          'checked_on',
+          'corrects_version_id',
+          'effective_from',
+          'food_master_id',
+          'is_estimated',
+          'net_content',
+          'nutrition',
+          'reason',
+          'serving_basis',
+          'source',
+          'source_composition_code',
+          'source_url',
+        ],
         cancel_meal_skip: ['date', 'meal_type'],
         count_stock: [
           'best_before',
@@ -820,12 +925,21 @@ describe('MeshiMcpServer tools/list', () => {
         get_profile: [],
         get_recommendation_context: ['period_from', 'period_to'],
         get_stock_status: [],
+        list_deliveries: ['delivery_id', 'limit', 'source_ref', 'status'],
+        list_food_nutrition_versions: ['food_master_id'],
         merge_food_master: [
           'dry_run',
           'loser_food_master_id',
           'survivor_food_master_id',
         ],
         query_meals: ['period_from', 'period_to'],
+        reassign_meal_log_nutrition: [
+          'dry_run',
+          'expected_from_versions',
+          'meal_log_ids',
+          'reason',
+          'to_nutrition_version_id',
+        ],
         receive_delivery: ['delivery_id', 'items', 'received_date'],
         record_meal_log: ['date', 'items', 'meal_type'],
         record_meal_skip: ['date', 'meal_type'],
@@ -846,6 +960,7 @@ describe('MeshiMcpServer tools/list', () => {
           'storage_location_name',
         ],
         update_stock_lot: ['best_before', 'eat_by', 'stock_lot_id'],
+        update_delivery_source_ref: ['delivery_id', 'source_ref'],
         register_food: [
           'aliases',
           'confirmed_distinct_from_master_ids',
@@ -907,13 +1022,18 @@ describe('MeshiMcpServer tools/list', () => {
       const requiredByTool = Object.fromEntries(
         result.tools
           .filter((tool) =>
-            ['register_delivery', 'receive_delivery'].includes(tool.name),
+            [
+              'register_delivery',
+              'receive_delivery',
+              'update_delivery_source_ref',
+            ].includes(tool.name),
           )
           .map((tool) => [tool.name, tool.inputSchema.required]),
       )
       expect(requiredByTool).toEqual({
         receive_delivery: ['delivery_id', 'received_date'],
         register_delivery: ['status', 'expected_date', 'items'],
+        update_delivery_source_ref: ['delivery_id', 'source_ref'],
       })
     } finally {
       await h.close()
@@ -1098,7 +1218,7 @@ describe('MeshiMcpServer tools/list', () => {
         (candidate) => candidate.name === 'merge_food_master',
       )
       expect(tool?.description).toEqual(
-        '同じ食品を指す 2 つの食品マスタを統合する。survivor_food_master_id に残す食品、loser_food_master_id に統合する食品を指定する。survivor は、より信頼できる情報が揃っている食品を選ぶ。値が衝突した場合は survivor を優先し、loser の栄養情報はすべて破棄する。loser の別名と食事ログは survivor に移り、loser の名前は同じ文字列の別名が既に存在しない場合に survivor の別名へ加わる。dry_run は既定で true で、変更せずに移動・破棄の内容を返す。試し実行の結果をユーザーに見せて確認を得てから dry_run=false を指定する。実際に統合すると取り消せない。',
+        '同じ食品を指す 2 つの食品マスタを統合する。survivor_food_master_id に残す食品、loser_food_master_id に統合する食品を指定する。survivor は、より信頼できる情報が揃っている食品を選ぶ。survivor の現行栄養値を維持し、loser の全栄養バージョンを survivor の続き番号で現行ではない履歴として残す。loser の食事ログは元の栄養バージョンと割り当ての経緯を保ったまま survivor に移る。loser の別名も survivor に移り、loser の名前は同じ文字列の別名が既に存在しない場合に survivor の別名へ加わる。dry_run は既定で true で、変更せずに移動内容を返す。試し実行の結果をユーザーに見せて確認を得てから dry_run=false を指定する。実際に統合すると取り消せない。',
       )
     } finally {
       await h.close()
@@ -1158,7 +1278,9 @@ describe('merge_food_master', () => {
             applied: false,
             moved_aliases: ['alternate_label'],
             name_moved_as_alias: 'removed_food_label',
-            discarded_nutrition: { energy_kcal: 118 },
+            moved_nutrition_versions: [
+              { previous_version_no: 1, version_no: 2 },
+            ],
             moved_meal_log_count: 3,
           },
         },
@@ -1195,7 +1317,9 @@ describe('merge_food_master', () => {
             applied: true,
             moved_aliases: ['alternate_label'],
             name_moved_as_alias: 'removed_food_label',
-            discarded_nutrition: { energy_kcal: 118 },
+            moved_nutrition_versions: [
+              { previous_version_no: 1, version_no: 2 },
+            ],
             moved_meal_log_count: 3,
           },
         },
@@ -1289,6 +1413,16 @@ describe('query_meals', () => {
               quantity: 1,
               recorded_at: '2026-06-12T03:30:45Z',
               nutrition_status: 'confirmed',
+              nutrition_version: {
+                version_no: 1,
+                change_kind: 'initial',
+                source: 'user_input',
+                is_estimated: false,
+                checked_on: null,
+                effective_from: null,
+              },
+              nutrition_version_origin: 'recorded',
+              nutrition_version_differences: [],
             },
             {
               meal_log_id: 'log-2',
@@ -1299,6 +1433,9 @@ describe('query_meals', () => {
               quantity: 1,
               recorded_at: '2026-06-12T05:30:45Z',
               nutrition_status: 'unknown',
+              nutrition_version: null,
+              nutrition_version_origin: 'recorded',
+              nutrition_version_differences: [],
             },
           ],
           has_estimated_values: false,
@@ -2128,6 +2265,16 @@ describe('get_recommendation_context', () => {
                 quantity: 1.25,
                 recorded_at: '2025-11-23T04:05:06Z',
                 nutrition_status: 'estimated',
+                nutrition_version: {
+                  version_no: 1,
+                  change_kind: 'initial',
+                  source: 'model_estimate',
+                  is_estimated: true,
+                  checked_on: null,
+                  effective_from: null,
+                },
+                nutrition_version_origin: 'recorded',
+                nutrition_version_differences: [],
               },
               {
                 meal_log_id: 'meal_log_epsilon',
@@ -2138,6 +2285,9 @@ describe('get_recommendation_context', () => {
                 quantity: 1,
                 recorded_at: '2025-11-23T06:05:06Z',
                 nutrition_status: 'unknown',
+                nutrition_version: null,
+                nutrition_version_origin: 'recorded',
+                nutrition_version_differences: [],
               },
             ],
             has_estimated_values: true,
@@ -3188,6 +3338,603 @@ describe('register_food', () => {
   })
 })
 
+describe('food nutrition versions', () => {
+  it('adds and lists full nutrition version records through MCP', async () => {
+    const previousVersion: FoodMasterNutritionVersion = {
+      id: 'nutrition_version_alpha',
+      foodMasterId: 'fm_version_alpha',
+      versionNo: 1,
+      changeKind: 'initial',
+      correctsVersionId: null,
+      isCurrent: false,
+      servingBasis: null,
+      netContent: null,
+      nutrition: { energy_kcal: 120, protein_g: 4 },
+      source: 'user_input',
+      sourceUrl: null,
+      sourceCompositionCode: null,
+      isEstimated: false,
+      checkedOn: null,
+      effectiveFrom: null,
+      reason: null,
+      mealLogCount: 3,
+    }
+    const updatedVersion: FoodMasterNutritionVersion = {
+      id: 'nutrition_version_beta',
+      foodMasterId: 'fm_version_alpha',
+      versionNo: 2,
+      changeKind: 'product_update',
+      correctsVersionId: null,
+      isCurrent: true,
+      servingBasis: '1 package (80 g)',
+      netContent: '4 packages (320 g)',
+      nutrition: { energy_kcal: 145, protein_g: 5 },
+      source: 'web_search',
+      sourceUrl: 'https://example.test/items/sample-cereal',
+      sourceCompositionCode: null,
+      isEstimated: false,
+      checkedOn: '2026-07-12',
+      effectiveFrom: '2026-07-01',
+      reason: null,
+      mealLogCount: 0,
+    }
+    const calls: {
+      add: AddFoodMasterNutritionVersionInput[]
+      list: string[]
+    } = { add: [], list: [] }
+    const h = await start({
+      foodMasterOverrides: {
+        addNutritionVersion(input) {
+          calls.add.push(input)
+          return okAsync(updatedVersion)
+        },
+        listNutritionVersions(foodMasterId) {
+          calls.list.push(foodMasterId)
+          return okAsync([previousVersion, updatedVersion])
+        },
+      },
+    })
+    try {
+      const addResult = await h.client.callTool({
+        name: 'add_food_nutrition_version',
+        arguments: {
+          food_master_id: 'fm_version_alpha',
+          change_kind: 'product_update',
+          nutrition: { energy_kcal: 145, protein_g: 5 },
+          source: 'web_search',
+          source_url: 'https://example.test/items/sample-cereal',
+          is_estimated: false,
+          serving_basis: '1 package (80 g)',
+          net_content: '4 packages (320 g)',
+          checked_on: '2026-07-12',
+          effective_from: '2026-07-01',
+        },
+      })
+      const listResult = await h.client.callTool({
+        name: 'list_food_nutrition_versions',
+        arguments: { food_master_id: 'fm_version_alpha' },
+      })
+
+      expect(observation({ addResult, listResult, calls })).toEqual({
+        addResult: {
+          content: [{ type: 'text', text: '栄養バージョンを追加しました。' }],
+          structuredContent: {
+            nutrition_version_id: 'nutrition_version_beta',
+            food_master_id: 'fm_version_alpha',
+            version_no: 2,
+            change_kind: 'product_update',
+            corrects_version_id: null,
+            is_current: true,
+            serving_basis: '1 package (80 g)',
+            net_content: '4 packages (320 g)',
+            nutrition: { energy_kcal: 145, protein_g: 5 },
+            source: 'web_search',
+            source_url: 'https://example.test/items/sample-cereal',
+            source_composition_code: null,
+            is_estimated: false,
+            checked_on: '2026-07-12',
+            effective_from: '2026-07-01',
+            reason: null,
+            meal_log_count: 0,
+          },
+        },
+        listResult: {
+          content: [
+            { type: 'text', text: '2 件の栄養バージョンを取得しました。' },
+          ],
+          structuredContent: {
+            food_master_id: 'fm_version_alpha',
+            nutrition_versions: [
+              {
+                nutrition_version_id: 'nutrition_version_alpha',
+                food_master_id: 'fm_version_alpha',
+                version_no: 1,
+                change_kind: 'initial',
+                corrects_version_id: null,
+                is_current: false,
+                serving_basis: null,
+                net_content: null,
+                nutrition: { energy_kcal: 120, protein_g: 4 },
+                source: 'user_input',
+                source_url: null,
+                source_composition_code: null,
+                is_estimated: false,
+                checked_on: null,
+                effective_from: null,
+                reason: null,
+                meal_log_count: 3,
+              },
+              {
+                nutrition_version_id: 'nutrition_version_beta',
+                food_master_id: 'fm_version_alpha',
+                version_no: 2,
+                change_kind: 'product_update',
+                corrects_version_id: null,
+                is_current: true,
+                serving_basis: '1 package (80 g)',
+                net_content: '4 packages (320 g)',
+                nutrition: { energy_kcal: 145, protein_g: 5 },
+                source: 'web_search',
+                source_url: 'https://example.test/items/sample-cereal',
+                source_composition_code: null,
+                is_estimated: false,
+                checked_on: '2026-07-12',
+                effective_from: '2026-07-01',
+                reason: null,
+                meal_log_count: 0,
+              },
+            ],
+          },
+        },
+        calls: {
+          add: [
+            {
+              foodMasterId: 'fm_version_alpha',
+              changeKind: 'product_update',
+              nutrition: { energy_kcal: 145, protein_g: 5 },
+              source: 'web_search',
+              isEstimated: false,
+              sourceUrl: 'https://example.test/items/sample-cereal',
+              servingBasis: '1 package (80 g)',
+              netContent: '4 packages (320 g)',
+              checkedOn: '2026-07-12',
+              effectiveFrom: '2026-07-01',
+            },
+          ],
+          list: ['fm_version_alpha'],
+        },
+      })
+    } finally {
+      await h.close()
+    }
+  })
+
+  it('allows explicit null correction metadata through MCP', async () => {
+    const correctionVersion: FoodMasterNutritionVersion = {
+      id: 'nutrition_version_cleared',
+      foodMasterId: 'fm_version_cleared',
+      versionNo: 2,
+      changeKind: 'correction',
+      correctsVersionId: '11111111-1111-4111-8111-111111111111',
+      isCurrent: true,
+      servingBasis: null,
+      netContent: null,
+      nutrition: { energy_kcal: 105 },
+      source: 'user_input',
+      sourceUrl: null,
+      sourceCompositionCode: null,
+      isEstimated: false,
+      checkedOn: null,
+      effectiveFrom: null,
+      reason: 'synthetic correction reason',
+      mealLogCount: 0,
+    }
+    const calls: AddFoodMasterNutritionVersionInput[] = []
+    const h = await start({
+      foodMasterOverrides: {
+        addNutritionVersion(input) {
+          calls.push(input)
+          return okAsync(correctionVersion)
+        },
+      },
+    })
+    try {
+      const result = await h.client.callTool({
+        name: 'add_food_nutrition_version',
+        arguments: {
+          food_master_id: 'fm_version_cleared',
+          change_kind: 'correction',
+          corrects_version_id: '11111111-1111-4111-8111-111111111111',
+          reason: 'synthetic correction reason',
+          nutrition: { energy_kcal: 105 },
+          source: 'user_input',
+          is_estimated: false,
+          serving_basis: null,
+          net_content: null,
+          effective_from: null,
+        },
+      })
+
+      expect(observation({ result, calls })).toEqual({
+        result: {
+          content: [{ type: 'text', text: '栄養バージョンを追加しました。' }],
+          structuredContent: {
+            nutrition_version_id: 'nutrition_version_cleared',
+            food_master_id: 'fm_version_cleared',
+            version_no: 2,
+            change_kind: 'correction',
+            corrects_version_id: '11111111-1111-4111-8111-111111111111',
+            is_current: true,
+            serving_basis: null,
+            net_content: null,
+            nutrition: { energy_kcal: 105 },
+            source: 'user_input',
+            source_url: null,
+            source_composition_code: null,
+            is_estimated: false,
+            checked_on: null,
+            effective_from: null,
+            reason: 'synthetic correction reason',
+            meal_log_count: 0,
+          },
+        },
+        calls: [
+          {
+            foodMasterId: 'fm_version_cleared',
+            changeKind: 'correction',
+            correctsVersionId: '11111111-1111-4111-8111-111111111111',
+            reason: 'synthetic correction reason',
+            nutrition: { energy_kcal: 105 },
+            source: 'user_input',
+            isEstimated: false,
+            servingBasis: null,
+            netContent: null,
+            effectiveFrom: null,
+          },
+        ],
+      })
+    } finally {
+      await h.close()
+    }
+  })
+
+  it('rejects incomplete nutrition version changes before calling the service', async () => {
+    const calls: AddFoodMasterNutritionVersionInput[] = []
+    const h = await start({
+      foodMasterOverrides: {
+        addNutritionVersion(input) {
+          calls.push(input)
+          return errAsync(
+            new FoodMasterDomainError('persistence_failed', 'should not run'),
+          )
+        },
+      },
+    })
+    const invalidArguments: ReadonlyArray<Record<string, unknown>> = [
+      {
+        food_master_id: 'fm_version_validation',
+        change_kind: 'correction',
+        corrects_version_id: '11111111-1111-4111-8111-111111111111',
+        nutrition: { energy_kcal: 100 },
+        source: 'user_input',
+        is_estimated: false,
+      },
+      {
+        food_master_id: 'fm_version_validation',
+        change_kind: 'correction',
+        reason: 'synthetic correction reason',
+        nutrition: { energy_kcal: 100 },
+        source: 'user_input',
+        is_estimated: false,
+      },
+      {
+        food_master_id: 'fm_version_validation',
+        change_kind: 'product_update',
+        nutrition: { energy_kcal: 100 },
+        source: 'user_input',
+        is_estimated: false,
+      },
+    ]
+    try {
+      const results = await Promise.all(
+        invalidArguments.map((args) =>
+          h.client.callTool({
+            name: 'add_food_nutrition_version',
+            arguments: args,
+          }),
+        ),
+      )
+
+      expect(
+        observation({
+          results: results.map(normalizeValidationError),
+          calls,
+        }),
+      ).toEqual({
+        results: [
+          {
+            content: [{ type: 'text', text: VALIDATION_ERROR_TEXT }],
+            isError: true,
+          },
+          {
+            content: [{ type: 'text', text: VALIDATION_ERROR_TEXT }],
+            isError: true,
+          },
+          {
+            content: [{ type: 'text', text: VALIDATION_ERROR_TEXT }],
+            isError: true,
+          },
+        ],
+        calls: [],
+      })
+    } finally {
+      await h.close()
+    }
+  })
+})
+
+describe('reassign_meal_log_nutrition', () => {
+  const preview: MealLogNutritionReassignmentResult = {
+    applied: false,
+    reason: 'Corrected registered values',
+    mealLogs: [
+      {
+        id: 'mcp_fixture_meal_reassign',
+        foodMasterId: 'mcp_fixture_food_reassign',
+        eatenDate: jstDate('2026-04-17'),
+        mealType: 'lunch',
+        quantity: 1.5,
+        from: {
+          id: '00000000-0000-7000-8000-000000000001',
+          versionNo: 1,
+          nutrition: { energy_kcal: 100, protein_g: 5 },
+        },
+        to: {
+          id: '00000000-0000-7000-8000-000000000002',
+          versionNo: 2,
+          nutrition: { energy_kcal: 180, protein_g: 8 },
+        },
+      },
+    ],
+    affectedDayTotals: [
+      {
+        date: jstDate('2026-04-17'),
+        totalsBefore: { energy_kcal: 150, protein_g: 7.5 },
+        totalsAfter: { energy_kcal: 270, protein_g: 12 },
+      },
+    ],
+  }
+
+  it('previews the previous and replacement values by default', async () => {
+    const calls: MealLogNutritionReassignmentInput[] = []
+    const h = await start({
+      mealLogNutritionReassignmentService: {
+        reassign(input) {
+          calls.push(input)
+          return okAsync(preview)
+        },
+      },
+    })
+    try {
+      const result = await h.client.callTool({
+        name: 'reassign_meal_log_nutrition',
+        arguments: {
+          meal_log_ids: ['mcp_fixture_meal_reassign'],
+          to_nutrition_version_id: '00000000-0000-7000-8000-000000000002',
+          reason: 'Corrected registered values',
+        },
+      })
+      expect(observation({ result, calls, logs: h.logs })).toEqual({
+        result: {
+          content: [
+            {
+              type: 'text',
+              text: '栄養バージョンの差し替え内容をプレビューしました。',
+            },
+          ],
+          structuredContent: {
+            dry_run: true,
+            reason: 'Corrected registered values',
+            meal_logs: [
+              {
+                meal_log_id: 'mcp_fixture_meal_reassign',
+                food_master_id: 'mcp_fixture_food_reassign',
+                eaten_date: '2026-04-17',
+                meal_type: 'lunch',
+                quantity: 1.5,
+                before_nutrition_version: {
+                  id: '00000000-0000-7000-8000-000000000001',
+                  version_no: 1,
+                  nutrition: { energy_kcal: 100, protein_g: 5 },
+                },
+                after_nutrition_version: {
+                  id: '00000000-0000-7000-8000-000000000002',
+                  version_no: 2,
+                  nutrition: { energy_kcal: 180, protein_g: 8 },
+                },
+              },
+            ],
+            affected_day_totals: [
+              {
+                date: '2026-04-17',
+                totals_before: { energy_kcal: 150, protein_g: 7.5 },
+                totals_after: { energy_kcal: 270, protein_g: 12 },
+              },
+            ],
+          },
+        },
+        calls: [
+          {
+            mealLogIds: ['mcp_fixture_meal_reassign'],
+            toNutritionVersionId: '00000000-0000-7000-8000-000000000002',
+            reason: 'Corrected registered values',
+            apply: false,
+          },
+        ],
+        logs: [
+          {
+            event: 'meshi.tool_called',
+            payload: { tool: 'reassign_meal_log_nutrition' },
+          },
+          {
+            event: 'meshi.tool_succeeded',
+            payload: {
+              tool: 'reassign_meal_log_nutrition',
+              dry_run: true,
+              meal_log_count: 1,
+            },
+          },
+        ],
+      })
+    } finally {
+      await h.close()
+    }
+  })
+
+  it('requires the previewed old version for an applied reassignment', async () => {
+    const calls: MealLogNutritionReassignmentInput[] = []
+    const h = await start({
+      mealLogNutritionReassignmentService: {
+        reassign(input) {
+          calls.push(input)
+          return okAsync({ ...preview, applied: input.apply })
+        },
+      },
+    })
+    try {
+      const result = await h.client.callTool({
+        name: 'reassign_meal_log_nutrition',
+        arguments: {
+          meal_log_ids: ['mcp_fixture_meal_reassign'],
+          to_nutrition_version_id: '00000000-0000-7000-8000-000000000002',
+          reason: 'Corrected registered values',
+          dry_run: false,
+          expected_from_versions: [
+            {
+              meal_log_id: 'mcp_fixture_meal_reassign',
+              nutrition_version_id: '00000000-0000-7000-8000-000000000001',
+            },
+          ],
+        },
+      })
+      expect(observation({ result, calls })).toEqual({
+        result: {
+          content: [
+            {
+              type: 'text',
+              text: '食事ログの栄養バージョンを差し替えました。',
+            },
+          ],
+          structuredContent: {
+            dry_run: false,
+            reason: 'Corrected registered values',
+            meal_logs: [
+              {
+                meal_log_id: 'mcp_fixture_meal_reassign',
+                food_master_id: 'mcp_fixture_food_reassign',
+                eaten_date: '2026-04-17',
+                meal_type: 'lunch',
+                quantity: 1.5,
+                before_nutrition_version: {
+                  id: '00000000-0000-7000-8000-000000000001',
+                  version_no: 1,
+                  nutrition: { energy_kcal: 100, protein_g: 5 },
+                },
+                after_nutrition_version: {
+                  id: '00000000-0000-7000-8000-000000000002',
+                  version_no: 2,
+                  nutrition: { energy_kcal: 180, protein_g: 8 },
+                },
+              },
+            ],
+            affected_day_totals: [
+              {
+                date: '2026-04-17',
+                totals_before: { energy_kcal: 150, protein_g: 7.5 },
+                totals_after: { energy_kcal: 270, protein_g: 12 },
+              },
+            ],
+          },
+        },
+        calls: [
+          {
+            mealLogIds: ['mcp_fixture_meal_reassign'],
+            toNutritionVersionId: '00000000-0000-7000-8000-000000000002',
+            reason: 'Corrected registered values',
+            apply: true,
+            expectedFromVersions: [
+              {
+                mealLogId: 'mcp_fixture_meal_reassign',
+                nutritionVersionId: '00000000-0000-7000-8000-000000000001',
+              },
+            ],
+          },
+        ],
+      })
+    } finally {
+      await h.close()
+    }
+  })
+
+  it('returns a structured conflict when a reviewed version changed', async () => {
+    const message =
+      'meal_log nutrition version changed since preview: mcp_fixture_meal_reassign'
+    const h = await start({
+      mealLogNutritionReassignmentService: {
+        reassign: () =>
+          errAsync(
+            new DomainError(message, 'meal_log/nutrition_version_changed'),
+          ),
+      },
+    })
+    try {
+      const result = await h.client.callTool({
+        name: 'reassign_meal_log_nutrition',
+        arguments: {
+          meal_log_ids: ['mcp_fixture_meal_reassign'],
+          to_nutrition_version_id: '00000000-0000-7000-8000-000000000002',
+          reason: 'Corrected registered values',
+          dry_run: false,
+          expected_from_versions: [
+            {
+              meal_log_id: 'mcp_fixture_meal_reassign',
+              nutrition_version_id: '00000000-0000-7000-8000-000000000001',
+            },
+          ],
+        },
+      })
+      expect(observation({ result, logs: h.logs })).toEqual({
+        result: {
+          content: [{ type: 'text', text: message }],
+          isError: true,
+          structuredContent: {
+            error: {
+              code: 'meal_log/nutrition_version_changed',
+              message,
+            },
+          },
+        },
+        logs: [
+          {
+            event: 'meshi.tool_called',
+            payload: { tool: 'reassign_meal_log_nutrition' },
+          },
+          {
+            event: 'meshi.tool_failed',
+            payload: {
+              tool: 'reassign_meal_log_nutrition',
+              code: 'meal_log/nutrition_version_changed',
+              message,
+            },
+          },
+        ],
+      })
+    } finally {
+      await h.close()
+    }
+  })
+})
+
 describe('fill_food_nutrition', () => {
   it('fills an unknown food through FoodMasterService', async () => {
     const calls: FillFoodNutritionInput[] = []
@@ -3195,7 +3942,25 @@ describe('fill_food_nutrition', () => {
       foodMasterOverrides: {
         fillNutrition: (input) => {
           calls.push(input)
-          return okAsync('confirmed')
+          return okAsync({
+            nutritionStatus: 'confirmed',
+            nutritionVersionNo: 1,
+            assignedMealLogs: [
+              {
+                id: 'ml_unknown_alpha',
+                eatenDate: jstDate('2026-06-01'),
+                mealType: 'lunch',
+                quantity: 1.5,
+              },
+            ],
+            affectedDayTotals: [
+              {
+                date: jstDate('2026-06-01'),
+                totalsBefore: {},
+                totalsAfter: { energy_kcal: 472.5 },
+              },
+            ],
+          })
         },
       },
     })
@@ -3217,6 +3982,22 @@ describe('fill_food_nutrition', () => {
           structuredContent: {
             food_master_id: 'fm_unknown_alpha',
             nutrition_status: 'confirmed',
+            nutrition_version_no: 1,
+            assigned_meal_logs: [
+              {
+                meal_log_id: 'ml_unknown_alpha',
+                eaten_date: '2026-06-01',
+                meal_type: 'lunch',
+                quantity: 1.5,
+              },
+            ],
+            affected_day_totals: [
+              {
+                date: '2026-06-01',
+                totals_before: {},
+                totals_after: { energy_kcal: 472.5 },
+              },
+            ],
           },
         },
         calls: [
@@ -3240,7 +4021,12 @@ describe('fill_food_nutrition', () => {
       foodMasterOverrides: {
         fillNutrition: (input) => {
           calls.push(input)
-          return okAsync('estimated')
+          return okAsync({
+            nutritionStatus: 'estimated',
+            nutritionVersionNo: 1,
+            assignedMealLogs: [],
+            affectedDayTotals: [],
+          })
         },
       },
     })
@@ -3261,6 +4047,9 @@ describe('fill_food_nutrition', () => {
           structuredContent: {
             food_master_id: 'fm_unknown_alpha',
             nutrition_status: 'estimated',
+            nutrition_version_no: 1,
+            assigned_meal_logs: [],
+            affected_day_totals: [],
           },
         },
         calls: [
@@ -3283,7 +4072,12 @@ describe('fill_food_nutrition', () => {
       foodMasterOverrides: {
         fillNutrition: (input) => {
           calls.push(input)
-          return okAsync('confirmed')
+          return okAsync({
+            nutritionStatus: 'confirmed',
+            nutritionVersionNo: 1,
+            assignedMealLogs: [],
+            affectedDayTotals: [],
+          })
         },
       },
     })
