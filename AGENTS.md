@@ -79,7 +79,7 @@ For a state that would otherwise take interaction to reach — an open menu/popo
 
 ### Prefer Storybook over manual browser checks
 
-When you need to check how a component looks in a given state, write or update its story and run `nr storybook:screenshot` from `web/`. The `vrt` CI check renders and diffs every story on each PR; use its linked report to review visual differences.
+When you need to check how a component looks in a given state, write or update its story and verify it with `cd web && pnpm run storybook:screenshot -- --changed origin/main` (swap `origin/main` for this repo's default branch if it differs) instead of starting a dev server and driving a browser manually. Dropping the ref limits `--changed` to staged/unstaged files only, so it silently runs nothing once the change is committed. The `vrt` CI check already renders and diffs every story on every PR, so this scoped run is enough — running the full `storybook:screenshot` suite instead keeps a headless Chromium instance (a multi-process browser, not a single lightweight process) busy per worker for as long as it takes to get through every story, competing with any other concurrent session or worktree for the same machine's CPU and memory.
 
 ## Visual Regression Testing (VRT)
 
@@ -89,7 +89,7 @@ The `vrt` CI check renders Storybook stories to screenshots and compares them ag
 
 ### Never add the `vrt-approved` label yourself
 
-The `vrt-approval` workflow treats the `vrt-approved` label as confirmation that a human reviewed the diff images and approved them. Only a human can make that visual judgment, so the agent must not add the label.
+The `vrt-approval` workflow treats the `vrt-approved` label as confirmation that a human reviewed the diff images and approved them. Only a human can make that visual judgment, so after inspecting the diff, ask the user to review it and add the label themselves — do not add it yourself even if the diff looks correct.
 
 ## Test code rules
 
