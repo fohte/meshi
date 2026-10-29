@@ -248,7 +248,7 @@ jobs:
       - name: Get Playwright version
         id: playwright-version
         if: steps.needs-playwright.outputs.needed == 'true'
-        run: echo "version=$(pnpm --filter web exec playwright --version | cut -d' ' -f2)" >> "$GITHUB_OUTPUT"
+        run: echo "version=$(pnpm --filter '${{ matrix.package }}' exec playwright --version | cut -d' ' -f2)" >> "$GITHUB_OUTPUT"
 
       - name: Cache Playwright browsers
         id: playwright-cache
@@ -260,11 +260,11 @@ jobs:
 
       - name: Install Playwright chromium
         if: steps.needs-playwright.outputs.needed == 'true' && steps.playwright-cache.outputs.cache-hit != 'true'
-        run: pnpm --filter web exec playwright install --with-deps chromium
+        run: pnpm --filter '${{ matrix.package }}' exec playwright install --with-deps chromium
 
       - name: Install Playwright system dependencies
         if: steps.needs-playwright.outputs.needed == 'true' && steps.playwright-cache.outputs.cache-hit == 'true'
-        run: pnpm --filter web exec playwright install-deps chromium
+        run: pnpm --filter '${{ matrix.package }}' exec playwright install-deps chromium
 
       - name: Run tests
         working-directory: ${{ matrix.package }}
