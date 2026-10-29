@@ -1,6 +1,7 @@
 .basis {
   border: var(--border-width) solid var(--color-border);
   background: var(--color-bg);
+  color: var(--color-text);
   padding: 12px;
 }
 
