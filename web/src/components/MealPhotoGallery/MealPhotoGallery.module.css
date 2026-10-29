@@ -114,7 +114,7 @@
 .previewImage {
   display: block;
   width: 100%;
-  max-height: calc(100vh - 160px);
+  max-height: calc(100vh - 220px);
   object-fit: contain;
 }
 
