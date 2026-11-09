@@ -192,6 +192,10 @@ jobs:
         with:
           version: 2026.9.14
 
+      - name: Start PostgreSQL
+        if: ${{ contains(fromJSON('["server"]'), matrix.package) }}
+        run: mise run db:up
+
       # corepack creates the pnpm executable inside mise's node install bin
       # directory; reshim so the mise shims dir (which is on PATH) picks it up.
       - run: |
@@ -268,7 +272,7 @@ jobs:
 
       - name: Run tests
         working-directory: ${{ matrix.package }}
-        run: pnpm run test
+        run: ${{ contains(fromJSON('["server"]'), matrix.package) && 'mise exec -- ' || '' }}pnpm run test # Re-evaluate DB URLs after db:up assigns the host port.
 
       - name: Run migration tests
         if: matrix.package == 'server'

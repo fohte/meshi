@@ -136,3 +136,16 @@ storybook-static/
 .yarn/build-state.yml
 .yarn/install-state.gz
 .pnp.*
+<<<<<<< before updating
+||||||| last update
+
+# Storybook build output
+storybook-static/
+=======
+
+# Storybook build output
+storybook-static/
+
+# Captured VRT screenshots
+/web/__screenshots__/
+>>>>>>> after updating
