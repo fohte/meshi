@@ -46,6 +46,7 @@ import {
   FutureMealSkipDateError,
   type MealSkipDomainError,
   MealSkipNotFoundError,
+  MealSkipPersistenceError,
 } from '#domain/meal-skip/errors'
 import type { MealSkipService } from '#domain/meal-skip/meal-skip-service'
 import type { MealSkipRow } from '#domain/meal-skip/types'
@@ -545,6 +546,7 @@ const makeMealSkipService = (
   errors: {
     record?: MealSkipDomainError
     cancel?: MealSkipDomainError
+    findForPeriod?: MealSkipDomainError
   } = {},
   rows: ReadonlyArray<MealSkipRow> = [],
 ): { service: MealSkipService; calls: MealSkipCalls } => {
@@ -572,6 +574,9 @@ const makeMealSkipService = (
     findForDate: () => okAsync([]),
     findForPeriod: (periodFrom, periodTo) => {
       calls.findForPeriod.push([periodFrom, periodTo])
+      if (errors.findForPeriod !== undefined) {
+        return errAsync(errors.findForPeriod)
+      }
       return okAsync(
         rows.filter(({ date }) => date >= periodFrom && date < periodTo),
       )
@@ -605,6 +610,7 @@ interface HarnessConfig {
   mealSkipErrors?: {
     record?: MealSkipDomainError
     cancel?: MealSkipDomainError
+    findForPeriod?: MealSkipDomainError
   }
   mealSkipRows?: ReadonlyArray<MealSkipRow>
   profile?: UserProfile
@@ -2434,6 +2440,28 @@ describe('get_recommendation_context', () => {
       })
       expect(result).toEqual({
         content: [{ type: 'text', text: 'history unavailable' }],
+        isError: true,
+      })
+    } finally {
+      await h.close()
+    }
+  })
+
+  it('returns an error without context when skipped-meal retrieval fails', async () => {
+    const h = await start({
+      mealSkipErrors: {
+        findForPeriod: new MealSkipPersistenceError(
+          'skipped meals unavailable',
+        ),
+      },
+    })
+    try {
+      const result = await h.client.callTool({
+        name: 'get_recommendation_context',
+        arguments: recommendationPeriod,
+      })
+      expect(result).toEqual({
+        content: [{ type: 'text', text: 'skipped meals unavailable' }],
         isError: true,
       })
     } finally {
