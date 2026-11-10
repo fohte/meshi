@@ -6,21 +6,18 @@ import {
   createDrizzleMealPlanRepository,
   createMealPlanService,
 } from '#domain/meal-plan/index'
-import type { MealPlan } from '#domain/meal-plan/types'
 import { describeIfDb, setupDrizzleTx } from '#test/db'
 import { jstDate } from '#test/jst-date'
+import {
+  MEAL_PLAN_CREATED_AT_PLACEHOLDER as CREATED_AT_PLACEHOLDER,
+  normalizeMealPlan,
+  normalizeMealPlans,
+} from '#test/meal-plan-normalizers'
 import { seedFoodMasterWithoutNutrition, seedMealLog } from '#test/seed'
 
 const FIXED_NOW = new Date('2026-11-09T16:00:00.000Z')
-const CREATED_AT_PLACEHOLDER = new Date('2000-01-01T00:00:00.000Z')
 
 const observation = <T extends object>(value: T): T => value
-
-const normalizeMealPlan = (plan: MealPlan): MealPlan => ({
-  ...plan,
-  id: 'meal-plan-id',
-  createdAt: CREATED_AT_PLACEHOLDER,
-})
 
 const errorShape = <Value>(
   result: Result<Value, MealPlanDomainError>,
@@ -36,20 +33,6 @@ const errorShape = <Value>(
         details: result.error.details,
       }
     : null
-
-const normalizePlanIds = (
-  plans: ReadonlyArray<MealPlan>,
-): ReadonlyArray<MealPlan> => {
-  const ids = new Map<string, string>()
-  return plans.map((plan) => {
-    let normalizedId = ids.get(plan.id)
-    if (normalizedId === undefined) {
-      normalizedId = `plan-${String(ids.size + 1)}`
-      ids.set(plan.id, normalizedId)
-    }
-    return { ...normalizeMealPlan(plan), id: normalizedId }
-  })
-}
 
 describeIfDb('MealPlanService with DrizzleMealPlanRepository', () => {
   const getTx = setupDrizzleTx()
@@ -116,7 +99,7 @@ describeIfDb('MealPlanService with DrizzleMealPlanRepository', () => {
     const replacedPlan = replaced._unsafeUnwrap()
     expect(
       observation({
-        plan: normalizeMealPlan(replacedPlan),
+        plan: normalizeMealPlan(replacedPlan, 'meal-plan-id'),
         keptId: replacedPlan.id === firstId,
       }),
     ).toEqual({
@@ -204,7 +187,7 @@ describeIfDb('MealPlanService with DrizzleMealPlanRepository', () => {
       jstDate('2026-11-10'),
       jstDate('2026-11-12'),
     )
-    expect(normalizePlanIds(plans._unsafeUnwrap())).toEqual([
+    expect(normalizeMealPlans(plans._unsafeUnwrap(), 'plan')).toEqual([
       {
         id: 'plan-1',
         date: '2026-11-10',
@@ -255,7 +238,7 @@ describeIfDb('MealPlanService with DrizzleMealPlanRepository', () => {
       jstDate('2026-11-11'),
     )
 
-    expect(normalizePlanIds(listed._unsafeUnwrap())).toEqual([
+    expect(normalizeMealPlans(listed._unsafeUnwrap(), 'plan')).toEqual([
       {
         id: 'plan-1',
         date: '2026-11-10',
@@ -326,7 +309,7 @@ describeIfDb('MealPlanService with DrizzleMealPlanRepository', () => {
     expect(
       observation({
         errorCode: result.isErr() ? result.error.code : null,
-        plan: normalizePlanIds(listed._unsafeUnwrap()),
+        plan: normalizeMealPlans(listed._unsafeUnwrap(), 'plan'),
       }),
     ).toEqual({
       errorCode: 'meal_plan/already_eaten',
@@ -391,7 +374,7 @@ describeIfDb('MealPlanService with DrizzleMealPlanRepository', () => {
     expect(
       observation({
         errorCode: result.isErr() ? result.error.code : null,
-        plans: normalizePlanIds(listed._unsafeUnwrap()),
+        plans: normalizeMealPlans(listed._unsafeUnwrap(), 'plan'),
       }),
     ).toEqual({
       errorCode: 'meal_plan/already_eaten',
@@ -443,7 +426,7 @@ describeIfDb('MealPlanService with DrizzleMealPlanRepository', () => {
 
     expect(
       observation({
-        plan: normalizeMealPlan(cancelled._unsafeUnwrap()),
+        plan: normalizeMealPlan(cancelled._unsafeUnwrap(), 'meal-plan-id'),
         before,
         after,
       }),

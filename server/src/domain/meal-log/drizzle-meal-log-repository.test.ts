@@ -19,9 +19,12 @@ import {
 import type { FoundMealLog } from '#domain/meal-log/meal-log-repository'
 import type { FoodMasterRef, MealLogRow } from '#domain/meal-log/types'
 import { createDrizzleMealPlanRepository } from '#domain/meal-plan/drizzle-meal-plan-repository'
-import type { MealPlan } from '#domain/meal-plan/types'
 import { describeIfDb, setupDrizzleTx } from '#test/db'
 import { jstDate } from '#test/jst-date'
+import {
+  MEAL_PLAN_CREATED_AT_PLACEHOLDER as CREATED_AT_PLACEHOLDER,
+  normalizeMealPlans,
+} from '#test/meal-plan-normalizers'
 import {
   seedFoodMaster,
   seedFoodMasterNutritionVersion,
@@ -34,32 +37,12 @@ import {
   seedStockMovement,
 } from '#test/seed'
 
-const CREATED_AT_PLACEHOLDER = new Date('2000-01-01T00:00:00.000Z')
-
 const observation = <T extends object>(value: T): T => value
 
 const normalizeRow = (row: MealLogRow): MealLogRow => ({
   ...row,
   createdAt: CREATED_AT_PLACEHOLDER,
 })
-
-const normalizeMealPlans = (
-  plans: ReadonlyArray<MealPlan>,
-): ReadonlyArray<MealPlan> => {
-  const ids = new Map<string, string>()
-  return plans.map((plan) => {
-    let normalizedId = ids.get(plan.id)
-    if (normalizedId === undefined) {
-      normalizedId = `meal-plan-${String(ids.size + 1)}`
-      ids.set(plan.id, normalizedId)
-    }
-    return {
-      ...plan,
-      id: normalizedId,
-      createdAt: CREATED_AT_PLACEHOLDER,
-    }
-  })
-}
 
 const normalizeFoodAndMealLog = (
   food: FoodMasterRef,
@@ -485,6 +468,7 @@ describeIfDb('createDrizzleMealLogRepository', () => {
       (
         await mealPlanRepository.list(date, jstDate('2026-06-16'))
       )._unsafeUnwrap(),
+      'meal-plan',
     )
     const movements = await readMealMovements(tx, 'ml_realized_first')
     const balance = await readLotBalances(tx, 'fm_realized_item')
@@ -594,6 +578,7 @@ describeIfDb('createDrizzleMealLogRepository', () => {
       (
         await mealPlanRepository.list(date, jstDate('2026-06-16'))
       )._unsafeUnwrap(),
+      'meal-plan',
     )
     const balance = await readLotBalances(tx, 'fm_realized_item')
 
@@ -649,6 +634,7 @@ describeIfDb('createDrizzleMealLogRepository', () => {
       (
         await mealPlanRepository.list(date, jstDate('2026-06-16'))
       )._unsafeUnwrap(),
+      'meal-plan',
     )
 
     expect(
