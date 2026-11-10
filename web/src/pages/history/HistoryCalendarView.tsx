@@ -45,7 +45,7 @@ export const HistoryCalendarView = ({
     ]),
   )
   const plannedCountByDate = buildPlannedCountByDate(
-    mealPlansQuery.data ?? [],
+    mealPlansQuery.isError ? [] : (mealPlansQuery.data ?? []),
     today,
   )
   const cells = buildCalendarCells(
@@ -59,34 +59,35 @@ export const HistoryCalendarView = ({
 
   return (
     <div>
-      {(query.isError || mealPlansQuery.isError) && (
+      {query.isError && (
         <ErrorRetry
           onRetry={() => {
             void query.refetch()
+          }}
+        />
+      )}
+      {mealPlansQuery.isError && (
+        <ErrorRetry
+          onRetry={() => {
             void mealPlansQuery.refetch()
           }}
         />
       )}
-      {(query.isPending || mealPlansQuery.isPending) && (
-        <Skeleton height={340} />
-      )}
+      {query.isPending && <Skeleton height={340} />}
 
-      {!query.isPending &&
-        !query.isError &&
-        !mealPlansQuery.isPending &&
-        !mealPlansQuery.isError && (
-          <HistoryCalendar
-            monthStart={monthStart}
-            cells={cells}
-            averageText={avgText}
-            onPreviousMonth={() => {
-              setMonthOffset((o) => o - 1)
-            }}
-            onNextMonth={() => {
-              setMonthOffset((o) => o + 1)
-            }}
-          />
-        )}
+      {!query.isPending && !query.isError && (
+        <HistoryCalendar
+          monthStart={monthStart}
+          cells={cells}
+          averageText={avgText}
+          onPreviousMonth={() => {
+            setMonthOffset((o) => o - 1)
+          }}
+          onNextMonth={() => {
+            setMonthOffset((o) => o + 1)
+          }}
+        />
+      )}
     </div>
   )
 }

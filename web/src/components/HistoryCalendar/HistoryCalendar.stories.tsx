@@ -46,3 +46,27 @@ type Story = StoryObj<typeof HistoryCalendar>
 export const PlannedDays: Story = {
   name: '未来日の予定がある日に件数を表示しています',
 }
+
+export const UnknownOnlyDay: Story = {
+  name: '栄養値が不明な日を表示しています',
+  args: {
+    cells: buildCalendarCells(
+      monthStart,
+      today,
+      new Map([['2026-07-06', { kcal: undefined, hasUnknownValues: true }]]),
+      2000,
+    ),
+  },
+}
+
+export const PartiallyKnownDay: Story = {
+  name: '栄養値が一部不明な日の既知分を表示しています',
+  args: {
+    cells: buildCalendarCells(
+      monthStart,
+      today,
+      new Map([['2026-07-06', { kcal: 600, hasUnknownValues: true }]]),
+      2000,
+    ),
+  },
+}
