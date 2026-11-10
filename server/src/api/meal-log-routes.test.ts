@@ -5,6 +5,7 @@ import { z } from 'zod'
 
 import { mountMealLogRoutes } from '#api/meal-log-routes'
 import {
+  CancelledMealPlanError,
   FoodMasterNotFoundError,
   FutureEatenDateError,
   ImplausibleQuantityError,
@@ -12,6 +13,10 @@ import {
   MealLogItemValidationError,
   MealLogNotFoundError,
   MealLogPersistenceError,
+  MealPlanAlreadyEatenError,
+  MealPlanDateMismatchError,
+  MealPlanMealTypeMismatchError,
+  MealPlanNotFoundForMealLogError,
 } from '#domain/meal-log/errors'
 import type { MealLogService } from '#domain/meal-log/meal-log-service'
 import type { MealLogResult } from '#domain/meal-log/types'
@@ -152,6 +157,7 @@ describe('POST /api/meal-logs', () => {
       jsonRequest('/api/meal-logs', 'POST', {
         eatenDate: '2026-06-18',
         mealType: 'lunch',
+        mealPlanId: '00000000-0000-7000-8000-000000000101',
         items: [
           { foodMasterId: 'fm_rice', quantity: 150 },
           { foodMasterId: 'fm_oats', quantity: 50 },
@@ -173,6 +179,7 @@ describe('POST /api/meal-logs', () => {
       captured: {
         eatenDate: '2026-06-18',
         mealType: 'lunch',
+        mealPlanId: '00000000-0000-7000-8000-000000000101',
         items: [
           { foodMasterId: 'fm_rice', quantity: 150 },
           { foodMasterId: 'fm_oats', quantity: 50 },
@@ -325,6 +332,33 @@ describe('POST /api/meal-logs', () => {
 
     expect(res.status).toBe(status)
     expect(errorResponseSchema.safeParse(await res.json()).success).toBe(true)
+  })
+
+  it.each([
+    [new MealPlanNotFoundForMealLogError('plan_fixture'), 404],
+    [new CancelledMealPlanError('plan_fixture'), 400],
+    [new MealPlanDateMismatchError('plan_fixture'), 400],
+    [new MealPlanMealTypeMismatchError('plan_fixture'), 400],
+    [new MealPlanAlreadyEatenError('plan_fixture'), 409],
+  ])('maps %s to status %i', async (error, status) => {
+    const app = buildApp({
+      ...notStubbed('service'),
+      recordMany: () => errAsync(error),
+    })
+
+    const res = await app.request(
+      jsonRequest('/api/meal-logs', 'POST', {
+        eatenDate: '2026-06-18',
+        mealType: 'lunch',
+        mealPlanId: '00000000-0000-7000-8000-000000000101',
+        items: [{ foodMasterId: 'fm_rice', quantity: 150 }],
+      }),
+    )
+
+    expect(await responseSnapshot(res, {})).toEqual({
+      status,
+      body: { error: error.message },
+    })
   })
 })
 

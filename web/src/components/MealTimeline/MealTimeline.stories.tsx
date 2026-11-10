@@ -243,11 +243,12 @@ const PLANNED_MEAL_WITHOUT_REASON: MealPlan = {
 }
 
 export const WithMealPlan: Story = {
-  name: '夕食の予定に品目と変更・取り消し操作を表示しています',
+  name: '夕食の予定に品目と食べた・変更・取り消し操作を表示しています',
   args: {
     dateKind: 'today',
     groups: buildMealTimelineGroups([], [], [PLANNED_MEAL]),
     onEditPlan: () => undefined,
+    onRecordPlan: () => undefined,
     onCancelPlan: () => undefined,
   },
 }
@@ -263,10 +264,11 @@ export const PlannedMealWithoutReason: Story = {
 }
 
 export const PastPlannedMeal: Story = {
-  name: '過去日の予定に取消操作を表示しています',
+  name: '過去日の予定に食べた操作と取消操作を表示しています',
   args: {
     dateKind: 'past',
     groups: buildMealTimelineGroups([], [], [PLANNED_MEAL]),
+    onRecordPlan: () => undefined,
     onCancelPlan: () => undefined,
   },
 }

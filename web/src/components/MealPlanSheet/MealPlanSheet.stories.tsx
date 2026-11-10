@@ -59,6 +59,7 @@ const meta: Meta<typeof MealPlanSheet> = {
     date: '2026-08-18',
     mealType: 'dinner',
     isEditing: false,
+    isRecording: false,
     reason: '夜に作る予定',
     items,
     selection: null,
@@ -93,6 +94,14 @@ export const Create: Story = {
 export const Edit: Story = {
   name: '登録済みの予定を編集しています',
   args: { isEditing: true },
+}
+
+export const Record: Story = {
+  name: '予定の品目を確認してまとめて記録します',
+  args: {
+    isRecording: true,
+    items,
+  },
 }
 
 export const SaveFailed: Story = {

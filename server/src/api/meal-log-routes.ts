@@ -14,12 +14,17 @@ import { jstDateSchema } from '#lib/jst-date'
 const NOT_FOUND_CODES = new Set([
   'meal_log/food_master_not_found',
   'meal_log/not_found',
+  'meal_plan/not_found',
 ])
 const CLIENT_ERROR_CODES = new Set([
   'meal_log/future_eaten_date',
   'meal_log/invalid_quantity',
   'meal_log/implausible_quantity',
+  'meal_plan/cancelled',
+  'meal_plan/date_mismatch',
+  'meal_plan/meal_type_mismatch',
 ])
+const CONFLICT_CODES = new Set(['meal_plan/already_eaten'])
 
 // meal-log-service.ts surfaces user-input mistakes (future eaten_date, a
 // non-positive quantity, an unknown food_master_id) as DomainError alongside
@@ -36,6 +41,9 @@ const mealLogErrorResponse = (c: Context, error: DomainError): Response => {
   }
   if (CLIENT_ERROR_CODES.has(error.code)) {
     return c.json(errorBody, 400)
+  }
+  if (CONFLICT_CODES.has(error.code)) {
+    return c.json(errorBody, 409)
   }
   return jsonServerError(c, error)
 }
@@ -54,7 +62,10 @@ const recordMealLogItemBodySchema = recordSingleMealLogBodySchema.pick({
 
 const recordBatchMealLogBodySchema = recordSingleMealLogBodySchema
   .pick({ eatenDate: true, mealType: true })
-  .extend({ items: z.array(recordMealLogItemBodySchema).min(1) })
+  .extend({
+    items: z.array(recordMealLogItemBodySchema).min(1),
+    mealPlanId: z.uuid().optional(),
+  })
 
 const recordMealLogBodySchema = z.preprocess(
   (body: unknown) => {
@@ -106,7 +117,11 @@ export const mountMealLogRoutes = (
     if (parsed.isErr()) return parsed.error
 
     if (parsed.value.type === 'batch') {
-      const result = await mealLogService.recordMany(parsed.value.body)
+      const { mealPlanId, ...input } = parsed.value.body
+      const result = await mealLogService.recordMany({
+        ...input,
+        ...(mealPlanId === undefined ? {} : { mealPlanId }),
+      })
       return result.match(
         (mealLogs) => c.json(mealLogs.map(toMealLogJson), 201),
         (error) => mealLogErrorResponse(c, error),

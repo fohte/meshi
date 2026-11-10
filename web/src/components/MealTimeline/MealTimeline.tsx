@@ -20,6 +20,7 @@ export interface MealTimelineProps {
   readonly isMealSetSavePending?: boolean
   readonly onCreatePlan?: (mealType: MealType) => void
   readonly onEditPlan?: (mealType: MealType) => void
+  readonly onRecordPlan?: (mealType: MealType) => void
   readonly onCancelPlan?: (planId: string) => void
   readonly planActionError?: {
     readonly planId: string
@@ -42,6 +43,7 @@ export const MealTimeline = ({
   isMealSetSavePending = false,
   onCreatePlan,
   onEditPlan,
+  onRecordPlan,
   onCancelPlan,
   planActionError = null,
   isPlanActionPending = false,
@@ -89,6 +91,16 @@ export const MealTimeline = ({
           {group.status === 'planned' && (
             <div className={styles.groupStatus}>
               <span className={styles.groupStatusText}>予定</span>
+              {dateKind !== 'future' && (
+                <button
+                  type="button"
+                  className={styles.groupStatusAction}
+                  disabled={isPlanActionPending}
+                  onClick={() => onRecordPlan?.(group.mealType)}
+                >
+                  食べた
+                </button>
+              )}
               {dateKind !== 'past' && (
                 <button
                   type="button"

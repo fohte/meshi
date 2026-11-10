@@ -30,6 +30,7 @@ export class BatchMealLogRequestError extends ApiRequestError {
   constructor(
     message: string,
     readonly itemIndex: number | null,
+    readonly status: number,
   ) {
     super(message, undefined)
   }
@@ -45,6 +46,7 @@ export interface RecordMealLogInput {
 export interface RecordBatchMealLogInput {
   readonly eatenDate: string
   readonly mealType: MealType
+  readonly mealPlanId?: string
   readonly items: ReadonlyArray<{
     readonly foodMasterId: string
     readonly quantity: number
@@ -83,6 +85,7 @@ const parseBatchMealLogError = (
       new BatchMealLogRequestError(
         parsed.data.error,
         parsed.data.itemIndex ?? null,
+        response.status,
       ),
     )
   })
