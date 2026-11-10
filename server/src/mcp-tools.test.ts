@@ -29,12 +29,13 @@ import {
 } from '#domain/meal-log/errors'
 import type { MealLogService } from '#domain/meal-log/meal-log-service'
 import type { MealLogNutritionReassignmentService } from '#domain/meal-log/nutrition-reassignment'
-import type {
-  MealLogDeletionResult,
-  MealLogResult,
-  RecordMealLogItemResult,
-  RecordMealLogsInput,
-  UpdateMealLogInput,
+import {
+  MEAL_TYPES,
+  type MealLogDeletionResult,
+  type MealLogResult,
+  type RecordMealLogItemResult,
+  type RecordMealLogsInput,
+  type UpdateMealLogInput,
 } from '#domain/meal-log/types'
 import {
   EmptyMealSetItemsError,
@@ -583,7 +584,8 @@ const makeMealSkipService = (
           .sort(
             (left, right) =>
               left.date.localeCompare(right.date) ||
-              left.mealType.localeCompare(right.mealType),
+              MEAL_TYPES.indexOf(left.mealType) -
+                MEAL_TYPES.indexOf(right.mealType),
           ),
       )
     },
@@ -2293,6 +2295,12 @@ describe('get_recommendation_context', () => {
           createdAt: new Date('2025-11-24T01:00:00Z'),
         },
         {
+          id: 'skip_unlogged_dinner',
+          date: jstDate('2025-11-24'),
+          mealType: 'dinner',
+          createdAt: new Date('2025-11-24T03:00:00Z'),
+        },
+        {
           id: 'skip_unlogged_lunch',
           date: jstDate('2025-11-24'),
           mealType: 'lunch',
@@ -2376,6 +2384,7 @@ describe('get_recommendation_context', () => {
             { date: '2025-11-23', meal_type: 'lunch' },
             { date: '2025-11-24', meal_type: 'breakfast' },
             { date: '2025-11-24', meal_type: 'lunch' },
+            { date: '2025-11-24', meal_type: 'dinner' },
           ],
         },
       })

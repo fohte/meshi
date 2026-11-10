@@ -123,7 +123,7 @@ describeIfDb('DrizzleMealSkipRepository', () => {
   })
 
   describe('findSkipsForPeriod', () => {
-    it('returns rows from the start date through the day before the end date', async () => {
+    it('returns rows in date and meal type order within the inclusive-exclusive range', async () => {
       const tx = getTx()
       const repository = createDrizzleMealSkipRepository(tx)
       await repository.recordSkip({
@@ -131,36 +131,44 @@ describeIfDb('DrizzleMealSkipRepository', () => {
         date: jstDate('2026-07-28'),
         mealType: 'dinner',
       })
-      const first = (
+      const sameDateLunch = (
         await repository.recordSkip({
-          id: 'skip_included',
-          date: jstDate('2026-07-29'),
-          mealType: 'breakfast',
-        })
-      )._unsafeUnwrap()
-      const second = (
-        await repository.recordSkip({
-          id: 'skip_included_lunch',
+          id: 'skip_same_date_lunch',
           date: jstDate('2026-07-29'),
           mealType: 'lunch',
         })
       )._unsafeUnwrap()
+      const sameDateBreakfast = (
+        await repository.recordSkip({
+          id: 'skip_same_date_breakfast',
+          date: jstDate('2026-07-29'),
+          mealType: 'breakfast',
+        })
+      )._unsafeUnwrap()
+      const nextDateBreakfast = (
+        await repository.recordSkip({
+          id: 'skip_next_date_breakfast',
+          date: jstDate('2026-07-30'),
+          mealType: 'breakfast',
+        })
+      )._unsafeUnwrap()
       await repository.recordSkip({
         id: 'skip_at_end',
-        date: jstDate('2026-07-30'),
+        date: jstDate('2026-07-31'),
         mealType: 'lunch',
       })
 
       const result = (
         await repository.findSkipsForPeriod(
           jstDate('2026-07-29'),
-          jstDate('2026-07-30'),
+          jstDate('2026-07-31'),
         )
       )._unsafeUnwrap()
 
       expect(result.map(normalizeRow)).toEqual([
-        normalizeRow(first),
-        normalizeRow(second),
+        normalizeRow(sameDateBreakfast),
+        normalizeRow(sameDateLunch),
+        normalizeRow(nextDateBreakfast),
       ])
     })
   })
