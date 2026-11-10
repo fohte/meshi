@@ -9,7 +9,10 @@ import {
 import type { MealPlan } from '#domain/meal-plan/types'
 import { describeIfDb, setupDrizzleTx } from '#test/db'
 import { jstDate } from '#test/jst-date'
-import { seedFoodMasterWithoutNutrition } from '#test/seed'
+import {
+  seedFoodMasterNutritionVersion,
+  seedFoodMasterWithoutNutrition,
+} from '#test/seed'
 
 const FIXED_NOW = new Date('2026-11-09T16:00:00.000Z')
 const CREATED_AT_PLACEHOLDER = new Date('2000-01-01T00:00:00.000Z')
@@ -129,6 +132,7 @@ describeIfDb('MealPlanService with DrizzleMealPlanRepository', () => {
             foodMasterId: 'fm_meal_plan_beta',
             foodName: 'beta sample food',
             quantity: 2,
+            energyKcalPerUnit: null,
           },
         ],
         reason: 'updated reason',
@@ -209,7 +213,7 @@ describeIfDb('MealPlanService with DrizzleMealPlanRepository', () => {
         id: 'plan-1',
         date: '2026-11-10',
         mealType: 'breakfast',
-        items: [item],
+        items: [{ ...item, energyKcalPerUnit: null }],
         reason: 'morning',
         status: 'planned',
         createdAt: CREATED_AT_PLACEHOLDER,
@@ -218,10 +222,75 @@ describeIfDb('MealPlanService with DrizzleMealPlanRepository', () => {
         id: 'plan-2',
         date: '2026-11-11',
         mealType: 'dinner',
-        items: [item],
+        items: [{ ...item, energyKcalPerUnit: null }],
         reason: 'evening',
         status: 'cancelled',
         createdAt: CREATED_AT_PLACEHOLDER,
+      },
+    ])
+  })
+
+  it('returns current per-unit kcal and null when it is unavailable', async () => {
+    const tx = getTx()
+    await seedFoodMasterWithoutNutrition(tx, {
+      id: 'fm_meal_plan_with_kcal',
+      name: 'example food with nutrition',
+    })
+    await seedFoodMasterNutritionVersion(tx, {
+      foodMasterId: 'fm_meal_plan_with_kcal',
+      versionNo: 1,
+      isCurrent: false,
+      changeKind: 'initial',
+      source: 'user_input',
+      nutrients: { energy_kcal: 12 },
+    })
+    await seedFoodMasterNutritionVersion(tx, {
+      foodMasterId: 'fm_meal_plan_with_kcal',
+      versionNo: 2,
+      isCurrent: true,
+      changeKind: 'product_update',
+      source: 'user_input',
+      nutrients: { energy_kcal: 47.5 },
+    })
+    await seedFoodMasterWithoutNutrition(tx, {
+      id: 'fm_meal_plan_without_kcal',
+      name: 'example food without nutrition',
+    })
+    const service = buildService()
+    await service.save({
+      date: jstDate('2026-11-10'),
+      mealType: 'lunch',
+      items: [
+        {
+          foodMasterId: 'fm_meal_plan_with_kcal',
+          foodName: 'example food with nutrition',
+          quantity: 1,
+        },
+        {
+          foodMasterId: 'fm_meal_plan_without_kcal',
+          foodName: 'example food without nutrition',
+          quantity: 2,
+        },
+      ],
+    })
+
+    const plans = await service.list(
+      jstDate('2026-11-10'),
+      jstDate('2026-11-11'),
+    )
+
+    expect(plans._unsafeUnwrap()[0]?.items).toEqual([
+      {
+        foodMasterId: 'fm_meal_plan_with_kcal',
+        foodName: 'example food with nutrition',
+        quantity: 1,
+        energyKcalPerUnit: 47.5,
+      },
+      {
+        foodMasterId: 'fm_meal_plan_without_kcal',
+        foodName: 'example food without nutrition',
+        quantity: 2,
+        energyKcalPerUnit: null,
       },
     ])
   })
@@ -261,6 +330,7 @@ describeIfDb('MealPlanService with DrizzleMealPlanRepository', () => {
             foodMasterId: 'fm_meal_plan_alpha',
             foodName: 'alpha sample food',
             quantity: 1,
+            energyKcalPerUnit: null,
           },
         ],
         reason: null,

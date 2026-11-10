@@ -102,6 +102,15 @@
   transition: background 0.15s;
 }
 
+.planItem {
+  box-sizing: border-box;
+  width: 100%;
+  display: flex;
+  gap: 12px;
+  align-items: baseline;
+  padding: 5px 8px;
+}
+
 .item:hover {
   background: var(--color-surface);
 }

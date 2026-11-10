@@ -5,7 +5,13 @@ import { z } from 'zod'
 
 import type { Sql } from '#db/index'
 import { numericValueSchema } from '#db/numeric-value-schema'
-import { foodMasters, mealPlanItems, mealPlans } from '#db/schema'
+import {
+  foodMasterNutrients,
+  foodMasterNutrition,
+  foodMasters,
+  mealPlanItems,
+  mealPlans,
+} from '#db/schema'
 import { MEAL_TYPES } from '#domain/meal-log/types'
 import {
   type MealPlanDomainError,
@@ -40,6 +46,7 @@ const mealPlanRowsSchema = z.array(
     foodMasterId: z.string(),
     foodName: z.string(),
     quantity: numericValueSchema.pipe(z.number().positive()),
+    energyKcal: numericValueSchema.nullable(),
   }),
 )
 
@@ -55,10 +62,25 @@ const selectPlanRows = (session: DbSession, where?: ReturnType<typeof and>) =>
       foodMasterId: mealPlanItems.foodMasterId,
       foodName: foodMasters.name,
       quantity: mealPlanItems.quantity,
+      energyKcal: foodMasterNutrients.value,
     })
     .from(mealPlans)
     .innerJoin(mealPlanItems, eq(mealPlanItems.mealPlanId, mealPlans.id))
     .innerJoin(foodMasters, eq(foodMasters.id, mealPlanItems.foodMasterId))
+    .leftJoin(
+      foodMasterNutrition,
+      and(
+        eq(foodMasterNutrition.foodMasterId, foodMasters.id),
+        eq(foodMasterNutrition.isCurrent, true),
+      ),
+    )
+    .leftJoin(
+      foodMasterNutrients,
+      and(
+        eq(foodMasterNutrients.nutritionVersionId, foodMasterNutrition.id),
+        eq(foodMasterNutrients.nutrientCode, 'energy_kcal'),
+      ),
+    )
     .where(where)
     .orderBy(
       asc(mealPlans.plannedDate),
@@ -86,6 +108,7 @@ const toMealPlans = (
       foodMasterId: row.foodMasterId,
       foodName: row.foodName,
       quantity: row.quantity,
+      energyKcalPerUnit: row.energyKcal,
     }
     const existing = plans.get(row.id)
     if (existing === undefined) {

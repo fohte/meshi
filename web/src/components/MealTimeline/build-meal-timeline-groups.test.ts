@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 
 import type { DayDetailEntry } from '#api/day-detail'
+import type { MealPlan } from '#api/meal-plans'
 import { buildMealTimelineGroups } from '#components/MealTimeline/build-meal-timeline-groups'
 
 const entry = (overrides: Partial<DayDetailEntry>): DayDetailEntry => ({
@@ -27,6 +28,90 @@ const entry = (overrides: Partial<DayDetailEntry>): DayDetailEntry => ({
 })
 
 describe('buildMealTimelineGroups', () => {
+  it('shows only a planned meal that has no recorded entry or skip', () => {
+    const plans: ReadonlyArray<MealPlan> = [
+      {
+        id: 'plan_cancelled_fixture',
+        date: '2026-07-29',
+        mealType: 'breakfast',
+        reason: null,
+        status: 'cancelled',
+        items: [],
+      },
+      {
+        id: 'plan_lunch_fixture',
+        date: '2026-07-29',
+        mealType: 'lunch',
+        reason: null,
+        status: 'planned',
+        items: [
+          {
+            foodMasterId: 'fixture_food_a',
+            foodName: '架空食品 A',
+            quantity: 1.5,
+            energyKcalPerUnit: 125,
+          },
+        ],
+      },
+      {
+        id: 'plan_eaten_fixture',
+        date: '2026-07-29',
+        mealType: 'dinner',
+        reason: null,
+        status: 'eaten',
+        items: [],
+      },
+    ]
+
+    expect(
+      buildMealTimelineGroups(
+        [entry({ mealType: 'breakfast' })],
+        ['snack'],
+        plans,
+      ).map((group) => ({
+        mealType: group.mealType,
+        status: group.status,
+        items: group.items.map(({ name, quantityText, kcalText }) => ({
+          name,
+          quantityText,
+          kcalText,
+        })),
+        planId: group.plan?.id ?? null,
+      })),
+    ).toEqual([
+      {
+        mealType: 'breakfast',
+        status: 'eaten',
+        items: [{ name: 'ごはん', quantityText: '×150', kcalText: '234 kcal' }],
+        planId: null,
+      },
+      {
+        mealType: 'lunch',
+        status: 'planned',
+        items: [
+          {
+            name: '架空食品 A',
+            quantityText: '×1.5',
+            kcalText: '188 kcal',
+          },
+        ],
+        planId: 'plan_lunch_fixture',
+      },
+      {
+        mealType: 'dinner',
+        status: 'unrecorded',
+        items: [],
+        planId: null,
+      },
+      {
+        mealType: 'snack',
+        status: 'skipped',
+        items: [],
+        planId: null,
+      },
+    ])
+  })
+
   it('assigns status "eaten" with items and kcalText to a mealType with entries', () => {
     const entries = [
       entry({

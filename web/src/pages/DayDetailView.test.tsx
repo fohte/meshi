@@ -5,6 +5,7 @@ import { MemoryRouter } from 'react-router'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { z } from 'zod'
 
+import type { MealPlan } from '#api/meal-plans'
 import { MealLogSheetProvider } from '#meal-log-sheet/MealLogSheetProvider'
 import { DayDetailView } from '#pages/DayDetailView'
 import { performAct, setInputValue } from '#test/test-helpers'
@@ -24,6 +25,28 @@ const saveMealSetInputSchema = z.object({
     }),
   ),
 })
+
+const saveMealPlanInputSchema = z.object({
+  reason: z.string().nullable(),
+  items: z.array(
+    z.object({
+      foodMasterId: z.string(),
+      foodName: z.string(),
+      quantity: z.number(),
+    }),
+  ),
+})
+
+const foodSearchResult = {
+  foodMasterId: 'fixture_food_a',
+  compositionCode: null,
+  name: '架空食品 A',
+  isEstimated: false,
+  nutritionStatus: 'confirmed',
+  reason: 'fuzzy_name',
+  source: 'web_search',
+  energyKcalPerUnit: 125,
+}
 
 const foodNameById: Readonly<Record<string, string>> = {
   food_fixture_001: 'テスト食品_001',
@@ -150,6 +173,49 @@ const expectedMealSetPost = (name: string): RequestRecord => ({
   },
 })
 
+const mealPlanSaveOutput = (
+  requests: ReadonlyArray<RequestRecord>,
+  container: HTMLElement,
+) => ({
+  saveRequests: requests.filter((request) => request.method === 'PUT'),
+  editorClosed: container.querySelector('[role="dialog"]') === null,
+  plannedFoodIsNotInteractive: !Array.from(
+    container.querySelectorAll<HTMLButtonElement>('button'),
+  ).some((button) => button.textContent.includes('架空食品 A')),
+})
+
+const mealPlanCancelOutput = (
+  initialView: {
+    readonly summary: boolean
+    readonly photoRequests: ReadonlyArray<RequestRecord>
+    readonly nutritionRequests: ReadonlyArray<RequestRecord>
+    readonly hasSkipAction: boolean
+    readonly hasTomorrowLink: boolean
+    readonly planItemIsButton: boolean
+  },
+  editSheet: { readonly label: string | null; readonly reason: string | null },
+  requests: ReadonlyArray<RequestRecord>,
+  container: HTMLElement,
+) => ({
+  initialView,
+  editSheet,
+  cancelRequests: requests.filter((request) => request.method === 'POST'),
+  cancelledPlanHidden: !container.textContent.includes('架空食品 A'),
+})
+
+const setTextareaValue = (
+  textarea: HTMLTextAreaElement,
+  value: string,
+): Promise<void> =>
+  performAct(() => {
+    const setter = Object.getOwnPropertyDescriptor(
+      HTMLTextAreaElement.prototype,
+      'value',
+    )?.set?.bind(textarea)
+    if (setter !== undefined) setter(value)
+    textarea.dispatchEvent(new Event('input', { bubbles: true }))
+  })
+
 const waitFor = async (condition: () => boolean): Promise<void> => {
   for (let attempt = 0; attempt < 40 && !condition(); attempt += 1) {
     await act(async () => {
@@ -161,11 +227,16 @@ const waitFor = async (condition: () => boolean): Promise<void> => {
 const setupPage = (
   saveResponse: (body: unknown) => Response | Promise<Response>,
   requests: Array<RequestRecord>,
+  mealPlans: ReadonlyArray<MealPlan> = [],
 ): {
   readonly container: HTMLDivElement
   readonly root: Root
   readonly queryClient: QueryClient
 } => {
+  let currentMealPlans = [...mealPlans]
+  vi.spyOn(Temporal.Now, 'plainDateISO').mockReturnValue(
+    Temporal.PlainDate.from('2093-04-12'),
+  )
   vi.stubGlobal(
     'fetch',
     vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
@@ -183,8 +254,42 @@ const setupPage = (
       if (method === 'POST' && path === '/api/meal-sets') {
         return Promise.resolve(saveResponse(body))
       }
-      if (path === '/api/days/2093-04-12') {
-        return Promise.resolve(jsonResponse(dayDetail))
+      if (path.startsWith('/api/days/')) {
+        const date = path.slice('/api/days/'.length)
+        return Promise.resolve(jsonResponse({ ...dayDetail, date }))
+      }
+      if (path.startsWith('/api/meal-plans?')) {
+        return Promise.resolve(jsonResponse(currentMealPlans))
+      }
+      if (method === 'POST' && path.startsWith('/api/meal-plans/')) {
+        currentMealPlans = currentMealPlans.map((plan) =>
+          path.includes(encodeURIComponent(plan.id))
+            ? { ...plan, status: 'cancelled' as const }
+            : plan,
+        )
+        return Promise.resolve(new Response(null, { status: 204 }))
+      }
+      if (method === 'PUT' && path.startsWith('/api/meal-plans/')) {
+        const parsedInput = saveMealPlanInputSchema.safeParse(body)
+        if (!parsedInput.success) {
+          return Promise.resolve(
+            jsonResponse({ error: 'invalid request' }, 400),
+          )
+        }
+        const date = path.split('/')[3] ?? ''
+        const plan: MealPlan = {
+          id: 'plan_created_fixture',
+          date,
+          mealType: 'dinner',
+          reason: parsedInput.data.reason,
+          status: 'planned',
+          items: parsedInput.data.items.map((item) => ({
+            ...item,
+            energyKcalPerUnit: 125,
+          })),
+        }
+        currentMealPlans = [plan]
+        return Promise.resolve(jsonResponse(plan))
       }
       if (path === '/api/nutrient-definitions') {
         return Promise.resolve(jsonResponse([]))
@@ -199,6 +304,12 @@ const setupPage = (
             dailyTargets: { energy_kcal: 1900 },
           }),
         )
+      }
+      if (path.startsWith('/api/foods/suggestions?')) {
+        return Promise.resolve(jsonResponse({ recent: [], frequent: [] }))
+      }
+      if (path.startsWith('/api/foods/search?')) {
+        return Promise.resolve(jsonResponse({ items: [foodSearchResult] }))
       }
       if (path.startsWith('/api/meal-photos/')) {
         return Promise.resolve(jsonResponse([]))
@@ -220,12 +331,16 @@ const setupPage = (
   return { container, root, queryClient }
 }
 
-const renderPage = (root: Root, queryClient: QueryClient): void => {
+const renderPage = (
+  root: Root,
+  queryClient: QueryClient,
+  date = '2093-04-12',
+): void => {
   root.render(
     <QueryClientProvider client={queryClient}>
       <MealLogSheetProvider>
         <MemoryRouter>
-          <DayDetailView date="2093-04-12" />
+          <DayDetailView date={date} />
         </MemoryRouter>
       </MealLogSheetProvider>
     </QueryClientProvider>,
@@ -299,9 +414,208 @@ const cleanupPage = async (
 
 afterEach(() => {
   vi.unstubAllGlobals()
+  vi.restoreAllMocks()
 })
 
 describe('DayDetailView', () => {
+  it('creates a future meal plan through the shared food search and item form', async () => {
+    const requests: Array<RequestRecord> = []
+    const { container, root, queryClient } = setupPage(
+      () => jsonResponse({}),
+      requests,
+    )
+
+    try {
+      await performAct(() => {
+        renderPage(root, queryClient, '2093-04-13')
+      })
+      await waitFor(() =>
+        Array.from(container.querySelectorAll('button')).some(
+          (button) => button.textContent === '予定を立てる',
+        ),
+      )
+      await performAct(() => {
+        const dinnerSection = Array.from(
+          container.querySelectorAll<HTMLElement>('section'),
+        ).find((section) => section.textContent.includes('夕食'))
+        Array.from(
+          dinnerSection?.querySelectorAll<HTMLButtonElement>('button') ?? [],
+        )
+          .find((button) => button.textContent === '予定を立てる')
+          ?.click()
+      })
+      await performAct(() => {
+        Array.from(container.querySelectorAll<HTMLButtonElement>('button'))
+          .find((button) => button.textContent.includes('食品を追加'))
+          ?.click()
+      })
+      const searchInput = container.querySelector<HTMLInputElement>(
+        'input[placeholder="食品名を入力"]',
+      )
+      if (searchInput !== null) await setInputValue(searchInput, '架空')
+      await waitFor(() =>
+        Array.from(container.querySelectorAll('button')).some((button) =>
+          button.textContent.includes('架空食品 A'),
+        ),
+      )
+      await performAct(() => {
+        Array.from(container.querySelectorAll<HTMLButtonElement>('button'))
+          .find((button) => button.textContent.includes('架空食品 A'))
+          ?.click()
+      })
+      const reasonInput =
+        container.querySelector<HTMLTextAreaElement>('textarea')
+      if (reasonInput !== null) {
+        await setTextareaValue(reasonInput, '会議後の食事')
+      }
+      await performAct(() => {
+        Array.from(container.querySelectorAll<HTMLButtonElement>('button'))
+          .find((button) => button.textContent === '保存')
+          ?.click()
+      })
+      await waitFor(() =>
+        requests.some(
+          (request) =>
+            request.method === 'PUT' &&
+            request.path === '/api/meal-plans/2093-04-13/dinner',
+        ),
+      )
+      await waitFor(() => container.textContent.includes('架空食品 A'))
+
+      expect(mealPlanSaveOutput(requests, container)).toEqual({
+        saveRequests: [
+          {
+            method: 'PUT',
+            path: '/api/meal-plans/2093-04-13/dinner',
+            body: {
+              reason: '会議後の食事',
+              items: [
+                {
+                  foodMasterId: 'fixture_food_a',
+                  foodName: '架空食品 A',
+                  quantity: 1,
+                },
+              ],
+            },
+          },
+        ],
+        editorClosed: true,
+        plannedFoodIsNotInteractive: true,
+      })
+    } finally {
+      await cleanupPage(container, root, queryClient)
+    }
+  })
+
+  it('shows a future plan without meal-log controls, photos, or nutrition summary', async () => {
+    const requests: Array<RequestRecord> = []
+    const plan: MealPlan = {
+      id: 'plan_fixture_001',
+      date: '2093-04-13',
+      mealType: 'dinner',
+      reason: '作業後の予定',
+      status: 'planned',
+      items: [
+        {
+          foodMasterId: 'fixture_food_a',
+          foodName: '架空食品 A',
+          quantity: 1.5,
+          energyKcalPerUnit: 125,
+        },
+      ],
+    }
+    const { container, root, queryClient } = setupPage(
+      () => jsonResponse({}),
+      requests,
+      [plan],
+    )
+
+    try {
+      await performAct(() => {
+        renderPage(root, queryClient, '2093-04-13')
+      })
+      await waitFor(() => container.textContent.includes('架空食品 A'))
+
+      const planItem = Array.from(
+        container.querySelectorAll<HTMLDivElement>('div'),
+      ).find((element) => element.textContent.includes('架空食品 A'))
+      const initialView = {
+        summary: container.textContent.includes('NUTRITION'),
+        photoRequests: requests.filter((request) =>
+          request.path.startsWith('/api/meal-photos/'),
+        ),
+        nutritionRequests: requests.filter((request) =>
+          ['/api/nutrient-definitions', '/api/profile'].includes(request.path),
+        ),
+        hasSkipAction: Array.from(container.querySelectorAll('button')).some(
+          (button) => button.textContent === '食べなかった',
+        ),
+        hasTomorrowLink: Array.from(container.querySelectorAll('a')).some(
+          (link) => link.textContent === '翌日 →',
+        ),
+        planItemIsButton:
+          planItem !== undefined && planItem.closest('button') !== null,
+      }
+      const changeButton = Array.from(
+        container.querySelectorAll<HTMLButtonElement>('button'),
+      ).find((button) => button.textContent === '予定を変更')
+      await performAct(() => {
+        changeButton?.click()
+      })
+      const editSheet = {
+        label:
+          container
+            .querySelector('[role="dialog"]')
+            ?.getAttribute('aria-label') ?? null,
+        reason:
+          container.querySelector<HTMLTextAreaElement>('textarea')?.value ??
+          null,
+      }
+      await performAct(() => {
+        container
+          .querySelector<HTMLButtonElement>('button[aria-label="閉じる"]')
+          ?.click()
+      })
+      await performAct(() => {
+        Array.from(container.querySelectorAll<HTMLButtonElement>('button'))
+          .find((button) => button.textContent === '取り消す')
+          ?.click()
+      })
+      await waitFor(() =>
+        requests.some(
+          (request) =>
+            request.method === 'POST' &&
+            request.path === '/api/meal-plans/plan_fixture_001/cancel',
+        ),
+      )
+      await waitFor(() => !container.textContent.includes('架空食品 A'))
+
+      expect(
+        mealPlanCancelOutput(initialView, editSheet, requests, container),
+      ).toEqual({
+        initialView: {
+          summary: false,
+          photoRequests: [],
+          nutritionRequests: [],
+          hasSkipAction: false,
+          hasTomorrowLink: true,
+          planItemIsButton: false,
+        },
+        editSheet: { label: '予定を変更', reason: '作業後の予定' },
+        cancelRequests: [
+          {
+            method: 'POST',
+            path: '/api/meal-plans/plan_fixture_001/cancel',
+            body: null,
+          },
+        ],
+        cancelledPlanHidden: true,
+      })
+    } finally {
+      await cleanupPage(container, root, queryClient)
+    }
+  })
+
   it('shows the nutrition basis for a meal log opened from the day view', async () => {
     const requests: Array<RequestRecord> = []
     const { container, root, queryClient } = setupPage(

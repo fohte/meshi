@@ -7,7 +7,9 @@ interface MealPlanItemInput {
   readonly quantity: number
 }
 
-export type MealPlanItem = MealPlanItemInput
+export interface MealPlanItem extends MealPlanItemInput {
+  readonly energyKcalPerUnit: number | null
+}
 
 export interface MealPlan {
   readonly id: string
@@ -15,7 +17,7 @@ export interface MealPlan {
   readonly mealType: MealType
   readonly items: ReadonlyArray<MealPlanItem>
   readonly reason: string | null
-  readonly status: 'planned' | 'cancelled'
+  readonly status: 'planned' | 'eaten' | 'cancelled'
   readonly createdAt: Date
 }
 

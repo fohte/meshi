@@ -4,6 +4,7 @@ import type { ApiDeps } from '#api/index'
 import { FoodMasterDomainError } from '#domain/food-master/errors'
 import { MealLogPersistenceError } from '#domain/meal-log/errors'
 import { MealPhotoPersistenceError } from '#domain/meal-photo/errors'
+import { MealPlanPersistenceError } from '#domain/meal-plan/errors'
 import { MealSetPersistenceError } from '#domain/meal-set/errors'
 import { MealSkipPersistenceError } from '#domain/meal-skip/errors'
 import { StockDomainError } from '#domain/stock/errors'
@@ -68,6 +69,20 @@ export const createStubApiDeps = (): ApiDeps => ({
     deleteMany: () =>
       errAsync(
         new MealLogPersistenceError('mealLogService.deleteMany not stubbed'),
+      ),
+  },
+  mealPlanService: {
+    save: () =>
+      errAsync(
+        new MealPlanPersistenceError('mealPlanService.save not stubbed'),
+      ),
+    list: () =>
+      errAsync(
+        new MealPlanPersistenceError('mealPlanService.list not stubbed'),
+      ),
+    cancel: () =>
+      errAsync(
+        new MealPlanPersistenceError('mealPlanService.cancel not stubbed'),
       ),
   },
   mealSetService: {

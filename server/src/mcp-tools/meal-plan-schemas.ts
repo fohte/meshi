@@ -39,7 +39,7 @@ const mealPlanOutput = z.object({
     }),
   ),
   reason: z.string().nullable(),
-  status: z.enum(['planned', 'cancelled']),
+  status: z.enum(['planned', 'eaten', 'cancelled']),
 })
 
 const mealPlanErrorOutput = z.object({

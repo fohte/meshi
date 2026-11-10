@@ -1,4 +1,5 @@
 import type { DayDetailEntry, MealType } from '#api/day-detail'
+import type { MealPlan } from '#api/meal-plans'
 
 const MEAL_ORDER: ReadonlyArray<MealType> = [
   'breakfast',
@@ -23,7 +24,7 @@ interface MealTimelineItem {
   readonly kcalText: string
 }
 
-type MealGroupStatus = 'eaten' | 'skipped' | 'unrecorded'
+type MealGroupStatus = 'eaten' | 'skipped' | 'planned' | 'unrecorded'
 
 export interface MealTimelineGroup {
   readonly mealType: MealType
@@ -31,6 +32,7 @@ export interface MealTimelineGroup {
   readonly status: MealGroupStatus
   readonly kcalText: string | null
   readonly items: ReadonlyArray<MealTimelineItem>
+  readonly plan?: MealPlan
 }
 
 const formatQuantity = (quantity: number): string =>
@@ -46,6 +48,7 @@ const formatQuantity = (quantity: number): string =>
 export const buildMealTimelineGroups = (
   entries: ReadonlyArray<DayDetailEntry>,
   skippedMealTypes: ReadonlyArray<MealType>,
+  mealPlans: ReadonlyArray<MealPlan> = [],
 ): ReadonlyArray<MealTimelineGroup> => {
   const skipped = new Set(skippedMealTypes)
   return MEAL_ORDER.map((mealType) => {
@@ -80,12 +83,48 @@ export const buildMealTimelineGroups = (
         }),
       }
     }
+    if (skipped.has(mealType)) {
+      return {
+        mealType,
+        label: MEAL_LABELS[mealType],
+        status: 'skipped' as const,
+        kcalText: null,
+        items: [],
+      }
+    }
+    const plan = mealPlans.find(
+      (mealPlan) =>
+        mealPlan.mealType === mealType && mealPlan.status === 'planned',
+    )
+    if (plan !== undefined) {
+      return {
+        mealType,
+        label: MEAL_LABELS[mealType],
+        status: 'planned' as const,
+        kcalText: null,
+        items: plan.items.map((item, index) => {
+          const kcal =
+            item.energyKcalPerUnit === null
+              ? null
+              : item.energyKcalPerUnit * item.quantity
+          return {
+            id: plan.id + '-' + String(index),
+            name: item.foodName,
+            isEstimated: false,
+            isUnknown: item.energyKcalPerUnit === null,
+            hasNutritionVersionDifferences: false,
+            quantityText: '×' + formatQuantity(item.quantity),
+            kcalText:
+              kcal === null ? '不明' : String(Math.round(kcal)) + ' kcal',
+          }
+        }),
+        plan,
+      }
+    }
     return {
       mealType,
       label: MEAL_LABELS[mealType],
-      status: skipped.has(mealType)
-        ? ('skipped' as const)
-        : ('unrecorded' as const),
+      status: 'unrecorded' as const,
       kcalText: null,
       items: [],
     }
