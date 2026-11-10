@@ -86,7 +86,8 @@ export default meta
 type Story = StoryObj<typeof MealPlanSheet>
 
 export const Create: Story = {
-  name: '夕食の予定に食品と理由を入力しています',
+  name: '夕食の予定に品目を追加する前の状態です',
+  args: { items: [] },
 }
 
 export const Edit: Story = {
