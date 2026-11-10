@@ -20,6 +20,7 @@ type FoodSearchResult =
       readonly name: string
       readonly isEstimated: boolean
       readonly nutritionStatus: NutritionStatus
+      readonly nutrition: Readonly<Record<string, number>>
       readonly energyKcalPerUnit: number | null
       readonly lastEatenDate: JstDate | null
       readonly lastQuantity: number | null
@@ -132,6 +133,9 @@ export const createFoodSearchService = (
                 nutritionStatus:
                   masterEnrichment.get(match.candidate.foodMasterId)
                     ?.nutritionStatus ?? 'unknown',
+                nutrition:
+                  masterEnrichment.get(match.candidate.foodMasterId)
+                    ?.nutrition ?? {},
                 energyKcalPerUnit:
                   masterEnrichment.get(match.candidate.foodMasterId)
                     ?.energyKcalPerUnit ?? null,

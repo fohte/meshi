@@ -10,6 +10,7 @@ import {
   seedFoodMasterNutritionVersion,
   seedFoodMasterWithoutNutrition,
   seedMealLog,
+  seedNutrientDefinition,
 } from '#test/seed'
 
 const MS_PER_DAY = 24 * 60 * 60 * 1000
@@ -21,6 +22,13 @@ describeIfDb('createFoodBrowseService', () => {
   describe('search', () => {
     it('enriches a match from its current nutrition version', async () => {
       const tx = getTx()
+      await seedNutrientDefinition(tx, {
+        code: 'energy_kcal',
+        displayName: 'Energy',
+        unit: 'kcal',
+        isMajor: true,
+        sortOrder: 0,
+      })
       await seedFoodMasterWithoutNutrition(tx, {
         id: 'fm_versioned',
         name: 'versioned food',
@@ -62,6 +70,13 @@ describeIfDb('createFoodBrowseService', () => {
 
     it('enriches a food_master match with its source and per-unit kcal', async () => {
       const tx = getTx()
+      await seedNutrientDefinition(tx, {
+        code: 'energy_kcal',
+        displayName: 'Energy',
+        unit: 'kcal',
+        isMajor: true,
+        sortOrder: 0,
+      })
       await seedFoodMaster(tx, {
         id: 'fm_apple',
         name: 'apple_x',

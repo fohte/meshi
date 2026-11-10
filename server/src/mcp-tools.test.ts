@@ -159,6 +159,7 @@ const searchFoodResults = [
     name: 'item_token_alpha',
     isEstimated: false,
     nutritionStatus: 'confirmed' as const,
+    nutrition: { energy_kcal: 42 },
     energyKcalPerUnit: 42,
     lastEatenDate: jstDate('2026-01-02'),
     lastQuantity: 1.5,
@@ -1131,7 +1132,7 @@ describe('MeshiMcpServer tools/list', () => {
       )
       expect(descriptions).toEqual({
         search_foods:
-          '登録済み食品を複数の名前候補から検索し、食品名、kcal、栄養状態 (nutrition_status: confirmed / estimated / unknown)、最後に食べた JST 日付 (last_eaten_date) とそのときの量 (last_quantity) を返す。栄養値が不明な食品の kcal は null。last_eaten_date がある候補と同じ食品なら新規登録せず、その food_master_id を使う。量の指定が無ければ last_quantity を使い、null ならユーザーに量を聞く。origin が homemade の場合のみ食品成分表の候補も返す。成分表候補は自炊の素材にだけ使い、買った商品や外食には使わない。成分表候補の energy_kcal は 100g あたり。meal_sets に一致があれば items を record_meal_log に渡す。ユーザーが品目を指定した場合は該当 item だけ差し替える。meal_type は発話から決め、無ければユーザーに聞く。',
+          '登録済み食品を複数の名前候補から検索し、食品名、栄養値、栄養状態 (nutrition_status: confirmed / estimated / unknown)、最後に食べた JST 日付 (last_eaten_date) とそのときの量 (last_quantity) を返す。nutrition は現行バージョンの主要栄養素を食品 1 つ分で示し、値がある栄養素だけを含む。last_eaten_date がある候補と同じ食品なら新規登録せず、その food_master_id を使う。量の指定が無ければ last_quantity を使い、null ならユーザーに量を聞く。origin が homemade の場合のみ食品成分表の候補も返す。成分表候補は自炊の素材にだけ使い、買った商品や外食には使わない。成分表候補の energy_kcal は 100g あたり。meal_sets に一致があれば items を record_meal_log に渡す。ユーザーが品目を指定した場合は該当 item だけ差し替える。meal_type は発話から決め、無ければユーザーに聞く。',
         register_food_from_composition:
           '食品成分表の composition_code から食品マスタを登録する。成分表候補は自炊の素材にだけ使い、買った商品や外食には使わない。栄養値は食品成分表から 100g あたりの値をコピーするため、入力では指定できない。',
         register_meal_set:
@@ -2530,6 +2531,7 @@ describe('search_foods', () => {
                 composition_code: null,
                 name: 'item_token_alpha',
                 energy_kcal: 42,
+                nutrition: { energy_kcal: 42 },
                 is_estimated: false,
                 nutrition_status: 'confirmed',
                 last_eaten_date: '2026-01-02',
@@ -2552,7 +2554,7 @@ describe('search_foods', () => {
     }
   })
 
-  it('returns null energy when enrichment is unavailable', async () => {
+  it('omits missing nutrients when enrichment is unavailable', async () => {
     const h = await start({
       foodSearchServiceResult: okAsync([
         {
@@ -2561,6 +2563,7 @@ describe('search_foods', () => {
           name: 'item_token_beta',
           isEstimated: true,
           nutritionStatus: 'estimated',
+          nutrition: {},
           energyKcalPerUnit: null,
           lastEatenDate: null,
           lastQuantity: null,
@@ -2586,7 +2589,7 @@ describe('search_foods', () => {
               food_master_id: 'fm_catalog_beta',
               composition_code: null,
               name: 'item_token_beta',
-              energy_kcal: null,
+              nutrition: {},
               is_estimated: true,
               nutrition_status: 'estimated',
               last_eaten_date: null,
@@ -2610,6 +2613,7 @@ describe('search_foods', () => {
           name: 'search_fixture_alpha',
           isEstimated: false,
           nutritionStatus: 'confirmed' as const,
+          nutrition: { energy_kcal: 42 },
           energyKcalPerUnit: 42,
           lastEatenDate: null,
           lastQuantity: null,
@@ -2655,6 +2659,7 @@ describe('search_foods', () => {
                 composition_code: null,
                 name: 'search_fixture_alpha',
                 energy_kcal: 42,
+                nutrition: { energy_kcal: 42 },
                 is_estimated: false,
                 nutrition_status: 'confirmed',
                 last_eaten_date: null,
@@ -2696,6 +2701,7 @@ describe('search_foods', () => {
           name: 'unknown menu',
           isEstimated: false,
           nutritionStatus: 'unknown',
+          nutrition: {},
           energyKcalPerUnit: null,
           lastEatenDate: null,
           lastQuantity: null,
@@ -2721,7 +2727,7 @@ describe('search_foods', () => {
               food_master_id: 'fm_catalog_unknown',
               composition_code: null,
               name: 'unknown menu',
-              energy_kcal: null,
+              nutrition: {},
               is_estimated: false,
               nutrition_status: 'unknown',
               last_eaten_date: null,
@@ -2808,6 +2814,7 @@ describe('search_foods', () => {
                 composition_code: null,
                 name: 'item_token_alpha',
                 energy_kcal: 42,
+                nutrition: { energy_kcal: 42 },
                 is_estimated: false,
                 nutrition_status: 'confirmed',
                 last_eaten_date: '2026-01-02',
