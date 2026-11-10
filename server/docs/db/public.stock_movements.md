@@ -76,6 +76,7 @@ erDiagram
   date eaten_date
   uuid nutrition_version_id FK
   text nutrition_version_origin
+  uuid meal_plan_id FK
 }
 ```
 

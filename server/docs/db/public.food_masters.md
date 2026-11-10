@@ -61,6 +61,7 @@ erDiagram
   date eaten_date
   uuid nutrition_version_id FK
   text nutrition_version_origin
+  uuid meal_plan_id FK
 }
 "public.food_master_nutrition" {
   text food_master_id FK

@@ -16,6 +16,7 @@ Recorded food consumption entries.
 | eaten_date               | date                     |         | false    |                                                                                                                               |                                                                                                               | Asia/Tokyo calendar date on which the food was eaten.                      |
 | nutrition_version_id     | uuid                     |         | true     |                                                                                                                               | [public.food_master_nutrition](public.food_master_nutrition.md)                                               | Identifier of the nutrition version assigned to this meal log, when known. |
 | nutrition_version_origin | text                     |         | false    |                                                                                                                               |                                                                                                               | How the nutrition version was assigned to this meal log.                   |
+| meal_plan_id             | uuid                     |         | true     |                                                                                                                               | [public.meal_plans](public.meal_plans.md)                                                                     | Identifier of the meal plan realized by this meal log.                     |
 
 ## Constraints
 
@@ -33,6 +34,7 @@ Recorded food consumption entries.
 | meal_logs_food_master_id_fk                 | FOREIGN KEY | FOREIGN KEY (food_master_id) REFERENCES food_masters(id) ON UPDATE CASCADE ON DELETE RESTRICT                             |
 | meal_logs_pkey                              | PRIMARY KEY | PRIMARY KEY (id)                                                                                                          |
 | meal_logs_food_master_nutrition_version_fk  | FOREIGN KEY | FOREIGN KEY (food_master_id, nutrition_version_id) REFERENCES food_master_nutrition(food_master_id, id) ON UPDATE CASCADE |
+| meal_logs_meal_plan_id_fk                   | FOREIGN KEY | FOREIGN KEY (meal_plan_id) REFERENCES meal_plans(id) ON DELETE RESTRICT                                                   |
 
 ## Indexes
 
@@ -42,6 +44,7 @@ Recorded food consumption entries.
 | meal_logs_eaten_date_idx                | CREATE INDEX meal_logs_eaten_date_idx ON public.meal_logs USING btree (eaten_date DESC NULLS LAST)                                |
 | meal_logs_food_master_id_eaten_date_idx | CREATE INDEX meal_logs_food_master_id_eaten_date_idx ON public.meal_logs USING btree (food_master_id, eaten_date DESC NULLS LAST) |
 | meal_logs_nutrition_version_id_idx      | CREATE INDEX meal_logs_nutrition_version_id_idx ON public.meal_logs USING btree (nutrition_version_id)                            |
+| meal_logs_meal_plan_id_idx              | CREATE INDEX meal_logs_meal_plan_id_idx ON public.meal_logs USING btree (meal_plan_id) WHERE (meal_plan_id IS NOT NULL)           |
 
 ## Relations
 
@@ -52,6 +55,7 @@ erDiagram
 "public.meal_log_nutrition_changes" }o--|| "public.meal_logs" : "FOREIGN KEY (meal_log_id) REFERENCES meal_logs(id) ON UPDATE CASCADE ON DELETE CASCADE"
 "public.meal_logs" }o--|| "public.food_masters" : "FOREIGN KEY (food_master_id) REFERENCES food_masters(id) ON UPDATE CASCADE ON DELETE RESTRICT"
 "public.meal_logs" }o--|| "public.food_master_nutrition" : "FOREIGN KEY (food_master_id, nutrition_version_id) REFERENCES food_master_nutrition(food_master_id, id) ON UPDATE CASCADE"
+"public.meal_logs" }o--o| "public.meal_plans" : "FOREIGN KEY (meal_plan_id) REFERENCES meal_plans(id) ON DELETE RESTRICT"
 
 "public.meal_logs" {
   text id
@@ -62,6 +66,7 @@ erDiagram
   date eaten_date
   uuid nutrition_version_id FK
   text nutrition_version_origin
+  uuid meal_plan_id FK
 }
 "public.stock_movements" {
   text id
@@ -102,6 +107,14 @@ erDiagram
   date effective_from
   text reason
   boolean legacy_evidence
+  timestamp_with_time_zone created_at
+}
+"public.meal_plans" {
+  uuid id
+  date planned_date
+  meal_type meal_type
+  text reason
+  timestamp_with_time_zone cancelled_at
   timestamp_with_time_zone created_at
 }
 ```

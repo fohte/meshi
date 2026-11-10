@@ -10,6 +10,7 @@ export type MealPlanErrorCode =
   | 'meal_plan/food_master_not_found'
   | 'meal_plan/food_name_mismatch'
   | 'meal_plan/not_found'
+  | 'meal_plan/already_eaten'
   | 'meal_plan/persistence_failed'
 
 export class MealPlanDomainError extends CodedDomainError<MealPlanErrorCode> {
@@ -104,6 +105,15 @@ export class MealPlanNotFoundError extends MealPlanDomainError {
   constructor(id: string) {
     super('meal_plan/not_found', `meal_plan not found: ${id}`, { id })
     this.name = 'MealPlanNotFoundError'
+  }
+}
+
+export class EatenMealPlanError extends MealPlanDomainError {
+  constructor(id: string) {
+    super('meal_plan/already_eaten', `meal_plan is already eaten: ${id}`, {
+      id,
+    })
+    this.name = 'EatenMealPlanError'
   }
 }
 

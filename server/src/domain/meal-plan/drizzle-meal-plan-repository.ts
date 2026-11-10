@@ -1,14 +1,15 @@
 import { and, asc, eq, gte, inArray, isNull, lt, sql } from 'drizzle-orm'
 import { drizzle } from 'drizzle-orm/postgres-js'
-import { err, ok, type Result, ResultAsync } from 'neverthrow'
+import { err, errAsync, ok, type Result, ResultAsync } from 'neverthrow'
 import { z } from 'zod'
 
 import type { Sql } from '#db/index'
 import { numericValueSchema } from '#db/numeric-value-schema'
-import { foodMasters, mealPlanItems, mealPlans } from '#db/schema'
+import { foodMasters, mealLogs, mealPlanItems, mealPlans } from '#db/schema'
 import { MEAL_TYPES } from '#domain/meal-log/types'
 import {
-  type MealPlanDomainError,
+  EatenMealPlanError,
+  MealPlanDomainError,
   MealPlanFoodMasterNotFoundError,
   MealPlanFoodNameMismatchError,
   MealPlanPersistenceError,
@@ -43,6 +44,15 @@ const mealPlanRowsSchema = z.array(
   }),
 )
 
+const eatenMealLogRowsSchema = z.array(
+  z.object({
+    mealPlanId: z.uuid(),
+    foodMasterId: z.string(),
+    foodName: z.string(),
+    quantity: numericValueSchema.pipe(z.number().positive()),
+  }),
+)
+
 const selectPlanRows = (session: DbSession, where?: ReturnType<typeof and>) =>
   session
     .select({
@@ -67,21 +77,31 @@ const selectPlanRows = (session: DbSession, where?: ReturnType<typeof and>) =>
       asc(foodMasters.id),
     )
 
-const toMealPlans = (
-  rawRows: unknown,
-): Result<ReadonlyArray<MealPlan>, MealPlanPersistenceError> => {
-  const parsed = mealPlanRowsSchema.safeParse(rawRows)
-  if (!parsed.success) {
-    return err(
-      new MealPlanPersistenceError(
-        `meal_plans query returned invalid rows: ${parsed.error.message}`,
-        parsed.error,
-      ),
-    )
-  }
+type ParsedMealPlanRow = z.infer<typeof mealPlanRowsSchema>[number]
 
+const parseMealPlanRows = (
+  rawRows: unknown,
+): Result<ReadonlyArray<ParsedMealPlanRow>, MealPlanPersistenceError> => {
+  const parsed = mealPlanRowsSchema.safeParse(rawRows)
+  return parsed.success
+    ? ok(parsed.data)
+    : err(
+        new MealPlanPersistenceError(
+          `meal_plans query returned invalid rows: ${parsed.error.message}`,
+          parsed.error,
+        ),
+      )
+}
+
+const assembleMealPlans = (
+  rows: ReadonlyArray<ParsedMealPlanRow>,
+  eatenItemsByPlanId: ReadonlyMap<
+    string,
+    ReadonlyArray<MealPlanItem>
+  > = new Map(),
+): ReadonlyArray<MealPlan> => {
   const plans = new Map<string, MealPlan>()
-  for (const row of parsed.data) {
+  for (const row of rows) {
     const item: MealPlanItem = {
       foodMasterId: row.foodMasterId,
       foodName: row.foodName,
@@ -95,14 +115,65 @@ const toMealPlans = (
         mealType: row.mealType,
         items: [item],
         reason: row.reason,
-        status: row.cancelledAt === null ? 'planned' : 'cancelled',
+        ...(eatenItemsByPlanId.has(row.id)
+          ? { eatenItems: eatenItemsByPlanId.get(row.id) ?? [] }
+          : {}),
+        status:
+          row.cancelledAt !== null
+            ? 'cancelled'
+            : eatenItemsByPlanId.has(row.id)
+              ? 'eaten'
+              : 'planned',
         createdAt: row.createdAt,
       })
     } else {
       plans.set(row.id, { ...existing, items: [...existing.items, item] })
     }
   }
-  return ok(Array.from(plans.values()))
+  return Array.from(plans.values())
+}
+
+const loadEatenItems = async (
+  session: DbSession,
+  mealPlanIds: ReadonlyArray<string>,
+): Promise<
+  Result<
+    ReadonlyMap<string, ReadonlyArray<MealPlanItem>>,
+    MealPlanPersistenceError
+  >
+> => {
+  if (mealPlanIds.length === 0) return ok(new Map())
+  const rawRows = await session
+    .select({
+      mealPlanId: mealLogs.mealPlanId,
+      foodMasterId: mealLogs.foodMasterId,
+      foodName: foodMasters.name,
+      quantity: mealLogs.quantity,
+    })
+    .from(mealLogs)
+    .innerJoin(foodMasters, eq(foodMasters.id, mealLogs.foodMasterId))
+    .where(inArray(mealLogs.mealPlanId, mealPlanIds))
+    .orderBy(asc(foodMasters.name), asc(foodMasters.id), asc(mealLogs.id))
+  const parsed = eatenMealLogRowsSchema.safeParse(rawRows)
+  if (!parsed.success) {
+    return err(
+      new MealPlanPersistenceError(
+        `meal_logs query returned invalid rows: ${parsed.error.message}`,
+        parsed.error,
+      ),
+    )
+  }
+  const itemsByPlanId = new Map<string, MealPlanItem[]>()
+  for (const row of parsed.data) {
+    const items = itemsByPlanId.get(row.mealPlanId) ?? []
+    items.push({
+      foodMasterId: row.foodMasterId,
+      foodName: row.foodName,
+      quantity: row.quantity,
+    })
+    itemsByPlanId.set(row.mealPlanId, items)
+  }
+  return ok(itemsByPlanId)
 }
 
 const normalizeFoodName = (name: string): string => name.trim().toLowerCase()
@@ -139,16 +210,16 @@ const loadById = async (
   id: string,
 ): Promise<Result<MealPlan, MealPlanPersistenceError>> => {
   const rawRows = await selectPlanRows(session, eq(mealPlans.id, id))
-  return toMealPlans(rawRows).andThen((plans) => {
-    const [plan] = plans
-    return plan === undefined
-      ? err(
-          new MealPlanPersistenceError(
-            `meal_plan write returned no rows: ${id}`,
-          ),
-        )
-      : ok(plan)
-  })
+  const parsedPlans = parseMealPlanRows(rawRows)
+  if (parsedPlans.isErr()) return err(parsedPlans.error)
+  const eatenItems = await loadEatenItems(session, [id])
+  if (eatenItems.isErr()) return err(eatenItems.error)
+  const [plan] = assembleMealPlans(parsedPlans.value, eatenItems.value)
+  return plan === undefined
+    ? err(
+        new MealPlanPersistenceError(`meal_plan write returned no rows: ${id}`),
+      )
+    : ok(plan)
 }
 
 const insertItems = (
@@ -175,13 +246,23 @@ export const createDrizzleMealPlanRepository = (
     operation: (session: DbSession) => Promise<Result<T, MealPlanDomainError>>,
     message: string,
   ): ResultAsync<T, MealPlanDomainError> => {
-    const promise = wrapInTransaction
-      ? db.transaction((tx) => operation(tx))
-      : operation(db)
+    const mapCause = (cause: unknown): MealPlanDomainError =>
+      cause instanceof MealPlanDomainError
+        ? cause
+        : new MealPlanPersistenceError(message, cause)
+    if (!wrapInTransaction) {
+      return ResultAsync.fromPromise(operation(db), mapCause).andThen(
+        (result) => result,
+      )
+    }
     return ResultAsync.fromPromise(
-      promise,
-      (cause) => new MealPlanPersistenceError(message, cause),
-    ).andThen((result) => result)
+      db.transaction(async (tx) => {
+        const result = await operation(tx)
+        if (result.isErr()) return Promise.reject(result.error)
+        return result.value
+      }),
+      mapCause,
+    )
   }
 
   return {
@@ -209,6 +290,12 @@ export const createDrizzleMealPlanRepository = (
           )
         }
 
+        const eatenItems = await loadEatenItems(session, [plan.id])
+        if (eatenItems.isErr()) return err(eatenItems.error)
+        if (eatenItems.value.has(plan.id)) {
+          return err(new EatenMealPlanError(plan.id))
+        }
+
         await session
           .delete(mealPlanItems)
           .where(eq(mealPlanItems.mealPlanId, plan.id))
@@ -228,11 +315,36 @@ export const createDrizzleMealPlanRepository = (
         ),
         (cause) =>
           new MealPlanPersistenceError('failed to list meal_plans', cause),
-      ).andThen((rows) => toMealPlans(rows))
+      ).andThen((rows) => {
+        const parsedPlans = parseMealPlanRows(rows)
+        if (parsedPlans.isErr()) return errAsync(parsedPlans.error)
+        return ResultAsync.fromPromise(
+          loadEatenItems(
+            db,
+            parsedPlans.value.map((plan) => plan.id),
+          ),
+          (cause) =>
+            new MealPlanPersistenceError(
+              'failed to list meal_log items',
+              cause,
+            ),
+        )
+          .andThen((eatenItems) => eatenItems)
+          .map((eatenItems) => assembleMealPlans(parsedPlans.value, eatenItems))
+      })
     },
 
     cancel(id) {
       return runWrite(async (session) => {
+        const [plan] = await session
+          .select({ id: mealPlans.id })
+          .from(mealPlans)
+          .where(eq(mealPlans.id, id))
+          .for('update', { of: mealPlans })
+        if (plan === undefined) return ok(null)
+        const eatenItems = await loadEatenItems(session, [id])
+        if (eatenItems.isErr()) return err(eatenItems.error)
+        if (eatenItems.value.has(id)) return err(new EatenMealPlanError(id))
         const [updated] = await session
           .update(mealPlans)
           .set({ cancelledAt: sql`COALESCE(${mealPlans.cancelledAt}, now())` })

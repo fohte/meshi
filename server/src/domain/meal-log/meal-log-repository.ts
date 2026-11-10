@@ -41,6 +41,7 @@ export interface MealLogRepository {
   ): ResultAsync<MealLogWriteResult, DomainError>
   insertMealLogs(
     inputs: ReadonlyArray<InsertMealLogInput>,
+    mealPlanId?: string,
   ): ResultAsync<ReadonlyArray<MealLogWriteResult>, DomainError>
   updateMealLog(
     input: UpdateMealLogPatch,

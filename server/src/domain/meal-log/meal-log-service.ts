@@ -151,7 +151,10 @@ export const createMealLogService = (
       }))
 
       return deps.repository
-        .insertMealLogs(plannedItems.map(({ insertInput }) => insertInput))
+        .insertMealLogs(
+          plannedItems.map(({ insertInput }) => insertInput),
+          input.mealPlanId,
+        )
         .andThen((rows) => {
           const rowsById = new Map(
             rows.map((row) => [row.log.id, row] as const),

@@ -16,6 +16,7 @@ import {
   loadFoundMealLogs,
   toRow,
 } from '#domain/meal-log/drizzle-meal-log-reader'
+import { validateMealPlanForRecord } from '#domain/meal-log/drizzle-meal-plan-record-validator'
 import {
   DomainError,
   FoodMasterNotFoundError,
@@ -242,10 +243,27 @@ export const createDrizzleMealLogRepository = (
 
     insertMealLogs: (
       inputs: ReadonlyArray<InsertMealLogInput>,
+      mealPlanId?: string,
     ): ResultAsync<ReadonlyArray<MealLogWriteResult>, DomainError> =>
       inputs.length === 0
         ? okAsync([])
         : runInTransaction(async (session) => {
+            if (mealPlanId !== undefined) {
+              const firstInput = inputs[0]
+              if (firstInput === undefined) {
+                return err(
+                  new MealLogPersistenceError(
+                    'meal_logs bulk insert received no inputs',
+                  ),
+                )
+              }
+              const validation = await validateMealPlanForRecord(
+                session,
+                firstInput,
+                mealPlanId,
+              )
+              if (validation.isErr()) return err(validation.error)
+            }
             const currentVersions = await loadCurrentNutritionVersionIds(
               session,
               inputs.map((input) => input.foodMasterId),
@@ -261,6 +279,7 @@ export const createDrizzleMealLogRepository = (
                   nutritionVersionId:
                     currentVersions.value.get(input.foodMasterId) ?? null,
                   nutritionVersionOrigin: 'recorded',
+                  mealPlanId: mealPlanId ?? null,
                   eatenDate: input.eatenDate,
                   mealType: input.mealType,
                   quantity: input.quantity.toString(),
