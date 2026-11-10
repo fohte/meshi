@@ -1,5 +1,7 @@
+import type { Result } from 'neverthrow'
 import { expect, it } from 'vitest'
 
+import type { MealPlanDomainError } from '#domain/meal-plan/errors'
 import {
   createDrizzleMealPlanRepository,
   createMealPlanService,
@@ -9,15 +11,31 @@ import { describeIfDb, setupDrizzleTx } from '#test/db'
 import { jstDate } from '#test/jst-date'
 import { seedFoodMasterWithoutNutrition } from '#test/seed'
 
-const FIXED_NOW = new Date('2026-11-10T03:00:00.000Z')
+const FIXED_NOW = new Date('2026-11-09T16:00:00.000Z')
 const CREATED_AT_PLACEHOLDER = new Date('2000-01-01T00:00:00.000Z')
 
 const observation = <T extends object>(value: T): T => value
 
 const normalizeMealPlan = (plan: MealPlan): MealPlan => ({
   ...plan,
+  id: 'meal-plan-id',
   createdAt: CREATED_AT_PLACEHOLDER,
 })
+
+const errorShape = <Value>(
+  result: Result<Value, MealPlanDomainError>,
+): {
+  code: string
+  message: string
+  details: Readonly<Record<string, unknown>>
+} | null =>
+  result.isErr()
+    ? {
+        code: result.error.code,
+        message: result.error.message,
+        details: result.error.details,
+      }
+    : null
 
 const normalizePlanIds = (
   plans: ReadonlyArray<MealPlan>,
@@ -95,20 +113,29 @@ describeIfDb('MealPlanService with DrizzleMealPlanRepository', () => {
       reason: 'updated reason',
     })
 
-    expect(normalizeMealPlan(replaced._unsafeUnwrap())).toEqual({
-      id: firstId,
-      date: '2026-11-10',
-      mealType: 'lunch',
-      items: [
-        {
-          foodMasterId: 'fm_meal_plan_beta',
-          foodName: 'beta sample food',
-          quantity: 2,
-        },
-      ],
-      reason: 'updated reason',
-      status: 'planned',
-      createdAt: CREATED_AT_PLACEHOLDER,
+    const replacedPlan = replaced._unsafeUnwrap()
+    expect(
+      observation({
+        plan: normalizeMealPlan(replacedPlan),
+        keptId: replacedPlan.id === firstId,
+      }),
+    ).toEqual({
+      plan: {
+        id: 'meal-plan-id',
+        date: '2026-11-10',
+        mealType: 'lunch',
+        items: [
+          {
+            foodMasterId: 'fm_meal_plan_beta',
+            foodName: 'beta sample food',
+            quantity: 2,
+          },
+        ],
+        reason: 'updated reason',
+        status: 'planned',
+        createdAt: CREATED_AT_PLACEHOLDER,
+      },
+      keptId: true,
     })
   })
 
@@ -125,9 +152,11 @@ describeIfDb('MealPlanService with DrizzleMealPlanRepository', () => {
       ],
     })
 
-    expect(result.isErr() ? result.error.code : 'ok').toEqual(
-      'meal_plan/past_date',
-    )
+    expect(errorShape(result)).toEqual({
+      code: 'meal_plan/past_date',
+      message: 'planned date must not be before today: 2026-11-09',
+      details: { date: '2026-11-09' },
+    })
   })
 
   it('rejects an empty item list', async () => {
@@ -137,9 +166,11 @@ describeIfDb('MealPlanService with DrizzleMealPlanRepository', () => {
       items: [],
     })
 
-    expect(result.isErr() ? result.error.code : 'ok').toEqual(
-      'meal_plan/empty_items',
-    )
+    expect(errorShape(result)).toEqual({
+      code: 'meal_plan/empty_items',
+      message: 'items must not be empty',
+      details: {},
+    })
   })
 
   it('lists the half-open date range and includes cancelled plans with status', async () => {
@@ -210,19 +241,34 @@ describeIfDb('MealPlanService with DrizzleMealPlanRepository', () => {
       ],
     })
     const before = await activityCounts()
-    const cancelled = await service.cancel(plan._unsafeUnwrap().id)
+    const savedPlan = plan._unsafeUnwrap()
+    const cancelled = await service.cancel(savedPlan.id)
     const after = await activityCounts()
 
     expect(
       observation({
-        status: cancelled._unsafeUnwrap().status,
+        plan: normalizeMealPlan(cancelled._unsafeUnwrap()),
         before,
         after,
       }),
     ).toEqual({
-      status: 'cancelled',
+      plan: {
+        id: 'meal-plan-id',
+        date: '2026-11-10',
+        mealType: 'lunch',
+        items: [
+          {
+            foodMasterId: 'fm_meal_plan_alpha',
+            foodName: 'alpha sample food',
+            quantity: 1,
+          },
+        ],
+        reason: null,
+        status: 'cancelled',
+        createdAt: CREATED_AT_PLACEHOLDER,
+      },
       before: { meal_logs: '0', stock_movements: '0' },
-      after: before,
+      after: { meal_logs: '0', stock_movements: '0' },
     })
   })
 
