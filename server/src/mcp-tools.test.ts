@@ -2604,7 +2604,7 @@ describe('search_foods', () => {
     }
   })
 
-  it('returns composition candidates and their per-100g kcal for homemade searches', async () => {
+  it('returns composition candidates with and without per-100g kcal for homemade searches', async () => {
     const h = await start({
       foodSearchServiceResult: okAsync([
         {
@@ -2625,6 +2625,16 @@ describe('search_foods', () => {
           isEstimated: true,
           nutritionStatus: 'estimated',
           energyKcalPer100g: 88,
+          lastEatenDate: null,
+          lastQuantity: null,
+        },
+        {
+          foodMasterId: null,
+          compositionCode: 'fc_search_fixture_gamma',
+          name: 'search_fixture_gamma',
+          isEstimated: true,
+          nutritionStatus: 'estimated',
+          energyKcalPer100g: null,
           lastEatenDate: null,
           lastQuantity: null,
         },
@@ -2649,7 +2659,7 @@ describe('search_foods', () => {
           content: [
             {
               type: 'text',
-              text: '食品候補を 2 件、マイセットを 0 件取得しました。',
+              text: '食品候補を 3 件、マイセットを 0 件取得しました。',
             },
           ],
           structuredContent: {
@@ -2675,6 +2685,16 @@ describe('search_foods', () => {
                 last_eaten_date: null,
                 last_quantity: null,
               },
+              {
+                food_master_id: null,
+                composition_code: 'fc_search_fixture_gamma',
+                name: 'search_fixture_gamma',
+                energy_kcal: null,
+                is_estimated: true,
+                nutrition_status: 'estimated',
+                last_eaten_date: null,
+                last_quantity: null,
+              },
             ],
             meal_sets: [],
           },
@@ -2692,7 +2712,7 @@ describe('search_foods', () => {
     }
   })
 
-  it('returns unknown status and null energy for a food without nutrition metadata', async () => {
+  it('returns unknown status and omits nutrients for a food without nutrition metadata', async () => {
     const h = await start({
       foodSearchServiceResult: okAsync([
         {
