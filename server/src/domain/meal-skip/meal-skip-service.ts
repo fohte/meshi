@@ -32,6 +32,10 @@ export interface MealSkipService {
   findForDate(
     date: JstDate,
   ): ResultAsync<ReadonlyArray<MealSkipRow>, MealSkipDomainError>
+  findForPeriod(
+    periodFrom: JstDate,
+    periodTo: JstDate,
+  ): ResultAsync<ReadonlyArray<MealSkipRow>, MealSkipDomainError>
 }
 
 export interface MealSkipServiceDeps {
@@ -70,5 +74,8 @@ export const createMealSkipService = (
   },
   findForDate(date) {
     return deps.repository.findSkipsForDate(date)
+  },
+  findForPeriod(periodFrom, periodTo) {
+    return deps.repository.findSkipsForPeriod(periodFrom, periodTo)
   },
 })

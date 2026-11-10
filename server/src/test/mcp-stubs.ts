@@ -87,6 +87,7 @@ const rejectingMealSkipService: MealSkipService = {
   record: () => errAsync(new MealSkipPersistenceError('stub')),
   cancel: () => errAsync(new MealSkipPersistenceError('stub')),
   findForDate: () => errAsync(new MealSkipPersistenceError('stub')),
+  findForPeriod: () => errAsync(new MealSkipPersistenceError('stub')),
 }
 
 const rejectingStockService: StockService = {

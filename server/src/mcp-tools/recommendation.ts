@@ -2,6 +2,7 @@ import type { McpServer } from '@modelcontextprotocol/server'
 import { ResultAsync } from 'neverthrow'
 
 import type { MealHistoryService } from '#domain/meal-history/types'
+import type { MealSkipService } from '#domain/meal-skip/meal-skip-service'
 import type { UserProfileService } from '#domain/user-profile/user-profile-service'
 import type { Logger } from '#logger'
 import {
@@ -20,6 +21,7 @@ export const registerRecommendationContextTool = (
   server: McpServer,
   deps: {
     readonly mealHistoryService: MealHistoryService
+    readonly mealSkipService: MealSkipService
     readonly profileService: UserProfileService
     readonly logger: Logger
   },
@@ -28,13 +30,14 @@ export const registerRecommendationContextTool = (
     'get_recommendation_context',
     {
       description:
-        '指定期間のプロフィールと食事履歴・栄養集計をまとめて返す。提案内容の解釈と文章化は ChatGPT が行う。',
+        '指定期間のプロフィール、食事履歴・栄養集計、記録された欠食を返す。食事記録がない食事は未摂取と判断せず、栄養値の欠損を 0 とみなさないでください。推定値は推定値として区別してください。過去の栄養超過を欠食で帳尻合わせせず、今後の通常の食事で調整してください。原材料が分からない食品は、アレルギーに当たらないか本人に確かめてから提案・保存してください。提案内容の解釈と文章化は ChatGPT が行います。',
       inputSchema: queryMealsInput,
       outputSchema: recommendationContextStructuredOutput,
       annotations: { readOnlyHint: true },
     },
     async (args) => {
-      const { logger, mealHistoryService, profileService } = deps
+      const { logger, mealHistoryService, mealSkipService, profileService } =
+        deps
       logger.log(TOOL_CALLED, { tool: 'get_recommendation_context' })
 
       const profile = ResultAsync.fromPromise(
@@ -50,9 +53,20 @@ export const registerRecommendationContextTool = (
         ),
         (err) => err,
       ).andThen((result) => result)
+      const mealSkips = ResultAsync.fromPromise(
+        Promise.resolve().then(() =>
+          mealSkipService.findForPeriod(args.period_from, args.period_to),
+        ),
+        (err) => err,
+      ).andThen((result) => result)
 
-      return ResultAsync.combine([profile, history]).match(
-        ([profileResult, historyResult]) => {
+      return ResultAsync.combine([profile, history, mealSkips]).match(
+        ([profileResult, historyResult, mealSkipRows]) => {
+          const loggedMeals = new Set(
+            historyResult.entries.map(
+              ({ eatenDate, mealType }) => `${eatenDate}:${mealType}`,
+            ),
+          )
           logger.log(TOOL_SUCCEEDED, { tool: 'get_recommendation_context' })
           return {
             content: [
@@ -64,6 +78,15 @@ export const registerRecommendationContextTool = (
             structuredContent: {
               profile: buildProfilePayload(profileResult),
               history: buildMealHistoryPayload(historyResult),
+              meal_skips: mealSkipRows
+                .filter(
+                  ({ date, mealType }) =>
+                    !loggedMeals.has(`${date}:${mealType}`),
+                )
+                .map(({ date, mealType }) => ({
+                  date,
+                  meal_type: mealType,
+                })),
             },
           }
         },

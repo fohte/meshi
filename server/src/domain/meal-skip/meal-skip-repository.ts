@@ -23,4 +23,8 @@ export interface MealSkipRepository {
   findSkipsForDate(
     date: JstDate,
   ): ResultAsync<ReadonlyArray<MealSkipRow>, MealSkipDomainError>
+  findSkipsForPeriod(
+    periodFrom: JstDate,
+    periodTo: JstDate,
+  ): ResultAsync<ReadonlyArray<MealSkipRow>, MealSkipDomainError>
 }

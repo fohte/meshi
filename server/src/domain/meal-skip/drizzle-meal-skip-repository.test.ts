@@ -121,4 +121,37 @@ describeIfDb('DrizzleMealSkipRepository', () => {
       expect(result.map(normalizeRow)).toEqual([normalizeRow(seeded)])
     })
   })
+
+  describe('findSkipsForPeriod', () => {
+    it('returns rows from the start date through the day before the end date', async () => {
+      const tx = getTx()
+      const repository = createDrizzleMealSkipRepository(tx)
+      await repository.recordSkip({
+        id: 'skip_before',
+        date: jstDate('2026-07-28'),
+        mealType: 'dinner',
+      })
+      const first = (
+        await repository.recordSkip({
+          id: 'skip_included',
+          date: jstDate('2026-07-29'),
+          mealType: 'breakfast',
+        })
+      )._unsafeUnwrap()
+      await repository.recordSkip({
+        id: 'skip_at_end',
+        date: jstDate('2026-07-30'),
+        mealType: 'lunch',
+      })
+
+      const result = (
+        await repository.findSkipsForPeriod(
+          jstDate('2026-07-29'),
+          jstDate('2026-07-30'),
+        )
+      )._unsafeUnwrap()
+
+      expect(result.map(normalizeRow)).toEqual([normalizeRow(first)])
+    })
+  })
 })

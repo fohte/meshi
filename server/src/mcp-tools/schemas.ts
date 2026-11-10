@@ -31,6 +31,12 @@ export const profileStructuredOutput = z.object({
 export const recommendationContextStructuredOutput = z.object({
   profile: profileStructuredOutput,
   history: mealHistoryStructuredOutput,
+  meal_skips: z.array(
+    z.object({
+      date: jstDateSchema,
+      meal_type: z.enum(MEAL_TYPES),
+    }),
+  ),
 })
 
 export const queryMealsInput = z.object({

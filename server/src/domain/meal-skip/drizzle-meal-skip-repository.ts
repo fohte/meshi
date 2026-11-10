@@ -1,4 +1,4 @@
-import { and, eq, sql } from 'drizzle-orm'
+import { and, eq, gte, lt, sql } from 'drizzle-orm'
 import { drizzle } from 'drizzle-orm/postgres-js'
 import { err, ok, type Result, ResultAsync } from 'neverthrow'
 
@@ -76,6 +76,24 @@ export const createDrizzleMealSkipRepository = (
         db.select().from(mealSkips).where(eq(mealSkips.date, date)),
         (caughtErr) =>
           new MealSkipPersistenceError('failed to load meal_skips', caughtErr),
+      ),
+
+    findSkipsForPeriod: (
+      periodFrom: JstDate,
+      periodTo: JstDate,
+    ): ResultAsync<ReadonlyArray<MealSkipRow>, MealSkipDomainError> =>
+      ResultAsync.fromPromise(
+        db
+          .select()
+          .from(mealSkips)
+          .where(
+            and(gte(mealSkips.date, periodFrom), lt(mealSkips.date, periodTo)),
+          ),
+        (caughtErr) =>
+          new MealSkipPersistenceError(
+            'failed to load meal_skips for period',
+            caughtErr,
+          ),
       ),
   }
 }

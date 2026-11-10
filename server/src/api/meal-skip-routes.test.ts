@@ -39,6 +39,8 @@ const notStubbed = (name: string): MealSkipService => ({
     errAsync(new MealSkipPersistenceError(`${name}.cancel not stubbed`)),
   findForDate: () =>
     errAsync(new MealSkipPersistenceError(`${name}.findForDate not stubbed`)),
+  findForPeriod: () =>
+    errAsync(new MealSkipPersistenceError(`${name}.findForPeriod not stubbed`)),
 })
 
 describe('PUT /api/meal-skips/:date/:mealType', () => {
