@@ -24,6 +24,8 @@
 | [public.deliveries](public.deliveries.md)                                 | 7       | Expected deliveries and receipt status for stock inventory.                 | BASE TABLE |
 | [public.delivery_source_refs](public.delivery_source_refs.md)             | 3       | External references assigned to deliveries, including corrected references. | BASE TABLE |
 | [public.meal_log_nutrition_changes](public.meal_log_nutrition_changes.md) | 6       | Nutrition version replacements recorded for meal logs.                      | BASE TABLE |
+| [public.meal_plan_items](public.meal_plan_items.md)                       | 3       | Foods and quantities included in a meal plan.                               | BASE TABLE |
+| [public.meal_plans](public.meal_plans.md)                                 | 6       | Dated meal plans kept separate from recorded consumption.                   | BASE TABLE |
 
 ## Stored procedures and functions
 
@@ -98,6 +100,8 @@ erDiagram
 "public.meal_log_nutrition_changes" }o--|| "public.meal_logs" : "FOREIGN KEY (meal_log_id) REFERENCES meal_logs(id) ON UPDATE CASCADE ON DELETE CASCADE"
 "public.meal_log_nutrition_changes" }o--o| "public.food_master_nutrition" : "FOREIGN KEY (from_version_id) REFERENCES food_master_nutrition(id) ON UPDATE CASCADE ON DELETE CASCADE"
 "public.meal_log_nutrition_changes" }o--|| "public.food_master_nutrition" : "FOREIGN KEY (to_version_id) REFERENCES food_master_nutrition(id) ON UPDATE CASCADE ON DELETE CASCADE"
+"public.meal_plan_items" }o--|| "public.food_masters" : "FOREIGN KEY (food_master_id) REFERENCES food_masters(id) ON UPDATE CASCADE ON DELETE RESTRICT"
+"public.meal_plan_items" }o--|| "public.meal_plans" : "FOREIGN KEY (meal_plan_id) REFERENCES meal_plans(id) ON DELETE CASCADE"
 
 "public.food_composition_nutrients" {
   text food_composition_code FK
@@ -243,6 +247,19 @@ erDiagram
   uuid from_version_id FK
   uuid to_version_id FK
   text reason
+  timestamp_with_time_zone created_at
+}
+"public.meal_plan_items" {
+  uuid meal_plan_id FK
+  text food_master_id FK
+  numeric quantity
+}
+"public.meal_plans" {
+  uuid id
+  date planned_date
+  meal_type meal_type
+  text reason
+  timestamp_with_time_zone cancelled_at
   timestamp_with_time_zone created_at
 }
 ```

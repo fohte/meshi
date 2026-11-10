@@ -6,6 +6,7 @@ import { z } from 'zod'
 import type { Sql } from '#db/index'
 import { numericValueSchema } from '#db/numeric-value-schema'
 import { foodMasters, mealPlanItems, mealPlans } from '#db/schema'
+import { MEAL_TYPES } from '#domain/meal-log/types'
 import {
   type MealPlanDomainError,
   MealPlanFoodMasterNotFoundError,
@@ -32,7 +33,7 @@ const mealPlanRowsSchema = z.array(
   z.object({
     id: z.uuid(),
     date: jstDateSchema,
-    mealType: z.enum(['breakfast', 'lunch', 'dinner', 'snack']),
+    mealType: z.enum(MEAL_TYPES),
     reason: z.string().nullable(),
     cancelledAt: z.date().nullable(),
     createdAt: z.date(),

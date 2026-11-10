@@ -1,60 +1,49 @@
-import { okAsync } from 'neverthrow'
+import { errAsync, okAsync } from 'neverthrow'
 import { expect, it } from 'vitest'
 
+import { MealPlanPersistenceError } from '#domain/meal-plan/errors'
 import type { MealPlanRepository } from '#domain/meal-plan/meal-plan-repository'
 import { createMealPlanService } from '#domain/meal-plan/meal-plan-service'
-import type { MealPlan } from '#domain/meal-plan/types'
 import { jstDate } from '#test/jst-date'
 
-it('returns the same plan id for overlapping saves to one slot', async () => {
-  const plans = new Map<string, MealPlan>()
+it('rejects duplicate food IDs before saving a plan', async () => {
+  let saveCalls = 0
   const repository: MealPlanRepository = {
-    save(input) {
-      const slot = `${input.date}:${input.mealType}`
-      const existing = plans.get(slot)
-      const plan: MealPlan = {
-        id: existing?.id ?? '00000000-0000-7000-8000-000000000001',
-        date: input.date,
-        mealType: input.mealType,
-        items: input.items,
-        reason: input.reason ?? null,
-        status: 'planned',
-        createdAt: new Date('2026-11-10T03:00:00.000Z'),
-      }
-      plans.set(slot, plan)
-      return okAsync(plan)
+    save: () => {
+      saveCalls += 1
+      return errAsync(new MealPlanPersistenceError('unexpected save'))
     },
-    list: () => okAsync(Array.from(plans.values())),
-    cancel(id) {
-      const plan = Array.from(plans.values()).find(
-        (candidate) => candidate.id === id,
-      )
-      if (plan === undefined) return okAsync(null)
-      const cancelled = { ...plan, status: 'cancelled' as const }
-      plans.set(`${plan.date}:${plan.mealType}`, cancelled)
-      return okAsync(cancelled)
-    },
+    list: () => okAsync([]),
+    cancel: () => okAsync(null),
   }
   const service = createMealPlanService({
     repository,
     now: () => new Date('2026-11-10T03:00:00.000Z'),
   })
-  const input = {
+  const result = await service.save({
     date: jstDate('2026-11-10'),
-    mealType: 'dinner' as const,
+    mealType: 'dinner',
     items: [
       {
         foodMasterId: 'fm_example',
         foodName: 'example food',
         quantity: 1,
       },
+      {
+        foodMasterId: 'fm_example',
+        foodName: 'example food',
+        quantity: 2,
+      },
     ],
-  }
+  })
 
-  const saved = await Promise.all([service.save(input), service.save(input)])
+  const observation = () => ({
+    code: result.isErr() ? result.error.code : 'ok',
+    saveCalls,
+  })
 
-  expect(saved.map((result) => result._unsafeUnwrap().id)).toEqual([
-    '00000000-0000-7000-8000-000000000001',
-    '00000000-0000-7000-8000-000000000001',
-  ])
+  expect(observation()).toEqual({
+    code: 'meal_plan/duplicate_food_master',
+    saveCalls: 0,
+  })
 })
