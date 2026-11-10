@@ -132,6 +132,62 @@ const readLotBalances = async (tx: Sql, foodMasterId: string) => {
 describeIfDb('createDrizzleMealLogRepository', () => {
   const getTx = setupDrizzleTx()
 
+  const createRealizationFixture = async (tx: Sql) => {
+    const mealPlanId = '00000000-0000-7000-8000-000000000101'
+    const date = jstDate('2026-06-15')
+    await seedFoodMasterWithoutNutrition(tx, {
+      id: 'fm_realized_item',
+      name: 'realized sample item',
+    })
+    await seedMealPlan(tx, {
+      id: mealPlanId,
+      plannedDate: date,
+      mealType: 'lunch',
+    })
+    await seedMealPlanItem(tx, {
+      mealPlanId,
+      foodMasterId: 'fm_realized_item',
+      quantity: 1,
+    })
+    await seedStockItem(tx, { foodMasterId: 'fm_realized_item' })
+    await seedStockLot(tx, {
+      id: 'stl_realized_item',
+      foodMasterId: 'fm_realized_item',
+      quantity: 3,
+    })
+    await seedStockMovement(tx, {
+      id: 'stm_realized_item_opening',
+      stockLotId: 'stl_realized_item',
+      delta: 3,
+      reason: 'count',
+    })
+    return {
+      date,
+      mealPlanId,
+      repository: createDrizzleMealLogRepository(tx),
+      mealPlanRepository: createDrizzleMealPlanRepository(tx),
+    }
+  }
+
+  const recordRealization = (
+    repository: ReturnType<typeof createDrizzleMealLogRepository>,
+    id: string,
+    date: ReturnType<typeof jstDate>,
+    mealPlanId: string,
+  ) =>
+    repository.insertMealLogs(
+      [
+        {
+          id,
+          foodMasterId: 'fm_realized_item',
+          eatenDate: date,
+          mealType: 'lunch',
+          quantity: 1,
+        },
+      ],
+      mealPlanId,
+    )
+
   it('returns a FoodMasterNotFoundError when the food_master_id does not exist', async () => {
     const tx = getTx()
     const repo = createDrizzleMealLogRepository(tx)
@@ -396,199 +452,304 @@ describeIfDb('createDrizzleMealLogRepository', () => {
     ])
   })
 
-  it('records a meal plan once and allows a fresh record after deleting its log', async () => {
+  it('records a meal plan and consumes stock once', async () => {
     const tx = getTx()
-    const mealPlanId = '00000000-0000-7000-8000-000000000101'
-    const date = jstDate('2026-06-15')
-    await seedFoodMasterWithoutNutrition(tx, {
-      id: 'fm_realized_item',
-      name: 'realized sample item',
-    })
-    await seedMealPlan(tx, {
-      id: mealPlanId,
-      plannedDate: date,
-      mealType: 'lunch',
-    })
-    await seedMealPlanItem(tx, {
+    const { date, mealPlanId, repository, mealPlanRepository } =
+      await createRealizationFixture(tx)
+    const result = await recordRealization(
+      repository,
+      'ml_realized_first',
+      date,
       mealPlanId,
-      foodMasterId: 'fm_realized_item',
-      quantity: 1,
-    })
-    await seedStockItem(tx, { foodMasterId: 'fm_realized_item' })
-    await seedStockLot(tx, {
-      id: 'stl_realized_item',
-      foodMasterId: 'fm_realized_item',
-      quantity: 3,
-    })
-    await seedStockMovement(tx, {
-      id: 'stm_realized_item_opening',
-      stockLotId: 'stl_realized_item',
-      delta: 3,
-      reason: 'count',
-    })
-    const repository = createDrizzleMealLogRepository(tx)
-    const mealPlanRepository = createDrizzleMealPlanRepository(tx)
-    const record = (id: string) =>
-      repository.insertMealLogs(
-        [
-          {
-            id,
-            foodMasterId: 'fm_realized_item',
-            eatenDate: date,
-            mealType: 'lunch',
-            quantity: 1,
-          },
-        ],
-        mealPlanId,
-      )
-
-    const firstWrite = await record('ml_realized_first')
-    firstWrite._unsafeUnwrap()
-    const firstStatus = (
-      await mealPlanRepository.list(date, jstDate('2026-06-16'))
-    )._unsafeUnwrap()[0]
-    const replay = await record('ml_realized_replay')
-    const balanceAfterReplay = await readLotBalances(tx, 'fm_realized_item')
-    const replayMovements = await readMealMovements(tx, 'ml_realized_replay')
-    const deleted = await repository.deleteMealLog('ml_realized_first')
-    deleted._unsafeUnwrap()
-    const statusAfterDelete = (
-      await mealPlanRepository.list(date, jstDate('2026-06-16'))
-    )._unsafeUnwrap()[0]
-    const balanceAfterDelete = await readLotBalances(tx, 'fm_realized_item')
-    const secondWrite = await record('ml_realized_second')
-    secondWrite._unsafeUnwrap()
-    const secondStatus = (
-      await mealPlanRepository.list(date, jstDate('2026-06-16'))
-    )._unsafeUnwrap()[0]
-    const balanceAfterSecondRecord = await readLotBalances(
-      tx,
-      'fm_realized_item',
     )
-    const linkedLogs = await drizzle(tx)
-      .select({ id: mealLogs.id, mealPlanId: mealLogs.mealPlanId })
-      .from(mealLogs)
-      .where(eq(mealLogs.mealPlanId, mealPlanId))
-      .orderBy(asc(mealLogs.id))
+    const plan = (
+      await mealPlanRepository.list(date, jstDate('2026-06-16'))
+    )._unsafeUnwrap()[0]
+    const movements = await readMealMovements(tx, 'ml_realized_first')
+    const balance = await readLotBalances(tx, 'fm_realized_item')
 
     expect(
       observation({
-        firstStatus: firstStatus?.status ?? null,
-        firstEatenItems: firstStatus?.eatenItems ?? null,
-        replayErrorCode: replay.isErr() ? replay.error.code : null,
-        balanceAfterReplay,
-        replayMovements,
-        statusAfterDelete: statusAfterDelete?.status ?? null,
-        deletedEatenItems: statusAfterDelete?.eatenItems ?? null,
-        balanceAfterDelete,
-        secondStatus: secondStatus?.status ?? null,
-        balanceAfterSecondRecord,
-        linkedLogs,
+        recorded: result.isOk(),
+        status: plan?.status ?? null,
+        eatenItems: plan?.eatenItems ?? null,
+        movements,
+        balance,
       }),
     ).toEqual({
-      firstStatus: 'eaten',
-      firstEatenItems: [
+      recorded: true,
+      status: 'eaten',
+      eatenItems: [
         {
           foodMasterId: 'fm_realized_item',
           foodName: 'realized sample item',
           quantity: 1,
         },
       ],
-      replayErrorCode: 'meal_plan/already_eaten',
-      balanceAfterReplay: [{ stockLotId: 'stl_realized_item', remaining: 2 }],
-      replayMovements: [],
-      statusAfterDelete: 'planned',
-      deletedEatenItems: null,
-      balanceAfterDelete: [{ stockLotId: 'stl_realized_item', remaining: 3 }],
-      secondStatus: 'eaten',
-      balanceAfterSecondRecord: [
-        { stockLotId: 'stl_realized_item', remaining: 2 },
-      ],
-      linkedLogs: [
+      movements: [
         {
-          id: 'ml_realized_second',
-          mealPlanId: '00000000-0000-7000-8000-000000000101',
+          stockLotId: 'stl_realized_item',
+          delta: -1,
+          reason: 'meal',
+          mealLogId: 'ml_realized_first',
         },
       ],
+      balance: [{ stockLotId: 'stl_realized_item', remaining: 2 }],
     })
   })
 
-  it('rejects cancelled plans and mismatched dates or meal types', async () => {
+  it('rejects a replay without creating another log or stock movement', async () => {
     const tx = getTx()
-    const eatenDate = jstDate('2026-06-15')
-    const cancelledId = '00000000-0000-7000-8000-000000000102'
-    const dateMismatchId = '00000000-0000-7000-8000-000000000103'
-    const mealTypeMismatchId = '00000000-0000-7000-8000-000000000104'
-    await seedFoodMasterWithoutNutrition(tx, {
-      id: 'fm_realization_guard',
-      name: 'guard sample item',
-    })
-    await seedMealPlan(tx, {
-      id: cancelledId,
-      plannedDate: eatenDate,
-      mealType: 'lunch',
-      cancelledAt: new Date('2026-06-14T00:00:00.000Z'),
-    })
-    await seedMealPlan(tx, {
-      id: dateMismatchId,
-      plannedDate: jstDate('2026-06-16'),
-      mealType: 'lunch',
-    })
-    await seedMealPlan(tx, {
-      id: mealTypeMismatchId,
-      plannedDate: eatenDate,
-      mealType: 'breakfast',
-    })
-    const repository = createDrizzleMealLogRepository(tx)
-    const tryRecord = (
-      id: string,
-      mealPlanId: string,
-      mealType = 'lunch' as const,
-    ) =>
-      repository.insertMealLogs(
-        [
-          {
-            id,
-            foodMasterId: 'fm_realization_guard',
-            eatenDate: eatenDate,
-            mealType,
-            quantity: 1,
-          },
-        ],
-        mealPlanId,
-      )
-
-    const results = [
-      await tryRecord('ml_rejected_cancelled', cancelledId),
-      await tryRecord('ml_rejected_date', dateMismatchId),
-      await tryRecord('ml_rejected_meal_type', mealTypeMismatchId),
-    ]
-    const remainingLogs = await drizzle(tx)
-      .select({ id: mealLogs.id })
+    const { date, mealPlanId, repository } = await createRealizationFixture(tx)
+    const first = await recordRealization(
+      repository,
+      'ml_realized_first',
+      date,
+      mealPlanId,
+    )
+    const replay = await recordRealization(
+      repository,
+      'ml_realized_replay',
+      date,
+      mealPlanId,
+    )
+    const linkedLogs = await drizzle(tx)
+      .select({ id: mealLogs.id, mealPlanId: mealLogs.mealPlanId })
       .from(mealLogs)
-      .where(
-        inArray(mealLogs.mealPlanId, [
-          cancelledId,
-          dateMismatchId,
-          mealTypeMismatchId,
-        ]),
-      )
+      .where(eq(mealLogs.mealPlanId, mealPlanId))
+      .orderBy(asc(mealLogs.id))
+    const replayMovements = await readMealMovements(tx, 'ml_realized_replay')
+    const balance = await readLotBalances(tx, 'fm_realized_item')
 
     expect(
       observation({
-        errorCodes: results.map((result) =>
-          result.isErr() ? result.error.code : null,
-        ),
-        remainingLogs,
+        firstSucceeded: first.isOk(),
+        replayErrorCode: replay.isErr() ? replay.error.code : null,
+        linkedLogs,
+        replayMovements,
+        balance,
       }),
     ).toEqual({
-      errorCodes: [
-        'meal_plan/cancelled',
-        'meal_plan/date_mismatch',
-        'meal_plan/meal_type_mismatch',
+      firstSucceeded: true,
+      replayErrorCode: 'meal_plan/already_eaten',
+      linkedLogs: [
+        {
+          id: 'ml_realized_first',
+          mealPlanId: '00000000-0000-7000-8000-000000000101',
+        },
       ],
-      remainingLogs: [],
+      replayMovements: [],
+      balance: [{ stockLotId: 'stl_realized_item', remaining: 2 }],
     })
+  })
+
+  it('returns a planned status and restores stock after deleting its meal log', async () => {
+    const tx = getTx()
+    const { date, mealPlanId, repository, mealPlanRepository } =
+      await createRealizationFixture(tx)
+    const inserted = await recordRealization(
+      repository,
+      'ml_realized_deleted',
+      date,
+      mealPlanId,
+    )
+    const deleted = await repository.deleteMealLog('ml_realized_deleted')
+    const plan = (
+      await mealPlanRepository.list(date, jstDate('2026-06-16'))
+    )._unsafeUnwrap()[0]
+    const balance = await readLotBalances(tx, 'fm_realized_item')
+
+    expect(
+      observation({
+        inserted: inserted.isOk(),
+        deleted: deleted.isOk() && deleted.value,
+        status: plan?.status ?? null,
+        eatenItems: plan?.eatenItems ?? null,
+        balance,
+      }),
+    ).toEqual({
+      inserted: true,
+      deleted: true,
+      status: 'planned',
+      eatenItems: null,
+      balance: [{ stockLotId: 'stl_realized_item', remaining: 3 }],
+    })
+  })
+
+  it('allows the meal plan to be recorded again after deleting its linked log', async () => {
+    const tx = getTx()
+    const { date, mealPlanId, repository, mealPlanRepository } =
+      await createRealizationFixture(tx)
+    const first = await recordRealization(
+      repository,
+      'ml_realized_before_delete',
+      date,
+      mealPlanId,
+    )
+    const deleted = await repository.deleteMealLog('ml_realized_before_delete')
+    const second = await recordRealization(
+      repository,
+      'ml_realized_after_delete',
+      date,
+      mealPlanId,
+    )
+    const plan = (
+      await mealPlanRepository.list(date, jstDate('2026-06-16'))
+    )._unsafeUnwrap()[0]
+
+    expect(
+      observation({
+        firstSucceeded: first.isOk(),
+        deleted: deleted.isOk() && deleted.value,
+        secondSucceeded: second.isOk(),
+        status: plan?.status ?? null,
+        linkedLogIds: [
+          ...(
+            await drizzle(tx)
+              .select({ id: mealLogs.id })
+              .from(mealLogs)
+              .where(eq(mealLogs.mealPlanId, mealPlanId))
+              .orderBy(asc(mealLogs.id))
+          ).map((row) => row.id),
+        ],
+      }),
+    ).toEqual({
+      firstSucceeded: true,
+      deleted: true,
+      secondSucceeded: true,
+      status: 'eaten',
+      linkedLogIds: ['ml_realized_after_delete'],
+    })
+  })
+
+  it('rejects a cancelled meal plan', async () => {
+    const tx = getTx()
+    const mealPlanId = '00000000-0000-7000-8000-000000000102'
+    const date = jstDate('2026-06-15')
+    await seedMealPlan(tx, {
+      id: mealPlanId,
+      plannedDate: date,
+      mealType: 'lunch',
+      cancelledAt: new Date('2026-06-14T00:00:00.000Z'),
+    })
+    const repository = createDrizzleMealLogRepository(tx)
+    const result = await repository.insertMealLogs(
+      [
+        {
+          id: 'ml_rejected_cancelled',
+          foodMasterId: 'fm_missing_cancelled',
+          eatenDate: date,
+          mealType: 'lunch',
+          quantity: 1,
+        },
+      ],
+      mealPlanId,
+    )
+
+    expect(
+      observation({
+        errorCode: result.isErr() ? result.error.code : null,
+        logs: await drizzle(tx)
+          .select({ id: mealLogs.id })
+          .from(mealLogs)
+          .where(eq(mealLogs.id, 'ml_rejected_cancelled')),
+      }),
+    ).toEqual({ errorCode: 'meal_plan/cancelled', logs: [] })
+  })
+
+  it('rejects a meal plan with a different date', async () => {
+    const tx = getTx()
+    const mealPlanId = '00000000-0000-7000-8000-000000000103'
+    await seedMealPlan(tx, {
+      id: mealPlanId,
+      plannedDate: jstDate('2026-06-16'),
+      mealType: 'lunch',
+    })
+    const repository = createDrizzleMealLogRepository(tx)
+    const result = await repository.insertMealLogs(
+      [
+        {
+          id: 'ml_rejected_date',
+          foodMasterId: 'fm_missing_date',
+          eatenDate: jstDate('2026-06-15'),
+          mealType: 'lunch',
+          quantity: 1,
+        },
+      ],
+      mealPlanId,
+    )
+
+    expect(
+      observation({
+        errorCode: result.isErr() ? result.error.code : null,
+        logs: await drizzle(tx)
+          .select({ id: mealLogs.id })
+          .from(mealLogs)
+          .where(eq(mealLogs.id, 'ml_rejected_date')),
+      }),
+    ).toEqual({ errorCode: 'meal_plan/date_mismatch', logs: [] })
+  })
+
+  it('rejects a meal plan with a different meal type', async () => {
+    const tx = getTx()
+    const mealPlanId = '00000000-0000-7000-8000-000000000104'
+    const date = jstDate('2026-06-15')
+    await seedMealPlan(tx, {
+      id: mealPlanId,
+      plannedDate: date,
+      mealType: 'breakfast',
+    })
+    const repository = createDrizzleMealLogRepository(tx)
+    const result = await repository.insertMealLogs(
+      [
+        {
+          id: 'ml_rejected_meal_type',
+          foodMasterId: 'fm_missing_meal_type',
+          eatenDate: date,
+          mealType: 'lunch',
+          quantity: 1,
+        },
+      ],
+      mealPlanId,
+    )
+
+    expect(
+      observation({
+        errorCode: result.isErr() ? result.error.code : null,
+        logs: await drizzle(tx)
+          .select({ id: mealLogs.id })
+          .from(mealLogs)
+          .where(eq(mealLogs.id, 'ml_rejected_meal_type')),
+      }),
+    ).toEqual({ errorCode: 'meal_plan/meal_type_mismatch', logs: [] })
+  })
+
+  it('rejects an unknown meal plan ID', async () => {
+    const tx = getTx()
+    const mealPlanId = '00000000-0000-7000-8000-000000000106'
+    const repository = createDrizzleMealLogRepository(tx)
+    const result = await repository.insertMealLogs(
+      [
+        {
+          id: 'ml_rejected_missing_plan',
+          foodMasterId: 'fm_missing_plan',
+          eatenDate: jstDate('2026-06-15'),
+          mealType: 'lunch',
+          quantity: 1,
+        },
+      ],
+      mealPlanId,
+    )
+
+    expect(
+      observation({
+        errorCode: result.isErr() ? result.error.code : null,
+        logs: await drizzle(tx)
+          .select({ id: mealLogs.id })
+          .from(mealLogs)
+          .where(eq(mealLogs.id, 'ml_rejected_missing_plan')),
+      }),
+    ).toEqual({ errorCode: 'meal_plan/not_found', logs: [] })
   })
 
   it('keeps the meal-plan link when a meal log date or meal type changes', async () => {

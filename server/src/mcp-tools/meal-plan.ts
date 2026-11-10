@@ -52,7 +52,7 @@ export const registerMealPlanTools = (
     'save_meal_plan',
     {
       description:
-        '日付と食事区分つきの食事予定を保存する。同じ日付・食事区分の予定があれば品目と理由を差し替える。予定の保存は食事ログと在庫を変更しない。date は今日以降の JST YYYY-MM-DD。',
+        '日付と食事区分つきの食事予定を保存する。同じ日付・食事区分の予定があれば品目と理由を差し替える。食事ログがある予定は差し替えられず、already_eaten エラーを返す。予定の保存は食事ログと在庫を変更しない。date は今日以降の JST YYYY-MM-DD。',
       inputSchema: saveMealPlanInput,
       outputSchema: saveMealPlanStructuredOutput,
       annotations: { readOnlyHint: false, destructiveHint: false },
@@ -129,7 +129,7 @@ export const registerMealPlanTools = (
     'cancel_meal_plan',
     {
       description:
-        '食事予定を取り消す。取消した予定を返す。食事ログと在庫は変更しない。',
+        '食事予定を取り消す。取消した予定を返す。食事ログがある予定は取り消せず、already_eaten エラーを返す。食事ログと在庫は変更しない。',
       inputSchema: cancelMealPlanInput,
       outputSchema: cancelMealPlanStructuredOutput,
       annotations: { readOnlyHint: false, destructiveHint: true },

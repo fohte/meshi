@@ -6,14 +6,14 @@ Dated meal plans kept separate from recorded consumption.
 
 ## Columns
 
-| Name         | Type                     | Default  | Nullable | Children                                            | Parents | Comment                                            |
-| ------------ | ------------------------ | -------- | -------- | --------------------------------------------------- | ------- | -------------------------------------------------- |
-| id           | uuid                     | uuidv7() | false    | [public.meal_plan_items](public.meal_plan_items.md) |         |                                                    |
-| planned_date | date                     |          | false    |                                                     |         | Asia/Tokyo calendar date planned for the meal.     |
-| meal_type    | meal_type                |          | false    |                                                     |         | Meal category planned for the date.                |
-| reason       | text                     |          | true     |                                                     |         | Reason for choosing the planned foods.             |
-| cancelled_at | timestamp with time zone |          | true     |                                                     |         | Time when the plan was cancelled, when applicable. |
-| created_at   | timestamp with time zone | now()    | false    |                                                     |         |                                                    |
+| Name         | Type                     | Default  | Nullable | Children                                                                                    | Parents | Comment                                            |
+| ------------ | ------------------------ | -------- | -------- | ------------------------------------------------------------------------------------------- | ------- | -------------------------------------------------- |
+| id           | uuid                     | uuidv7() | false    | [public.meal_logs](public.meal_logs.md) [public.meal_plan_items](public.meal_plan_items.md) |         |                                                    |
+| planned_date | date                     |          | false    |                                                                                             |         | Asia/Tokyo calendar date planned for the meal.     |
+| meal_type    | meal_type                |          | false    |                                                                                             |         | Meal category planned for the date.                |
+| reason       | text                     |          | true     |                                                                                             |         | Reason for choosing the planned foods.             |
+| cancelled_at | timestamp with time zone |          | true     |                                                                                             |         | Time when the plan was cancelled, when applicable. |
+| created_at   | timestamp with time zone | now()    | false    |                                                                                             |         |                                                    |
 
 ## Constraints
 
@@ -39,6 +39,7 @@ Dated meal plans kept separate from recorded consumption.
 ```mermaid
 erDiagram
 
+"public.meal_logs" }o--o| "public.meal_plans" : "FOREIGN KEY (meal_plan_id) REFERENCES meal_plans(id) ON DELETE RESTRICT"
 "public.meal_plan_items" }o--|| "public.meal_plans" : "FOREIGN KEY (meal_plan_id) REFERENCES meal_plans(id) ON DELETE CASCADE"
 
 "public.meal_plans" {
@@ -48,6 +49,17 @@ erDiagram
   text reason
   timestamp_with_time_zone cancelled_at
   timestamp_with_time_zone created_at
+}
+"public.meal_logs" {
+  text id
+  text food_master_id FK
+  numeric quantity
+  timestamp_with_time_zone created_at
+  meal_type meal_type
+  date eaten_date
+  uuid nutrition_version_id FK
+  text nutrition_version_origin
+  uuid meal_plan_id FK
 }
 "public.meal_plan_items" {
   uuid meal_plan_id FK

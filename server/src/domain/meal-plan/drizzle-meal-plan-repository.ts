@@ -77,25 +77,31 @@ const selectPlanRows = (session: DbSession, where?: ReturnType<typeof and>) =>
       asc(foodMasters.id),
     )
 
-const toMealPlans = (
+type ParsedMealPlanRow = z.infer<typeof mealPlanRowsSchema>[number]
+
+const parseMealPlanRows = (
   rawRows: unknown,
+): Result<ReadonlyArray<ParsedMealPlanRow>, MealPlanPersistenceError> => {
+  const parsed = mealPlanRowsSchema.safeParse(rawRows)
+  return parsed.success
+    ? ok(parsed.data)
+    : err(
+        new MealPlanPersistenceError(
+          `meal_plans query returned invalid rows: ${parsed.error.message}`,
+          parsed.error,
+        ),
+      )
+}
+
+const assembleMealPlans = (
+  rows: ReadonlyArray<ParsedMealPlanRow>,
   eatenItemsByPlanId: ReadonlyMap<
     string,
     ReadonlyArray<MealPlanItem>
   > = new Map(),
-): Result<ReadonlyArray<MealPlan>, MealPlanPersistenceError> => {
-  const parsed = mealPlanRowsSchema.safeParse(rawRows)
-  if (!parsed.success) {
-    return err(
-      new MealPlanPersistenceError(
-        `meal_plans query returned invalid rows: ${parsed.error.message}`,
-        parsed.error,
-      ),
-    )
-  }
-
+): ReadonlyArray<MealPlan> => {
   const plans = new Map<string, MealPlan>()
-  for (const row of parsed.data) {
+  for (const row of rows) {
     const item: MealPlanItem = {
       foodMasterId: row.foodMasterId,
       foodName: row.foodName,
@@ -124,7 +130,7 @@ const toMealPlans = (
       plans.set(row.id, { ...existing, items: [...existing.items, item] })
     }
   }
-  return ok(Array.from(plans.values()))
+  return Array.from(plans.values())
 }
 
 const loadEatenItems = async (
@@ -204,20 +210,16 @@ const loadById = async (
   id: string,
 ): Promise<Result<MealPlan, MealPlanPersistenceError>> => {
   const rawRows = await selectPlanRows(session, eq(mealPlans.id, id))
-  const parsedPlans = toMealPlans(rawRows)
+  const parsedPlans = parseMealPlanRows(rawRows)
   if (parsedPlans.isErr()) return err(parsedPlans.error)
   const eatenItems = await loadEatenItems(session, [id])
   if (eatenItems.isErr()) return err(eatenItems.error)
-  return toMealPlans(rawRows, eatenItems.value).andThen((plans) => {
-    const [plan] = plans
-    return plan === undefined
-      ? err(
-          new MealPlanPersistenceError(
-            `meal_plan write returned no rows: ${id}`,
-          ),
-        )
-      : ok(plan)
-  })
+  const [plan] = assembleMealPlans(parsedPlans.value, eatenItems.value)
+  return plan === undefined
+    ? err(
+        new MealPlanPersistenceError(`meal_plan write returned no rows: ${id}`),
+      )
+    : ok(plan)
 }
 
 const insertItems = (
@@ -314,12 +316,12 @@ export const createDrizzleMealPlanRepository = (
         (cause) =>
           new MealPlanPersistenceError('failed to list meal_plans', cause),
       ).andThen((rows) => {
-        const plans = toMealPlans(rows)
-        if (plans.isErr()) return errAsync(plans.error)
+        const parsedPlans = parseMealPlanRows(rows)
+        if (parsedPlans.isErr()) return errAsync(parsedPlans.error)
         return ResultAsync.fromPromise(
           loadEatenItems(
             db,
-            plans.value.map((plan) => plan.id),
+            parsedPlans.value.map((plan) => plan.id),
           ),
           (cause) =>
             new MealPlanPersistenceError(
@@ -328,7 +330,7 @@ export const createDrizzleMealPlanRepository = (
             ),
         )
           .andThen((eatenItems) => eatenItems)
-          .andThen((eatenItems) => toMealPlans(rows, eatenItems))
+          .map((eatenItems) => assembleMealPlans(parsedPlans.value, eatenItems))
       })
     },
 
