@@ -1,24 +1,18 @@
 import { useQuery } from '@tanstack/react-query'
 import { useState } from 'react'
-import { Link } from 'react-router'
 
 import { fetchMealHistory } from '#api/meal-history'
+import { fetchMealPlans } from '#api/meal-plans'
 import { toPromise } from '#api/to-promise'
 import { ErrorRetry } from '#components/ErrorRetry/ErrorRetry'
+import { HistoryCalendar } from '#components/HistoryCalendar/HistoryCalendar'
 import { Skeleton } from '#components/Skeleton/Skeleton'
-import {
-  formatJstYearMonth,
-  shiftMonthString,
-  startOfJstMonth,
-  todayJstDate,
-} from '#lib/jst-date'
+import { shiftMonthString, startOfJstMonth, todayJstDate } from '#lib/jst-date'
 import type { CalendarCell } from '#pages/history/build-calendar-cells'
 import { buildCalendarCells } from '#pages/history/build-calendar-cells'
-import styles from '#pages/history/HistoryCalendarView.module.css'
+import { buildPlannedCountByDate } from '#pages/history/build-planned-counts'
 
 const ENERGY_CODE = 'energy_kcal'
-const WEEKDAY_LABELS = ['日', '月', '火', '水', '木', '金', '土']
-
 export interface HistoryCalendarViewProps {
   readonly targets: Readonly<Record<string, number>> | null
 }
@@ -35,6 +29,10 @@ export const HistoryCalendarView = ({
     queryKey: ['meal-history', monthStart, monthEnd],
     queryFn: () => toPromise(fetchMealHistory(monthStart, monthEnd)),
   })
+  const mealPlansQuery = useQuery({
+    queryKey: ['meal-plans', 'calendar', monthStart, monthEnd],
+    queryFn: () => toPromise(fetchMealPlans(monthStart, monthEnd)),
+  })
 
   const energyTarget = targets?.[ENERGY_CODE]
   const kcalByDate = new Map(
@@ -46,34 +44,21 @@ export const HistoryCalendarView = ({
       },
     ]),
   )
-  const cells = buildCalendarCells(monthStart, today, kcalByDate, energyTarget)
+  const plannedCountByDate = buildPlannedCountByDate(
+    mealPlansQuery.isError ? [] : (mealPlansQuery.data ?? []),
+    today,
+  )
+  const cells = buildCalendarCells(
+    monthStart,
+    today,
+    kcalByDate,
+    energyTarget,
+    plannedCountByDate,
+  )
   const avgText = formatMonthAverage(cells)
 
   return (
     <div>
-      <div className={styles.nav}>
-        <button
-          type="button"
-          className={styles.navButton}
-          onClick={() => {
-            setMonthOffset((o) => o - 1)
-          }}
-        >
-          ←
-        </button>
-        <div className={styles.title}>{formatJstYearMonth(monthStart)}</div>
-        <button
-          type="button"
-          className={styles.navButton}
-          onClick={() => {
-            setMonthOffset((o) => o + 1)
-          }}
-        >
-          →
-        </button>
-        <div className={styles.avg}>月平均 {avgText}</div>
-      </div>
-
       {query.isError && (
         <ErrorRetry
           onRetry={() => {
@@ -81,42 +66,27 @@ export const HistoryCalendarView = ({
           }}
         />
       )}
+      {mealPlansQuery.isError && (
+        <ErrorRetry
+          onRetry={() => {
+            void mealPlansQuery.refetch()
+          }}
+        />
+      )}
       {query.isPending && <Skeleton height={340} />}
 
       {!query.isPending && !query.isError && (
-        <>
-          <div className={styles.grid}>
-            {WEEKDAY_LABELS.map((label, i) => (
-              <div
-                key={label}
-                className={styles.dow}
-                data-weekend={i === 0 || i === 6 ? '' : undefined}
-              >
-                {label}
-              </div>
-            ))}
-            {cells.map((cell, i) => (
-              <CalendarCellButton
-                key={cell.date ?? `blank-${String(i)}`}
-                cell={cell}
-              />
-            ))}
-          </div>
-          <div className={styles.legend}>
-            <span className={styles.legendItem}>
-              <span className={styles.legendDot} data-achievement="under" />
-              目標未達
-            </span>
-            <span className={styles.legendItem}>
-              <span className={styles.legendDot} data-achievement="onTarget" />
-              目標付近
-            </span>
-            <span className={styles.legendItem}>
-              <span className={styles.legendDot} data-achievement="over" />
-              超過
-            </span>
-          </div>
-        </>
+        <HistoryCalendar
+          monthStart={monthStart}
+          cells={cells}
+          averageText={avgText}
+          onPreviousMonth={() => {
+            setMonthOffset((o) => o - 1)
+          }}
+          onNextMonth={() => {
+            setMonthOffset((o) => o + 1)
+          }}
+        />
       )}
     </div>
   )
@@ -129,52 +99,4 @@ const formatMonthAverage = (cells: ReadonlyArray<CalendarCell>): string => {
   if (withData.length === 0) return '—'
   const sum = withData.reduce((total, c) => total + (c.kcal ?? 0), 0)
   return `${String(Math.round(sum / withData.length))} kcal`
-}
-
-interface CalendarCellButtonProps {
-  readonly cell: CalendarCell
-}
-
-const CalendarCellButton = ({
-  cell,
-}: CalendarCellButtonProps): React.JSX.Element => {
-  if (cell.date === null) {
-    return <div className={styles.cell} />
-  }
-
-  if (cell.isFuture) {
-    return (
-      <div className={styles.cell} data-future="">
-        <span className={styles.day}>{cell.day}</span>
-      </div>
-    )
-  }
-
-  return (
-    <Link
-      to={`/days/${cell.date}`}
-      className={styles.cell}
-      data-today={cell.isToday ? '' : undefined}
-    >
-      <span className={styles.day}>{cell.day}</span>
-      <span
-        className={styles.kcal}
-        data-achievement={cell.achievement}
-        title={
-          cell.hasUnknownValues
-            ? '栄養値不明の食事を含み、合計は下限です'
-            : undefined
-        }
-      >
-        {cell.hasUnknownValues
-          ? cell.kcal === null
-            ? '不明'
-            : `≥${String(cell.kcal)}`
-          : cell.kcal !== null && cell.kcal > 0
-            ? cell.kcal
-            : ''}
-      </span>
-      <span className={styles.dot} data-achievement={cell.achievement} />
-    </Link>
-  )
 }

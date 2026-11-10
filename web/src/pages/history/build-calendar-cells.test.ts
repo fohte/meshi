@@ -30,6 +30,7 @@ describe('buildCalendarCells', () => {
       isToday: false,
       isFuture: true,
       achievement: 'none',
+      plannedCount: 0,
     }))
 
     expect(cells).toEqual([
@@ -41,6 +42,7 @@ describe('buildCalendarCells', () => {
         isToday: false,
         isFuture: false,
         achievement: 'none',
+        plannedCount: 0,
       },
       {
         date: null,
@@ -50,6 +52,7 @@ describe('buildCalendarCells', () => {
         isToday: false,
         isFuture: false,
         achievement: 'none',
+        plannedCount: 0,
       },
       {
         date: null,
@@ -59,6 +62,7 @@ describe('buildCalendarCells', () => {
         isToday: false,
         isFuture: false,
         achievement: 'none',
+        plannedCount: 0,
       },
       {
         date: '2026-07-01',
@@ -68,6 +72,7 @@ describe('buildCalendarCells', () => {
         isToday: false,
         isFuture: false,
         achievement: 'over',
+        plannedCount: 0,
       },
       {
         date: '2026-07-02',
@@ -77,6 +82,7 @@ describe('buildCalendarCells', () => {
         isToday: false,
         isFuture: false,
         achievement: 'under',
+        plannedCount: 0,
       },
       {
         date: '2026-07-03',
@@ -86,6 +92,7 @@ describe('buildCalendarCells', () => {
         isToday: false,
         isFuture: false,
         achievement: 'onTarget',
+        plannedCount: 0,
       },
       {
         date: '2026-07-04',
@@ -95,6 +102,7 @@ describe('buildCalendarCells', () => {
         isToday: false,
         isFuture: false,
         achievement: 'none',
+        plannedCount: 0,
       },
       {
         date: '2026-07-05',
@@ -104,6 +112,7 @@ describe('buildCalendarCells', () => {
         isToday: true,
         isFuture: false,
         achievement: 'none',
+        plannedCount: 0,
       },
       ...futureDays,
     ])
@@ -126,6 +135,7 @@ describe('buildCalendarCells', () => {
       isToday: false,
       isFuture: true,
       achievement: 'none',
+      plannedCount: 0,
     })
   })
 
@@ -145,6 +155,7 @@ describe('buildCalendarCells', () => {
       isToday: true,
       isFuture: false,
       achievement: 'onTarget',
+      plannedCount: 0,
     })
   })
 
@@ -164,6 +175,7 @@ describe('buildCalendarCells', () => {
       isToday: true,
       isFuture: false,
       achievement: 'none',
+      plannedCount: 0,
     })
   })
 
@@ -183,6 +195,7 @@ describe('buildCalendarCells', () => {
       isToday: true,
       isFuture: false,
       achievement: 'none',
+      plannedCount: 0,
     })
   })
 })

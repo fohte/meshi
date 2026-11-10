@@ -10,6 +10,7 @@ export interface CalendarCell {
   readonly isToday: boolean
   readonly isFuture: boolean
   readonly achievement: CalendarAchievement
+  readonly plannedCount: number
 }
 
 export interface CalendarDayEnergy {
@@ -38,6 +39,7 @@ export const buildCalendarCells = (
   today: string,
   energyByDate: ReadonlyMap<string, CalendarDayEnergy>,
   energyTarget: number | undefined,
+  plannedCountByDate: ReadonlyMap<string, number> = new Map(),
 ): readonly CalendarCell[] => {
   const leadingBlanks: CalendarCell[] = Array.from(
     { length: jstWeekdayIndex(monthStart) },
@@ -49,6 +51,7 @@ export const buildCalendarCells = (
       isToday: false,
       isFuture: false,
       achievement: 'none',
+      plannedCount: 0,
     }),
   )
 
@@ -73,6 +76,7 @@ export const buildCalendarCells = (
         isFuture || hasUnknownValues
           ? 'none'
           : achievementFor(kcal ?? 0, energyTarget),
+      plannedCount: isFuture ? (plannedCountByDate.get(date) ?? 0) : 0,
     }
   })
 

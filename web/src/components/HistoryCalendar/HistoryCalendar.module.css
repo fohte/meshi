@@ -77,6 +77,12 @@
   color: var(--color-muted-2);
 }
 
+.planCount {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--color-text-secondary);
+}
+
 @media (width <= 768px) {
   .cell {
     min-height: 54px;

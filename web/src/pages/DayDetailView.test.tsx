@@ -281,6 +281,16 @@ const mealPlanRecordCompleteOutput = (
   ),
 })
 
+const withCalendarCacheInvalidation = <T extends Record<string, unknown>>(
+  output: T,
+  queryClient: QueryClient,
+  queryKey: ReadonlyArray<unknown>,
+) => ({
+  ...output,
+  calendarCacheInvalidated:
+    queryClient.getQueryState(queryKey)?.isInvalidated ?? false,
+})
+
 const setTextareaValue = (
   textarea: HTMLTextAreaElement,
   value: string,
@@ -563,7 +573,13 @@ describe('DayDetailView', () => {
       () => jsonResponse({}),
       requests,
     )
-
+    const calendarQueryKey = [
+      'meal-plans',
+      'calendar',
+      '2093-04-01',
+      '2093-05-01',
+    ] as const
+    queryClient.setQueryData(calendarQueryKey, [])
     try {
       await performAct(() => {
         renderPage(root, queryClient, '2093-04-13')
@@ -621,7 +637,13 @@ describe('DayDetailView', () => {
       )
       await waitFor(() => container.textContent.includes('架空食品 A'))
 
-      expect(mealPlanSaveOutput(requests, container)).toEqual({
+      expect(
+        withCalendarCacheInvalidation(
+          mealPlanSaveOutput(requests, container),
+          queryClient,
+          calendarQueryKey,
+        ),
+      ).toEqual({
         saveRequests: [
           {
             method: 'PUT',
@@ -641,6 +663,7 @@ describe('DayDetailView', () => {
         editorClosed: true,
         plannedFoodIsNotInteractive: true,
         recordActionVisible: false,
+        calendarCacheInvalidated: true,
       })
     } finally {
       await cleanupPage(container, root, queryClient)
@@ -1056,6 +1079,13 @@ describe('DayDetailView', () => {
       requests,
       [plan],
     )
+    const calendarQueryKey = [
+      'meal-plans',
+      'calendar',
+      '2093-04-01',
+      '2093-05-01',
+    ] as const
+    queryClient.setQueryData(calendarQueryKey, [])
 
     try {
       await performAct(() => {
@@ -1119,7 +1149,11 @@ describe('DayDetailView', () => {
       await waitFor(() => !container.textContent.includes('架空食品 A'))
 
       expect(
-        mealPlanCancelOutput(initialView, editSheet, requests, container),
+        withCalendarCacheInvalidation(
+          mealPlanCancelOutput(initialView, editSheet, requests, container),
+          queryClient,
+          calendarQueryKey,
+        ),
       ).toEqual({
         initialView: {
           summary: false,
@@ -1142,6 +1176,7 @@ describe('DayDetailView', () => {
           },
         ],
         cancelledPlanHidden: true,
+        calendarCacheInvalidated: true,
       })
     } finally {
       await cleanupPage(container, root, queryClient)
