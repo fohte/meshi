@@ -102,6 +102,7 @@ export const registerMeshiTools = (
   })
   registerRecommendationContextTool(server, {
     mealHistoryService,
+    mealSkipService,
     profileService,
     logger,
   })

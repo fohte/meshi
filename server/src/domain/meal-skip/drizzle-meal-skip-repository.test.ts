@@ -121,4 +121,55 @@ describeIfDb('DrizzleMealSkipRepository', () => {
       expect(result.map(normalizeRow)).toEqual([normalizeRow(seeded)])
     })
   })
+
+  describe('findSkipsForPeriod', () => {
+    it('returns rows in date and meal type order within the inclusive-exclusive range', async () => {
+      const tx = getTx()
+      const repository = createDrizzleMealSkipRepository(tx)
+      await repository.recordSkip({
+        id: 'skip_before',
+        date: jstDate('2026-07-28'),
+        mealType: 'dinner',
+      })
+      const sameDateLunch = (
+        await repository.recordSkip({
+          id: 'skip_same_date_lunch',
+          date: jstDate('2026-07-29'),
+          mealType: 'lunch',
+        })
+      )._unsafeUnwrap()
+      const sameDateBreakfast = (
+        await repository.recordSkip({
+          id: 'skip_same_date_breakfast',
+          date: jstDate('2026-07-29'),
+          mealType: 'breakfast',
+        })
+      )._unsafeUnwrap()
+      const nextDateBreakfast = (
+        await repository.recordSkip({
+          id: 'skip_next_date_breakfast',
+          date: jstDate('2026-07-30'),
+          mealType: 'breakfast',
+        })
+      )._unsafeUnwrap()
+      await repository.recordSkip({
+        id: 'skip_at_end',
+        date: jstDate('2026-07-31'),
+        mealType: 'lunch',
+      })
+
+      const result = (
+        await repository.findSkipsForPeriod(
+          jstDate('2026-07-29'),
+          jstDate('2026-07-31'),
+        )
+      )._unsafeUnwrap()
+
+      expect(result.map(normalizeRow)).toEqual([
+        normalizeRow(sameDateBreakfast),
+        normalizeRow(sameDateLunch),
+        normalizeRow(nextDateBreakfast),
+      ])
+    })
+  })
 })

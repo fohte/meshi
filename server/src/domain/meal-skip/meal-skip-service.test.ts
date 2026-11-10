@@ -47,6 +47,12 @@ const createFakeRepository = (): {
       okAsync(rows.delete(skipKey(date, mealType))),
     findSkipsForDate: (date) =>
       okAsync(Array.from(rows.values()).filter((row) => row.date === date)),
+    findSkipsForPeriod: (periodFrom, periodTo) =>
+      okAsync(
+        Array.from(rows.values()).filter(
+          (row) => row.date >= periodFrom && row.date < periodTo,
+        ),
+      ),
   }
   return { repository, rows }
 }
@@ -187,6 +193,29 @@ describe('MealSkipService.findForDate', () => {
     expect(result._unsafeUnwrap()).toEqual([
       {
         id: 'skip_1',
+        date: '2026-07-29',
+        mealType: 'breakfast',
+        createdAt: CREATED_AT,
+      },
+    ])
+  })
+})
+
+describe('MealSkipService.findForPeriod', () => {
+  it('returns skips within the inclusive-exclusive date range', async () => {
+    const { service } = buildService()
+    await service.record({ date: jstDate('2026-07-28'), mealType: 'dinner' })
+    await service.record({ date: jstDate('2026-07-29'), mealType: 'breakfast' })
+    await service.record({ date: jstDate('2026-07-30'), mealType: 'lunch' })
+
+    const result = await service.findForPeriod(
+      jstDate('2026-07-29'),
+      jstDate('2026-07-30'),
+    )
+
+    expect(result._unsafeUnwrap()).toEqual([
+      {
+        id: 'skip_2',
         date: '2026-07-29',
         mealType: 'breakfast',
         createdAt: CREATED_AT,
