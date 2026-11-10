@@ -310,6 +310,10 @@ const setupPage = (
     new Response(null, { status: 204 }),
   recordMealLogsResponse: (body: unknown) => Response = () =>
     jsonResponse([], 201),
+  concurrentMealLogState?: {
+    readonly planId: string
+    readonly entries: ReadonlyArray<DayDetailEntry>
+  },
 ): {
   readonly container: HTMLDivElement
   readonly root: Root
@@ -339,7 +343,7 @@ const setupPage = (
       }
       if (method === 'POST' && path === '/api/meal-logs') {
         const response = recordMealLogsResponse(body)
-        if (response.ok || response.status === 409) {
+        if (response.ok) {
           const parsedInput = recordMealLogsInputSchema.safeParse(body)
           if (!parsedInput.success) return Promise.resolve(response)
           const input = parsedInput.data
@@ -368,6 +372,17 @@ const setupPage = (
           ]
           currentMealPlans = currentMealPlans.filter(
             ({ id }) => id !== input.mealPlanId,
+          )
+        } else if (
+          response.status === 409 &&
+          concurrentMealLogState !== undefined
+        ) {
+          currentDayEntries = [
+            ...currentDayEntries,
+            ...concurrentMealLogState.entries,
+          ]
+          currentMealPlans = currentMealPlans.filter(
+            ({ id }) => id !== concurrentMealLogState.planId,
           )
         }
         return Promise.resolve(response)
@@ -770,12 +785,27 @@ describe('DayDetailView', () => {
         },
       ],
     }
+    const concurrentEntry: DayDetailEntry = {
+      id: 'meal_log_concurrent_fixture',
+      foodMasterId: 'fixture_food_c',
+      foodName: '架空食品 C',
+      eatenDate: '2093-04-12',
+      mealType: 'snack',
+      quantity: 4,
+      kcal: 400,
+      isEstimated: false,
+      nutritionStatus: 'confirmed',
+      nutritionVersion: null,
+      nutritionVersionOrigin: 'recorded',
+      nutritionVersionDifferences: [],
+    }
     const { container, root, queryClient } = setupPage(
       () => jsonResponse({}),
       requests,
       [plan],
       undefined,
       () => jsonResponse({ error: 'already eaten' }, 409),
+      { planId: plan.id, entries: [concurrentEntry] },
     )
 
     try {
@@ -800,13 +830,13 @@ describe('DayDetailView', () => {
           requests.filter((request) =>
             request.path.startsWith('/api/meal-plans?'),
           ).length > 1 &&
-          mealPlanRecordOutput(requests, container, '架空食品 B', null)
+          mealPlanRecordOutput(requests, container, '架空食品 C', null)
             .recordedFoodIsInteractive &&
           container.querySelector('[role="dialog"]') === null,
       )
 
       expect(
-        mealPlanRecordOutput(requests, container, '架空食品 B', null),
+        mealPlanRecordOutput(requests, container, '架空食品 C', null),
       ).toEqual({
         recordRequests: [
           {
@@ -826,6 +856,79 @@ describe('DayDetailView', () => {
         recordedFoodIsInteractive: true,
         planReasonVisible: false,
         sheetOpen: false,
+      })
+    } finally {
+      await cleanupPage(container, root, queryClient)
+    }
+  })
+
+  it('shows a recording error and keeps the plan sheet open', async () => {
+    const requests: Array<RequestRecord> = []
+    const plan: MealPlan = {
+      id: 'plan_record_failure_fixture',
+      date: '2093-04-12',
+      mealType: 'snack',
+      reason: '軽食の予定',
+      status: 'planned',
+      items: [
+        {
+          foodMasterId: 'fixture_food_b',
+          foodName: '架空食品 B',
+          quantity: 1,
+          energyKcalPerUnit: 90,
+        },
+      ],
+    }
+    const { container, root, queryClient } = setupPage(
+      () => jsonResponse({}),
+      requests,
+      [plan],
+      undefined,
+      () => jsonResponse({ error: '記録できませんでした。' }, 400),
+    )
+
+    try {
+      await performAct(() => {
+        renderPage(root, queryClient)
+      })
+      await waitFor(() => container.textContent.includes('架空食品 B'))
+      await performAct(() => {
+        Array.from(container.querySelectorAll<HTMLButtonElement>('button'))
+          .find((button) => button.textContent === '食べた')
+          ?.click()
+      })
+      await performAct(() => {
+        Array.from(container.querySelectorAll<HTMLButtonElement>('button'))
+          .find((button) => button.textContent === 'まとめて記録')
+          ?.click()
+      })
+      await waitFor(
+        () =>
+          container.querySelector('[role="alert"]')?.textContent ===
+          '記録できませんでした。',
+      )
+
+      expect(
+        mealPlanRecordOutput(requests, container, '架空食品 B', '軽食の予定'),
+      ).toEqual({
+        recordRequests: [
+          {
+            method: 'POST',
+            path: '/api/meal-logs',
+            body: {
+              eatenDate: '2093-04-12',
+              mealType: 'snack',
+              mealPlanId: 'plan_record_failure_fixture',
+              items: [{ foodMasterId: 'fixture_food_b', quantity: 1 }],
+            },
+          },
+        ],
+        dayDetailReads: 1,
+        mealPlanReads: 1,
+        alert: '記録できませんでした。',
+        recordedFoodIsInteractive: false,
+        planReasonVisible: true,
+        sheetOpen: true,
       })
     } finally {
       await cleanupPage(container, root, queryClient)

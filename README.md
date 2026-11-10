@@ -87,6 +87,8 @@ The MCP endpoint is served at `POST /mcp`; `GET /health` reports DB connectivity
 
 `GET /api/meal-plans?from=YYYY-MM-DD&to=YYYY-MM-DD` lists all plans in a half-open date range, including `planned`, `eaten`, and `cancelled` statuses, with per-item kcal (`null` when unknown). `PUT /api/meal-plans/:date/:mealType` creates or replaces the slot's plan; its body contains `items` (`foodMasterId`, `foodName`, and `quantity`) and optional `reason`. `POST /api/meal-plans/:id/cancel` cancels a plan while retaining its row. Replacing or cancelling a plan linked to a meal log returns HTTP 409.
 
+A batch request to `POST /api/meal-logs` may include `mealPlanId` to link the recorded items to a plan. Recording a plan already linked to a meal log returns HTTP 409.
+
 The `nutrient_definitions` master is seeded automatically on startup after migrations (idempotent). The MEXT food composition table (`food_compositions` + `food_composition_nutrients`) is loaded separately via the CLI below — it is not bundled and must be pointed at a JSON dataset.
 
 ### Web frontend

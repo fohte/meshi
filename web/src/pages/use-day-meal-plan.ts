@@ -29,6 +29,17 @@ interface MealPlanEditorState {
   readonly query: string
 }
 
+const toMealPlanDraftItems = (
+  items: MealPlan['items'],
+): ReadonlyArray<MealPlanDraftItem> =>
+  items.map((item, id) => ({
+    id,
+    foodMasterId: item.foodMasterId,
+    foodName: item.foodName,
+    quantity: String(item.quantity),
+    energyKcalPerUnit: item.energyKcalPerUnit,
+  }))
+
 export const useDayMealPlan = (date: string) => {
   const queryClient = useQueryClient()
   const [editor, setEditor] = useState<MealPlanEditorState | null>(null)
@@ -115,14 +126,7 @@ export const useDayMealPlan = (date: string) => {
       isRecording: false,
       mealPlanId: null,
       reason: plan?.reason ?? '',
-      items:
-        plan?.items.map((item, id) => ({
-          id,
-          foodMasterId: item.foodMasterId,
-          foodName: item.foodName,
-          quantity: String(item.quantity),
-          energyKcalPerUnit: item.energyKcalPerUnit,
-        })) ?? [],
+      items: plan === undefined ? [] : toMealPlanDraftItems(plan.items),
       nextItemId: plan?.items.length ?? 0,
       selection: null,
       query: '',
@@ -139,13 +143,7 @@ export const useDayMealPlan = (date: string) => {
       isRecording: true,
       mealPlanId: plan.id,
       reason: '',
-      items: plan.items.map((item, id) => ({
-        id,
-        foodMasterId: item.foodMasterId,
-        foodName: item.foodName,
-        quantity: String(item.quantity),
-        energyKcalPerUnit: item.energyKcalPerUnit,
-      })),
+      items: toMealPlanDraftItems(plan.items),
       nextItemId: plan.items.length,
       selection: null,
       query: '',
