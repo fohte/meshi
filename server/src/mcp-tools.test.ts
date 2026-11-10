@@ -29,12 +29,13 @@ import {
 } from '#domain/meal-log/errors'
 import type { MealLogService } from '#domain/meal-log/meal-log-service'
 import type { MealLogNutritionReassignmentService } from '#domain/meal-log/nutrition-reassignment'
-import type {
-  MealLogDeletionResult,
-  MealLogResult,
-  RecordMealLogItemResult,
-  RecordMealLogsInput,
-  UpdateMealLogInput,
+import {
+  MEAL_TYPES,
+  type MealLogDeletionResult,
+  type MealLogResult,
+  type RecordMealLogItemResult,
+  type RecordMealLogsInput,
+  type UpdateMealLogInput,
 } from '#domain/meal-log/types'
 import { MealPlanPersistenceError } from '#domain/meal-plan/errors'
 import type { MealPlanService } from '#domain/meal-plan/meal-plan-service'
@@ -49,6 +50,7 @@ import {
   FutureMealSkipDateError,
   type MealSkipDomainError,
   MealSkipNotFoundError,
+  MealSkipPersistenceError,
 } from '#domain/meal-skip/errors'
 import type { MealSkipService } from '#domain/meal-skip/meal-skip-service'
 import type { MealSkipRow } from '#domain/meal-skip/types'
@@ -557,15 +559,18 @@ const makeMealLogService = (
 interface MealSkipCalls {
   record: Array<Parameters<MealSkipService['record']>[0]>
   cancel: Array<Parameters<MealSkipService['cancel']>[0]>
+  findForPeriod: Array<Parameters<MealSkipService['findForPeriod']>>
 }
 
 const makeMealSkipService = (
   errors: {
     record?: MealSkipDomainError
     cancel?: MealSkipDomainError
+    findForPeriod?: MealSkipDomainError
   } = {},
+  rows: ReadonlyArray<MealSkipRow> = [],
 ): { service: MealSkipService; calls: MealSkipCalls } => {
-  const calls: MealSkipCalls = { record: [], cancel: [] }
+  const calls: MealSkipCalls = { record: [], cancel: [], findForPeriod: [] }
   const service: MealSkipService = {
     record(input) {
       calls.record.push(input)
@@ -587,6 +592,22 @@ const makeMealSkipService = (
         : errAsync(errors.cancel)
     },
     findForDate: () => okAsync([]),
+    findForPeriod: (periodFrom, periodTo) => {
+      calls.findForPeriod.push([periodFrom, periodTo])
+      if (errors.findForPeriod !== undefined) {
+        return errAsync(errors.findForPeriod)
+      }
+      return okAsync(
+        rows
+          .filter(({ date }) => date >= periodFrom && date < periodTo)
+          .sort(
+            (left, right) =>
+              left.date.localeCompare(right.date) ||
+              MEAL_TYPES.indexOf(left.mealType) -
+                MEAL_TYPES.indexOf(right.mealType),
+          ),
+      )
+    },
   }
   return { service, calls }
 }
@@ -652,8 +673,10 @@ interface HarnessConfig {
   mealSkipErrors?: {
     record?: MealSkipDomainError
     cancel?: MealSkipDomainError
+    findForPeriod?: MealSkipDomainError
   }
   mealPlanServiceOverrides?: Partial<MealPlanService>
+  mealSkipRows?: ReadonlyArray<MealSkipRow>
   profile?: UserProfile
   foodSearchServiceResult?: ReturnType<FoodSearchService['search']>
   mealSetServiceOverrides?: Partial<MealSetService>
@@ -683,7 +706,7 @@ const start = async (config: HarnessConfig = {}): Promise<Harness> => {
   const { service: mealLogCrudService, calls: mealLogCalls } =
     makeMealLogService(config.mealLogOverrides, config.deleteManyError)
   const { service: mealSkipService, calls: mealSkipCalls } =
-    makeMealSkipService(config.mealSkipErrors)
+    makeMealSkipService(config.mealSkipErrors, config.mealSkipRows)
   const { service: mealPlanService, calls: mealPlanCalls } =
     makeMealPlanService(config.mealPlanServiceOverrides)
   const { service: profileService, calls: profileCalls } = makeProfileService(
@@ -1903,6 +1926,7 @@ describe('record_meal_skip', () => {
         mealSkipCalls: {
           record: [{ date: '2026-04-17', mealType: 'breakfast' }],
           cancel: [],
+          findForPeriod: [],
         },
         logs: [
           {
@@ -1938,7 +1962,7 @@ describe('record_meal_skip', () => {
           content: [{ type: 'text', text: VALIDATION_ERROR_TEXT }],
           isError: true,
         },
-        mealSkipCalls: { record: [], cancel: [] },
+        mealSkipCalls: { record: [], cancel: [], findForPeriod: [] },
         logs: [],
       })
     } finally {
@@ -1969,6 +1993,7 @@ describe('record_meal_skip', () => {
         mealSkipCalls: {
           record: [{ date: '2099-04-18', mealType: 'breakfast' }],
           cancel: [],
+          findForPeriod: [],
         },
         logs: [
           {
@@ -2016,6 +2041,7 @@ describe('cancel_meal_skip', () => {
         mealSkipCalls: {
           record: [],
           cancel: [{ date: '2026-04-17', mealType: 'breakfast' }],
+          findForPeriod: [],
         },
         logs: [
           {
@@ -2053,6 +2079,7 @@ describe('cancel_meal_skip', () => {
         mealSkipCalls: {
           record: [],
           cancel: [{ date: '2026-04-17', mealType: 'breakfast' }],
+          findForPeriod: [],
         },
         logs: [
           {
@@ -2510,10 +2537,70 @@ describe('update_meal_log', () => {
 })
 
 describe('get_recommendation_context', () => {
+  it('explains how to interpret missing, estimated, and incomplete data', async () => {
+    const h = await start()
+    try {
+      const result = await h.client.listTools()
+      const recommendationContext = result.tools.find(
+        (tool) => tool.name === 'get_recommendation_context',
+      )
+
+      expect(recommendationContext?.description).toEqual(
+        '指定期間のプロフィール、食事履歴・栄養集計、記録された欠食を返す。meal_skips にある日付・食事区分の食事は摂取量を 0 として扱ってください。食事ログも meal_skips もない食事は未記録なので、食べたか食べていないかを判断しないでください。未記録の食事がある期間の栄養合計は、記録された栄養値の集計であり、未記録分を含まないため摂取量の確定値ではありません。推定値は実際より多い場合も少ない場合もあるため、推定値を含む栄養合計も確定値として扱わないでください。栄養値の欠損を 0 とみなさず、推定値は推定値として区別してください。過去の栄養の超過や不足を欠食や食べ過ぎで帳尻合わせせず、今後の通常の食事で調整してください。原材料が分からない食品は、アレルギーに当たらないか本人に確かめてから提案・保存してください。提案内容の解釈と文章化は ChatGPT が行います。',
+      )
+    } finally {
+      await h.close()
+    }
+  })
+
   it('returns the profile and selected-period history together', async () => {
     const h = await start({
       profile: recommendationProfile,
       mealHistoryOverrides: { query: recommendationHistory },
+      mealSkipRows: [
+        {
+          id: 'skip_logged_breakfast',
+          date: jstDate('2025-11-23'),
+          mealType: 'breakfast',
+          createdAt: new Date('2025-11-23T01:00:00Z'),
+        },
+        {
+          id: 'skip_logged_dinner',
+          date: jstDate('2025-11-23'),
+          mealType: 'dinner',
+          createdAt: new Date('2025-11-23T02:00:00Z'),
+        },
+        {
+          id: 'skip_same_date_lunch',
+          date: jstDate('2025-11-23'),
+          mealType: 'lunch',
+          createdAt: new Date('2025-11-23T03:00:00Z'),
+        },
+        {
+          id: 'skip_same_type_breakfast',
+          date: jstDate('2025-11-24'),
+          mealType: 'breakfast',
+          createdAt: new Date('2025-11-24T01:00:00Z'),
+        },
+        {
+          id: 'skip_unlogged_dinner',
+          date: jstDate('2025-11-24'),
+          mealType: 'dinner',
+          createdAt: new Date('2025-11-24T03:00:00Z'),
+        },
+        {
+          id: 'skip_unlogged_lunch',
+          date: jstDate('2025-11-24'),
+          mealType: 'lunch',
+          createdAt: new Date('2025-11-24T02:00:00Z'),
+        },
+        {
+          id: 'skip_outside_period',
+          date: jstDate('2025-11-27'),
+          mealType: 'dinner',
+          createdAt: new Date('2025-11-27T02:00:00Z'),
+        },
+      ],
     })
     try {
       const result = await h.client.callTool({
@@ -2581,6 +2668,12 @@ describe('get_recommendation_context', () => {
             has_estimated_values: true,
             has_unknown_values: true,
           },
+          meal_skips: [
+            { date: '2025-11-23', meal_type: 'lunch' },
+            { date: '2025-11-24', meal_type: 'breakfast' },
+            { date: '2025-11-24', meal_type: 'lunch' },
+            { date: '2025-11-24', meal_type: 'dinner' },
+          ],
         },
       })
     } finally {
@@ -2599,10 +2692,12 @@ describe('get_recommendation_context', () => {
         observation({
           historyCalls: h.mealHistoryCalls.query,
           profileCalls: h.profileCalls.get,
+          mealSkipCalls: h.mealSkipCalls.findForPeriod,
         }),
       ).toEqual({
         historyCalls: [{ periodFrom: '2025-11-20', periodTo: '2025-11-27' }],
         profileCalls: 1,
+        mealSkipCalls: [['2025-11-20', '2025-11-27']],
       })
     } finally {
       await h.close()
@@ -2664,6 +2759,28 @@ describe('get_recommendation_context', () => {
       })
       expect(result).toEqual({
         content: [{ type: 'text', text: 'history unavailable' }],
+        isError: true,
+      })
+    } finally {
+      await h.close()
+    }
+  })
+
+  it('returns an error without context when skipped-meal retrieval fails', async () => {
+    const h = await start({
+      mealSkipErrors: {
+        findForPeriod: new MealSkipPersistenceError(
+          'skipped meals unavailable',
+        ),
+      },
+    })
+    try {
+      const result = await h.client.callTool({
+        name: 'get_recommendation_context',
+        arguments: recommendationPeriod,
+      })
+      expect(result).toEqual({
+        content: [{ type: 'text', text: 'skipped meals unavailable' }],
         isError: true,
       })
     } finally {

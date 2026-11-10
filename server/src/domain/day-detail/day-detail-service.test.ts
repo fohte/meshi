@@ -24,6 +24,7 @@ const stubNoSkips: MealSkipService = {
       new MealSkipPersistenceError('mealSkipService.cancel not stubbed'),
     ),
   findForDate: () => okAsync([]),
+  findForPeriod: () => okAsync([]),
 }
 
 // createDayDetailService's own job is enriching MealHistoryService's entries
@@ -403,6 +404,7 @@ describeIfDb('DayDetailService.query', () => {
             createdAt: new Date('2026-06-01T00:00:00Z'),
           },
         ]),
+      findForPeriod: () => okAsync([]),
     }
     const service = createDayDetailService(
       tx,

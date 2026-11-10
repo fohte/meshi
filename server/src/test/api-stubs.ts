@@ -157,6 +157,7 @@ export const createStubApiDeps = (): ApiDeps => ({
         new MealSkipPersistenceError('mealSkipService.cancel not stubbed'),
       ),
     findForDate: () => okAsync([]),
+    findForPeriod: () => okAsync([]),
   },
   stockService: {
     setStockItem: () =>
