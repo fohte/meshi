@@ -31,12 +31,16 @@ export const profileStructuredOutput = z.object({
 export const recommendationContextStructuredOutput = z.object({
   profile: profileStructuredOutput,
   history: mealHistoryStructuredOutput,
-  meal_skips: z.array(
-    z.object({
-      date: jstDateSchema,
-      meal_type: z.enum(MEAL_TYPES),
-    }),
-  ),
+  meal_skips: z
+    .array(
+      z.object({
+        date: jstDateSchema,
+        meal_type: z.enum(MEAL_TYPES),
+      }),
+    )
+    .describe(
+      '期間内に記録された欠食。ここにある日付・食事区分の食事は摂取量 0 として扱い、食事ログもこの配列もない食事は未記録として扱う。',
+    ),
 })
 
 export const queryMealsInput = z.object({

@@ -138,6 +138,13 @@ describeIfDb('DrizzleMealSkipRepository', () => {
           mealType: 'breakfast',
         })
       )._unsafeUnwrap()
+      const second = (
+        await repository.recordSkip({
+          id: 'skip_included_lunch',
+          date: jstDate('2026-07-29'),
+          mealType: 'lunch',
+        })
+      )._unsafeUnwrap()
       await repository.recordSkip({
         id: 'skip_at_end',
         date: jstDate('2026-07-30'),
@@ -151,7 +158,10 @@ describeIfDb('DrizzleMealSkipRepository', () => {
         )
       )._unsafeUnwrap()
 
-      expect(result.map(normalizeRow)).toEqual([normalizeRow(first)])
+      expect(result.map(normalizeRow)).toEqual([
+        normalizeRow(first),
+        normalizeRow(second),
+      ])
     })
   })
 })

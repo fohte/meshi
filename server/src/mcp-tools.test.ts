@@ -578,7 +578,13 @@ const makeMealSkipService = (
         return errAsync(errors.findForPeriod)
       }
       return okAsync(
-        rows.filter(({ date }) => date >= periodFrom && date < periodTo),
+        rows
+          .filter(({ date }) => date >= periodFrom && date < periodTo)
+          .sort(
+            (left, right) =>
+              left.date.localeCompare(right.date) ||
+              left.mealType.localeCompare(right.mealType),
+          ),
       )
     },
   }
@@ -2250,7 +2256,7 @@ describe('get_recommendation_context', () => {
       )
 
       expect(recommendationContext?.description).toEqual(
-        '指定期間のプロフィール、食事履歴・栄養集計、記録された欠食を返す。食事記録がない食事は未摂取と判断せず、栄養値の欠損を 0 とみなさないでください。推定値は推定値として区別してください。過去の栄養超過を欠食で帳尻合わせせず、今後の通常の食事で調整してください。原材料が分からない食品は、アレルギーに当たらないか本人に確かめてから提案・保存してください。提案内容の解釈と文章化は ChatGPT が行います。',
+        '指定期間のプロフィール、食事履歴・栄養集計、記録された欠食を返す。meal_skips にある日付・食事区分の食事は摂取量を 0 として扱ってください。食事ログも meal_skips もない食事は未記録なので、食べたか食べていないかを判断しないでください。栄養値の欠損を 0 とみなさず、推定値は推定値として区別してください。過去の栄養超過を欠食で帳尻合わせせず、今後の通常の食事で調整してください。原材料が分からない食品は、アレルギーに当たらないか本人に確かめてから提案・保存してください。提案内容の解釈と文章化は ChatGPT が行います。',
       )
     } finally {
       await h.close()
@@ -2273,6 +2279,18 @@ describe('get_recommendation_context', () => {
           date: jstDate('2025-11-23'),
           mealType: 'dinner',
           createdAt: new Date('2025-11-23T02:00:00Z'),
+        },
+        {
+          id: 'skip_same_date_lunch',
+          date: jstDate('2025-11-23'),
+          mealType: 'lunch',
+          createdAt: new Date('2025-11-23T03:00:00Z'),
+        },
+        {
+          id: 'skip_same_type_breakfast',
+          date: jstDate('2025-11-24'),
+          mealType: 'breakfast',
+          createdAt: new Date('2025-11-24T01:00:00Z'),
         },
         {
           id: 'skip_unlogged_lunch',
@@ -2354,7 +2372,11 @@ describe('get_recommendation_context', () => {
             has_estimated_values: true,
             has_unknown_values: true,
           },
-          meal_skips: [{ date: '2025-11-24', meal_type: 'lunch' }],
+          meal_skips: [
+            { date: '2025-11-23', meal_type: 'lunch' },
+            { date: '2025-11-24', meal_type: 'breakfast' },
+            { date: '2025-11-24', meal_type: 'lunch' },
+          ],
         },
       })
     } finally {
