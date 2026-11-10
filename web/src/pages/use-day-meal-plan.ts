@@ -9,7 +9,12 @@ import type {
   MealPlanDraftItem,
   MealPlanSheetProps,
 } from '#components/MealPlanSheet/MealPlanSheet'
-import type { SelectedFood } from '#meal-log-sheet/sheet-state'
+import {
+  applyFoodItemSelection,
+  removeFoodItem,
+  type SelectedFood,
+  setFoodItemQuantity,
+} from '#meal-log-sheet/food-item-list'
 
 interface MealPlanEditorState {
   readonly mealType: MealType
@@ -87,39 +92,17 @@ export const useDayMealPlan = (date: string) => {
   const addFoodToEditor = (food: SelectedFood): void => {
     setEditor((current) => {
       if (current === null || current.selection === null) return current
-      const selection = current.selection
-      if (selection.type === 'replace') {
-        return {
-          ...current,
-          selection: null,
-          query: '',
-          items: current.items.map((item) =>
-            item.id === selection.itemId
-              ? {
-                  ...item,
-                  foodMasterId: food.foodMasterId,
-                  foodName: food.name,
-                  energyKcalPerUnit: food.energyKcalPerUnit,
-                }
-              : item,
-          ),
-        }
-      }
+      const updated = applyFoodItemSelection(
+        current.items,
+        current.nextItemId,
+        current.selection,
+        food,
+      )
       return {
         ...current,
         selection: null,
         query: '',
-        nextItemId: current.nextItemId + 1,
-        items: [
-          ...current.items,
-          {
-            id: current.nextItemId,
-            foodMasterId: food.foodMasterId,
-            foodName: food.name,
-            quantity: '1',
-            energyKcalPerUnit: food.energyKcalPerUnit,
-          },
-        ],
+        ...updated,
       }
     })
     compositionMutation.reset()
@@ -174,9 +157,7 @@ export const useDayMealPlan = (date: string) => {
                 ? current
                 : {
                     ...current,
-                    items: current.items.map((item) =>
-                      item.id === id ? { ...item, quantity } : item,
-                    ),
+                    items: setFoodItemQuantity(current.items, id, quantity),
                   },
             )
           },
@@ -186,7 +167,7 @@ export const useDayMealPlan = (date: string) => {
                 ? current
                 : {
                     ...current,
-                    items: current.items.filter((item) => item.id !== id),
+                    items: removeFoodItem(current.items, id),
                   },
             )
           },
@@ -219,6 +200,12 @@ export const useDayMealPlan = (date: string) => {
       cancelMutation.mutate(id)
     },
     isActionPending: saveMutation.isPending || cancelMutation.isPending,
+    cancelError: cancelMutation.isError
+      ? {
+          planId: cancelMutation.variables,
+          message: cancelMutation.error.message,
+        }
+      : null,
     sheetProps,
   }
 }

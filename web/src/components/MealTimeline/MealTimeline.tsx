@@ -21,6 +21,10 @@ export interface MealTimelineProps {
   readonly onCreatePlan?: (mealType: MealType) => void
   readonly onEditPlan?: (mealType: MealType) => void
   readonly onCancelPlan?: (planId: string) => void
+  readonly planActionError?: {
+    readonly planId: string
+    readonly message: string
+  } | null
   readonly isPlanActionPending?: boolean
 }
 
@@ -39,6 +43,7 @@ export const MealTimeline = ({
   onCreatePlan,
   onEditPlan,
   onCancelPlan,
+  planActionError = null,
   isPlanActionPending = false,
 }: MealTimelineProps): React.JSX.Element => (
   <div className={styles.timeline}>
@@ -135,6 +140,13 @@ export const MealTimeline = ({
             </div>
           )}
         </div>
+        {group.status === 'planned' &&
+          planActionError !== null &&
+          group.plan?.id === planActionError.planId && (
+            <div className={styles.planError} role="alert">
+              {planActionError.message}
+            </div>
+          )}
         {dateKind !== 'future' &&
           group.status !== 'planned' &&
           renderMealPhotos?.(group.mealType)}

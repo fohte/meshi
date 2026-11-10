@@ -203,6 +203,15 @@ const mealPlanCancelOutput = (
   cancelledPlanHidden: !container.textContent.includes('架空食品 A'),
 })
 
+const planCancellationFailureOutput = (
+  requests: ReadonlyArray<RequestRecord>,
+  container: HTMLElement,
+) => ({
+  cancelRequests: requests.filter((request) => request.method === 'POST'),
+  error: container.querySelector('[role="alert"]')?.textContent ?? null,
+  planVisible: container.textContent.includes('架空食品 A'),
+})
+
 const setTextareaValue = (
   textarea: HTMLTextAreaElement,
   value: string,
@@ -228,6 +237,8 @@ const setupPage = (
   saveResponse: (body: unknown) => Response | Promise<Response>,
   requests: Array<RequestRecord>,
   mealPlans: ReadonlyArray<MealPlan> = [],
+  cancelPlanResponse: (id: string) => Response = () =>
+    new Response(null, { status: 204 }),
 ): {
   readonly container: HTMLDivElement
   readonly root: Root
@@ -262,12 +273,16 @@ const setupPage = (
         return Promise.resolve(jsonResponse(currentMealPlans))
       }
       if (method === 'POST' && path.startsWith('/api/meal-plans/')) {
-        currentMealPlans = currentMealPlans.map((plan) =>
-          path.includes(encodeURIComponent(plan.id))
-            ? { ...plan, status: 'cancelled' as const }
-            : plan,
+        const id = decodeURIComponent(
+          path.slice('/api/meal-plans/'.length, -'/cancel'.length),
         )
-        return Promise.resolve(new Response(null, { status: 204 }))
+        const response = cancelPlanResponse(id)
+        if (response.ok) {
+          currentMealPlans = currentMealPlans.map((plan) =>
+            plan.id === id ? { ...plan, status: 'cancelled' as const } : plan,
+          )
+        }
+        return Promise.resolve(response)
       }
       if (method === 'PUT' && path.startsWith('/api/meal-plans/')) {
         const parsedInput = saveMealPlanInputSchema.safeParse(body)
@@ -507,6 +522,104 @@ describe('DayDetailView', () => {
     }
   })
 
+  it('replaces a planned food and preserves its quantity when saving edits', async () => {
+    const requests: Array<RequestRecord> = []
+    const plan: MealPlan = {
+      id: 'plan_existing_fixture',
+      date: '2093-04-13',
+      mealType: 'dinner',
+      reason: '作業後に食べる予定',
+      status: 'planned',
+      items: [
+        {
+          foodMasterId: 'fixture_food_b',
+          foodName: '架空食品 B',
+          quantity: 2.5,
+          energyKcalPerUnit: 90,
+        },
+      ],
+    }
+    const { container, root, queryClient } = setupPage(
+      () => jsonResponse({}),
+      requests,
+      [plan],
+    )
+
+    try {
+      await performAct(() => {
+        renderPage(root, queryClient, '2093-04-13')
+      })
+      await waitFor(() => container.textContent.includes('架空食品 B'))
+      await performAct(() => {
+        Array.from(container.querySelectorAll<HTMLButtonElement>('button'))
+          .find((button) => button.textContent === '予定を変更')
+          ?.click()
+      })
+      await waitFor(
+        () =>
+          container.querySelector(
+            'button[aria-label="架空食品 B を差し替え"]',
+          ) !== null,
+      )
+      await performAct(() => {
+        container
+          .querySelector<HTMLButtonElement>(
+            'button[aria-label="架空食品 B を差し替え"]',
+          )
+          ?.click()
+      })
+      const searchInput = container.querySelector<HTMLInputElement>(
+        'input[placeholder="食品名を入力"]',
+      )
+      if (searchInput !== null) await setInputValue(searchInput, '架空')
+      await waitFor(() =>
+        Array.from(container.querySelectorAll('button')).some((button) =>
+          button.textContent.includes('架空食品 A'),
+        ),
+      )
+      await performAct(() => {
+        Array.from(container.querySelectorAll<HTMLButtonElement>('button'))
+          .find((button) => button.textContent.includes('架空食品 A'))
+          ?.click()
+      })
+      await performAct(() => {
+        Array.from(container.querySelectorAll<HTMLButtonElement>('button'))
+          .find((button) => button.textContent === '保存')
+          ?.click()
+      })
+      await waitFor(() =>
+        requests.some(
+          (request) =>
+            request.method === 'PUT' &&
+            request.path === '/api/meal-plans/2093-04-13/dinner',
+        ),
+      )
+
+      expect(mealPlanSaveOutput(requests, container)).toEqual({
+        saveRequests: [
+          {
+            method: 'PUT',
+            path: '/api/meal-plans/2093-04-13/dinner',
+            body: {
+              reason: '作業後に食べる予定',
+              items: [
+                {
+                  foodMasterId: 'fixture_food_a',
+                  foodName: '架空食品 A',
+                  quantity: 2.5,
+                },
+              ],
+            },
+          },
+        ],
+        editorClosed: true,
+        plannedFoodIsNotInteractive: true,
+      })
+    } finally {
+      await cleanupPage(container, root, queryClient)
+    }
+  })
+
   it('shows a future plan without meal-log controls, photos, or nutrition summary', async () => {
     const requests: Array<RequestRecord> = []
     const plan: MealPlan = {
@@ -610,6 +723,58 @@ describe('DayDetailView', () => {
           },
         ],
         cancelledPlanHidden: true,
+      })
+    } finally {
+      await cleanupPage(container, root, queryClient)
+    }
+  })
+
+  it('shows the plan when cancellation fails and explains the error', async () => {
+    const requests: Array<RequestRecord> = []
+    const plan: MealPlan = {
+      id: 'plan_cancel_failure_fixture',
+      date: '2093-04-13',
+      mealType: 'dinner',
+      reason: '作業後に食べる予定',
+      status: 'planned',
+      items: [
+        {
+          foodMasterId: 'fixture_food_a',
+          foodName: '架空食品 A',
+          quantity: 1,
+          energyKcalPerUnit: 125,
+        },
+      ],
+    }
+    const { container, root, queryClient } = setupPage(
+      () => jsonResponse({}),
+      requests,
+      [plan],
+      () => jsonResponse({ error: 'この予定は取り消せません。' }, 409),
+    )
+
+    try {
+      await performAct(() => {
+        renderPage(root, queryClient, '2093-04-13')
+      })
+      await waitFor(() => container.textContent.includes('架空食品 A'))
+      await performAct(() => {
+        Array.from(container.querySelectorAll<HTMLButtonElement>('button'))
+          .find((button) => button.textContent === '取り消す')
+          ?.click()
+      })
+      await waitFor(() => container.querySelector('[role="alert"]') !== null)
+
+      expect(planCancellationFailureOutput(requests, container)).toEqual({
+        cancelRequests: [
+          {
+            method: 'POST',
+            path: '/api/meal-plans/plan_cancel_failure_fixture/cancel',
+            body: null,
+          },
+        ],
+        error: 'この予定は取り消せません。',
+        planVisible: true,
       })
     } finally {
       await cleanupPage(container, root, queryClient)

@@ -1,9 +1,10 @@
-import { errAsync, okAsync, ResultAsync } from 'neverthrow'
+import { okAsync, ResultAsync } from 'neverthrow'
 import { z } from 'zod'
 
 import { MEAL_TYPES, type MealType } from '#api/day-detail'
 import { ApiRequestError } from '#api/errors'
 import { requestJson } from '#api/request'
+import { parseApiError } from '#api/request-error'
 
 const mealPlanItemSchema = z.object({
   foodMasterId: z.string(),
@@ -67,11 +68,9 @@ export const postMealPlanCancel = (
       new ApiRequestError('meal plan cancellation request failed', cause),
   ).andThen((response) => {
     if (!response.ok) {
-      return errAsync(
-        new ApiRequestError(
-          `/api/meal-plans/cancel responded with ${String(response.status)}`,
-          undefined,
-        ),
+      return parseApiError(
+        `/api/meal-plans/${encodeURIComponent(id)}/cancel`,
+        response,
       )
     }
     return okAsync(undefined)

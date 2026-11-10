@@ -279,18 +279,28 @@ describeIfDb('MealPlanService with DrizzleMealPlanRepository', () => {
       jstDate('2026-11-11'),
     )
 
-    expect(plans._unsafeUnwrap()[0]?.items).toEqual([
+    expect(normalizePlanIds(plans._unsafeUnwrap())).toEqual([
       {
-        foodMasterId: 'fm_meal_plan_with_kcal',
-        foodName: 'example food with nutrition',
-        quantity: 1,
-        energyKcalPerUnit: 47.5,
-      },
-      {
-        foodMasterId: 'fm_meal_plan_without_kcal',
-        foodName: 'example food without nutrition',
-        quantity: 2,
-        energyKcalPerUnit: null,
+        id: 'plan-1',
+        date: '2026-11-10',
+        mealType: 'lunch',
+        items: [
+          {
+            foodMasterId: 'fm_meal_plan_with_kcal',
+            foodName: 'example food with nutrition',
+            quantity: 1,
+            energyKcalPerUnit: 47.5,
+          },
+          {
+            foodMasterId: 'fm_meal_plan_without_kcal',
+            foodName: 'example food without nutrition',
+            quantity: 2,
+            energyKcalPerUnit: null,
+          },
+        ],
+        reason: null,
+        status: 'planned',
+        createdAt: CREATED_AT_PLACEHOLDER,
       },
     ])
   })

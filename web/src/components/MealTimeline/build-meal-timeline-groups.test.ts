@@ -68,46 +68,70 @@ describe('buildMealTimelineGroups', () => {
         [entry({ mealType: 'breakfast' })],
         ['snack'],
         plans,
-      ).map((group) => ({
-        mealType: group.mealType,
-        status: group.status,
-        items: group.items.map(({ name, quantityText, kcalText }) => ({
-          name,
-          quantityText,
-          kcalText,
-        })),
-        planId: group.plan?.id ?? null,
-      })),
+      ),
     ).toEqual([
       {
         mealType: 'breakfast',
+        label: '朝食',
         status: 'eaten',
-        items: [{ name: 'ごはん', quantityText: '×150', kcalText: '234 kcal' }],
-        planId: null,
+        kcalText: '234 kcal',
+        items: [
+          {
+            id: 'log-1',
+            name: 'ごはん',
+            isEstimated: false,
+            isUnknown: false,
+            hasNutritionVersionDifferences: false,
+            quantityText: '×150',
+            kcalText: '234 kcal',
+          },
+        ],
       },
       {
         mealType: 'lunch',
+        label: '昼食',
         status: 'planned',
+        kcalText: null,
         items: [
           {
+            id: 'plan_lunch_fixture-0',
             name: '架空食品 A',
+            isEstimated: false,
+            isUnknown: false,
+            hasNutritionVersionDifferences: false,
             quantityText: '×1.5',
             kcalText: '188 kcal',
           },
         ],
-        planId: 'plan_lunch_fixture',
+        plan: {
+          id: 'plan_lunch_fixture',
+          date: '2026-07-29',
+          mealType: 'lunch',
+          reason: null,
+          status: 'planned',
+          items: [
+            {
+              foodMasterId: 'fixture_food_a',
+              foodName: '架空食品 A',
+              quantity: 1.5,
+              energyKcalPerUnit: 125,
+            },
+          ],
+        },
       },
       {
         mealType: 'dinner',
+        label: '夕食',
         status: 'unrecorded',
+        kcalText: null,
         items: [],
-        planId: null,
       },
       {
         mealType: 'snack',
+        label: '間食',
         status: 'skipped',
+        kcalText: null,
         items: [],
-        planId: null,
       },
     ])
   })

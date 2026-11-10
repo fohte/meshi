@@ -1,19 +1,15 @@
 import type { MealType } from '#api/day-detail'
-import type { EditableMealItem } from '#components/MealPlanItems/MealPlanItems'
 import { MealPlanItems } from '#components/MealPlanItems/MealPlanItems'
 import styles from '#components/MealPlanSheet/MealPlanSheet.module.css'
 import { MEAL_LABELS } from '#components/MealTimeline/build-meal-timeline-groups'
+import type {
+  EditableFoodItem,
+  FoodItemSelection,
+  SelectedFood,
+} from '#meal-log-sheet/food-item-list'
 import { FoodSearchStep } from '#meal-log-sheet/FoodSearchStep'
-import type { SelectedFood } from '#meal-log-sheet/sheet-state'
 
-export interface MealPlanDraftItem extends EditableMealItem {
-  readonly id: number
-  readonly foodMasterId: string
-}
-
-type MealPlanFoodSelection =
-  | { readonly type: 'add' }
-  | { readonly type: 'replace'; readonly itemId: number }
+export type MealPlanDraftItem = EditableFoodItem
 
 export interface MealPlanSheetProps {
   readonly date: string
@@ -21,7 +17,7 @@ export interface MealPlanSheetProps {
   readonly isEditing: boolean
   readonly reason: string
   readonly items: ReadonlyArray<MealPlanDraftItem>
-  readonly selection: MealPlanFoodSelection | null
+  readonly selection: FoodItemSelection | null
   readonly query: string
   readonly isSaving: boolean
   readonly error: string | null

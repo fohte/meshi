@@ -1,8 +1,6 @@
 import styles from '#components/MealPlanItems/MealPlanItems.module.css'
 
-export interface EditableMealItem<
-  ItemId extends string | number = string | number,
-> {
+interface EditableMealItem<ItemId extends string | number = string | number> {
   readonly id: ItemId
   readonly foodName: string
   readonly quantity: string

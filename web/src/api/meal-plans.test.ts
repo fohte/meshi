@@ -42,6 +42,11 @@ const cancellationOutput = (
   succeeded: boolean,
 ) => ({ calls, succeeded })
 
+const cancellationErrorOutput = (
+  calls: ReadonlyArray<unknown>,
+  error: unknown,
+) => ({ calls, error })
+
 afterEach(() => {
   vi.unstubAllGlobals()
 })
@@ -134,6 +139,25 @@ describe('postMealPlanCancel', () => {
     expect(cancellationOutput(fetchMock.mock.calls, result.isOk())).toEqual({
       calls: [['/api/meal-plans/plan%2Ffixture/cancel', { method: 'POST' }]],
       succeeded: true,
+    })
+  })
+
+  it('returns the server error message when cancellation fails', async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: false,
+      status: 409,
+      json: () => Promise.resolve({ error: 'plan cannot be cancelled' }),
+    })
+    vi.stubGlobal('fetch', fetchMock)
+
+    const result = await postMealPlanCancel('plan_fixture')
+    const error = result._unsafeUnwrapErr()
+
+    expect(
+      cancellationErrorOutput(fetchMock.mock.calls, normalizedApiError(error)),
+    ).toEqual({
+      calls: [['/api/meal-plans/plan_fixture/cancel', { method: 'POST' }]],
+      error: { name: 'ApiRequestError', message: 'plan cannot be cancelled' },
     })
   })
 })

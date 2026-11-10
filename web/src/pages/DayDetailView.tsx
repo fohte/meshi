@@ -1,6 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
-import { Link } from 'react-router'
 
 import {
   type DayDetailEntry,
@@ -24,6 +23,7 @@ import {
 } from '#api/nutrient-definitions'
 import { fetchUserProfile, PROFILE_QUERY_KEY } from '#api/profile'
 import { toPromise } from '#api/to-promise'
+import { DayDetailHeader } from '#components/DayDetailHeader/DayDetailHeader'
 import { ErrorRetry } from '#components/ErrorRetry/ErrorRetry'
 import { getMealPhotoUploadErrorMessage } from '#components/MealPhotoGallery/meal-photo-upload-error-message'
 import { MealPhotoGallery } from '#components/MealPhotoGallery/MealPhotoGallery'
@@ -37,12 +37,7 @@ import { MealTimeline } from '#components/MealTimeline/MealTimeline'
 import { buildNutritionSummaryData } from '#components/NutritionSummary/build-nutrition-summary-data'
 import { NutritionSummary } from '#components/NutritionSummary/NutritionSummary'
 import { Skeleton } from '#components/Skeleton/Skeleton'
-import {
-  formatJstMonthDay,
-  shiftDateString,
-  todayJstDate,
-  weekdayLabelJa,
-} from '#lib/jst-date'
+import { shiftDateString, todayJstDate } from '#lib/jst-date'
 import { useMealLogSheet } from '#meal-log-sheet/MealLogSheetContext'
 import { buildDayMealSetInput } from '#pages/build-day-meal-set-input'
 import styles from '#pages/DayDetailView.module.css'
@@ -106,42 +101,17 @@ export const DayDetailView = ({
     void profileQuery.refetch()
   }
 
-  const prevDate = shiftDateString(date, -1)
-  const nextDate = shiftDateString(date, 1)
-  const weekday = weekdayLabelJa(date)
-  const monthDay = formatJstMonthDay(date)
-
-  const crumb = `${weekday}曜日`
-  const entryCount = dayDetailQuery.data?.entries.length ?? 0
+  const dateKind = date < today ? 'past' : date === today ? 'today' : 'future'
+  const entryCount =
+    !isPending && !isError ? dayDetailQuery.data.entries.length : null
 
   return (
     <div>
-      <header className={styles.header}>
-        <div>
-          <div className={styles.crumb}>{crumb}</div>
-          <h1 className={styles.title}>
-            <span className={styles.titleMark}>#</span> {date}
-          </h1>
-          {!isPending && !isError && (
-            <div className={styles.sub}>
-              {date > today
-                ? monthDay + 'の予定'
-                : monthDay + 'の記録 · ' + String(entryCount) + ' 品'}
-            </div>
-          )}
-        </div>
-        <nav className={styles.nav}>
-          <Link className={styles.navButton} to={`/days/${prevDate}`}>
-            ← 前日
-          </Link>
-          <Link className={styles.navButton} to={`/days/${nextDate}`}>
-            翌日 →
-          </Link>
-          <Link className={styles.navButton} to="/history">
-            カレンダー
-          </Link>
-        </nav>
-      </header>
+      <DayDetailHeader
+        date={date}
+        dateKind={dateKind}
+        entryCount={entryCount}
+      />
 
       {isError && <ErrorRetry onRetry={retry} />}
 
@@ -163,7 +133,7 @@ export const DayDetailView = ({
           hasUnknownValues={dayDetailQuery.data.hasUnknownValues}
           skippedMealTypes={dayDetailQuery.data.skippedMealTypes}
           mealPlans={mealPlansQuery.data}
-          dateKind={date < today ? 'past' : date === today ? 'today' : 'future'}
+          dateKind={dateKind}
           definitions={nutrientDefinitionsQuery.data ?? []}
           targets={profileQuery.data?.dailyTargets ?? null}
         />
@@ -472,6 +442,7 @@ const DayDetailContent = ({
             if (plan !== undefined) mealPlan.open(mealType, plan)
           }}
           onCancelPlan={mealPlan.cancel}
+          planActionError={mealPlan.cancelError}
           isPlanActionPending={mealPlan.isActionPending}
         />
       </div>

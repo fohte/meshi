@@ -85,6 +85,13 @@
   border-color: var(--color-muted);
 }
 
+.planError {
+  margin: 6px 0 0 auto;
+  color: var(--color-accent);
+  font-size: 12px;
+  text-align: right;
+}
+
 .items {
   display: flex;
   flex-direction: column;

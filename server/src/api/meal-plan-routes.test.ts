@@ -240,6 +240,29 @@ describe('PUT /api/meal-plans/:date/:mealType', () => {
       body: { error: 'request body must be valid JSON' },
     })
   })
+
+  it('returns 400 when valid JSON does not match the write schema', async () => {
+    const app = buildApp(notStubbed('service'))
+
+    const res = await app.request(
+      jsonRequest('/api/meal-plans/2026-11-10/lunch', 'PUT', {
+        items: [
+          {
+            foodMasterId: 'fm_web_plan_example',
+            foodName: 'example vegetable',
+            quantity: '1.5',
+          },
+        ],
+      }),
+    )
+
+    expect(await responseSnapshot(res)).toEqual({
+      status: 400,
+      body: {
+        error: 'Invalid input: expected number, received string',
+      },
+    })
+  })
 })
 
 describe('POST /api/meal-plans/:id/cancel', () => {

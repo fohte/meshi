@@ -246,6 +246,18 @@ export const WithMealPlan: Story = {
   },
 }
 
+export const PlanCancellationFailed: Story = {
+  name: '夕食の予定を取り消せずエラーを表示しています',
+  args: {
+    dateKind: 'today',
+    groups: buildMealTimelineGroups([], [], [PLANNED_MEAL]),
+    planActionError: {
+      planId: PLANNED_MEAL.id,
+      message: 'この予定は取り消せません。',
+    },
+  },
+}
+
 export const FutureWithoutPlans: Story = {
   name: '未来日の予定がない食事枠を表示しています',
   args: {
