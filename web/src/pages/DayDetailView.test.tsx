@@ -212,6 +212,14 @@ const planCancellationFailureOutput = (
   planVisible: container.textContent.includes('架空食品 A'),
 })
 
+const plannedMealDisplayOutput = (container: HTMLElement) => ({
+  statusLabel:
+    Array.from(container.querySelectorAll<HTMLSpanElement>('span')).find(
+      (span) => span.textContent === '予定',
+    )?.textContent ?? null,
+  memo: container.querySelector('[role="note"]')?.textContent ?? null,
+})
+
 const setTextareaValue = (
   textarea: HTMLTextAreaElement,
   value: string,
@@ -666,10 +674,7 @@ describe('DayDetailView', () => {
         hasTomorrowLink: Array.from(container.querySelectorAll('a')).some(
           (link) => link.textContent === '翌日 →',
         ),
-        hasPlannedLabel: Array.from(
-          container.querySelectorAll<HTMLSpanElement>('span'),
-        ).some((span) => span.textContent === '予定'),
-        hasPlanReason: container.textContent.includes('メモ: 作業後の予定'),
+        plannedMeal: plannedMealDisplayOutput(container),
         planItemIsButton:
           planItem !== undefined && planItem.closest('button') !== null,
       }
@@ -716,8 +721,10 @@ describe('DayDetailView', () => {
           nutritionRequests: [],
           hasSkipAction: false,
           hasTomorrowLink: true,
-          hasPlannedLabel: true,
-          hasPlanReason: true,
+          plannedMeal: {
+            statusLabel: '予定',
+            memo: 'メモ: 作業後の予定',
+          },
           planItemIsButton: false,
         },
         editSheet: { label: '予定を変更', reason: '作業後の予定' },
@@ -729,6 +736,44 @@ describe('DayDetailView', () => {
           },
         ],
         cancelledPlanHidden: true,
+      })
+    } finally {
+      await cleanupPage(container, root, queryClient)
+    }
+  })
+
+  it('omits the memo when a meal plan has no reason', async () => {
+    const requests: Array<RequestRecord> = []
+    const plan: MealPlan = {
+      id: 'plan_without_reason_fixture',
+      date: '2093-04-13',
+      mealType: 'dinner',
+      reason: null,
+      status: 'planned',
+      items: [
+        {
+          foodMasterId: 'fixture_food_a',
+          foodName: '架空食品 A',
+          quantity: 1,
+          energyKcalPerUnit: 125,
+        },
+      ],
+    }
+    const { container, root, queryClient } = setupPage(
+      () => jsonResponse({}),
+      requests,
+      [plan],
+    )
+
+    try {
+      await performAct(() => {
+        renderPage(root, queryClient, '2093-04-13')
+      })
+      await waitFor(() => container.textContent.includes('架空食品 A'))
+
+      expect(plannedMealDisplayOutput(container)).toEqual({
+        statusLabel: '予定',
+        memo: null,
       })
     } finally {
       await cleanupPage(container, root, queryClient)

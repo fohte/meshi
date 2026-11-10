@@ -236,11 +236,27 @@ const PLANNED_MEAL: MealPlan = {
   ],
 }
 
+const PLANNED_MEAL_WITHOUT_REASON: MealPlan = {
+  ...PLANNED_MEAL,
+  id: 'plan_fixture_without_reason',
+  reason: null,
+}
+
 export const WithMealPlan: Story = {
   name: '夕食の予定に品目と変更・取り消し操作を表示しています',
   args: {
     dateKind: 'today',
     groups: buildMealTimelineGroups([], [], [PLANNED_MEAL]),
+    onEditPlan: () => undefined,
+    onCancelPlan: () => undefined,
+  },
+}
+
+export const PlannedMealWithoutReason: Story = {
+  name: '予定にメモが設定されていない状態です',
+  args: {
+    dateKind: 'today',
+    groups: buildMealTimelineGroups([], [], [PLANNED_MEAL_WITHOUT_REASON]),
     onEditPlan: () => undefined,
     onCancelPlan: () => undefined,
   },

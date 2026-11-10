@@ -167,9 +167,9 @@ export const MealTimeline = ({
             </div>
             {group.plan?.reason !== null &&
               group.plan?.reason !== undefined && (
-                <div className={styles.planReason}>
+                <p className={styles.planReason} role="note">
                   メモ: {group.plan.reason}
-                </div>
+                </p>
               )}
           </>
         )}
