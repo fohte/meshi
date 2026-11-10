@@ -79,8 +79,8 @@
 
 .planCount {
   font-family: var(--font-mono);
-  font-size: 11px;
-  color: var(--color-accent);
+  font-size: 10px;
+  color: var(--color-text-secondary);
 }
 
 @media (width <= 768px) {
