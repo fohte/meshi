@@ -134,9 +134,8 @@ export const searchFoodsStructuredOutput = z.object({
       energy_kcal: z
         .number()
         .nullable()
-        .optional()
         .describe(
-          '登録食品は 1 つ分、食品成分表候補は 100g あたり。栄養値が欠損している登録食品では省略',
+          'food_master は 1 つ分、食品成分表候補は 100g あたり。該当する kcal がなければ null',
         ),
       nutrition: z
         .record(z.string(), z.number())

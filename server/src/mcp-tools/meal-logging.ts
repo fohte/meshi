@@ -36,7 +36,7 @@ export const registerMealLoggingTools = (
     'search_foods',
     {
       description:
-        '登録済み食品を複数の名前候補から検索し、食品名、栄養値、栄養状態 (nutrition_status: confirmed / estimated / unknown)、最後に食べた JST 日付 (last_eaten_date) とそのときの量 (last_quantity) を返す。nutrition は現行バージョンの主要栄養素を食品 1 つ分で示し、値がある栄養素だけを含む。last_eaten_date がある候補と同じ食品なら新規登録せず、その food_master_id を使う。量の指定が無ければ last_quantity を使い、null ならユーザーに量を聞く。origin が homemade の場合のみ食品成分表の候補も返す。成分表候補は自炊の素材にだけ使い、買った商品や外食には使わない。成分表候補の energy_kcal は 100g あたり。meal_sets に一致があれば items を record_meal_log に渡す。ユーザーが品目を指定した場合は該当 item だけ差し替える。meal_type は発話から決め、無ければユーザーに聞く。',
+        '登録済み食品を複数の名前候補から検索し、食品名、kcal、栄養値、栄養状態 (nutrition_status: confirmed / estimated / unknown)、最後に食べた JST 日付 (last_eaten_date) とそのときの量 (last_quantity) を返す。栄養値が不明な食品の kcal は null。nutrition は現行バージョンの主要栄養素を食品 1 つ分で示し、値がある栄養素だけを含む。last_eaten_date がある候補と同じ食品なら新規登録せず、その food_master_id を使う。量の指定が無ければ last_quantity を使い、null ならユーザーに量を聞く。origin が homemade の場合のみ食品成分表の候補も返す。成分表候補は自炊の素材にだけ使い、買った商品や外食には使わない。成分表候補の energy_kcal は 100g あたり。meal_sets に一致があれば items を record_meal_log に渡す。ユーザーが品目を指定した場合は該当 item だけ差し替える。meal_type は発話から決め、無ければユーザーに聞く。',
       inputSchema: searchFoodsInput,
       outputSchema: searchFoodsStructuredOutput,
       annotations: { readOnlyHint: true },
@@ -67,14 +67,10 @@ export const registerMealLoggingTools = (
               food_master_id: food.foodMasterId,
               composition_code: food.compositionCode,
               name: food.name,
-              ...(food.foodMasterId === null || food.energyKcalPerUnit !== null
-                ? {
-                    energy_kcal:
-                      food.foodMasterId === null
-                        ? food.energyKcalPer100g
-                        : food.energyKcalPerUnit,
-                  }
-                : {}),
+              energy_kcal:
+                food.foodMasterId === null
+                  ? food.energyKcalPer100g
+                  : food.energyKcalPerUnit,
               ...(food.foodMasterId === null
                 ? {}
                 : { nutrition: food.nutrition }),
