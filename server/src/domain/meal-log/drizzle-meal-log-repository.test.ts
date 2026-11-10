@@ -19,6 +19,7 @@ import {
 import type { FoundMealLog } from '#domain/meal-log/meal-log-repository'
 import type { FoodMasterRef, MealLogRow } from '#domain/meal-log/types'
 import { createDrizzleMealPlanRepository } from '#domain/meal-plan/drizzle-meal-plan-repository'
+import type { MealPlan } from '#domain/meal-plan/types'
 import { describeIfDb, setupDrizzleTx } from '#test/db'
 import { jstDate } from '#test/jst-date'
 import {
@@ -41,6 +42,24 @@ const normalizeRow = (row: MealLogRow): MealLogRow => ({
   ...row,
   createdAt: CREATED_AT_PLACEHOLDER,
 })
+
+const normalizeMealPlans = (
+  plans: ReadonlyArray<MealPlan>,
+): ReadonlyArray<MealPlan> => {
+  const ids = new Map<string, string>()
+  return plans.map((plan) => {
+    let normalizedId = ids.get(plan.id)
+    if (normalizedId === undefined) {
+      normalizedId = `meal-plan-${String(ids.size + 1)}`
+      ids.set(plan.id, normalizedId)
+    }
+    return {
+      ...plan,
+      id: normalizedId,
+      createdAt: CREATED_AT_PLACEHOLDER,
+    }
+  })
+}
 
 const normalizeFoodAndMealLog = (
   food: FoodMasterRef,
@@ -462,28 +481,45 @@ describeIfDb('createDrizzleMealLogRepository', () => {
       date,
       mealPlanId,
     )
-    const plan = (
-      await mealPlanRepository.list(date, jstDate('2026-06-16'))
-    )._unsafeUnwrap()[0]
+    const plans = normalizeMealPlans(
+      (
+        await mealPlanRepository.list(date, jstDate('2026-06-16'))
+      )._unsafeUnwrap(),
+    )
     const movements = await readMealMovements(tx, 'ml_realized_first')
     const balance = await readLotBalances(tx, 'fm_realized_item')
 
     expect(
       observation({
         recorded: result.isOk(),
-        status: plan?.status ?? null,
-        eatenItems: plan?.eatenItems ?? null,
+        plans,
         movements,
         balance,
       }),
     ).toEqual({
       recorded: true,
-      status: 'eaten',
-      eatenItems: [
+      plans: [
         {
-          foodMasterId: 'fm_realized_item',
-          foodName: 'realized sample item',
-          quantity: 1,
+          id: 'meal-plan-1',
+          date: jstDate('2026-06-15'),
+          mealType: 'lunch',
+          items: [
+            {
+              foodMasterId: 'fm_realized_item',
+              foodName: 'realized sample item',
+              quantity: 1,
+            },
+          ],
+          reason: null,
+          status: 'eaten',
+          eatenItems: [
+            {
+              foodMasterId: 'fm_realized_item',
+              foodName: 'realized sample item',
+              quantity: 1,
+            },
+          ],
+          createdAt: CREATED_AT_PLACEHOLDER,
         },
       ],
       movements: [
@@ -554,24 +590,40 @@ describeIfDb('createDrizzleMealLogRepository', () => {
       mealPlanId,
     )
     const deleted = await repository.deleteMealLog('ml_realized_deleted')
-    const plan = (
-      await mealPlanRepository.list(date, jstDate('2026-06-16'))
-    )._unsafeUnwrap()[0]
+    const plans = normalizeMealPlans(
+      (
+        await mealPlanRepository.list(date, jstDate('2026-06-16'))
+      )._unsafeUnwrap(),
+    )
     const balance = await readLotBalances(tx, 'fm_realized_item')
 
     expect(
       observation({
         inserted: inserted.isOk(),
         deleted: deleted.isOk() && deleted.value,
-        status: plan?.status ?? null,
-        eatenItems: plan?.eatenItems ?? null,
+        plans,
         balance,
       }),
     ).toEqual({
       inserted: true,
       deleted: true,
-      status: 'planned',
-      eatenItems: null,
+      plans: [
+        {
+          id: 'meal-plan-1',
+          date: jstDate('2026-06-15'),
+          mealType: 'lunch',
+          items: [
+            {
+              foodMasterId: 'fm_realized_item',
+              foodName: 'realized sample item',
+              quantity: 1,
+            },
+          ],
+          reason: null,
+          status: 'planned',
+          createdAt: CREATED_AT_PLACEHOLDER,
+        },
+      ],
       balance: [{ stockLotId: 'stl_realized_item', remaining: 3 }],
     })
   })
@@ -593,16 +645,18 @@ describeIfDb('createDrizzleMealLogRepository', () => {
       date,
       mealPlanId,
     )
-    const plan = (
-      await mealPlanRepository.list(date, jstDate('2026-06-16'))
-    )._unsafeUnwrap()[0]
+    const plans = normalizeMealPlans(
+      (
+        await mealPlanRepository.list(date, jstDate('2026-06-16'))
+      )._unsafeUnwrap(),
+    )
 
     expect(
       observation({
         firstSucceeded: first.isOk(),
         deleted: deleted.isOk() && deleted.value,
         secondSucceeded: second.isOk(),
-        status: plan?.status ?? null,
+        plans,
         linkedLogIds: [
           ...(
             await drizzle(tx)
@@ -617,7 +671,30 @@ describeIfDb('createDrizzleMealLogRepository', () => {
       firstSucceeded: true,
       deleted: true,
       secondSucceeded: true,
-      status: 'eaten',
+      plans: [
+        {
+          id: 'meal-plan-1',
+          date: jstDate('2026-06-15'),
+          mealType: 'lunch',
+          items: [
+            {
+              foodMasterId: 'fm_realized_item',
+              foodName: 'realized sample item',
+              quantity: 1,
+            },
+          ],
+          reason: null,
+          status: 'eaten',
+          eatenItems: [
+            {
+              foodMasterId: 'fm_realized_item',
+              foodName: 'realized sample item',
+              quantity: 1,
+            },
+          ],
+          createdAt: CREATED_AT_PLACEHOLDER,
+        },
+      ],
       linkedLogIds: ['ml_realized_after_delete'],
     })
   })

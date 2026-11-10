@@ -391,9 +391,35 @@ describeIfDb('MealPlanService with DrizzleMealPlanRepository', () => {
     expect(
       observation({
         errorCode: result.isErr() ? result.error.code : null,
-        status: listed._unsafeUnwrap()[0]?.status ?? null,
+        plans: normalizePlanIds(listed._unsafeUnwrap()),
       }),
-    ).toEqual({ errorCode: 'meal_plan/already_eaten', status: 'eaten' })
+    ).toEqual({
+      errorCode: 'meal_plan/already_eaten',
+      plans: [
+        {
+          id: 'plan-1',
+          date: '2026-11-10',
+          mealType: 'lunch',
+          items: [
+            {
+              foodMasterId: 'fm_meal_plan_alpha',
+              foodName: 'alpha sample food',
+              quantity: 1,
+            },
+          ],
+          eatenItems: [
+            {
+              foodMasterId: 'fm_meal_plan_beta',
+              foodName: 'beta sample food',
+              quantity: 2,
+            },
+          ],
+          reason: null,
+          status: 'eaten',
+          createdAt: CREATED_AT_PLACEHOLDER,
+        },
+      ],
+    })
   })
 
   it('cancels a plan without changing meal logs or stock movements', async () => {
