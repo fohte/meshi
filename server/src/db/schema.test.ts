@@ -37,6 +37,8 @@ describeIfDb('schema migrations', () => {
       'meal_log_nutrition_changes',
       'meal_logs',
       'meal_photos',
+      'meal_plan_items',
+      'meal_plans',
       'meal_set_items',
       'meal_sets',
       'meal_skips',
@@ -121,6 +123,7 @@ describeIfDb('schema migrations', () => {
           'food_master_nutrition',
           'food_composition_nutrients',
           'meal_log_nutrition_changes',
+          'meal_plan_items',
           'meal_set_items'
         )
       GROUP BY c.conrelid
@@ -142,6 +145,10 @@ describeIfDb('schema migrations', () => {
       {
         table_name: 'meal_log_nutrition_changes',
         columns: ['id'],
+      },
+      {
+        table_name: 'meal_plan_items',
+        columns: ['meal_plan_id', 'food_master_id'],
       },
       {
         table_name: 'meal_set_items',
@@ -292,6 +299,36 @@ describeIfDb('schema migrations', () => {
         indexname: 'meal_sets_name_key',
         indexdef:
           'CREATE UNIQUE INDEX meal_sets_name_key ON public.meal_sets USING btree (name)',
+      },
+    ])
+  })
+
+  it('creates meal-plan slot and food lookup indexes', async () => {
+    const sql = getTestSql()
+    const rows = await sql<{ indexname: string; indexdef: string }[]>`
+      SELECT indexname, indexdef FROM pg_indexes
+      WHERE indexname IN (
+        'meal_plans_active_slot_key',
+        'meal_plans_planned_date_idx',
+        'meal_plan_items_food_master_id_idx'
+      )
+      ORDER BY indexname
+    `
+    expect(rows).toEqual([
+      {
+        indexname: 'meal_plan_items_food_master_id_idx',
+        indexdef:
+          'CREATE INDEX meal_plan_items_food_master_id_idx ON public.meal_plan_items USING btree (food_master_id)',
+      },
+      {
+        indexname: 'meal_plans_active_slot_key',
+        indexdef:
+          'CREATE UNIQUE INDEX meal_plans_active_slot_key ON public.meal_plans USING btree (planned_date, meal_type) WHERE (cancelled_at IS NULL)',
+      },
+      {
+        indexname: 'meal_plans_planned_date_idx',
+        indexdef:
+          'CREATE INDEX meal_plans_planned_date_idx ON public.meal_plans USING btree (planned_date)',
       },
     ])
   })
@@ -460,6 +497,20 @@ describeIfDb('schema migrations', () => {
         on_delete: 'a',
       },
       {
+        conname: 'meal_plan_items_food_master_id_fk',
+        table_name: 'meal_plan_items',
+        ref_table: 'food_masters',
+        on_update: 'c',
+        on_delete: 'r',
+      },
+      {
+        conname: 'meal_plan_items_meal_plan_id_fk',
+        table_name: 'meal_plan_items',
+        ref_table: 'meal_plans',
+        on_update: 'a',
+        on_delete: 'c',
+      },
+      {
         conname: 'meal_set_items_food_master_id_fk',
         table_name: 'meal_set_items',
         ref_table: 'food_masters',
@@ -600,6 +651,16 @@ describeIfDb('schema migrations', () => {
       {
         conname: 'meal_photos_content_type_check',
         table_name: 'meal_photos',
+        validated: true,
+      },
+      {
+        conname: 'meal_plan_items_quantity_positive',
+        table_name: 'meal_plan_items',
+        validated: true,
+      },
+      {
+        conname: 'meal_plans_reason_nonblank',
+        table_name: 'meal_plans',
         validated: true,
       },
       {

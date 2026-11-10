@@ -11,6 +11,8 @@ import {
 import { DomainError } from '#domain/meal-log/errors'
 import type { MealLogService } from '#domain/meal-log/meal-log-service'
 import type { MealLogNutritionReassignmentService } from '#domain/meal-log/nutrition-reassignment'
+import { MealPlanPersistenceError } from '#domain/meal-plan/errors'
+import type { MealPlanService } from '#domain/meal-plan/meal-plan-service'
 import { MealSetPersistenceError } from '#domain/meal-set/errors'
 import type { MealSetService } from '#domain/meal-set/meal-set-service'
 import { MealSkipPersistenceError } from '#domain/meal-skip/errors'
@@ -89,6 +91,12 @@ const rejectingMealSkipService: MealSkipService = {
   findForDate: () => errAsync(new MealSkipPersistenceError('stub')),
 }
 
+const rejectingMealPlanService: MealPlanService = {
+  save: () => errAsync(new MealPlanPersistenceError('stub')),
+  list: () => errAsync(new MealPlanPersistenceError('stub')),
+  cancel: () => errAsync(new MealPlanPersistenceError('stub')),
+}
+
 const rejectingStockService: StockService = {
   setStockItem: () =>
     errAsync(new StockDomainError('persistence_failed', 'stub')),
@@ -116,6 +124,7 @@ export const createStubMcpDeps = (): MeshiToolDeps => ({
     rejectingMealLogNutritionReassignmentService,
   mealSetService: rejectingMealSetService,
   mealSkipService: rejectingMealSkipService,
+  mealPlanService: rejectingMealPlanService,
   stockService: rejectingStockService,
   foodSearchService: rejectingFoodSearchService,
   foodMasterService: rejectingFoodMasterService,

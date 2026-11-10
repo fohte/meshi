@@ -31,6 +31,10 @@ import { createMealLogNutritionReassignmentService } from '#domain/meal-log/nutr
 import { createDrizzleMealPhotoRepository } from '#domain/meal-photo/drizzle-meal-photo-repository'
 import { createMealPhotoService } from '#domain/meal-photo/meal-photo-service'
 import {
+  createDrizzleMealPlanRepository,
+  createMealPlanService,
+} from '#domain/meal-plan/index'
+import {
   createDrizzleMealSetRepository,
   createMealSetService,
 } from '#domain/meal-set/index'
@@ -93,6 +97,10 @@ export const main = async (): Promise<void> => {
     idGenerator: () => randomUUID(),
     now: () => new Date(),
   })
+  const mealPlanService = createMealPlanService({
+    repository: createDrizzleMealPlanRepository(sql),
+    now: () => new Date(),
+  })
   const mealPhotoService = createMealPhotoService({
     repository: createDrizzleMealPhotoRepository(sql),
     objectStore: createMealPhotoObjectStore(r2Client, env.R2_BUCKET_NAME),
@@ -129,6 +137,7 @@ export const main = async (): Promise<void> => {
     mealLogNutritionReassignmentService,
     mealSetService,
     mealSkipService,
+    mealPlanService,
     stockService,
     foodMasterService,
     logger,

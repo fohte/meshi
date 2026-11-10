@@ -692,6 +692,7 @@ const start = async (config: HarnessConfig = {}): Promise<Harness> => {
     mealLogService,
     mealLogNutritionReassignmentService,
     mealSkipService,
+    mealPlanService: createStubMcpDeps().mealPlanService,
     stockService: createStubMcpDeps().stockService,
     profileService,
     foodSearchService,
@@ -720,13 +721,14 @@ const start = async (config: HarnessConfig = {}): Promise<Harness> => {
 }
 
 describe('MeshiMcpServer tools/list', () => {
-  it('exposes the twenty-seven public tools with stable names', async () => {
+  it('exposes the thirty public tools with stable names', async () => {
     const h = await start()
     try {
       const result = await h.client.listTools()
       const names = result.tools.map((t) => t.name).sort()
       expect(names).toEqual([
         'add_food_nutrition_version',
+        'cancel_meal_plan',
         'cancel_meal_skip',
         'count_stock',
         'delete_meal_log',
@@ -736,6 +738,7 @@ describe('MeshiMcpServer tools/list', () => {
         'get_stock_status',
         'list_deliveries',
         'list_food_nutrition_versions',
+        'list_meal_plans',
         'merge_food_master',
         'query_meals',
         'reassign_meal_log_nutrition',
@@ -747,6 +750,7 @@ describe('MeshiMcpServer tools/list', () => {
         'register_food_from_composition',
         'register_food_without_nutrition',
         'register_meal_set',
+        'save_meal_plan',
         'search_foods',
         'set_stock_item',
         'update_delivery_source_ref',
@@ -908,6 +912,7 @@ describe('MeshiMcpServer tools/list', () => {
           'source_url',
         ],
         cancel_meal_skip: ['date', 'meal_type'],
+        cancel_meal_plan: ['meal_plan_id'],
         count_stock: [
           'best_before',
           'food_master_id',
@@ -927,6 +932,7 @@ describe('MeshiMcpServer tools/list', () => {
         get_stock_status: [],
         list_deliveries: ['delivery_id', 'limit', 'source_ref', 'status'],
         list_food_nutrition_versions: ['food_master_id'],
+        list_meal_plans: ['period_from', 'period_to'],
         merge_food_master: [
           'dry_run',
           'loser_food_master_id',
@@ -951,6 +957,7 @@ describe('MeshiMcpServer tools/list', () => {
           'status',
         ],
         register_meal_set: ['items', 'name'],
+        save_meal_plan: ['date', 'items', 'meal_type', 'reason'],
         register_food_from_composition: ['aliases', 'composition_code', 'name'],
         search_foods: ['limit', 'origin', 'queries'],
         set_stock_item: [
@@ -1204,6 +1211,29 @@ describe('MeshiMcpServer tools/list', () => {
       expect(annotations).toEqual({
         cancel_meal_skip: { readOnlyHint: false, destructiveHint: true },
         record_meal_skip: { readOnlyHint: false, destructiveHint: false },
+      })
+    } finally {
+      await h.close()
+    }
+  })
+
+  it('marks meal-plan reads and writes with their MCP annotations', async () => {
+    const h = await start()
+    try {
+      const result = await h.client.listTools()
+      const annotations = Object.fromEntries(
+        result.tools
+          .filter((tool) =>
+            ['cancel_meal_plan', 'list_meal_plans', 'save_meal_plan'].includes(
+              tool.name,
+            ),
+          )
+          .map((tool) => [tool.name, tool.annotations]),
+      )
+      expect(annotations).toEqual({
+        cancel_meal_plan: { readOnlyHint: false, destructiveHint: true },
+        list_meal_plans: { readOnlyHint: true },
+        save_meal_plan: { readOnlyHint: false, destructiveHint: false },
       })
     } finally {
       await h.close()

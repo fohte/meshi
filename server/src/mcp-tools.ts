@@ -6,6 +6,7 @@ import type { FoodMasterService } from '#domain/food-master/service'
 import type { MealHistoryService } from '#domain/meal-history/types'
 import type { MealLogService } from '#domain/meal-log/meal-log-service'
 import type { MealLogNutritionReassignmentService } from '#domain/meal-log/nutrition-reassignment'
+import type { MealPlanService } from '#domain/meal-plan/meal-plan-service'
 import type { MealSetService } from '#domain/meal-set/meal-set-service'
 import type { MealSkipService } from '#domain/meal-skip/meal-skip-service'
 import type { StockService } from '#domain/stock/types'
@@ -20,6 +21,7 @@ import { registerGetStockStatusTool } from '#mcp-tools/get-stock-status'
 import { registerListDeliveriesTool } from '#mcp-tools/list-deliveries'
 import { registerListFoodNutritionVersionsTool } from '#mcp-tools/list-food-nutrition-versions'
 import { registerMealLoggingTools } from '#mcp-tools/meal-logging'
+import { registerMealPlanTools } from '#mcp-tools/meal-plan'
 import { registerMealSkipTools } from '#mcp-tools/meal-skip'
 import { registerMergeFoodMasterTool } from '#mcp-tools/merge-food-master'
 import {
@@ -50,6 +52,7 @@ export interface MeshiToolDeps {
   readonly mealLogNutritionReassignmentService: MealLogNutritionReassignmentService
   readonly mealSetService: MealSetService
   readonly mealSkipService: MealSkipService
+  readonly mealPlanService: MealPlanService
   readonly stockService: StockService
   readonly foodMasterService: FoodMasterService
   readonly logger: Logger
@@ -68,6 +71,7 @@ export const registerMeshiTools = (
     mealLogNutritionReassignmentService,
     mealSetService,
     mealSkipService,
+    mealPlanService,
     stockService,
     logger,
   } = deps
@@ -80,6 +84,7 @@ export const registerMeshiTools = (
   })
   registerMealSetTool(server, { mealSetService, logger })
   registerMealSkipTools(server, { mealSkipService, logger })
+  registerMealPlanTools(server, { mealPlanService, logger })
   registerFoodFromCompositionTool(server, { foodMasterService, logger })
 
   registerFoodTool(server, { foodMasterService, logger })

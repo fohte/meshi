@@ -14,6 +14,8 @@ import {
   seedFoodMasterNutritionVersion,
   seedFoodMasterWithoutNutrition,
   seedMealLog,
+  seedMealPlan,
+  seedMealPlanItem,
   seedMealSet,
   seedMealSetItem,
   seedStockItem,
@@ -874,6 +876,48 @@ describeIfDb('mergeFoodMasters (merge-repository)', () => {
     expect(rows).toEqual([
       {
         meal_set_id: 'ms_common_pair',
+        food_master_id: 'fm_survivor',
+        quantity: 3.75,
+      },
+    ])
+  })
+
+  it('moves and sums food quantities in meal plans', async () => {
+    await seedBasicPair()
+    const tx = getTx()
+    await seedMealPlan(tx, {
+      plannedDate: jstDate('2026-06-03'),
+      mealType: 'dinner',
+    })
+    const [plan] = await tx<{ id: string }[]>`
+      SELECT id FROM meal_plans
+      WHERE planned_date = '2026-06-03' AND meal_type = 'dinner'
+    `
+    if (plan === undefined) throw new Error('seeded meal plan was not found')
+    await seedMealPlanItem(tx, {
+      mealPlanId: plan.id,
+      foodMasterId: 'fm_loser',
+      quantity: 1.5,
+    })
+    await seedMealPlanItem(tx, {
+      mealPlanId: plan.id,
+      foodMasterId: 'fm_survivor',
+      quantity: 2.25,
+    })
+
+    ;(await repo.merge('fm_survivor', 'fm_loser', false))._unsafeUnwrap()
+
+    const rows = await tx<
+      { meal_plan_id: string; food_master_id: string; quantity: number }[]
+    >`
+      SELECT meal_plan_id, food_master_id, quantity::float8 AS quantity
+      FROM meal_plan_items
+      WHERE meal_plan_id = ${plan.id}
+      ORDER BY food_master_id
+    `
+    expect(rows).toEqual([
+      {
+        meal_plan_id: plan.id,
         food_master_id: 'fm_survivor',
         quantity: 3.75,
       },
