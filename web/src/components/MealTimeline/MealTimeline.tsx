@@ -88,6 +88,7 @@ export const MealTimeline = ({
           )}
           {group.status === 'planned' && (
             <div className={styles.groupStatus}>
+              <span className={styles.groupStatusText}>予定</span>
               {dateKind !== 'past' && (
                 <button
                   type="button"
@@ -152,17 +153,25 @@ export const MealTimeline = ({
           renderMealPhotos?.(group.mealType)}
         {group.status === 'eaten' && renderMealSetSaveForm?.(group.mealType)}
         {group.status === 'planned' && (
-          <div className={styles.items}>
-            {group.items.map((item) => (
-              <div key={item.id} className={styles.planItem}>
-                <div className={styles.itemMain}>
-                  <div className={styles.itemNameLine}>{item.name}</div>
-                  <div className={styles.itemMeta}>{item.quantityText}</div>
+          <>
+            <div className={styles.items}>
+              {group.items.map((item) => (
+                <div key={item.id} className={styles.planItem}>
+                  <div className={styles.itemMain}>
+                    <div className={styles.itemNameLine}>{item.name}</div>
+                    <div className={styles.itemMeta}>{item.quantityText}</div>
+                  </div>
+                  <span className={styles.itemKcal}>{item.kcalText}</span>
                 </div>
-                <span className={styles.itemKcal}>{item.kcalText}</span>
-              </div>
-            ))}
-          </div>
+              ))}
+            </div>
+            {group.plan?.reason !== null &&
+              group.plan?.reason !== undefined && (
+                <div className={styles.planReason}>
+                  メモ: {group.plan.reason}
+                </div>
+              )}
+          </>
         )}
         {group.status === 'eaten' && (
           <div className={styles.items}>

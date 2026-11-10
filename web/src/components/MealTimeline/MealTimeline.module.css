@@ -92,6 +92,12 @@
   text-align: right;
 }
 
+.planReason {
+  padding: 2px 8px 0;
+  color: var(--color-muted);
+  font-size: 12px;
+}
+
 .items {
   display: flex;
   flex-direction: column;

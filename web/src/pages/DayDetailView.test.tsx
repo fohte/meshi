@@ -666,6 +666,10 @@ describe('DayDetailView', () => {
         hasTomorrowLink: Array.from(container.querySelectorAll('a')).some(
           (link) => link.textContent === '翌日 →',
         ),
+        hasPlannedLabel: Array.from(
+          container.querySelectorAll<HTMLSpanElement>('span'),
+        ).some((span) => span.textContent === '予定'),
+        hasPlanReason: container.textContent.includes('メモ: 作業後の予定'),
         planItemIsButton:
           planItem !== undefined && planItem.closest('button') !== null,
       }
@@ -712,6 +716,8 @@ describe('DayDetailView', () => {
           nutritionRequests: [],
           hasSkipAction: false,
           hasTomorrowLink: true,
+          hasPlannedLabel: true,
+          hasPlanReason: true,
           planItemIsButton: false,
         },
         editSheet: { label: '予定を変更', reason: '作業後の予定' },
