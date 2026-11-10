@@ -15,6 +15,7 @@ export interface MealPlanSheetProps {
   readonly date: string
   readonly mealType: MealType
   readonly isEditing: boolean
+  readonly isRecording: boolean
   readonly reason: string
   readonly items: ReadonlyArray<MealPlanDraftItem>
   readonly selection: FoodItemSelection | null
@@ -49,11 +50,23 @@ export const MealPlanSheet = (props: MealPlanSheetProps): React.JSX.Element => (
       className={styles.sheet}
       role="dialog"
       aria-modal="true"
-      aria-label={props.isEditing ? '予定を変更' : '予定を立てる'}
+      aria-label={
+        props.isRecording
+          ? '予定を記録'
+          : props.isEditing
+            ? '予定を変更'
+            : '予定を立てる'
+      }
     >
       <header className={styles.header}>
         <span className={styles.mark}>&gt;</span>
-        <h2>{props.isEditing ? '予定を変更' : '予定を立てる'}</h2>
+        <h2>
+          {props.isRecording
+            ? '予定を記録'
+            : props.isEditing
+              ? '予定を変更'
+              : '予定を立てる'}
+        </h2>
         <button
           type="button"
           className={styles.close}
@@ -67,6 +80,11 @@ export const MealPlanSheet = (props: MealPlanSheetProps): React.JSX.Element => (
         <div className={styles.slot}>
           {props.date} · {MEAL_LABELS[props.mealType]}
         </div>
+        {props.isRecording && (
+          <p className={styles.recordNotice}>
+            日付と食事区分は予定のまま記録します。
+          </p>
+        )}
         {props.selection === null ? (
           <>
             <MealPlanItems
@@ -77,17 +95,19 @@ export const MealPlanSheet = (props: MealPlanSheetProps): React.JSX.Element => (
               onReplaceItem={props.replaceItem}
               onAddItem={props.addItem}
             />
-            <label className={styles.reasonField}>
-              <span>予定の理由</span>
-              <textarea
-                value={props.reason}
-                rows={2}
-                disabled={props.isSaving}
-                onChange={(event) => {
-                  props.setReason(event.currentTarget.value)
-                }}
-              />
-            </label>
+            {!props.isRecording && (
+              <label className={styles.reasonField}>
+                <span>予定の理由</span>
+                <textarea
+                  value={props.reason}
+                  rows={2}
+                  disabled={props.isSaving}
+                  onChange={(event) => {
+                    props.setReason(event.currentTarget.value)
+                  }}
+                />
+              </label>
+            )}
           </>
         ) : (
           <>
@@ -133,7 +153,7 @@ export const MealPlanSheet = (props: MealPlanSheetProps): React.JSX.Element => (
             disabled={!canSave(props.items) || props.isSaving}
             onClick={props.save}
           >
-            保存
+            {props.isRecording ? 'まとめて記録' : '保存'}
           </button>
         )}
       </footer>

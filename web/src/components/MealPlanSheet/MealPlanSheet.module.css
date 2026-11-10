@@ -78,6 +78,12 @@
   font-size: 12px;
 }
 
+.recordNotice {
+  margin: -8px 0 0;
+  color: var(--color-muted);
+  font-size: 12px;
+}
+
 .reasonField {
   display: flex;
   flex-direction: column;

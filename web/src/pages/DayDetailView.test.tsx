@@ -5,6 +5,11 @@ import { MemoryRouter } from 'react-router'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { z } from 'zod'
 
+import {
+  type DayDetail,
+  type DayDetailEntry,
+  MEAL_TYPES,
+} from '#api/day-detail'
 import type { MealPlan } from '#api/meal-plans'
 import { MealLogSheetProvider } from '#meal-log-sheet/MealLogSheetProvider'
 import { DayDetailView } from '#pages/DayDetailView'
@@ -37,6 +42,13 @@ const saveMealPlanInputSchema = z.object({
   ),
 })
 
+const recordMealLogsInputSchema = z.object({
+  eatenDate: z.string(),
+  mealType: z.enum(MEAL_TYPES),
+  mealPlanId: z.string(),
+  items: z.array(z.object({ foodMasterId: z.string(), quantity: z.number() })),
+})
+
 const foodSearchResult = {
   foodMasterId: 'fixture_food_a',
   compositionCode: null,
@@ -53,7 +65,7 @@ const foodNameById: Readonly<Record<string, string>> = {
   food_fixture_002: 'テスト食品_002',
 }
 
-const dayDetail = {
+const dayDetail: DayDetail = {
   date: '2093-04-12',
   totals: {},
   incompleteNutrients: [],
@@ -182,6 +194,9 @@ const mealPlanSaveOutput = (
   plannedFoodIsNotInteractive: !Array.from(
     container.querySelectorAll<HTMLButtonElement>('button'),
   ).some((button) => button.textContent.includes('架空食品 A')),
+  recordActionVisible: Array.from(
+    container.querySelectorAll<HTMLButtonElement>('button'),
+  ).some((button) => button.textContent === '食べた'),
 })
 
 const mealPlanCancelOutput = (
@@ -218,6 +233,52 @@ const plannedMealDisplayOutput = (container: HTMLElement) => ({
       (span) => span.textContent === '予定',
     )?.textContent ?? null,
   memo: container.querySelector('[role="note"]')?.textContent ?? null,
+})
+
+const mealPlanRecordOutput = (
+  requests: ReadonlyArray<RequestRecord>,
+  container: HTMLElement,
+  foodName: string,
+  reason: string | null,
+) => {
+  return {
+    recordRequests: requests.filter(
+      (request) =>
+        request.method === 'POST' && request.path === '/api/meal-logs',
+    ),
+    dayDetailReads: requests.filter((request) =>
+      request.path.startsWith('/api/days/'),
+    ).length,
+    mealPlanReads: requests.filter((request) =>
+      request.path.startsWith('/api/meal-plans?'),
+    ).length,
+    alert: container.querySelector('[role="alert"]')?.textContent ?? null,
+    recordedFoodIsInteractive: Array.from(
+      container.querySelectorAll<HTMLButtonElement>('button'),
+    ).some((button) => button.textContent.includes(foodName)),
+    planReasonVisible:
+      reason !== null && container.textContent.includes(reason),
+    sheetOpen: container.querySelector('[role="dialog"]') !== null,
+  }
+}
+
+const mealPlanRecordCompleteOutput = (
+  sheetDetails: {
+    readonly label: string | null
+    readonly notice: boolean
+    readonly reasonField: boolean
+    readonly submitLabel: string | undefined
+  },
+  requests: ReadonlyArray<RequestRecord>,
+  container: HTMLElement,
+) => ({
+  sheetDetails,
+  result: mealPlanRecordOutput(
+    requests,
+    container,
+    '架空食品 A',
+    '小腹が空いたときの予定',
+  ),
 })
 
 const withCalendarCacheInvalidation = <T extends Record<string, unknown>>(
@@ -257,12 +318,19 @@ const setupPage = (
   mealPlans: ReadonlyArray<MealPlan> = [],
   cancelPlanResponse: (id: string) => Response = () =>
     new Response(null, { status: 204 }),
+  recordMealLogsResponse: (body: unknown) => Response = () =>
+    jsonResponse([], 201),
+  concurrentMealLogState?: {
+    readonly planId: string
+    readonly entries: ReadonlyArray<DayDetailEntry>
+  },
 ): {
   readonly container: HTMLDivElement
   readonly root: Root
   readonly queryClient: QueryClient
 } => {
   let currentMealPlans = [...mealPlans]
+  let currentDayEntries: ReadonlyArray<DayDetailEntry> = [...dayDetail.entries]
   vi.spyOn(Temporal.Now, 'plainDateISO').mockReturnValue(
     Temporal.PlainDate.from('2093-04-12'),
   )
@@ -283,9 +351,57 @@ const setupPage = (
       if (method === 'POST' && path === '/api/meal-sets') {
         return Promise.resolve(saveResponse(body))
       }
+      if (method === 'POST' && path === '/api/meal-logs') {
+        const response = recordMealLogsResponse(body)
+        if (response.ok) {
+          const parsedInput = recordMealLogsInputSchema.safeParse(body)
+          if (!parsedInput.success) return Promise.resolve(response)
+          const input = parsedInput.data
+          const plan = currentMealPlans.find(
+            ({ id }) => id === input.mealPlanId,
+          )
+          currentDayEntries = [
+            ...currentDayEntries,
+            ...input.items.map((item) => ({
+              id: `meal_log_${item.foodMasterId}`,
+              foodMasterId: item.foodMasterId,
+              foodName:
+                plan?.items.find(
+                  ({ foodMasterId }) => foodMasterId === item.foodMasterId,
+                )?.foodName ?? item.foodMasterId,
+              eatenDate: input.eatenDate,
+              mealType: input.mealType,
+              quantity: item.quantity,
+              kcal: 100,
+              isEstimated: false,
+              nutritionStatus: 'confirmed' as const,
+              nutritionVersion: null,
+              nutritionVersionOrigin: 'recorded' as const,
+              nutritionVersionDifferences: [],
+            })),
+          ]
+          currentMealPlans = currentMealPlans.filter(
+            ({ id }) => id !== input.mealPlanId,
+          )
+        } else if (
+          response.status === 409 &&
+          concurrentMealLogState !== undefined
+        ) {
+          currentDayEntries = [
+            ...currentDayEntries,
+            ...concurrentMealLogState.entries,
+          ]
+          currentMealPlans = currentMealPlans.filter(
+            ({ id }) => id !== concurrentMealLogState.planId,
+          )
+        }
+        return Promise.resolve(response)
+      }
       if (path.startsWith('/api/days/')) {
         const date = path.slice('/api/days/'.length)
-        return Promise.resolve(jsonResponse({ ...dayDetail, date }))
+        return Promise.resolve(
+          jsonResponse({ ...dayDetail, date, entries: currentDayEntries }),
+        )
       }
       if (path.startsWith('/api/meal-plans?')) {
         return Promise.resolve(jsonResponse(currentMealPlans))
@@ -546,7 +662,296 @@ describe('DayDetailView', () => {
         ],
         editorClosed: true,
         plannedFoodIsNotInteractive: true,
+        recordActionVisible: false,
         calendarCacheInvalidated: true,
+      })
+    } finally {
+      await cleanupPage(container, root, queryClient)
+    }
+  })
+
+  it('records an edited meal plan and refreshes the day and plan views', async () => {
+    const requests: Array<RequestRecord> = []
+    const plan: MealPlan = {
+      id: 'plan_record_fixture',
+      date: '2093-04-12',
+      mealType: 'snack',
+      reason: '小腹が空いたときの予定',
+      status: 'planned',
+      items: [
+        {
+          foodMasterId: 'fixture_food_a',
+          foodName: '架空食品 A',
+          quantity: 1.5,
+          energyKcalPerUnit: 125,
+        },
+      ],
+    }
+    const { container, root, queryClient } = setupPage(
+      () => jsonResponse({}),
+      requests,
+      [plan],
+    )
+
+    try {
+      await performAct(() => {
+        renderPage(root, queryClient)
+      })
+      await waitFor(() => container.textContent.includes('架空食品 A'))
+      await performAct(() => {
+        Array.from(container.querySelectorAll<HTMLButtonElement>('button'))
+          .find((button) => button.textContent === '食べた')
+          ?.click()
+      })
+
+      const sheetDetails = {
+        label:
+          container
+            .querySelector('[role="dialog"]')
+            ?.getAttribute('aria-label') ?? null,
+        notice: container.textContent.includes(
+          '日付と食事区分は予定のまま記録します。',
+        ),
+        reasonField: container.querySelector('textarea') !== null,
+        submitLabel: Array.from(
+          container.querySelectorAll<HTMLButtonElement>('button'),
+        ).find((button) => button.textContent === 'まとめて記録')?.textContent,
+      }
+      const quantityInput = container.querySelector<HTMLInputElement>(
+        'input[aria-label="架空食品 A の量"]',
+      )
+      if (quantityInput !== null) {
+        await setInputValue(quantityInput, '2.25')
+      }
+      await performAct(() => {
+        Array.from(container.querySelectorAll<HTMLButtonElement>('button'))
+          .find((button) => button.textContent === 'まとめて記録')
+          ?.click()
+      })
+      await waitFor(() =>
+        requests.some(
+          (request) =>
+            request.method === 'POST' && request.path === '/api/meal-logs',
+        ),
+      )
+      await waitFor(
+        () =>
+          requests.filter((request) => request.path.startsWith('/api/days/'))
+            .length > 1 &&
+          requests.filter((request) =>
+            request.path.startsWith('/api/meal-plans?'),
+          ).length > 1 &&
+          mealPlanRecordOutput(
+            requests,
+            container,
+            '架空食品 A',
+            '小腹が空いたときの予定',
+          ).recordedFoodIsInteractive &&
+          !mealPlanRecordOutput(
+            requests,
+            container,
+            '架空食品 A',
+            '小腹が空いたときの予定',
+          ).planReasonVisible &&
+          container.querySelector('[role="dialog"]') === null,
+      )
+
+      expect(
+        mealPlanRecordCompleteOutput(sheetDetails, requests, container),
+      ).toEqual({
+        sheetDetails: {
+          label: '予定を記録',
+          notice: true,
+          reasonField: false,
+          submitLabel: 'まとめて記録',
+        },
+        result: {
+          recordRequests: [
+            {
+              method: 'POST',
+              path: '/api/meal-logs',
+              body: {
+                eatenDate: '2093-04-12',
+                mealType: 'snack',
+                mealPlanId: 'plan_record_fixture',
+                items: [{ foodMasterId: 'fixture_food_a', quantity: 2.25 }],
+              },
+            },
+          ],
+          dayDetailReads: 2,
+          mealPlanReads: 2,
+          alert: null,
+          recordedFoodIsInteractive: true,
+          planReasonVisible: false,
+          sheetOpen: false,
+        },
+      })
+    } finally {
+      await cleanupPage(container, root, queryClient)
+    }
+  })
+
+  it('refreshes without showing an error when the meal plan was already recorded', async () => {
+    const requests: Array<RequestRecord> = []
+    const plan: MealPlan = {
+      id: 'plan_conflict_fixture',
+      date: '2093-04-12',
+      mealType: 'snack',
+      reason: null,
+      status: 'planned',
+      items: [
+        {
+          foodMasterId: 'fixture_food_b',
+          foodName: '架空食品 B',
+          quantity: 1,
+          energyKcalPerUnit: 90,
+        },
+      ],
+    }
+    const concurrentEntry: DayDetailEntry = {
+      id: 'meal_log_concurrent_fixture',
+      foodMasterId: 'fixture_food_c',
+      foodName: '架空食品 C',
+      eatenDate: '2093-04-12',
+      mealType: 'snack',
+      quantity: 4,
+      kcal: 400,
+      isEstimated: false,
+      nutritionStatus: 'confirmed',
+      nutritionVersion: null,
+      nutritionVersionOrigin: 'recorded',
+      nutritionVersionDifferences: [],
+    }
+    const { container, root, queryClient } = setupPage(
+      () => jsonResponse({}),
+      requests,
+      [plan],
+      undefined,
+      () => jsonResponse({ error: 'already eaten' }, 409),
+      { planId: plan.id, entries: [concurrentEntry] },
+    )
+
+    try {
+      await performAct(() => {
+        renderPage(root, queryClient)
+      })
+      await waitFor(() => container.textContent.includes('架空食品 B'))
+      await performAct(() => {
+        Array.from(container.querySelectorAll<HTMLButtonElement>('button'))
+          .find((button) => button.textContent === '食べた')
+          ?.click()
+      })
+      await performAct(() => {
+        Array.from(container.querySelectorAll<HTMLButtonElement>('button'))
+          .find((button) => button.textContent === 'まとめて記録')
+          ?.click()
+      })
+      await waitFor(
+        () =>
+          requests.filter((request) => request.path.startsWith('/api/days/'))
+            .length > 1 &&
+          requests.filter((request) =>
+            request.path.startsWith('/api/meal-plans?'),
+          ).length > 1 &&
+          mealPlanRecordOutput(requests, container, '架空食品 C', null)
+            .recordedFoodIsInteractive &&
+          container.querySelector('[role="dialog"]') === null,
+      )
+
+      expect(
+        mealPlanRecordOutput(requests, container, '架空食品 C', null),
+      ).toEqual({
+        recordRequests: [
+          {
+            method: 'POST',
+            path: '/api/meal-logs',
+            body: {
+              eatenDate: '2093-04-12',
+              mealType: 'snack',
+              mealPlanId: 'plan_conflict_fixture',
+              items: [{ foodMasterId: 'fixture_food_b', quantity: 1 }],
+            },
+          },
+        ],
+        dayDetailReads: 2,
+        mealPlanReads: 2,
+        alert: null,
+        recordedFoodIsInteractive: true,
+        planReasonVisible: false,
+        sheetOpen: false,
+      })
+    } finally {
+      await cleanupPage(container, root, queryClient)
+    }
+  })
+
+  it('shows a recording error and keeps the plan sheet open', async () => {
+    const requests: Array<RequestRecord> = []
+    const plan: MealPlan = {
+      id: 'plan_record_failure_fixture',
+      date: '2093-04-12',
+      mealType: 'snack',
+      reason: '軽食の予定',
+      status: 'planned',
+      items: [
+        {
+          foodMasterId: 'fixture_food_b',
+          foodName: '架空食品 B',
+          quantity: 1,
+          energyKcalPerUnit: 90,
+        },
+      ],
+    }
+    const { container, root, queryClient } = setupPage(
+      () => jsonResponse({}),
+      requests,
+      [plan],
+      undefined,
+      () => jsonResponse({ error: '記録できませんでした。' }, 400),
+    )
+
+    try {
+      await performAct(() => {
+        renderPage(root, queryClient)
+      })
+      await waitFor(() => container.textContent.includes('架空食品 B'))
+      await performAct(() => {
+        Array.from(container.querySelectorAll<HTMLButtonElement>('button'))
+          .find((button) => button.textContent === '食べた')
+          ?.click()
+      })
+      await performAct(() => {
+        Array.from(container.querySelectorAll<HTMLButtonElement>('button'))
+          .find((button) => button.textContent === 'まとめて記録')
+          ?.click()
+      })
+      await waitFor(
+        () =>
+          container.querySelector('[role="alert"]')?.textContent ===
+          '記録できませんでした。',
+      )
+
+      expect(
+        mealPlanRecordOutput(requests, container, '架空食品 B', '軽食の予定'),
+      ).toEqual({
+        recordRequests: [
+          {
+            method: 'POST',
+            path: '/api/meal-logs',
+            body: {
+              eatenDate: '2093-04-12',
+              mealType: 'snack',
+              mealPlanId: 'plan_record_failure_fixture',
+              items: [{ foodMasterId: 'fixture_food_b', quantity: 1 }],
+            },
+          },
+        ],
+        dayDetailReads: 1,
+        mealPlanReads: 1,
+        alert: '記録できませんでした。',
+        recordedFoodIsInteractive: false,
+        planReasonVisible: true,
+        sheetOpen: true,
       })
     } finally {
       await cleanupPage(container, root, queryClient)
@@ -645,6 +1050,7 @@ describe('DayDetailView', () => {
         ],
         editorClosed: true,
         plannedFoodIsNotInteractive: true,
+        recordActionVisible: false,
       })
     } finally {
       await cleanupPage(container, root, queryClient)

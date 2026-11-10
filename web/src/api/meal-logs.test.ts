@@ -66,6 +66,7 @@ describe('postMealLogs', () => {
     const input = {
       eatenDate: '2026-07-29',
       mealType: 'breakfast' as const,
+      mealPlanId: '00000000-0000-7000-8000-000000000101',
       items: [
         { foodMasterId: 'fm_demo_alpha', quantity: 1.5 },
         { foodMasterId: 'fm_demo_beta', quantity: 2 },
@@ -120,12 +121,14 @@ describe('postMealLogs', () => {
       message: error.message,
       itemIndex:
         error instanceof BatchMealLogRequestError ? error.itemIndex : null,
+      status: error instanceof BatchMealLogRequestError ? error.status : null,
     })
 
     expect(snapshot()).toEqual({
       name: 'BatchMealLogRequestError',
       message: 'invalid quantity',
       itemIndex: 2,
+      status: 400,
     })
   })
 

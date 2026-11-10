@@ -441,6 +441,13 @@ const DayDetailContent = ({
             )
             if (plan !== undefined) mealPlan.open(mealType, plan)
           }}
+          onRecordPlan={(mealType) => {
+            const plan = mealPlans.find(
+              (mealPlan) =>
+                mealPlan.mealType === mealType && mealPlan.status === 'planned',
+            )
+            if (plan !== undefined) mealPlan.openForRecord(plan)
+          }}
           onCancelPlan={mealPlan.cancel}
           planActionError={mealPlan.cancelError}
           isPlanActionPending={mealPlan.isActionPending}
