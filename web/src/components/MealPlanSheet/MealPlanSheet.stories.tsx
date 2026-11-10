@@ -95,6 +95,11 @@ export const Edit: Story = {
   args: { isEditing: true },
 }
 
+export const SaveFailed: Story = {
+  name: '保存に失敗した理由が表示されています',
+  args: { error: '予定を保存できませんでした' },
+}
+
 export const ReplacingFood: Story = {
   name: '夕食の予定で食品を差し替える候補を検索しています',
   args: {
