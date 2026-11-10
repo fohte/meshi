@@ -38,6 +38,15 @@ const mealPlanOutput = z.object({
       quantity: z.number(),
     }),
   ),
+  eaten_items: z
+    .array(
+      z.object({
+        food_master_id: z.string(),
+        food_name: z.string(),
+        quantity: z.number(),
+      }),
+    )
+    .optional(),
   reason: z.string().nullable(),
   status: z.enum(['planned', 'eaten', 'cancelled']),
 })

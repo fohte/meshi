@@ -108,6 +108,26 @@ describeIfDb('schema migrations', () => {
     expect(rows).toEqual([{ extname: 'pg_trgm' }])
   })
 
+  it('adds an optional meal-plan reference to meal logs', async () => {
+    const sql = getTestSql()
+    const rows = await sql<
+      { column_name: string; data_type: string; is_nullable: string }[]
+    >`
+      SELECT column_name, data_type, is_nullable
+      FROM information_schema.columns
+      WHERE table_schema = 'public'
+        AND table_name = 'meal_logs'
+        AND column_name = 'meal_plan_id'
+    `
+    expect(rows).toEqual([
+      {
+        column_name: 'meal_plan_id',
+        data_type: 'uuid',
+        is_nullable: 'YES',
+      },
+    ])
+  })
+
   it('creates primary keys on nutrition and meal-set item tables', async () => {
     const sql = getTestSql()
     const rows = await sql<{ table_name: string; columns: string[] }[]>`
@@ -308,6 +328,7 @@ describeIfDb('schema migrations', () => {
     const rows = await sql<{ indexname: string; indexdef: string }[]>`
       SELECT indexname, indexdef FROM pg_indexes
       WHERE indexname IN (
+        'meal_logs_meal_plan_id_idx',
         'meal_plans_active_slot_key',
         'meal_plans_planned_date_idx',
         'meal_plan_items_food_master_id_idx'
@@ -315,6 +336,11 @@ describeIfDb('schema migrations', () => {
       ORDER BY indexname
     `
     expect(rows).toEqual([
+      {
+        indexname: 'meal_logs_meal_plan_id_idx',
+        indexdef:
+          'CREATE INDEX meal_logs_meal_plan_id_idx ON public.meal_logs USING btree (meal_plan_id) WHERE (meal_plan_id IS NOT NULL)',
+      },
       {
         indexname: 'meal_plan_items_food_master_id_idx',
         indexdef:
@@ -495,6 +521,13 @@ describeIfDb('schema migrations', () => {
         ref_table: 'food_master_nutrition',
         on_update: 'c',
         on_delete: 'a',
+      },
+      {
+        conname: 'meal_logs_meal_plan_id_fk',
+        table_name: 'meal_logs',
+        ref_table: 'meal_plans',
+        on_update: 'a',
+        on_delete: 'r',
       },
       {
         conname: 'meal_plan_items_food_master_id_fk',

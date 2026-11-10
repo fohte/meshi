@@ -1,7 +1,7 @@
 import type { MealType } from '#domain/meal-log/types'
 import type { JstDate } from '#lib/jst-date'
 
-interface MealPlanItemInput {
+export interface MealPlanItemInput {
   readonly foodMasterId: string
   readonly foodName: string
   readonly quantity: number
@@ -18,6 +18,7 @@ export interface MealPlan {
   readonly items: ReadonlyArray<MealPlanItem>
   readonly reason: string | null
   readonly status: 'planned' | 'eaten' | 'cancelled'
+  readonly eatenItems?: ReadonlyArray<MealPlanItemInput>
   readonly createdAt: Date
 }
 

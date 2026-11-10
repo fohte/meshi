@@ -354,6 +354,7 @@ export const registerFoodStructuredOutput = z.object({
 export const recordMealLogInput = z.object({
   date: jstDateSchema.describe('食事をした日付 (JST, YYYY-MM-DD)'),
   meal_type: z.enum(MEAL_TYPES),
+  meal_plan_id: z.uuid().optional().describe('実績化する食事予定の ID'),
   items: z
     .array(
       z.object({

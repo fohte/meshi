@@ -9,7 +9,7 @@
 | [public.food_master_aliases](public.food_master_aliases.md)               | 3       | Alternate names used to find food master entries.                           | BASE TABLE |
 | [public.food_master_nutrients](public.food_master_nutrients.md)           | 3       | Nutrient values associated with nutrition versions.                         | BASE TABLE |
 | [public.food_masters](public.food_masters.md)                             | 3       | Foods available for meal logging.                                           | BASE TABLE |
-| [public.meal_logs](public.meal_logs.md)                                   | 8       | Recorded food consumption entries.                                          | BASE TABLE |
+| [public.meal_logs](public.meal_logs.md)                                   | 9       | Recorded food consumption entries.                                          | BASE TABLE |
 | [public.nutrient_definitions](public.nutrient_definitions.md)             | 5       | Catalog of nutrient codes, names, units, and display ordering.              | BASE TABLE |
 | [public.user_profiles](public.user_profiles.md)                           | 7       | The singleton user profile for preferences and daily nutrition targets.     | BASE TABLE |
 | [public.meal_skips](public.meal_skips.md)                                 | 4       | Meals marked as skipped for a date and meal type.                           | BASE TABLE |
@@ -84,6 +84,7 @@ erDiagram
 "public.food_master_nutrients" }o--|| "public.food_master_nutrition" : "FOREIGN KEY (nutrition_version_id) REFERENCES food_master_nutrition(id) ON UPDATE CASCADE ON DELETE CASCADE"
 "public.meal_logs" }o--|| "public.food_masters" : "FOREIGN KEY (food_master_id) REFERENCES food_masters(id) ON UPDATE CASCADE ON DELETE RESTRICT"
 "public.meal_logs" }o--|| "public.food_master_nutrition" : "FOREIGN KEY (food_master_id, nutrition_version_id) REFERENCES food_master_nutrition(food_master_id, id) ON UPDATE CASCADE"
+"public.meal_logs" }o--o| "public.meal_plans" : "FOREIGN KEY (meal_plan_id) REFERENCES meal_plans(id) ON DELETE RESTRICT"
 "public.food_master_nutrition" }o--o| "public.food_compositions" : "FOREIGN KEY (source_composition_code) REFERENCES food_compositions(code) ON UPDATE CASCADE ON DELETE RESTRICT"
 "public.food_master_nutrition" }o--|| "public.food_masters" : "FOREIGN KEY (food_master_id) REFERENCES food_masters(id) ON UPDATE CASCADE ON DELETE CASCADE"
 "public.food_master_nutrition" }o--|| "public.food_master_nutrition" : "FOREIGN KEY (food_master_id, corrects_version_id) REFERENCES food_master_nutrition(food_master_id, id) ON UPDATE CASCADE ON DELETE CASCADE"
@@ -136,6 +137,7 @@ erDiagram
   date eaten_date
   uuid nutrition_version_id FK
   text nutrition_version_origin
+  uuid meal_plan_id FK
 }
 "public.nutrient_definitions" {
   text code

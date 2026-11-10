@@ -13,7 +13,7 @@ import type { MealPlanService } from '#domain/meal-plan/meal-plan-service'
 import type { MealPlan } from '#domain/meal-plan/types'
 import { jstDateSchema } from '#lib/jst-date'
 
-type MealPlanHttpStatus = 400 | 404 | 500
+type MealPlanHttpStatus = 400 | 404 | 409 | 500
 
 const HTTP_STATUS_BY_ERROR_CODE = {
   'meal_plan/invalid_date': 400,
@@ -25,6 +25,7 @@ const HTTP_STATUS_BY_ERROR_CODE = {
   'meal_plan/food_master_not_found': 404,
   'meal_plan/food_name_mismatch': 400,
   'meal_plan/not_found': 404,
+  'meal_plan/already_eaten': 409,
   'meal_plan/persistence_failed': 500,
 } satisfies Record<MealPlanErrorCode, MealPlanHttpStatus>
 

@@ -4,6 +4,7 @@ import { describe, expect, it } from 'vitest'
 
 import { mountMealPlanRoutes } from '#api/meal-plan-routes'
 import {
+  EatenMealPlanError,
   MealPlanNotFoundError,
   MealPlanPersistenceError,
   PastMealPlanDateError,
@@ -302,6 +303,22 @@ describe('POST /api/meal-plans/:id/cancel', () => {
     expect(await responseSnapshot(res)).toEqual({
       status: 404,
       body: { error: `meal_plan not found: ${SAMPLE_PLAN_ID}` },
+    })
+  })
+
+  it('returns 409 when an eaten plan cannot be cancelled', async () => {
+    const app = buildApp({
+      ...notStubbed('service'),
+      cancel: () => errAsync(new EatenMealPlanError(SAMPLE_PLAN_ID)),
+    })
+
+    const res = await app.request(`/api/meal-plans/${SAMPLE_PLAN_ID}/cancel`, {
+      method: 'POST',
+    })
+
+    expect(await responseSnapshot(res)).toEqual({
+      status: 409,
+      body: { error: `meal_plan is already eaten: ${SAMPLE_PLAN_ID}` },
     })
   })
 

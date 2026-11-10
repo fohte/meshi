@@ -1031,7 +1031,7 @@ describe('MeshiMcpServer tools/list', () => {
           'to_nutrition_version_id',
         ],
         receive_delivery: ['delivery_id', 'items', 'received_date'],
-        record_meal_log: ['date', 'items', 'meal_type'],
+        record_meal_log: ['date', 'items', 'meal_plan_id', 'meal_type'],
         record_meal_skip: ['date', 'meal_type'],
         register_delivery: [
           'change_deadline',
@@ -2195,7 +2195,22 @@ describe('meal-plan tools', () => {
   it('lists plans for the half-open date range', async () => {
     const h = await start({
       mealPlanServiceOverrides: {
-        list: () => okAsync([mealPlanFixture]),
+        list: () =>
+          okAsync([
+            mealPlanFixture,
+            {
+              ...mealPlanFixture,
+              id: '00000000-0000-7000-8000-000000000002',
+              status: 'eaten',
+              eatenItems: [
+                {
+                  foodMasterId: 'fm_mcp_actual_example',
+                  foodName: 'actual food',
+                  quantity: 2,
+                },
+              ],
+            },
+          ]),
       },
     })
     try {
@@ -2228,6 +2243,27 @@ describe('meal-plan tools', () => {
                 reason: 'use available ingredients',
                 status: 'planned',
               },
+              {
+                meal_plan_id: '00000000-0000-7000-8000-000000000002',
+                date: '2026-04-17',
+                meal_type: 'dinner',
+                items: [
+                  {
+                    food_master_id: 'fm_mcp_plan_example',
+                    food_name: 'example food',
+                    quantity: 1.5,
+                  },
+                ],
+                eaten_items: [
+                  {
+                    food_master_id: 'fm_mcp_actual_example',
+                    food_name: 'actual food',
+                    quantity: 2,
+                  },
+                ],
+                reason: 'use available ingredients',
+                status: 'eaten',
+              },
             ],
           },
         },
@@ -2243,7 +2279,7 @@ describe('meal-plan tools', () => {
           },
           {
             event: 'meshi.tool_succeeded',
-            payload: { tool: 'list_meal_plans', plan_count: 1 },
+            payload: { tool: 'list_meal_plans', plan_count: 2 },
           },
         ],
       })
@@ -4694,6 +4730,7 @@ describe('record_meal_log', () => {
         arguments: {
           date: '2026-06-12',
           meal_type: 'lunch',
+          meal_plan_id: MEAL_PLAN_FIXTURE_ID,
           items: [
             {
               food_master_id: 'fm_catalog_alpha',
@@ -4732,6 +4769,7 @@ describe('record_meal_log', () => {
           {
             eatenDate: jstDate('2026-06-12'),
             mealType: 'lunch',
+            mealPlanId: MEAL_PLAN_FIXTURE_ID,
             items: [
               {
                 foodMasterId: 'fm_catalog_alpha',

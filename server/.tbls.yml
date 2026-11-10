@@ -85,6 +85,7 @@ comments:
       food_master_id: 'Identifier of the food recorded in this meal log.'
       nutrition_version_id: 'Identifier of the nutrition version assigned to this meal log, when known.'
       nutrition_version_origin: 'How the nutrition version was assigned to this meal log.'
+      meal_plan_id: 'Identifier of the meal plan realized by this meal log.'
       eaten_date: 'Asia/Tokyo calendar date on which the food was eaten.'
       meal_type: 'Meal category: breakfast, lunch, dinner, or snack.'
       quantity: "Multiplier applied to the food master's nutrient values."
