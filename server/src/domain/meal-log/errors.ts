@@ -88,3 +88,47 @@ export class MealLogItemValidationError extends DomainError {
     this.cause = itemError
   }
 }
+
+export class MealPlanNotFoundForMealLogError extends DomainError {
+  constructor(public readonly mealPlanId: string) {
+    super(`meal_plan not found: ${mealPlanId}`, 'meal_plan/not_found')
+    this.name = 'MealPlanNotFoundForMealLogError'
+  }
+}
+
+export class CancelledMealPlanError extends DomainError {
+  constructor(public readonly mealPlanId: string) {
+    super(`meal_plan is cancelled: ${mealPlanId}`, 'meal_plan/cancelled')
+    this.name = 'CancelledMealPlanError'
+  }
+}
+
+export class MealPlanDateMismatchError extends DomainError {
+  constructor(public readonly mealPlanId: string) {
+    super(
+      `eaten_date does not match meal_plan: ${mealPlanId}`,
+      'meal_plan/date_mismatch',
+    )
+    this.name = 'MealPlanDateMismatchError'
+  }
+}
+
+export class MealPlanMealTypeMismatchError extends DomainError {
+  constructor(public readonly mealPlanId: string) {
+    super(
+      `meal_type does not match meal_plan: ${mealPlanId}`,
+      'meal_plan/meal_type_mismatch',
+    )
+    this.name = 'MealPlanMealTypeMismatchError'
+  }
+}
+
+export class MealPlanAlreadyEatenError extends DomainError {
+  constructor(public readonly mealPlanId: string) {
+    super(
+      `meal_plan is already eaten: ${mealPlanId}`,
+      'meal_plan/already_eaten',
+    )
+    this.name = 'MealPlanAlreadyEatenError'
+  }
+}

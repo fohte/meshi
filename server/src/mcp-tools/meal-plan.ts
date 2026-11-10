@@ -22,6 +22,15 @@ const toMealPlanPayload = (plan: MealPlan) => ({
     food_name: item.foodName,
     quantity: item.quantity,
   })),
+  ...(plan.eatenItems === undefined
+    ? {}
+    : {
+        eaten_items: plan.eatenItems.map((item) => ({
+          food_master_id: item.foodMasterId,
+          food_name: item.foodName,
+          quantity: item.quantity,
+        })),
+      }),
   reason: plan.reason,
   status: plan.status,
 })
@@ -85,7 +94,7 @@ export const registerMealPlanTools = (
     'list_meal_plans',
     {
       description:
-        '指定期間の食事予定を返す。period_from は含み、period_to は含まない。取消済みの予定も status つきで返す。',
+        '指定期間の食事予定を返す。period_from は含み、period_to は含まない。status は planned / eaten / cancelled。eaten の場合は eaten_items に実際の食事ログ品目を返す。',
       inputSchema: listMealPlansInput,
       outputSchema: listMealPlansStructuredOutput,
       annotations: { readOnlyHint: true },

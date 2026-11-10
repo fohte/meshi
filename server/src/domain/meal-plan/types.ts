@@ -15,7 +15,8 @@ export interface MealPlan {
   readonly mealType: MealType
   readonly items: ReadonlyArray<MealPlanItem>
   readonly reason: string | null
-  readonly status: 'planned' | 'cancelled'
+  readonly status: 'planned' | 'eaten' | 'cancelled'
+  readonly eatenItems?: ReadonlyArray<MealPlanItem>
   readonly createdAt: Date
 }
 

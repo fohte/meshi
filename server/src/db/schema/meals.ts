@@ -134,6 +134,7 @@ export const mealLogs = pgTable(
     foodMasterId: text('food_master_id').notNull(),
     nutritionVersionId: uuid('nutrition_version_id'),
     nutritionVersionOrigin: text('nutrition_version_origin').notNull(),
+    mealPlanId: uuid('meal_plan_id'),
     // JST calendar date, no time component — see src/lib/jst-date.ts.
     eatenDate: date('eaten_date', { mode: 'string' })
       .$type<JstDate>()
@@ -163,6 +164,14 @@ export const mealLogs = pgTable(
         foodMasterNutrition.id,
       ],
     }).onUpdate('cascade'),
+    foreignKey({
+      name: 'meal_logs_meal_plan_id_fk',
+      columns: [table.mealPlanId],
+      foreignColumns: [mealPlans.id],
+    }).onDelete('restrict'),
+    index('meal_logs_meal_plan_id_idx')
+      .on(table.mealPlanId)
+      .where(sql`${table.mealPlanId} IS NOT NULL`),
     index('meal_logs_eaten_date_idx').on(table.eatenDate.desc()),
     index('meal_logs_food_master_id_eaten_date_idx').on(
       table.foodMasterId,

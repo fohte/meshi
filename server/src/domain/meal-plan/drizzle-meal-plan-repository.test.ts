@@ -9,7 +9,7 @@ import {
 import type { MealPlan } from '#domain/meal-plan/types'
 import { describeIfDb, setupDrizzleTx } from '#test/db'
 import { jstDate } from '#test/jst-date'
-import { seedFoodMasterWithoutNutrition } from '#test/seed'
+import { seedFoodMasterWithoutNutrition, seedMealLog } from '#test/seed'
 
 const FIXED_NOW = new Date('2026-11-09T16:00:00.000Z')
 const CREATED_AT_PLACEHOLDER = new Date('2000-01-01T00:00:00.000Z')
@@ -224,6 +224,176 @@ describeIfDb('MealPlanService with DrizzleMealPlanRepository', () => {
         createdAt: CREATED_AT_PLACEHOLDER,
       },
     ])
+  })
+
+  it('lists actual meal-log items separately from the planned items', async () => {
+    await seedFoods()
+    const service = buildService()
+    const saved = await service.save({
+      date: jstDate('2026-11-10'),
+      mealType: 'lunch',
+      items: [
+        {
+          foodMasterId: 'fm_meal_plan_alpha',
+          foodName: 'alpha sample food',
+          quantity: 1,
+        },
+      ],
+    })
+    const plan = saved._unsafeUnwrap()
+    await seedMealLog(getTx(), {
+      id: 'ml_plan_actual_item',
+      foodMasterId: 'fm_meal_plan_beta',
+      mealPlanId: plan.id,
+      eatenDate: jstDate('2026-11-10'),
+      mealType: 'lunch',
+      quantity: 2,
+    })
+
+    const listed = await service.list(
+      jstDate('2026-11-10'),
+      jstDate('2026-11-11'),
+    )
+
+    expect(normalizePlanIds(listed._unsafeUnwrap())).toEqual([
+      {
+        id: 'plan-1',
+        date: '2026-11-10',
+        mealType: 'lunch',
+        items: [
+          {
+            foodMasterId: 'fm_meal_plan_alpha',
+            foodName: 'alpha sample food',
+            quantity: 1,
+          },
+        ],
+        eatenItems: [
+          {
+            foodMasterId: 'fm_meal_plan_beta',
+            foodName: 'beta sample food',
+            quantity: 2,
+          },
+        ],
+        reason: null,
+        status: 'eaten',
+        createdAt: CREATED_AT_PLACEHOLDER,
+      },
+    ])
+  })
+
+  it('rejects replacing a plan that has meal logs', async () => {
+    await seedFoods()
+    const service = buildService()
+    const plan = (
+      await service.save({
+        date: jstDate('2026-11-10'),
+        mealType: 'lunch',
+        items: [
+          {
+            foodMasterId: 'fm_meal_plan_alpha',
+            foodName: 'alpha sample food',
+            quantity: 1,
+          },
+        ],
+      })
+    )._unsafeUnwrap()
+    await seedMealLog(getTx(), {
+      id: 'ml_plan_replace_guard',
+      foodMasterId: 'fm_meal_plan_beta',
+      mealPlanId: plan.id,
+      eatenDate: jstDate('2026-11-10'),
+      mealType: 'lunch',
+      quantity: 2,
+    })
+
+    const result = await service.save({
+      date: jstDate('2026-11-10'),
+      mealType: 'lunch',
+      items: [
+        {
+          foodMasterId: 'fm_meal_plan_beta',
+          foodName: 'beta sample food',
+          quantity: 3,
+        },
+      ],
+      reason: 'replacement reason',
+    })
+    const listed = await service.list(
+      jstDate('2026-11-10'),
+      jstDate('2026-11-11'),
+    )
+
+    expect(
+      observation({
+        errorCode: result.isErr() ? result.error.code : null,
+        plan: normalizePlanIds(listed._unsafeUnwrap()),
+      }),
+    ).toEqual({
+      errorCode: 'meal_plan/already_eaten',
+      plan: [
+        {
+          id: 'plan-1',
+          date: '2026-11-10',
+          mealType: 'lunch',
+          items: [
+            {
+              foodMasterId: 'fm_meal_plan_alpha',
+              foodName: 'alpha sample food',
+              quantity: 1,
+            },
+          ],
+          eatenItems: [
+            {
+              foodMasterId: 'fm_meal_plan_beta',
+              foodName: 'beta sample food',
+              quantity: 2,
+            },
+          ],
+          reason: null,
+          status: 'eaten',
+          createdAt: CREATED_AT_PLACEHOLDER,
+        },
+      ],
+    })
+  })
+
+  it('rejects cancelling a plan that has meal logs', async () => {
+    await seedFoods()
+    const service = buildService()
+    const plan = (
+      await service.save({
+        date: jstDate('2026-11-10'),
+        mealType: 'lunch',
+        items: [
+          {
+            foodMasterId: 'fm_meal_plan_alpha',
+            foodName: 'alpha sample food',
+            quantity: 1,
+          },
+        ],
+      })
+    )._unsafeUnwrap()
+    await seedMealLog(getTx(), {
+      id: 'ml_plan_cancel_guard',
+      foodMasterId: 'fm_meal_plan_beta',
+      mealPlanId: plan.id,
+      eatenDate: jstDate('2026-11-10'),
+      mealType: 'lunch',
+      quantity: 2,
+    })
+
+    const result = await service.cancel(plan.id)
+    const listed = await service.list(
+      jstDate('2026-11-10'),
+      jstDate('2026-11-11'),
+    )
+
+    expect(
+      observation({
+        errorCode: result.isErr() ? result.error.code : null,
+        status: listed._unsafeUnwrap()[0]?.status ?? null,
+      }),
+    ).toEqual({ errorCode: 'meal_plan/already_eaten', status: 'eaten' })
   })
 
   it('cancels a plan without changing meal logs or stock movements', async () => {

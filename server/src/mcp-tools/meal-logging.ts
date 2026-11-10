@@ -108,7 +108,7 @@ export const registerMealLoggingTools = (
     'record_meal_log',
     {
       description:
-        '食品 ID と量が確定した食事を記録する。quantity は食品 1 つ分への倍率。在庫不足でも記録し、不足量を返す。1 品目でも不正なら何も保存しない。',
+        '食品 ID と量が確定した食事を記録する。quantity は食品 1 つ分への倍率。在庫不足でも記録し、不足量を返す。meal_plan_id を指定すると対応する予定を実績化し、再送は already_eaten エラーになる。1 品目でも不正なら何も保存しない。',
       inputSchema: recordMealLogInput,
       outputSchema: recordMealLogStructuredOutput,
     },
@@ -118,6 +118,9 @@ export const registerMealLoggingTools = (
         .recordMany({
           eatenDate: args.date,
           mealType: args.meal_type,
+          ...(args.meal_plan_id === undefined
+            ? {}
+            : { mealPlanId: args.meal_plan_id }),
           items: args.items.map((item) => ({
             foodMasterId: item.food_master_id,
             foodName: item.food_name,

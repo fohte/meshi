@@ -176,6 +176,13 @@
       "when": 1794286259371,
       "tag": "0024_safe_doctor_octopus",
       "breakpoints": true
+    },
+    {
+      "idx": 25,
+      "version": "7",
+      "when": 1794292316325,
+      "tag": "0025_heavy_sasquatch",
+      "breakpoints": true
     }
   ]
 }

@@ -47,6 +47,7 @@ export interface RecordMealLogItemInput {
 export interface RecordMealLogsInput {
   readonly eatenDate: JstDate
   readonly mealType: MealType
+  readonly mealPlanId?: string
   readonly items: ReadonlyArray<RecordMealLogItemInput>
 }
 

@@ -49,6 +49,7 @@ const createFakeRepository = (
   repository: MealLogRepository
   inserted: InsertMealLogInput[]
   batchInserted: InsertMealLogInput[][]
+  batchMealPlanIds: (string | undefined)[]
   updated: UpdateMealLogPatch[]
   batchDeleted: string[][]
 } => {
@@ -64,6 +65,7 @@ const createFakeRepository = (
   )
   const inserted: InsertMealLogInput[] = []
   const batchInserted: InsertMealLogInput[][] = []
+  const batchMealPlanIds: (string | undefined)[] = []
   const updated: UpdateMealLogPatch[] = []
   const batchDeleted: string[][] = []
   const repository: MealLogRepository = {
@@ -90,8 +92,9 @@ const createFakeRepository = (
       logs.set(input.id, { log: row, food })
       return okAsync({ log: row, food })
     },
-    insertMealLogs: (inputs) => {
+    insertMealLogs: (inputs, mealPlanId) => {
       batchInserted.push([...inputs])
+      batchMealPlanIds.push(mealPlanId)
       const rows = inputs.map((input): MealLogRow => ({
         id: input.id,
         foodMasterId: input.foodMasterId,
@@ -169,7 +172,14 @@ const createFakeRepository = (
       return okAsync(deleted)
     },
   }
-  return { repository, inserted, batchInserted, updated, batchDeleted }
+  return {
+    repository,
+    inserted,
+    batchInserted,
+    batchMealPlanIds,
+    updated,
+    batchDeleted,
+  }
 }
 
 interface FakeFoodMasterServiceOptions {
@@ -281,12 +291,18 @@ const buildService = (
   foodMasterServiceOptions: FakeFoodMasterServiceOptions = {},
   storedFoodMasters?: ReadonlyArray<FoodMasterRef>,
 ) => {
-  const { repository, inserted, batchInserted, updated, batchDeleted } =
-    createFakeRepository({
-      foodMasters,
-      existingLogs,
-      ...(storedFoodMasters === undefined ? {} : { storedFoodMasters }),
-    })
+  const {
+    repository,
+    inserted,
+    batchInserted,
+    batchMealPlanIds,
+    updated,
+    batchDeleted,
+  } = createFakeRepository({
+    foodMasters,
+    existingLogs,
+    ...(storedFoodMasters === undefined ? {} : { storedFoodMasters }),
+  })
   const { foodMasterService, learnedAliases } = createFakeFoodMasterService(
     foodMasterServiceOptions,
   )
@@ -302,6 +318,7 @@ const buildService = (
     service,
     inserted,
     batchInserted,
+    batchMealPlanIds,
     updated,
     batchDeleted,
     learnedAliases,
@@ -712,6 +729,32 @@ describe('MealLogService.record', () => {
 })
 
 describe('MealLogService.recordMany', () => {
+  it('passes the optional meal plan ID to the batch repository write', async () => {
+    const { service, batchMealPlanIds } = buildService([BATCH_FOOD_ALPHA])
+
+    const result = await service.recordMany({
+      eatenDate: EATEN_DATE,
+      mealType: 'dinner',
+      mealPlanId: '00000000-0000-7000-8000-000000000101',
+      items: [
+        {
+          foodMasterId: BATCH_FOOD_ALPHA.id,
+          quantity: 1,
+        },
+      ],
+    })
+
+    expect(
+      observation({
+        result: result.isOk(),
+        mealPlanIds: batchMealPlanIds,
+      }),
+    ).toEqual({
+      result: true,
+      mealPlanIds: ['00000000-0000-7000-8000-000000000101'],
+    })
+  })
+
   it('returns stored nutrition for each item in input order after one batch insert', async () => {
     const storedFoodMasters: ReadonlyArray<FoodMasterRef> = [
       {
