@@ -147,6 +147,12 @@ export const searchFoodsStructuredOutput = z.object({
         .describe(
           'food_master は 1 つ分、食品成分表候補は 100g あたり。該当する kcal がなければ null',
         ),
+      nutrition: z
+        .record(z.string(), z.number())
+        .optional()
+        .describe(
+          '登録食品 1 つ分の現行バージョンの主要栄養素。値のある栄養素だけを含む',
+        ),
       is_estimated: z.boolean(),
       nutrition_status: z.enum(NUTRITION_STATUSES),
       last_eaten_date: jstDateSchema

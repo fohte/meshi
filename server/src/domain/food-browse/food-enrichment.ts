@@ -8,6 +8,7 @@ import {
   foodMasterNutrition,
   foodMasters,
   foodSourceEnum,
+  nutrientDefinitions,
 } from '#db/schema'
 import {
   type FoodSource,
@@ -21,6 +22,7 @@ export const ENERGY_KCAL_CODE = 'energy_kcal'
 export interface FoodMasterEnrichment {
   readonly source: FoodSource | null
   readonly nutritionStatus: NutritionStatus
+  readonly nutrition: Readonly<Record<string, number>>
   readonly energyKcalPerUnit: number | null
 }
 
@@ -51,7 +53,8 @@ const enrichmentRowsSchema = z.array(
     id: z.string(),
     source: z.enum(foodSourceEnum.enumValues).nullable(),
     isEstimated: z.boolean().nullable(),
-    energyKcal: finiteNumeric.nullable(),
+    nutrientCode: z.string().nullable(),
+    nutrientValue: finiteNumeric.nullable(),
   }),
 )
 
@@ -67,7 +70,8 @@ export const loadFoodMasterEnrichment = (
             id: foodMasters.id,
             source: foodMasterNutrition.source,
             isEstimated: foodMasterNutrition.isEstimated,
-            energyKcal: foodMasterNutrients.value,
+            nutrientCode: nutrientDefinitions.code,
+            nutrientValue: foodMasterNutrients.value,
           })
           .from(foodMasters)
           .leftJoin(
@@ -79,15 +83,17 @@ export const loadFoodMasterEnrichment = (
           )
           .leftJoin(
             foodMasterNutrients,
+            eq(foodMasterNutrients.nutritionVersionId, foodMasterNutrition.id),
+          )
+          .leftJoin(
+            nutrientDefinitions,
             and(
-              eq(
-                foodMasterNutrients.nutritionVersionId,
-                foodMasterNutrition.id,
-              ),
-              eq(foodMasterNutrients.nutrientCode, ENERGY_KCAL_CODE),
+              eq(nutrientDefinitions.code, foodMasterNutrients.nutrientCode),
+              eq(nutrientDefinitions.isMajor, true),
             ),
           )
-          .where(inArray(foodMasters.id, [...foodMasterIds])),
+          .where(inArray(foodMasters.id, [...foodMasterIds]))
+          .orderBy(foodMasters.id, nutrientDefinitions.sortOrder),
         (caughtErr) =>
           new FoodMasterEnrichmentError(
             'failed to load food master enrichment',
@@ -103,21 +109,39 @@ export const loadFoodMasterEnrichment = (
             ),
           )
         }
+        const enrichments = new Map<
+          string,
+          {
+            source: FoodSource | null
+            nutritionStatus: NutritionStatus
+            nutrition: Record<string, number>
+          }
+        >()
+        for (const row of parsed.data) {
+          let enrichment = enrichments.get(row.id)
+          if (enrichment === undefined) {
+            enrichment = {
+              source: row.source,
+              nutritionStatus: nutritionStatusFromIsEstimated(row.isEstimated),
+              nutrition: {},
+            }
+            enrichments.set(row.id, enrichment)
+          }
+          if (row.nutrientCode !== null && row.nutrientValue !== null) {
+            enrichment.nutrition[row.nutrientCode] = row.nutrientValue
+          }
+        }
+
         return okAsync(
           new Map<string, FoodMasterEnrichment>(
-            parsed.data.map(
-              (row) =>
-                [
-                  row.id,
-                  {
-                    source: row.source,
-                    nutritionStatus: nutritionStatusFromIsEstimated(
-                      row.isEstimated,
-                    ),
-                    energyKcalPerUnit: row.energyKcal,
-                  },
-                ] as const,
-            ),
+            [...enrichments].map(([id, enrichment]) => [
+              id,
+              {
+                ...enrichment,
+                energyKcalPerUnit:
+                  enrichment.nutrition[ENERGY_KCAL_CODE] ?? null,
+              },
+            ]),
           ),
         )
       })
