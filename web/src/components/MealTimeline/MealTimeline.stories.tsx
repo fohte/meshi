@@ -246,6 +246,25 @@ export const WithMealPlan: Story = {
   },
 }
 
+export const PastPlannedMeal: Story = {
+  name: '過去日の予定に取消操作を表示しています',
+  args: {
+    dateKind: 'past',
+    groups: buildMealTimelineGroups([], [], [PLANNED_MEAL]),
+    onCancelPlan: () => undefined,
+  },
+}
+
+export const FuturePlannedMeal: Story = {
+  name: '未来日の予定に変更・取消操作を表示しています',
+  args: {
+    dateKind: 'future',
+    groups: buildMealTimelineGroups([], [], [PLANNED_MEAL]),
+    onEditPlan: () => undefined,
+    onCancelPlan: () => undefined,
+  },
+}
+
 export const PlanCancellationFailed: Story = {
   name: '夕食の予定を取り消せずエラーを表示しています',
   args: {

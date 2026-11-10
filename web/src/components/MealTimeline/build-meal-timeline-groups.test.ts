@@ -39,6 +39,21 @@ describe('buildMealTimelineGroups', () => {
         items: [],
       },
       {
+        id: 'plan_breakfast_fixture',
+        date: '2026-07-29',
+        mealType: 'breakfast',
+        reason: null,
+        status: 'planned',
+        items: [
+          {
+            foodMasterId: 'fixture_food_breakfast',
+            foodName: '架空食品 B',
+            quantity: 1,
+            energyKcalPerUnit: 100,
+          },
+        ],
+      },
+      {
         id: 'plan_lunch_fixture',
         date: '2026-07-29',
         mealType: 'lunch',
@@ -60,6 +75,21 @@ describe('buildMealTimelineGroups', () => {
         reason: null,
         status: 'eaten',
         items: [],
+      },
+      {
+        id: 'plan_snack_fixture',
+        date: '2026-07-29',
+        mealType: 'snack',
+        reason: null,
+        status: 'planned',
+        items: [
+          {
+            foodMasterId: 'fixture_food_snack',
+            foodName: '架空食品 C',
+            quantity: 1,
+            energyKcalPerUnit: 80,
+          },
+        ],
       },
     ]
 
