@@ -38,12 +38,22 @@ it('rejects duplicate food IDs before saving a plan', async () => {
   })
 
   const observation = () => ({
-    code: result.isErr() ? result.error.code : 'ok',
+    error: result.isErr()
+      ? {
+          code: result.error.code,
+          message: result.error.message,
+          details: result.error.details,
+        }
+      : null,
     saveCalls,
   })
 
   expect(observation()).toEqual({
-    code: 'meal_plan/duplicate_food_master',
+    error: {
+      code: 'meal_plan/duplicate_food_master',
+      message: 'food_master_id must not be duplicated: fm_example',
+      details: { foodMasterId: 'fm_example' },
+    },
     saveCalls: 0,
   })
 })
