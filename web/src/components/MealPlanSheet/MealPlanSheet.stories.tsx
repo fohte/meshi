@@ -97,7 +97,7 @@ export const Edit: Story = {
 }
 
 export const Record: Story = {
-  name: '予定の品目を確認してまとめて記録します',
+  name: '予定の品目と量が入った記録シートを表示しています',
   args: {
     isRecording: true,
     items,
