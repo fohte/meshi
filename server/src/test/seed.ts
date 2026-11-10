@@ -12,6 +12,8 @@ import type {
   foodMasters,
   mealLogs,
   mealPhotos,
+  mealPlanItems,
+  mealPlans,
   mealSetItems,
   mealSets,
   nutrientDefinitions,
@@ -279,6 +281,42 @@ export const seedMealSetItem = async (
   await sql`
     INSERT INTO meal_set_items (meal_set_id, food_master_id, quantity)
     VALUES (${values.mealSetId}, ${values.foodMasterId}, ${values.quantity})
+  `
+}
+
+export const seedMealPlan = async (
+  sql: Sql,
+  values: typeof mealPlans.$inferInsert,
+): Promise<void> => {
+  await sql`
+    INSERT INTO meal_plans (
+      id,
+      planned_date,
+      meal_type,
+      reason,
+      cancelled_at,
+      created_at
+    )
+    VALUES (
+      COALESCE(${values.id ?? null}::uuid, uuidv7()),
+      ${values.plannedDate},
+      ${values.mealType},
+      ${values.reason ?? null},
+      ${values.cancelledAt?.toISOString() ?? null}::timestamptz,
+      COALESCE(${values.createdAt?.toISOString() ?? null}::timestamptz, now())
+    )
+  `
+}
+
+export const seedMealPlanItem = async (
+  sql: Sql,
+  values: Omit<typeof mealPlanItems.$inferInsert, 'quantity'> & {
+    quantity: number
+  },
+): Promise<void> => {
+  await sql`
+    INSERT INTO meal_plan_items (meal_plan_id, food_master_id, quantity)
+    VALUES (${values.mealPlanId}, ${values.foodMasterId}, ${values.quantity})
   `
 }
 

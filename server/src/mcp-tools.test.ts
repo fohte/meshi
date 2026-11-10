@@ -37,6 +37,9 @@ import {
   type RecordMealLogsInput,
   type UpdateMealLogInput,
 } from '#domain/meal-log/types'
+import { MealPlanPersistenceError } from '#domain/meal-plan/errors'
+import type { MealPlanService } from '#domain/meal-plan/meal-plan-service'
+import type { MealPlan } from '#domain/meal-plan/types'
 import {
   EmptyMealSetItemsError,
   MealSetPersistenceError,
@@ -63,6 +66,22 @@ import { jstDate } from '#test/jst-date'
 import { createStubMcpDeps } from '#test/mcp-stubs'
 
 const VALIDATION_ERROR_TEXT = '<schema validation error>'
+const MEAL_PLAN_FIXTURE_ID = '00000000-0000-7000-8000-000000000001'
+const mealPlanFixture: MealPlan = {
+  id: MEAL_PLAN_FIXTURE_ID,
+  date: jstDate('2026-04-17'),
+  mealType: 'dinner',
+  items: [
+    {
+      foodMasterId: 'fm_mcp_plan_example',
+      foodName: 'example food',
+      quantity: 1.5,
+    },
+  ],
+  reason: 'use available ingredients',
+  status: 'planned',
+  createdAt: new Date('2026-04-17T03:30:45.000Z'),
+}
 
 type MealLogNutritionReassignmentInput = Parameters<
   MealLogNutritionReassignmentService['reassign']
@@ -594,12 +613,48 @@ const makeMealSkipService = (
   return { service, calls }
 }
 
+interface MealPlanCalls {
+  save: Array<Parameters<MealPlanService['save']>[0]>
+  list: Array<Parameters<MealPlanService['list']>>
+  cancel: Array<Parameters<MealPlanService['cancel']>[0]>
+}
+
+const makeMealPlanService = (
+  overrides: Partial<MealPlanService> = {},
+): { service: MealPlanService; calls: MealPlanCalls } => {
+  const calls: MealPlanCalls = { save: [], list: [], cancel: [] }
+  const service: MealPlanService = {
+    save(input) {
+      calls.save.push(input)
+      return (
+        overrides.save?.(input) ??
+        errAsync(new MealPlanPersistenceError('stub'))
+      )
+    },
+    list(periodFrom, periodTo) {
+      calls.list.push([periodFrom, periodTo])
+      return (
+        overrides.list?.(periodFrom, periodTo) ??
+        errAsync(new MealPlanPersistenceError('stub'))
+      )
+    },
+    cancel(id) {
+      calls.cancel.push(id)
+      return (
+        overrides.cancel?.(id) ?? errAsync(new MealPlanPersistenceError('stub'))
+      )
+    },
+  }
+  return { service, calls }
+}
+
 interface Harness {
   client: Client
   logs: LogEntry[]
   mealHistoryCalls: MealHistoryCalls
   mealLogCalls: MealLogCalls
   mealSkipCalls: MealSkipCalls
+  mealPlanCalls: MealPlanCalls
   profileCalls: ProfileCalls
   foodMasterCalls: FoodMasterCalls
   directMealToolCalls: DirectMealToolCalls
@@ -621,6 +676,7 @@ interface HarnessConfig {
     cancel?: MealSkipDomainError
     findForPeriod?: MealSkipDomainError
   }
+  mealPlanServiceOverrides?: Partial<MealPlanService>
   mealSkipRows?: ReadonlyArray<MealSkipRow>
   profile?: UserProfile
   foodSearchServiceResult?: ReturnType<FoodSearchService['search']>
@@ -652,6 +708,8 @@ const start = async (config: HarnessConfig = {}): Promise<Harness> => {
     makeMealLogService(config.mealLogOverrides, config.deleteManyError)
   const { service: mealSkipService, calls: mealSkipCalls } =
     makeMealSkipService(config.mealSkipErrors, config.mealSkipRows)
+  const { service: mealPlanService, calls: mealPlanCalls } =
+    makeMealPlanService(config.mealPlanServiceOverrides)
   const { service: profileService, calls: profileCalls } = makeProfileService(
     config.profile ?? defaultProfile,
     config.profileOverrides ?? {},
@@ -716,6 +774,7 @@ const start = async (config: HarnessConfig = {}): Promise<Harness> => {
     mealLogService,
     mealLogNutritionReassignmentService,
     mealSkipService,
+    mealPlanService,
     stockService: createStubMcpDeps().stockService,
     profileService,
     foodSearchService,
@@ -733,6 +792,7 @@ const start = async (config: HarnessConfig = {}): Promise<Harness> => {
     mealHistoryCalls,
     mealLogCalls,
     mealSkipCalls,
+    mealPlanCalls,
     profileCalls,
     foodMasterCalls,
     directMealToolCalls,
@@ -744,13 +804,14 @@ const start = async (config: HarnessConfig = {}): Promise<Harness> => {
 }
 
 describe('MeshiMcpServer tools/list', () => {
-  it('exposes the twenty-seven public tools with stable names', async () => {
+  it('exposes the thirty public tools with stable names', async () => {
     const h = await start()
     try {
       const result = await h.client.listTools()
       const names = result.tools.map((t) => t.name).sort()
       expect(names).toEqual([
         'add_food_nutrition_version',
+        'cancel_meal_plan',
         'cancel_meal_skip',
         'count_stock',
         'delete_meal_log',
@@ -760,6 +821,7 @@ describe('MeshiMcpServer tools/list', () => {
         'get_stock_status',
         'list_deliveries',
         'list_food_nutrition_versions',
+        'list_meal_plans',
         'merge_food_master',
         'query_meals',
         'reassign_meal_log_nutrition',
@@ -771,6 +833,7 @@ describe('MeshiMcpServer tools/list', () => {
         'register_food_from_composition',
         'register_food_without_nutrition',
         'register_meal_set',
+        'save_meal_plan',
         'search_foods',
         'set_stock_item',
         'update_delivery_source_ref',
@@ -932,6 +995,7 @@ describe('MeshiMcpServer tools/list', () => {
           'source_url',
         ],
         cancel_meal_skip: ['date', 'meal_type'],
+        cancel_meal_plan: ['meal_plan_id'],
         count_stock: [
           'best_before',
           'food_master_id',
@@ -951,6 +1015,7 @@ describe('MeshiMcpServer tools/list', () => {
         get_stock_status: [],
         list_deliveries: ['delivery_id', 'limit', 'source_ref', 'status'],
         list_food_nutrition_versions: ['food_master_id'],
+        list_meal_plans: ['period_from', 'period_to'],
         merge_food_master: [
           'dry_run',
           'loser_food_master_id',
@@ -975,6 +1040,7 @@ describe('MeshiMcpServer tools/list', () => {
           'status',
         ],
         register_meal_set: ['items', 'name'],
+        save_meal_plan: ['date', 'items', 'meal_type', 'reason'],
         register_food_from_composition: ['aliases', 'composition_code', 'name'],
         search_foods: ['limit', 'origin', 'queries'],
         set_stock_item: [
@@ -1228,6 +1294,29 @@ describe('MeshiMcpServer tools/list', () => {
       expect(annotations).toEqual({
         cancel_meal_skip: { readOnlyHint: false, destructiveHint: true },
         record_meal_skip: { readOnlyHint: false, destructiveHint: false },
+      })
+    } finally {
+      await h.close()
+    }
+  })
+
+  it('marks meal-plan reads and writes with their MCP annotations', async () => {
+    const h = await start()
+    try {
+      const result = await h.client.listTools()
+      const annotations = Object.fromEntries(
+        result.tools
+          .filter((tool) =>
+            ['cancel_meal_plan', 'list_meal_plans', 'save_meal_plan'].includes(
+              tool.name,
+            ),
+          )
+          .map((tool) => [tool.name, tool.annotations]),
+      )
+      expect(annotations).toEqual({
+        cancel_meal_plan: { readOnlyHint: false, destructiveHint: true },
+        list_meal_plans: { readOnlyHint: true },
+        save_meal_plan: { readOnlyHint: false, destructiveHint: false },
       })
     } finally {
       await h.close()
@@ -2005,6 +2094,205 @@ describe('cancel_meal_skip', () => {
               code: 'MealSkipNotFoundError',
               message: 'meal_skip not found: 2026-04-17 breakfast',
             },
+          },
+        ],
+      })
+    } finally {
+      await h.close()
+    }
+  })
+})
+
+describe('meal-plan tools', () => {
+  it('saves a plan and returns record_meal_log item fields', async () => {
+    const h = await start({
+      mealPlanServiceOverrides: {
+        save: (input) =>
+          okAsync({
+            ...mealPlanFixture,
+            date: input.date,
+            mealType: input.mealType,
+            items: input.items,
+            reason: input.reason ?? null,
+          }),
+      },
+    })
+    try {
+      const result = await h.client.callTool({
+        name: 'save_meal_plan',
+        arguments: {
+          date: '2026-04-17',
+          meal_type: 'dinner',
+          items: [
+            {
+              food_master_id: 'fm_mcp_plan_example',
+              food_name: 'example food',
+              quantity: 1.5,
+            },
+          ],
+          reason: 'use available ingredients',
+        },
+      })
+
+      expect(
+        observation({ result, mealPlanCalls: h.mealPlanCalls, logs: h.logs }),
+      ).toEqual({
+        result: {
+          content: [{ type: 'text', text: '食事予定を保存しました。' }],
+          structuredContent: {
+            meal_plan_id: MEAL_PLAN_FIXTURE_ID,
+            date: '2026-04-17',
+            meal_type: 'dinner',
+            items: [
+              {
+                food_master_id: 'fm_mcp_plan_example',
+                food_name: 'example food',
+                quantity: 1.5,
+              },
+            ],
+            reason: 'use available ingredients',
+            status: 'planned',
+          },
+        },
+        mealPlanCalls: {
+          save: [
+            {
+              date: '2026-04-17',
+              mealType: 'dinner',
+              items: [
+                {
+                  foodMasterId: 'fm_mcp_plan_example',
+                  foodName: 'example food',
+                  quantity: 1.5,
+                },
+              ],
+              reason: 'use available ingredients',
+            },
+          ],
+          list: [],
+          cancel: [],
+        },
+        logs: [
+          {
+            event: 'meshi.tool_called',
+            payload: { tool: 'save_meal_plan' },
+          },
+          {
+            event: 'meshi.tool_succeeded',
+            payload: { tool: 'save_meal_plan' },
+          },
+        ],
+      })
+    } finally {
+      await h.close()
+    }
+  })
+
+  it('lists plans for the half-open date range', async () => {
+    const h = await start({
+      mealPlanServiceOverrides: {
+        list: () => okAsync([mealPlanFixture]),
+      },
+    })
+    try {
+      const result = await h.client.callTool({
+        name: 'list_meal_plans',
+        arguments: {
+          period_from: '2026-04-17',
+          period_to: '2026-04-18',
+        },
+      })
+
+      expect(
+        observation({ result, mealPlanCalls: h.mealPlanCalls, logs: h.logs }),
+      ).toEqual({
+        result: {
+          content: [{ type: 'text', text: '食事予定を取得しました。' }],
+          structuredContent: {
+            meal_plans: [
+              {
+                meal_plan_id: MEAL_PLAN_FIXTURE_ID,
+                date: '2026-04-17',
+                meal_type: 'dinner',
+                items: [
+                  {
+                    food_master_id: 'fm_mcp_plan_example',
+                    food_name: 'example food',
+                    quantity: 1.5,
+                  },
+                ],
+                reason: 'use available ingredients',
+                status: 'planned',
+              },
+            ],
+          },
+        },
+        mealPlanCalls: {
+          save: [],
+          list: [['2026-04-17', '2026-04-18']],
+          cancel: [],
+        },
+        logs: [
+          {
+            event: 'meshi.tool_called',
+            payload: { tool: 'list_meal_plans' },
+          },
+          {
+            event: 'meshi.tool_succeeded',
+            payload: { tool: 'list_meal_plans', plan_count: 1 },
+          },
+        ],
+      })
+    } finally {
+      await h.close()
+    }
+  })
+
+  it('cancels a plan and returns its cancelled state', async () => {
+    const h = await start({
+      mealPlanServiceOverrides: {
+        cancel: () => okAsync({ ...mealPlanFixture, status: 'cancelled' }),
+      },
+    })
+    try {
+      const result = await h.client.callTool({
+        name: 'cancel_meal_plan',
+        arguments: { meal_plan_id: MEAL_PLAN_FIXTURE_ID },
+      })
+
+      expect(
+        observation({ result, mealPlanCalls: h.mealPlanCalls, logs: h.logs }),
+      ).toEqual({
+        result: {
+          content: [{ type: 'text', text: '食事予定を取り消しました。' }],
+          structuredContent: {
+            meal_plan_id: MEAL_PLAN_FIXTURE_ID,
+            date: '2026-04-17',
+            meal_type: 'dinner',
+            items: [
+              {
+                food_master_id: 'fm_mcp_plan_example',
+                food_name: 'example food',
+                quantity: 1.5,
+              },
+            ],
+            reason: 'use available ingredients',
+            status: 'cancelled',
+          },
+        },
+        mealPlanCalls: {
+          save: [],
+          list: [],
+          cancel: [MEAL_PLAN_FIXTURE_ID],
+        },
+        logs: [
+          {
+            event: 'meshi.tool_called',
+            payload: { tool: 'cancel_meal_plan' },
+          },
+          {
+            event: 'meshi.tool_succeeded',
+            payload: { tool: 'cancel_meal_plan' },
           },
         ],
       })

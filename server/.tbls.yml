@@ -30,6 +30,19 @@ comments:
     tableComment: 'Named groups of foods saved for repeated meal logging.'
     columnComments:
       name: 'Name of the meal set.'
+  - table: meal_plans
+    tableComment: 'Dated meal plans kept separate from recorded consumption.'
+    columnComments:
+      planned_date: 'Asia/Tokyo calendar date planned for the meal.'
+      meal_type: 'Meal category planned for the date.'
+      reason: 'Reason for choosing the planned foods.'
+      cancelled_at: 'Time when the plan was cancelled, when applicable.'
+  - table: meal_plan_items
+    tableComment: 'Foods and quantities included in a meal plan.'
+    columnComments:
+      meal_plan_id: 'Identifier of the meal plan containing this food.'
+      food_master_id: 'Identifier of a food included in the meal plan.'
+      quantity: "Multiplier applied to the food master's nutrient values."
   - table: meal_set_items
     tableComment: 'Foods and quantities included in a meal set.'
     columnComments:

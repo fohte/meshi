@@ -338,6 +338,16 @@ const applyMerge = async (
   await tx`DELETE FROM meal_set_items WHERE food_master_id = ${loserId}`
 
   await tx`
+    INSERT INTO meal_plan_items (meal_plan_id, food_master_id, quantity)
+    SELECT meal_plan_id, ${survivorId}, quantity
+    FROM meal_plan_items
+    WHERE food_master_id = ${loserId}
+    ON CONFLICT (meal_plan_id, food_master_id)
+    DO UPDATE SET quantity = meal_plan_items.quantity + EXCLUDED.quantity
+  `
+  await tx`DELETE FROM meal_plan_items WHERE food_master_id = ${loserId}`
+
+  await tx`
     DELETE FROM stock_items AS loser_item
     WHERE loser_item.food_master_id = ${loserId}
       AND EXISTS (

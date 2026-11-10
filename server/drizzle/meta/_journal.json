@@ -169,6 +169,13 @@
       "when": 1793128141045,
       "tag": "0023_daily_charles_xavier",
       "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "7",
+      "when": 1794286259371,
+      "tag": "0024_safe_doctor_octopus",
+      "breakpoints": true
     }
   ]
 }

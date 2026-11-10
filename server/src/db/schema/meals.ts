@@ -67,6 +67,66 @@ export const mealSetItems = pgTable(
   ],
 )
 
+export const mealPlans = pgTable(
+  'meal_plans',
+  {
+    id: uuid('id')
+      .primaryKey()
+      .default(sql`uuidv7()`),
+    plannedDate: date('planned_date', { mode: 'string' })
+      .$type<JstDate>()
+      .notNull(),
+    mealType: mealTypeEnum('meal_type').notNull(),
+    reason: text('reason'),
+    cancelledAt: timestamp('cancelled_at', {
+      withTimezone: true,
+      mode: 'date',
+    }),
+    createdAt: timestamp('created_at', { withTimezone: true, mode: 'date' })
+      .notNull()
+      .default(sql`now()`),
+  },
+  (table) => [
+    uniqueIndex('meal_plans_active_slot_key')
+      .on(table.plannedDate, table.mealType)
+      .where(sql`${table.cancelledAt} IS NULL`),
+    index('meal_plans_planned_date_idx').on(table.plannedDate),
+    check(
+      'meal_plans_reason_nonblank',
+      sql`${table.reason} IS NULL OR btrim(${table.reason}) <> ''`,
+    ),
+  ],
+)
+
+export const mealPlanItems = pgTable(
+  'meal_plan_items',
+  {
+    mealPlanId: uuid('meal_plan_id').notNull(),
+    foodMasterId: text('food_master_id').notNull(),
+    quantity: numeric('quantity').notNull(),
+  },
+  (table) => [
+    primaryKey({
+      name: 'meal_plan_items_pkey',
+      columns: [table.mealPlanId, table.foodMasterId],
+    }),
+    foreignKey({
+      name: 'meal_plan_items_meal_plan_id_fk',
+      columns: [table.mealPlanId],
+      foreignColumns: [mealPlans.id],
+    }).onDelete('cascade'),
+    foreignKey({
+      name: 'meal_plan_items_food_master_id_fk',
+      columns: [table.foodMasterId],
+      foreignColumns: [foodMasters.id],
+    })
+      .onUpdate('cascade')
+      .onDelete('restrict'),
+    index('meal_plan_items_food_master_id_idx').on(table.foodMasterId),
+    check('meal_plan_items_quantity_positive', sql`${table.quantity} > 0`),
+  ],
+)
+
 export const mealLogs = pgTable(
   'meal_logs',
   {

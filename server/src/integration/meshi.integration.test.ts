@@ -20,6 +20,10 @@ import { createMealLogService } from '#domain/meal-log/meal-log-service'
 import { createMealLogNutritionReassignmentService } from '#domain/meal-log/nutrition-reassignment'
 import type { MealType } from '#domain/meal-log/types'
 import {
+  createDrizzleMealPlanRepository,
+  createMealPlanService,
+} from '#domain/meal-plan/index'
+import {
   createDrizzleMealSetRepository,
   createMealSetService,
 } from '#domain/meal-set/index'
@@ -150,6 +154,12 @@ const startHarness = async (opts: HarnessOptions): Promise<Harness> => {
     idGenerator: () => randomUUID(),
     now: () => new Date('2026-06-12T22:00:00+09:00'),
   })
+  const mealPlanService = createMealPlanService({
+    repository: createDrizzleMealPlanRepository(tx, {
+      wrapInTransaction: false,
+    }),
+    now: () => new Date('2026-06-12T22:00:00+09:00'),
+  })
   const mealSetService = createMealSetService({
     repository: createDrizzleMealSetRepository(tx, {
       wrapInTransaction: false,
@@ -182,6 +192,7 @@ const startHarness = async (opts: HarnessOptions): Promise<Harness> => {
     mealLogNutritionReassignmentService:
       createMealLogNutritionReassignmentService(tx),
     mealSkipService,
+    mealPlanService,
     mealSetService,
     stockService,
     foodMasterService,

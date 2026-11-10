@@ -90,6 +90,15 @@ export const recordMealSkipStructuredOutput = mealSkipIdentity.extend({
 
 export const cancelMealSkipStructuredOutput = mealSkipIdentity
 
+export {
+  cancelMealPlanInput,
+  cancelMealPlanStructuredOutput,
+  listMealPlansInput,
+  listMealPlansStructuredOutput,
+  saveMealPlanInput,
+  saveMealPlanStructuredOutput,
+} from '#mcp-tools/meal-plan-schemas'
+
 export const updateMealLogStructuredOutput = mealLogMutationOutput.extend({
   stock_shortfall: z.number().nonnegative().nullable(),
   nutrition: nutritionMap,
