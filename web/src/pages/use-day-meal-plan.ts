@@ -31,7 +31,7 @@ export const useDayMealPlan = (date: string) => {
   const [editor, setEditor] = useState<MealPlanEditorState | null>(null)
 
   const invalidateMealPlans = (): void => {
-    void queryClient.invalidateQueries({ queryKey: ['meal-plans', date] })
+    void queryClient.invalidateQueries({ queryKey: ['meal-plans'] })
   }
 
   const saveMutation = useMutation({
