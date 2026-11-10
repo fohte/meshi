@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 
 import type { DayDetailEntry } from '#api/day-detail'
+import type { MealPlan } from '#api/meal-plans'
 import { buildMealTimelineGroups } from '#components/MealTimeline/build-meal-timeline-groups'
 
 const entry = (overrides: Partial<DayDetailEntry>): DayDetailEntry => ({
@@ -27,6 +28,144 @@ const entry = (overrides: Partial<DayDetailEntry>): DayDetailEntry => ({
 })
 
 describe('buildMealTimelineGroups', () => {
+  it('shows only a planned meal that has no recorded entry or skip', () => {
+    const plans: ReadonlyArray<MealPlan> = [
+      {
+        id: 'plan_cancelled_fixture',
+        date: '2026-07-29',
+        mealType: 'breakfast',
+        reason: null,
+        status: 'cancelled',
+        items: [],
+      },
+      {
+        id: 'plan_breakfast_fixture',
+        date: '2026-07-29',
+        mealType: 'breakfast',
+        reason: null,
+        status: 'planned',
+        items: [
+          {
+            foodMasterId: 'fixture_food_breakfast',
+            foodName: '架空食品 B',
+            quantity: 1,
+            energyKcalPerUnit: 100,
+          },
+        ],
+      },
+      {
+        id: 'plan_lunch_fixture',
+        date: '2026-07-29',
+        mealType: 'lunch',
+        reason: null,
+        status: 'planned',
+        items: [
+          {
+            foodMasterId: 'fixture_food_a',
+            foodName: '架空食品 A',
+            quantity: 1.5,
+            energyKcalPerUnit: 125,
+          },
+        ],
+      },
+      {
+        id: 'plan_eaten_fixture',
+        date: '2026-07-29',
+        mealType: 'dinner',
+        reason: null,
+        status: 'eaten',
+        items: [],
+      },
+      {
+        id: 'plan_snack_fixture',
+        date: '2026-07-29',
+        mealType: 'snack',
+        reason: null,
+        status: 'planned',
+        items: [
+          {
+            foodMasterId: 'fixture_food_snack',
+            foodName: '架空食品 C',
+            quantity: 1,
+            energyKcalPerUnit: 80,
+          },
+        ],
+      },
+    ]
+
+    expect(
+      buildMealTimelineGroups(
+        [entry({ mealType: 'breakfast' })],
+        ['snack'],
+        plans,
+      ),
+    ).toEqual([
+      {
+        mealType: 'breakfast',
+        label: '朝食',
+        status: 'eaten',
+        kcalText: '234 kcal',
+        items: [
+          {
+            id: 'log-1',
+            name: 'ごはん',
+            isEstimated: false,
+            isUnknown: false,
+            hasNutritionVersionDifferences: false,
+            quantityText: '×150',
+            kcalText: '234 kcal',
+          },
+        ],
+      },
+      {
+        mealType: 'lunch',
+        label: '昼食',
+        status: 'planned',
+        kcalText: null,
+        items: [
+          {
+            id: 'plan_lunch_fixture-0',
+            name: '架空食品 A',
+            isEstimated: false,
+            isUnknown: false,
+            hasNutritionVersionDifferences: false,
+            quantityText: '×1.5',
+            kcalText: '188 kcal',
+          },
+        ],
+        plan: {
+          id: 'plan_lunch_fixture',
+          date: '2026-07-29',
+          mealType: 'lunch',
+          reason: null,
+          status: 'planned',
+          items: [
+            {
+              foodMasterId: 'fixture_food_a',
+              foodName: '架空食品 A',
+              quantity: 1.5,
+              energyKcalPerUnit: 125,
+            },
+          ],
+        },
+      },
+      {
+        mealType: 'dinner',
+        label: '夕食',
+        status: 'unrecorded',
+        kcalText: null,
+        items: [],
+      },
+      {
+        mealType: 'snack',
+        label: '間食',
+        status: 'skipped',
+        kcalText: null,
+        items: [],
+      },
+    ])
+  })
+
   it('assigns status "eaten" with items and kcalText to a mealType with entries', () => {
     const entries = [
       entry({

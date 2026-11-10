@@ -14,6 +14,7 @@ import type { FoodMasterService } from '#domain/food-master/index'
 import type { MealHistoryService } from '#domain/meal-history/types'
 import type { MealLogService } from '#domain/meal-log/meal-log-service'
 import type { MealPhotoService } from '#domain/meal-photo/meal-photo-service'
+import type { MealPlanService } from '#domain/meal-plan/meal-plan-service'
 import type { MealSetService } from '#domain/meal-set/index'
 import type { MealSkipService } from '#domain/meal-skip/meal-skip-service'
 import type { NutrientDefinitionRepository } from '#domain/nutrient-definition/types'
@@ -32,6 +33,7 @@ export interface AppDeps {
   foodBrowseService: FoodBrowseService
   foodDetailService: FoodDetailService
   mealLogService: MealLogService
+  mealPlanService: MealPlanService
   mealSetService: MealSetService
   mealPhotoService: MealPhotoService
   foodMasterService: FoodMasterService
@@ -60,6 +62,7 @@ export const createApp = (deps: AppDeps): Hono => {
     foodBrowseService: deps.foodBrowseService,
     foodDetailService: deps.foodDetailService,
     mealLogService: deps.mealLogService,
+    mealPlanService: deps.mealPlanService,
     mealSetService: deps.mealSetService,
     mealPhotoService: deps.mealPhotoService,
     foodMasterService: deps.foodMasterService,

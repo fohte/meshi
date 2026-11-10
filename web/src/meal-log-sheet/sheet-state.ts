@@ -5,17 +5,18 @@ import type {
 } from '#api/meal-logs'
 import type { MealSet } from '#api/meal-sets'
 import { todayJstDate } from '#lib/jst-date'
+import {
+  applyFoodItemSelection,
+  type EditableFoodItem,
+  type FoodItemSelection,
+  removeFoodItem,
+  type SelectedFood,
+  setFoodItemQuantity,
+} from '#meal-log-sheet/food-item-list'
+
+export type { SelectedFood } from '#meal-log-sheet/food-item-list'
 
 type SheetPhase = 'search' | 'detail'
-
-export interface SelectedFood {
-  readonly foodMasterId: string
-  readonly name: string
-  readonly isEstimated: boolean
-  // Edited entries are not re-fetched, so their kcal preview stays hidden
-  // instead of showing a value that may no longer match the food master.
-  readonly energyKcalPerUnit: number | null
-}
 
 interface SingleSheetStateFields {
   readonly phase: SheetPhase
@@ -43,17 +44,9 @@ export interface EditSheetState extends SingleSheetStateFields {
   readonly nutritionVersionDifferences: DayDetailEntry['nutritionVersionDifferences']
 }
 
-interface MealSetRecordItem {
-  readonly id: number
-  readonly foodMasterId: string
-  readonly foodName: string
-  readonly quantity: string
-  readonly energyKcalPerUnit: number | null
-}
+type MealSetRecordItem = EditableFoodItem
 
-export type MealSetFoodSelection =
-  | { readonly type: 'add' }
-  | { readonly type: 'replace'; readonly itemId: number }
+export type MealSetFoodSelection = FoodItemSelection
 
 export interface MealSetRecordState {
   readonly mode: 'meal-set'
@@ -188,39 +181,17 @@ const applyMealSetFoodSelection = (
   const pendingSelection = state.pendingSelection
   if (pendingSelection === null) return state
 
-  if (pendingSelection.type === 'replace') {
-    return {
-      ...state,
-      pendingSelection: null,
-      query: '',
-      items: state.items.map((item) =>
-        item.id === pendingSelection.itemId
-          ? {
-              ...item,
-              foodMasterId: food.foodMasterId,
-              foodName: food.name,
-              energyKcalPerUnit: food.energyKcalPerUnit,
-            }
-          : item,
-      ),
-    }
-  }
-
+  const updated = applyFoodItemSelection(
+    state.items,
+    state.nextItemId,
+    pendingSelection,
+    food,
+  )
   return {
     ...state,
     pendingSelection: null,
     query: '',
-    nextItemId: state.nextItemId + 1,
-    items: [
-      ...state.items,
-      {
-        id: state.nextItemId,
-        foodMasterId: food.foodMasterId,
-        foodName: food.name,
-        quantity: '1',
-        energyKcalPerUnit: food.energyKcalPerUnit,
-      },
-    ],
+    ...updated,
   }
 }
 
@@ -260,9 +231,7 @@ export const setMealSetItemQuantity = (
   quantity: string,
 ): MealSetRecordState => ({
   ...state,
-  items: state.items.map((item) =>
-    item.id === itemId ? { ...item, quantity } : item,
-  ),
+  items: setFoodItemQuantity(state.items, itemId, quantity),
 })
 
 export const removeMealSetItem = (
@@ -270,7 +239,7 @@ export const removeMealSetItem = (
   itemId: number,
 ): MealSetRecordState => ({
   ...state,
-  items: state.items.filter((item) => item.id !== itemId),
+  items: removeFoodItem(state.items, itemId),
 })
 
 // A cleared date, missing selection, missing meal type, or invalid quantity

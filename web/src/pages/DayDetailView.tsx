@@ -1,6 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
-import { Link } from 'react-router'
 
 import {
   type DayDetailEntry,
@@ -14,6 +13,7 @@ import {
   mealPhotosQueryKey,
   uploadMealPhoto,
 } from '#api/meal-photos'
+import { fetchMealPlans, type MealPlan } from '#api/meal-plans'
 import { postMealSet } from '#api/meal-sets'
 import { deleteMealSkip, putMealSkip } from '#api/meal-skips'
 import type { NutrientDefinition } from '#api/nutrient-definitions'
@@ -23,9 +23,11 @@ import {
 } from '#api/nutrient-definitions'
 import { fetchUserProfile, PROFILE_QUERY_KEY } from '#api/profile'
 import { toPromise } from '#api/to-promise'
+import { DayDetailHeader } from '#components/DayDetailHeader/DayDetailHeader'
 import { ErrorRetry } from '#components/ErrorRetry/ErrorRetry'
 import { getMealPhotoUploadErrorMessage } from '#components/MealPhotoGallery/meal-photo-upload-error-message'
 import { MealPhotoGallery } from '#components/MealPhotoGallery/MealPhotoGallery'
+import { MealPlanSheet } from '#components/MealPlanSheet/MealPlanSheet'
 import { MealSetSaveForm } from '#components/MealSetSaveForm/MealSetSaveForm'
 import {
   buildMealTimelineGroups,
@@ -35,96 +37,81 @@ import { MealTimeline } from '#components/MealTimeline/MealTimeline'
 import { buildNutritionSummaryData } from '#components/NutritionSummary/build-nutrition-summary-data'
 import { NutritionSummary } from '#components/NutritionSummary/NutritionSummary'
 import { Skeleton } from '#components/Skeleton/Skeleton'
-import {
-  formatJstMonthDay,
-  shiftDateString,
-  todayJstDate,
-  weekdayLabelJa,
-} from '#lib/jst-date'
+import { shiftDateString, todayJstDate } from '#lib/jst-date'
 import { useMealLogSheet } from '#meal-log-sheet/MealLogSheetContext'
 import { buildDayMealSetInput } from '#pages/build-day-meal-set-input'
 import styles from '#pages/DayDetailView.module.css'
+import { useDayMealPlan } from '#pages/use-day-meal-plan'
 
 export interface DayDetailViewProps {
   readonly date: string
 }
 
-const useMealPhotoQuery = (date: string, mealType: MealType) =>
+const useMealPhotoQuery = (
+  date: string,
+  mealType: MealType,
+  enabled: boolean,
+) =>
   useQuery({
     queryKey: mealPhotosQueryKey(date, mealType),
     queryFn: () => toPromise(fetchMealPhotos(date, mealType)),
+    enabled,
   })
 
 export const DayDetailView = ({
   date,
 }: DayDetailViewProps): React.JSX.Element => {
+  const today = todayJstDate()
+  const showNutritionSummary = date <= today
   const dayDetailQuery = useQuery({
     queryKey: ['day-detail', date],
     queryFn: () => toPromise(fetchDayDetail(date)),
+  })
+  const mealPlansQuery = useQuery({
+    queryKey: ['meal-plans', date],
+    queryFn: () => toPromise(fetchMealPlans(date, shiftDateString(date, 1))),
   })
   const nutrientDefinitionsQuery = useQuery({
     queryKey: NUTRIENT_DEFINITIONS_QUERY_KEY,
     queryFn: () => toPromise(fetchNutrientDefinitions()),
     staleTime: Infinity,
+    enabled: showNutritionSummary,
   })
   const profileQuery = useQuery({
     queryKey: PROFILE_QUERY_KEY,
     queryFn: () => toPromise(fetchUserProfile()),
+    enabled: showNutritionSummary,
   })
 
   const isPending =
     dayDetailQuery.isPending ||
-    nutrientDefinitionsQuery.isPending ||
-    profileQuery.isPending
+    mealPlansQuery.isPending ||
+    (showNutritionSummary &&
+      (nutrientDefinitionsQuery.isPending || profileQuery.isPending))
   const isError =
     dayDetailQuery.isError ||
-    nutrientDefinitionsQuery.isError ||
-    profileQuery.isError
+    mealPlansQuery.isError ||
+    (showNutritionSummary &&
+      (nutrientDefinitionsQuery.isError || profileQuery.isError))
 
   const retry = (): void => {
     void dayDetailQuery.refetch()
+    void mealPlansQuery.refetch()
     void nutrientDefinitionsQuery.refetch()
     void profileQuery.refetch()
   }
 
-  const today = todayJstDate()
-  const prevDate = shiftDateString(date, -1)
-  const nextDate = shiftDateString(date, 1)
-  const showNext = date < today
-  const weekday = weekdayLabelJa(date)
-  const monthDay = formatJstMonthDay(date)
-
-  const crumb = `${weekday}曜日`
-  const entryCount = dayDetailQuery.data?.entries.length ?? 0
+  const dateKind = date < today ? 'past' : date === today ? 'today' : 'future'
+  const entryCount =
+    !isPending && !isError ? dayDetailQuery.data.entries.length : null
 
   return (
     <div>
-      <header className={styles.header}>
-        <div>
-          <div className={styles.crumb}>{crumb}</div>
-          <h1 className={styles.title}>
-            <span className={styles.titleMark}>#</span> {date}
-          </h1>
-          {!isPending && !isError && (
-            <div className={styles.sub}>
-              {monthDay}の記録 · {entryCount} 品
-            </div>
-          )}
-        </div>
-        <nav className={styles.nav}>
-          <Link className={styles.navButton} to={`/days/${prevDate}`}>
-            ← 前日
-          </Link>
-          {showNext && (
-            <Link className={styles.navButton} to={`/days/${nextDate}`}>
-              翌日 →
-            </Link>
-          )}
-          <Link className={styles.navButton} to="/history">
-            カレンダー
-          </Link>
-        </nav>
-      </header>
+      <DayDetailHeader
+        date={date}
+        dateKind={dateKind}
+        entryCount={entryCount}
+      />
 
       {isError && <ErrorRetry onRetry={retry} />}
 
@@ -145,8 +132,10 @@ export const DayDetailView = ({
           hasEstimatedValues={dayDetailQuery.data.hasEstimatedValues}
           hasUnknownValues={dayDetailQuery.data.hasUnknownValues}
           skippedMealTypes={dayDetailQuery.data.skippedMealTypes}
-          definitions={nutrientDefinitionsQuery.data}
-          targets={profileQuery.data.dailyTargets}
+          mealPlans={mealPlansQuery.data}
+          dateKind={dateKind}
+          definitions={nutrientDefinitionsQuery.data ?? []}
+          targets={profileQuery.data?.dailyTargets ?? null}
         />
       )}
     </div>
@@ -161,6 +150,8 @@ interface DayDetailContentProps {
   readonly hasEstimatedValues: boolean
   readonly hasUnknownValues: boolean
   readonly skippedMealTypes: ReadonlyArray<MealType>
+  readonly mealPlans: ReadonlyArray<MealPlan>
+  readonly dateKind: 'past' | 'today' | 'future'
   readonly definitions: ReadonlyArray<NutrientDefinition>
   readonly targets: Readonly<Record<string, number>> | null
 }
@@ -173,6 +164,8 @@ const DayDetailContent = ({
   hasEstimatedValues,
   hasUnknownValues,
   skippedMealTypes,
+  mealPlans,
+  dateKind,
   definitions,
   targets,
 }: DayDetailContentProps): React.JSX.Element => {
@@ -188,11 +181,13 @@ const DayDetailContent = ({
     readonly mealType: MealType
     readonly name: string
   } | null>(null)
+  const mealPlan = useDayMealPlan(date)
 
-  const breakfastPhotoQuery = useMealPhotoQuery(date, 'breakfast')
-  const lunchPhotoQuery = useMealPhotoQuery(date, 'lunch')
-  const dinnerPhotoQuery = useMealPhotoQuery(date, 'dinner')
-  const snackPhotoQuery = useMealPhotoQuery(date, 'snack')
+  const showPhotos = dateKind !== 'future'
+  const breakfastPhotoQuery = useMealPhotoQuery(date, 'breakfast', showPhotos)
+  const lunchPhotoQuery = useMealPhotoQuery(date, 'lunch', showPhotos)
+  const dinnerPhotoQuery = useMealPhotoQuery(date, 'dinner', showPhotos)
+  const snackPhotoQuery = useMealPhotoQuery(date, 'snack', showPhotos)
   const mealPhotoQueries = {
     breakfast: breakfastPhotoQuery,
     lunch: lunchPhotoQuery,
@@ -396,39 +391,64 @@ const DayDetailContent = ({
   }
 
   return (
-    <div className={styles.content}>
-      <NutritionSummary
-        data={buildNutritionSummaryData(
-          totals,
-          definitions,
-          targets,
-          hasUnknownValues,
-          incompleteNutrients,
+    <>
+      <div className={styles.content}>
+        {dateKind !== 'future' && (
+          <NutritionSummary
+            data={buildNutritionSummaryData(
+              totals,
+              definitions,
+              targets,
+              hasUnknownValues,
+              incompleteNutrients,
+            )}
+            hasEstimatedValues={hasEstimatedValues}
+            hasUnknownValues={hasUnknownValues}
+          />
         )}
-        hasEstimatedValues={hasEstimatedValues}
-        hasUnknownValues={hasUnknownValues}
-      />
-      <MealTimeline
-        groups={buildMealTimelineGroups(entries, skippedMealTypes)}
-        renderMealPhotos={renderMealPhotos}
-        onItemClick={(id) => {
-          const entry = entries.find((e) => e.id === id)
-          if (entry !== undefined) openEdit(entry)
-        }}
-        onMarkSkipped={(mealType) => {
-          markSkippedMutation.mutate(mealType)
-        }}
-        onCancelSkip={(mealType) => {
-          cancelSkipMutation.mutate(mealType)
-        }}
-        saveMealSetFormMealType={mealSetSaveForm?.mealType ?? null}
-        onToggleMealSetSave={toggleMealSetSaveForm}
-        renderMealSetSaveForm={renderMealSetSaveForm}
-        isMealSetSavePending={saveMealSetMutation.isPending}
-        isSkipActionPending={
-          markSkippedMutation.isPending || cancelSkipMutation.isPending
-        }
-      />
-    </div>
+        <MealTimeline
+          groups={buildMealTimelineGroups(
+            dateKind === 'future' ? [] : entries,
+            dateKind === 'future' ? [] : skippedMealTypes,
+            mealPlans,
+          )}
+          dateKind={dateKind}
+          renderMealPhotos={renderMealPhotos}
+          onItemClick={(id) => {
+            const entry = entries.find((e) => e.id === id)
+            if (entry !== undefined) openEdit(entry)
+          }}
+          onMarkSkipped={(mealType) => {
+            markSkippedMutation.mutate(mealType)
+          }}
+          onCancelSkip={(mealType) => {
+            cancelSkipMutation.mutate(mealType)
+          }}
+          saveMealSetFormMealType={mealSetSaveForm?.mealType ?? null}
+          onToggleMealSetSave={toggleMealSetSaveForm}
+          renderMealSetSaveForm={renderMealSetSaveForm}
+          isMealSetSavePending={saveMealSetMutation.isPending}
+          isSkipActionPending={
+            markSkippedMutation.isPending || cancelSkipMutation.isPending
+          }
+          onCreatePlan={(mealType) => {
+            mealPlan.open(mealType)
+          }}
+          onEditPlan={(mealType) => {
+            const plan = mealPlans.find(
+              (mealPlan) =>
+                mealPlan.mealType === mealType && mealPlan.status === 'planned',
+            )
+            if (plan !== undefined) mealPlan.open(mealType, plan)
+          }}
+          onCancelPlan={mealPlan.cancel}
+          planActionError={mealPlan.cancelError}
+          isPlanActionPending={mealPlan.isActionPending}
+        />
+      </div>
+      {mealPlan.sheetProps !== null && (
+        <MealPlanSheet {...mealPlan.sheetProps} />
+      )}
+    </>
   )
 }

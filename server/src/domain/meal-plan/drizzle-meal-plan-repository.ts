@@ -5,7 +5,14 @@ import { z } from 'zod'
 
 import type { Sql } from '#db/index'
 import { numericValueSchema } from '#db/numeric-value-schema'
-import { foodMasters, mealLogs, mealPlanItems, mealPlans } from '#db/schema'
+import {
+  foodMasterNutrients,
+  foodMasterNutrition,
+  foodMasters,
+  mealLogs,
+  mealPlanItems,
+  mealPlans,
+} from '#db/schema'
 import { MEAL_TYPES } from '#domain/meal-log/types'
 import {
   EatenMealPlanError,
@@ -18,6 +25,7 @@ import type { MealPlanRepository } from '#domain/meal-plan/meal-plan-repository'
 import type {
   MealPlan,
   MealPlanItem,
+  MealPlanItemInput,
   SaveMealPlanInput,
 } from '#domain/meal-plan/types'
 import { jstDateSchema } from '#lib/jst-date'
@@ -41,6 +49,7 @@ const mealPlanRowsSchema = z.array(
     foodMasterId: z.string(),
     foodName: z.string(),
     quantity: numericValueSchema.pipe(z.number().positive()),
+    energyKcal: numericValueSchema.nullable(),
   }),
 )
 
@@ -65,10 +74,25 @@ const selectPlanRows = (session: DbSession, where?: ReturnType<typeof and>) =>
       foodMasterId: mealPlanItems.foodMasterId,
       foodName: foodMasters.name,
       quantity: mealPlanItems.quantity,
+      energyKcal: foodMasterNutrients.value,
     })
     .from(mealPlans)
     .innerJoin(mealPlanItems, eq(mealPlanItems.mealPlanId, mealPlans.id))
     .innerJoin(foodMasters, eq(foodMasters.id, mealPlanItems.foodMasterId))
+    .leftJoin(
+      foodMasterNutrition,
+      and(
+        eq(foodMasterNutrition.foodMasterId, foodMasters.id),
+        eq(foodMasterNutrition.isCurrent, true),
+      ),
+    )
+    .leftJoin(
+      foodMasterNutrients,
+      and(
+        eq(foodMasterNutrients.nutritionVersionId, foodMasterNutrition.id),
+        eq(foodMasterNutrients.nutrientCode, 'energy_kcal'),
+      ),
+    )
     .where(where)
     .orderBy(
       asc(mealPlans.plannedDate),
@@ -97,7 +121,7 @@ const assembleMealPlans = (
   rows: ReadonlyArray<ParsedMealPlanRow>,
   eatenItemsByPlanId: ReadonlyMap<
     string,
-    ReadonlyArray<MealPlanItem>
+    ReadonlyArray<MealPlanItemInput>
   > = new Map(),
 ): ReadonlyArray<MealPlan> => {
   const plans = new Map<string, MealPlan>()
@@ -106,6 +130,7 @@ const assembleMealPlans = (
       foodMasterId: row.foodMasterId,
       foodName: row.foodName,
       quantity: row.quantity,
+      energyKcalPerUnit: row.energyKcal,
     }
     const existing = plans.get(row.id)
     if (existing === undefined) {
@@ -138,7 +163,7 @@ const loadEatenItems = async (
   mealPlanIds: ReadonlyArray<string>,
 ): Promise<
   Result<
-    ReadonlyMap<string, ReadonlyArray<MealPlanItem>>,
+    ReadonlyMap<string, ReadonlyArray<MealPlanItemInput>>,
     MealPlanPersistenceError
   >
 > => {
@@ -163,7 +188,7 @@ const loadEatenItems = async (
       ),
     )
   }
-  const itemsByPlanId = new Map<string, MealPlanItem[]>()
+  const itemsByPlanId = new Map<string, MealPlanItemInput[]>()
   for (const row of parsed.data) {
     const items = itemsByPlanId.get(row.mealPlanId) ?? []
     items.push({

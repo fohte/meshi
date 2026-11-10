@@ -2,6 +2,7 @@ import type { Meta, StoryObj } from '@storybook/react-vite'
 
 import type { DayDetailEntry } from '#api/day-detail'
 import type { MealPhoto } from '#api/meal-photos'
+import type { MealPlan } from '#api/meal-plans'
 import { MealPhotoGallery } from '#components/MealPhotoGallery/MealPhotoGallery'
 import { MealSetSaveForm } from '#components/MealSetSaveForm/MealSetSaveForm'
 import { buildMealTimelineGroups } from '#components/MealTimeline/build-meal-timeline-groups'
@@ -216,6 +217,88 @@ export const WithMealPhoto: Story = {
           onDeletePhoto={() => undefined}
         />
       ) : null,
+  },
+}
+
+const PLANNED_MEAL: MealPlan = {
+  id: 'plan_fixture_001',
+  date: '2026-07-29',
+  mealType: 'dinner',
+  reason: '作業後に食べる予定',
+  status: 'planned',
+  items: [
+    {
+      foodMasterId: 'fixture_food_a',
+      foodName: '架空食品 A',
+      quantity: 1.5,
+      energyKcalPerUnit: 130,
+    },
+  ],
+}
+
+const PLANNED_MEAL_WITHOUT_REASON: MealPlan = {
+  ...PLANNED_MEAL,
+  id: 'plan_fixture_without_reason',
+  reason: null,
+}
+
+export const WithMealPlan: Story = {
+  name: '夕食の予定に品目と変更・取り消し操作を表示しています',
+  args: {
+    dateKind: 'today',
+    groups: buildMealTimelineGroups([], [], [PLANNED_MEAL]),
+    onEditPlan: () => undefined,
+    onCancelPlan: () => undefined,
+  },
+}
+
+export const PlannedMealWithoutReason: Story = {
+  name: '予定にメモが設定されていない状態です',
+  args: {
+    dateKind: 'today',
+    groups: buildMealTimelineGroups([], [], [PLANNED_MEAL_WITHOUT_REASON]),
+    onEditPlan: () => undefined,
+    onCancelPlan: () => undefined,
+  },
+}
+
+export const PastPlannedMeal: Story = {
+  name: '過去日の予定に取消操作を表示しています',
+  args: {
+    dateKind: 'past',
+    groups: buildMealTimelineGroups([], [], [PLANNED_MEAL]),
+    onCancelPlan: () => undefined,
+  },
+}
+
+export const FuturePlannedMeal: Story = {
+  name: '未来日の予定に変更・取消操作を表示しています',
+  args: {
+    dateKind: 'future',
+    groups: buildMealTimelineGroups([], [], [PLANNED_MEAL]),
+    onEditPlan: () => undefined,
+    onCancelPlan: () => undefined,
+  },
+}
+
+export const PlanCancellationFailed: Story = {
+  name: '夕食の予定を取り消せずエラーを表示しています',
+  args: {
+    dateKind: 'today',
+    groups: buildMealTimelineGroups([], [], [PLANNED_MEAL]),
+    planActionError: {
+      planId: PLANNED_MEAL.id,
+      message: 'この予定は取り消せません。',
+    },
+  },
+}
+
+export const FutureWithoutPlans: Story = {
+  name: '未来日の予定がない食事枠を表示しています',
+  args: {
+    dateKind: 'future',
+    groups: buildMealTimelineGroups([], []),
+    onCreatePlan: () => undefined,
   },
 }
 
