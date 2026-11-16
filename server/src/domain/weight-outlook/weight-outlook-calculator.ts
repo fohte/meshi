@@ -188,6 +188,15 @@ const getSlopeInterval = (
   return [regression.slope - margin, regression.slope + margin]
 }
 
+const comparisonTolerance = (value: number, target: number): number =>
+  Number.EPSILON * Math.max(1, Math.abs(value), Math.abs(target)) * 16
+
+const isAtOrBelow = (value: number, target: number): boolean =>
+  value <= target + comparisonTolerance(value, target)
+
+const isAtOrAbove = (value: number, target: number): boolean =>
+  value >= target - comparisonTolerance(value, target)
+
 export const calculateWeightOutlook = (
   weights: ReadonlyArray<BodyWeight>,
   firstMeasurementDate: JstDate | null,
@@ -274,13 +283,15 @@ export const calculateWeightOutlook = (
       arrivalDateRange: null,
     }
   }
-  const direction = goalWeightKg <= trendAtWindowStart.weightKg ? -1 : 1
+  const direction = isAtOrAbove(trendAtWindowStart.weightKg, goalWeightKg)
+    ? -1
+    : 1
   const hasReached =
     direction < 0
-      ? trendSixDaysAgo.weightKg <= goalWeightKg &&
-        trendToday.weightKg <= goalWeightKg
-      : trendSixDaysAgo.weightKg >= goalWeightKg &&
-        trendToday.weightKg >= goalWeightKg
+      ? isAtOrBelow(trendSixDaysAgo.weightKg, goalWeightKg) &&
+        isAtOrBelow(trendToday.weightKg, goalWeightKg)
+      : isAtOrAbove(trendSixDaysAgo.weightKg, goalWeightKg) &&
+        isAtOrAbove(trendToday.weightKg, goalWeightKg)
   if (hasReached) {
     return {
       ...shared,
@@ -306,12 +317,16 @@ export const calculateWeightOutlook = (
   const favorableDate = trendPoints
     .slice(WEIGHT_OUTLOOK_POLICY.windowDays)
     .find(({ lowerKg, upperKg }) =>
-      direction < 0 ? lowerKg <= goalWeightKg : upperKg >= goalWeightKg,
+      direction < 0
+        ? isAtOrBelow(lowerKg, goalWeightKg)
+        : isAtOrAbove(upperKg, goalWeightKg),
     )?.date
   const conservativeDate = trendPoints
     .slice(WEIGHT_OUTLOOK_POLICY.windowDays)
     .find(({ lowerKg, upperKg }) =>
-      direction < 0 ? upperKg <= goalWeightKg : lowerKg >= goalWeightKg,
+      direction < 0
+        ? isAtOrBelow(upperKg, goalWeightKg)
+        : isAtOrAbove(lowerKg, goalWeightKg),
     )?.date
   if (favorableDate === undefined || conservativeDate === undefined) {
     return {

@@ -290,6 +290,20 @@ it('reports a decreasing goal as reached after the trend stays below it for seve
   )
 })
 
+it('reports a decimal goal as reached when every daily trend value matches it', () => {
+  const weights = linearWeights(65.1, 0)
+  expect(calculate(weights, START_DATE, 65.1)).toEqual(
+    expectedOutlook({
+      weights,
+      firstMeasurementDate: START_DATE,
+      goalWeightKg: 65.1,
+      status: 'reached',
+      reason: null,
+      linearTrend: { firstWeightKg: 65.1, slopeKgPerDay: 0 },
+    }),
+  )
+})
+
 it('reports when a heavier goal is not approached by a decreasing trend', () => {
   const weights = linearWeights(70, -0.1)
   expect(calculate(weights, START_DATE, 75)).toEqual(
