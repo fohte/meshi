@@ -11,6 +11,7 @@ export default {
     server: {
       entry: [
         'scripts/convert-food-composition.ts!',
+        'scripts/evaluate-weight-outlook.ts!',
         'scripts/seed.ts!',
         'src/db/migrate.ts!',
         'src/index.ts!',

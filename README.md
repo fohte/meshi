@@ -53,7 +53,7 @@ The server fails fast on missing required env at startup. This table covers ever
 
 | Name                          | Required             | Description                                                                                                                                                                                                          | Example                                                                                   |
 | ----------------------------- | -------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------- |
-| `DATABASE_URL`                | Required             | Postgres connection string (verified with `SELECT 1` at startup); also required to run `server/src/db/migrate.ts` directly                                                                                           | `postgres://meshi:meshi@127.0.0.1:<port from docker compose>/meshi_server_dev`            |
+| `DATABASE_URL`                | Required             | Postgres connection string (verified with `SELECT 1` at startup); also required to run `server/src/db/migrate.ts` and `server/scripts/evaluate-weight-outlook.ts` directly                                           | `postgres://meshi:meshi@127.0.0.1:<port from docker compose>/meshi_server_dev`            |
 | `MCP_LISTEN_ADDR`             | Required             | MCP server listen address                                                                                                                                                                                            | `0.0.0.0:8080`                                                                            |
 | `R2_ACCOUNT_ID`               | Required             | Cloudflare account ID used to construct the R2 S3 API endpoint                                                                                                                                                       | `00000000000000000000000000000000`                                                        |
 | `R2_BUCKET_NAME`              | Required             | R2 bucket for meal photos; keep public access disabled because meshi serves the images                                                                                                                               | `sample-meal-photos`                                                                      |
@@ -71,6 +71,18 @@ Set the required `R2_*` variables in `.env` before starting the server. mise loa
 pnpm --filter server run build && pnpm --filter server run start  # one-shot, from the built dist/
 pnpm --filter server run dev                                      # tsx watch, no build step
 ```
+
+### Evaluate weight outlook
+
+Run the rolling-origin evaluation against the configured database with:
+
+```sh
+pnpm --filter server run evaluate-weight-outlook
+```
+
+The script reads body-weight records only. It uses each recorded day as a forecast origin, scores 1, 7, 28, 56, and 84 days ahead when a measurement exists on that target date, and skips origins where the outlook calculator has insufficient data. Results are grouped by target date: historical targets before the last 28 calendar days and validation targets within the last 28 calendar days. Each group reports MAE, 80% interval coverage, mean interval width, missed intervals, and sample count for the trend and last-value baseline. The baseline interval is centered on the last observed daily average and uses the trend interval's width at the same horizon.
+
+Set `DATABASE_URL` to a local database before running the script. It does not write to the database.
 
 To create `meshi_server_dev`, run `mise run db:up` once before starting the app in a container. The source is bind-mounted, so it hot-reloads the same way:
 
