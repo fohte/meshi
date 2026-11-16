@@ -1,7 +1,10 @@
 import type { McpServer } from '@modelcontextprotocol/server'
 import { z } from 'zod'
 
-import type { WeightOutlook } from '#domain/weight-outlook/weight-outlook-calculator'
+import {
+  WEIGHT_OUTLOOK_POLICY,
+  type WeightOutlook,
+} from '#domain/weight-outlook/weight-outlook-calculator'
 import type { WeightOutlookService } from '#domain/weight-outlook/weight-outlook-service'
 import type { Logger } from '#logger'
 import {
@@ -17,11 +20,11 @@ const getStatusText = (outlook: WeightOutlook): string => {
     case 'insufficient_data':
       switch (outlook.reason) {
         case 'first_measurement_too_recent':
-          return '体重記録を始めてから 28 日に満たないため、見通しを出せません。'
+          return `体重記録がないか、記録を始めてから ${String(WEIGHT_OUTLOOK_POLICY.windowDays)} 日未満のため、見通しを出せません。`
         case 'too_few_measurement_days':
-          return '直近 28 日の測定日が 16 日未満のため、見通しを出せません。'
+          return `直近 ${String(WEIGHT_OUTLOOK_POLICY.windowDays)} 日の測定日が ${String(WEIGHT_OUTLOOK_POLICY.minimumMeasurementDays)} 日未満のため、見通しを出せません。`
         case 'measurement_gap':
-          return '直近 28 日に週 2 日以上の測定がない週があるため、見通しを出せません。'
+          return `直近 ${String(WEIGHT_OUTLOOK_POLICY.windowDays)} 日に週 ${String(WEIGHT_OUTLOOK_POLICY.minimumMeasurementsPerWeek)} 日以上の測定がない週があるため、見通しを出せません。`
         case null:
           return '体重データが不足しているため、見通しを出せません。'
       }
@@ -32,7 +35,7 @@ const getStatusText = (outlook: WeightOutlook): string => {
     case 'not_approaching':
       return '現在の傾向では目標体重に近づいていません。'
     case 'no_arrival_estimate':
-      return '現在の傾向から 12 週以内の到達時期を推定できません。'
+      return `現在の傾向から ${String(Math.ceil(WEIGHT_OUTLOOK_POLICY.forecastDays / WEIGHT_OUTLOOK_POLICY.daysPerWeek))} 週以内の到達時期を推定できません。`
     case 'arrival_estimate':
       return outlook.arrivalDateRange === null
         ? '現在の傾向から到達時期を推定できません。'

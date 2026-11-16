@@ -67,51 +67,36 @@ const serviceWith = (value: WeightOutlook): WeightOutlookService => ({
   get: () => okAsync(value),
 })
 
-const expectedPayload = (value: WeightOutlook) => ({
-  as_of: value.asOf,
-  points: value.points.map(({ date, weightKg }) => ({
-    date,
-    weight_kg: weightKg,
-  })),
-  latest_weight_kg: value.latestWeightKg,
-  goal_weight_kg: value.goalWeightKg,
-  trend:
-    value.trend === null
-      ? null
-      : {
-          slope_kg_per_day: value.trend.slopeKgPerDay,
-          slope_kg_per_week: value.trend.slopeKgPerWeek,
-          points: value.trend.points.map(
-            ({ date, weightKg, lowerKg, upperKg }) => ({
-              date,
-              weight_kg: weightKg,
-              lower_kg: lowerKg,
-              upper_kg: upperKg,
-            }),
-          ),
-        },
-  status: value.status,
-  reason: value.reason,
-  arrival_date_range: value.arrivalDateRange,
-})
+const expectedStructuredContent = {
+  as_of: '2026-05-28',
+  points: [{ date: '2026-05-28', weight_kg: 73.25 }],
+  latest_weight_kg: 73.25,
+  goal_weight_kg: 68,
+  trend: {
+    slope_kg_per_day: -0.05,
+    slope_kg_per_week: -0.35,
+    points: [
+      {
+        date: '2026-05-28',
+        weight_kg: 73.25,
+        lower_kg: 72.8,
+        upper_kg: 73.7,
+      },
+    ],
+  },
+  status: 'arrival_estimate',
+  reason: null,
+  arrival_date_range: { from: '2026-07-01', to: '2026-07-20' },
+}
 
 const statusCases: ReadonlyArray<{
   readonly name: string
   readonly status: WeightOutlook['status']
   readonly reason: WeightOutlook['reason']
   readonly arrivalDateRange: WeightOutlook['arrivalDateRange']
+  readonly noMeasurements?: boolean
   readonly text: string
 }> = [
-  {
-    name: 'goal arrival estimate',
-    status: 'arrival_estimate',
-    reason: null,
-    arrivalDateRange: {
-      from: jstDate('2026-07-01'),
-      to: jstDate('2026-07-20'),
-    },
-    text: '今のペースが続けば、目標体重への到達時期は 2026-07-01 から 2026-07-20 頃です。未検証の目安です。',
-  },
   {
     name: 'reached goal',
     status: 'reached',
@@ -141,11 +126,12 @@ const statusCases: ReadonlyArray<{
     text: '目標体重が未設定のため、到達時期を出せません。',
   },
   {
-    name: 'insufficient data because first measurement is recent',
+    name: 'insufficient data because there are no records',
     status: 'insufficient_data',
     reason: 'first_measurement_too_recent',
     arrivalDateRange: null,
-    text: '体重記録を始めてから 28 日に満たないため、見通しを出せません。',
+    noMeasurements: true,
+    text: '体重記録がないか、記録を始めてから 28 日未満のため、見通しを出せません。',
   },
   {
     name: 'insufficient data because there are too few measurement days',
@@ -167,6 +153,9 @@ describe.each(statusCases)('get_weight_outlook: $name', (testCase) => {
   it('returns the complete snake_case outlook and status text', async () => {
     const resultOutlook: WeightOutlook = {
       ...outlook,
+      ...(testCase.noMeasurements === true
+        ? { points: [], latestWeightKg: null }
+        : {}),
       ...(testCase.status === 'insufficient_data' ? { trend: null } : {}),
       ...(testCase.status === 'no_goal' ? { goalWeightKg: null } : {}),
       status: testCase.status,
@@ -181,7 +170,63 @@ describe.each(statusCases)('get_weight_outlook: $name', (testCase) => {
       })
       expect(result).toEqual({
         content: [{ type: 'text', text: testCase.text }],
-        structuredContent: expectedPayload(resultOutlook),
+        structuredContent: {
+          ...expectedStructuredContent,
+          ...(testCase.noMeasurements === true
+            ? { points: [], latest_weight_kg: null }
+            : {}),
+          ...(testCase.status === 'insufficient_data' ? { trend: null } : {}),
+          ...(testCase.status === 'no_goal' ? { goal_weight_kg: null } : {}),
+          status: testCase.status,
+          reason: testCase.reason,
+          arrival_date_range: null,
+        },
+      })
+    } finally {
+      await h.close()
+    }
+  })
+})
+
+describe('get_weight_outlook arrival estimate', () => {
+  it('returns the complete snake_case outlook and marks the dates as unvalidated', async () => {
+    const h = await start(serviceWith(outlook))
+    try {
+      const result = await h.client.callTool({
+        name: 'get_weight_outlook',
+        arguments: {},
+      })
+      expect(result).toEqual({
+        content: [
+          {
+            type: 'text',
+            text: '今のペースが続けば、目標体重への到達時期は 2026-07-01 から 2026-07-20 頃です。未検証の目安です。',
+          },
+        ],
+        structuredContent: {
+          as_of: '2026-05-28',
+          points: [{ date: '2026-05-28', weight_kg: 73.25 }],
+          latest_weight_kg: 73.25,
+          goal_weight_kg: 68,
+          trend: {
+            slope_kg_per_day: -0.05,
+            slope_kg_per_week: -0.35,
+            points: [
+              {
+                date: '2026-05-28',
+                weight_kg: 73.25,
+                lower_kg: 72.8,
+                upper_kg: 73.7,
+              },
+            ],
+          },
+          status: 'arrival_estimate',
+          reason: null,
+          arrival_date_range: {
+            from: '2026-07-01',
+            to: '2026-07-20',
+          },
+        },
       })
     } finally {
       await h.close()
