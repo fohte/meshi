@@ -1,7 +1,7 @@
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
-import { GoalWeightSection } from '#pages/settings/GoalWeightSection'
+import { GoalWeightSection } from '#components/GoalWeightSection/GoalWeightSection'
 import { performAct, setInputValue } from '#test/test-helpers'
 
 afterEach(() => {
@@ -90,13 +90,49 @@ describe('GoalWeightSection', () => {
     }
   })
 
-  it('rejects values outside the supported range or precision', async () => {
+  it('rejects a weight below the supported range', async () => {
     const events: Array<string> = []
     const { container, root } = await setup(null, events)
 
     try {
       const input = container.querySelector<HTMLInputElement>('#goal-weight-kg')
-      if (input !== null) await setInputValue(input, '19.999')
+      if (input !== null) await setInputValue(input, '19.99')
+
+      expect(readValidationOutput(container, events)).toEqual({
+        saveDisabled: true,
+        error: '20〜300 kg の範囲で、小数点以下 2 桁まで入力してください。',
+        events: [],
+      })
+    } finally {
+      await cleanup(container, root)
+    }
+  })
+
+  it('rejects a weight above the supported range', async () => {
+    const events: Array<string> = []
+    const { container, root } = await setup(null, events)
+
+    try {
+      const input = container.querySelector<HTMLInputElement>('#goal-weight-kg')
+      if (input !== null) await setInputValue(input, '300.01')
+
+      expect(readValidationOutput(container, events)).toEqual({
+        saveDisabled: true,
+        error: '20〜300 kg の範囲で、小数点以下 2 桁まで入力してください。',
+        events: [],
+      })
+    } finally {
+      await cleanup(container, root)
+    }
+  })
+
+  it('rejects more than two decimal places', async () => {
+    const events: Array<string> = []
+    const { container, root } = await setup(null, events)
+
+    try {
+      const input = container.querySelector<HTMLInputElement>('#goal-weight-kg')
+      if (input !== null) await setInputValue(input, '20.001')
 
       expect(readValidationOutput(container, events)).toEqual({
         saveDisabled: true,

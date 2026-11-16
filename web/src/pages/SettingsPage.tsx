@@ -11,7 +11,7 @@ import {
   type UserProfilePatch,
 } from '#api/profile'
 import { toPromise } from '#api/to-promise'
-import { GoalWeightSection } from '#pages/settings/GoalWeightSection'
+import { GoalWeightSection } from '#components/GoalWeightSection/GoalWeightSection'
 import { NutritionTargetsSection } from '#pages/settings/NutritionTargetsSection'
 import { TagField } from '#pages/settings/TagField'
 import styles from '#pages/SettingsPage.module.css'

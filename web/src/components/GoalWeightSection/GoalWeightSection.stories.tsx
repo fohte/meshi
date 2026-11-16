@@ -1,9 +1,9 @@
 import type { Meta, StoryObj } from '@storybook/react-vite'
 
-import { GoalWeightSection } from '#pages/settings/GoalWeightSection'
+import { GoalWeightSection } from '#components/GoalWeightSection/GoalWeightSection'
 
 const meta: Meta<typeof GoalWeightSection> = {
-  title: 'pages/settings/GoalWeightSection',
+  title: 'components/GoalWeightSection',
   component: GoalWeightSection,
   args: {
     goalWeightKg: null,

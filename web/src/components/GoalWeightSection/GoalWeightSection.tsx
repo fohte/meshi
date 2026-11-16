@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 
-import styles from '#pages/settings/GoalWeightSection.module.css'
+import styles from '#components/GoalWeightSection/GoalWeightSection.module.css'
 
 export interface GoalWeightSectionProps {
   goalWeightKg: number | null
