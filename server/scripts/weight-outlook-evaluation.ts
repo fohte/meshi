@@ -3,6 +3,7 @@ import {
   calculateWeightOutlook,
   getWeightOutlookStartDate,
 } from '#domain/weight-outlook/weight-outlook-calculator'
+import { averageWeightOutlookMeasurementsByDate } from '#domain/weight-outlook/weight-outlook-daily-points'
 import { type JstDate, jstDateSchema } from '#lib/jst-date'
 import {
   summarizeWeightOutlookForecasts,
@@ -30,31 +31,13 @@ interface WeightOutlookEvaluationReport {
   }>
 }
 
-interface DailyWeight {
-  readonly date: JstDate
-  readonly weightKg: number
-}
-
 const shiftDate = (date: JstDate, days: number): JstDate =>
   jstDateSchema.parse(Temporal.PlainDate.from(date).add({ days }).toString())
-
-const averageByDate = (weights: ReadonlyArray<BodyWeight>): DailyWeight[] => {
-  const byDate = new Map<JstDate, { total: number; count: number }>()
-  for (const { date, weightKg } of weights) {
-    const current = byDate.get(date) ?? { total: 0, count: 0 }
-    current.total += weightKg
-    current.count += 1
-    byDate.set(date, current)
-  }
-  return [...byDate]
-    .sort(([left], [right]) => left.localeCompare(right))
-    .map(([date, value]) => ({ date, weightKg: value.total / value.count }))
-}
 
 export const evaluateWeightOutlook = (
   weights: ReadonlyArray<BodyWeight>,
 ): WeightOutlookEvaluationReport => {
-  const dailyWeights = averageByDate(weights)
+  const dailyWeights = averageWeightOutlookMeasurementsByDate(weights)
   const firstMeasurementDate = dailyWeights[0]?.date ?? null
   const lastMeasurementDate = dailyWeights.at(-1)?.date ?? null
   const validationStartDate =

@@ -12,7 +12,7 @@ const syntheticWeights = (count: number): BodyWeight[] => {
       id: `synthetic-${String(index)}`,
       date,
       measuredAt: null,
-      weightKg: 70,
+      weightKg: 70 - index * 0.1,
       createdAt: new Date('2025-01-01T00:00:00.000Z'),
       updatedAt: new Date('2025-01-01T00:00:00.000Z'),
     }
@@ -41,10 +41,10 @@ describe('evaluateWeightOutlook', () => {
               },
               baseline: {
                 sampleCount: 64,
-                maeKg: 0,
-                coverage: 1,
+                maeKg: 0.1,
+                coverage: 0,
                 meanIntervalWidthKg: 0,
-                misses: 0,
+                misses: 64,
               },
             },
             {
@@ -58,10 +58,10 @@ describe('evaluateWeightOutlook', () => {
               },
               baseline: {
                 sampleCount: 58,
-                maeKg: 0,
-                coverage: 1,
+                maeKg: 0.7,
+                coverage: 0,
                 meanIntervalWidthKg: 0,
-                misses: 0,
+                misses: 58,
               },
             },
             {
@@ -75,10 +75,10 @@ describe('evaluateWeightOutlook', () => {
               },
               baseline: {
                 sampleCount: 37,
-                maeKg: 0,
-                coverage: 1,
+                maeKg: 2.8,
+                coverage: 0,
                 meanIntervalWidthKg: 0,
-                misses: 0,
+                misses: 37,
               },
             },
             {
@@ -92,10 +92,10 @@ describe('evaluateWeightOutlook', () => {
               },
               baseline: {
                 sampleCount: 9,
-                maeKg: 0,
-                coverage: 1,
+                maeKg: 5.6,
+                coverage: 0,
                 meanIntervalWidthKg: 0,
-                misses: 0,
+                misses: 9,
               },
             },
             {
@@ -131,10 +131,10 @@ describe('evaluateWeightOutlook', () => {
               },
               baseline: {
                 sampleCount: 28,
-                maeKg: 0,
-                coverage: 1,
+                maeKg: 0.1,
+                coverage: 0,
                 meanIntervalWidthKg: 0,
-                misses: 0,
+                misses: 28,
               },
             },
             {
@@ -148,10 +148,10 @@ describe('evaluateWeightOutlook', () => {
               },
               baseline: {
                 sampleCount: 28,
-                maeKg: 0,
-                coverage: 1,
+                maeKg: 0.7,
+                coverage: 0,
                 meanIntervalWidthKg: 0,
-                misses: 0,
+                misses: 28,
               },
             },
             {
@@ -165,10 +165,10 @@ describe('evaluateWeightOutlook', () => {
               },
               baseline: {
                 sampleCount: 28,
-                maeKg: 0,
-                coverage: 1,
+                maeKg: 2.8,
+                coverage: 0,
                 meanIntervalWidthKg: 0,
-                misses: 0,
+                misses: 28,
               },
             },
             {
@@ -182,10 +182,10 @@ describe('evaluateWeightOutlook', () => {
               },
               baseline: {
                 sampleCount: 28,
-                maeKg: 0,
-                coverage: 1,
+                maeKg: 5.6,
+                coverage: 0,
                 meanIntervalWidthKg: 0,
-                misses: 0,
+                misses: 28,
               },
             },
             {
@@ -199,10 +199,10 @@ describe('evaluateWeightOutlook', () => {
               },
               baseline: {
                 sampleCount: 9,
-                maeKg: 0,
-                coverage: 1,
+                maeKg: 8.4,
+                coverage: 0,
                 meanIntervalWidthKg: 0,
-                misses: 0,
+                misses: 9,
               },
             },
           ],

@@ -80,7 +80,7 @@ Run the rolling-origin evaluation against the configured database with:
 pnpm --filter server run evaluate-weight-outlook
 ```
 
-The script reads body-weight records only. It uses each recorded day as a forecast origin, scores 1, 7, 28, 56, and 84 days ahead when a measurement exists on that target date, and skips origins where the outlook calculator has insufficient data. Results are grouped by target date: historical targets before the last 28 calendar days and validation targets within the last 28 calendar days. Each group reports MAE, 80% interval coverage, mean interval width, missed intervals, and sample count for the trend and last-value baseline. The baseline interval is centered on the last observed daily average and uses the trend interval's width at the same horizon.
+The script reads body-weight records only. It uses each calendar day from the first through last measurement as a forecast origin, using records available by that day. It scores 1, 7, 28, 56, and 84 days ahead when a measurement exists on the target date, and skips origins where the outlook calculator has insufficient data. Results are grouped by target date: historical targets before the last 28 calendar days and validation targets within the last 28 calendar days. Each group reports MAE, 80% interval coverage, mean interval width, missed intervals, and sample count for the trend and last-value baseline. The baseline interval is centered on the last observed daily average and uses the trend interval's width at the same horizon.
 
 Set `DATABASE_URL` to a local database before running the script. It does not write to the database.
 

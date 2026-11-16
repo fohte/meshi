@@ -5,6 +5,21 @@ export interface WeightOutlookForecastResult {
   readonly upperKg: number
 }
 
+const roundToThreeDecimalPlaces = (value: number): number =>
+  Math.round(value * 1000) / 1000
+
+const isCovered = ({
+  actualKg,
+  lowerKg,
+  upperKg,
+}: WeightOutlookForecastResult) => {
+  const tolerance =
+    Number.EPSILON *
+    Math.max(1, Math.abs(actualKg), Math.abs(lowerKg), Math.abs(upperKg)) *
+    16
+  return actualKg >= lowerKg - tolerance && actualKg <= upperKg + tolerance
+}
+
 export const summarizeWeightOutlookForecasts = (
   forecasts: ReadonlyArray<WeightOutlookForecastResult>,
 ) => {
@@ -23,10 +38,7 @@ export const summarizeWeightOutlookForecasts = (
       total + Math.abs(forecast.actualKg - forecast.predictedKg),
     0,
   )
-  const coveredCount = forecasts.filter(
-    ({ actualKg, lowerKg, upperKg }) =>
-      actualKg >= lowerKg && actualKg <= upperKg,
-  ).length
+  const coveredCount = forecasts.filter(isCovered).length
   const intervalWidthTotal = forecasts.reduce(
     (total, { lowerKg, upperKg }) => total + (upperKg - lowerKg),
     0,
@@ -34,9 +46,11 @@ export const summarizeWeightOutlookForecasts = (
 
   return {
     sampleCount: forecasts.length,
-    maeKg: absoluteErrorTotal / forecasts.length,
-    coverage: coveredCount / forecasts.length,
-    meanIntervalWidthKg: intervalWidthTotal / forecasts.length,
+    maeKg: roundToThreeDecimalPlaces(absoluteErrorTotal / forecasts.length),
+    coverage: roundToThreeDecimalPlaces(coveredCount / forecasts.length),
+    meanIntervalWidthKg: roundToThreeDecimalPlaces(
+      intervalWidthTotal / forecasts.length,
+    ),
     misses: forecasts.length - coveredCount,
   }
 }

@@ -13,7 +13,7 @@ describe('summarizeWeightOutlookForecasts', () => {
     ).toEqual({
       sampleCount: 3,
       maeKg: 1,
-      coverage: 0.6666666666666666,
+      coverage: 0.667,
       meanIntervalWidthKg: 2,
       misses: 1,
     })
