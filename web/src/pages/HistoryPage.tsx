@@ -9,6 +9,7 @@ import { fetchUserProfile, PROFILE_QUERY_KEY } from '#api/profile'
 import { toPromise } from '#api/to-promise'
 import { ErrorRetry } from '#components/ErrorRetry/ErrorRetry'
 import { Skeleton } from '#components/Skeleton/Skeleton'
+import { HistoryBodyWeightView } from '#pages/history/HistoryBodyWeightView'
 import { HistoryCalendarView } from '#pages/history/HistoryCalendarView'
 import { HistoryListView } from '#pages/history/HistoryListView'
 import { HistoryReportView } from '#pages/history/HistoryReportView'
@@ -18,6 +19,7 @@ const HISTORY_VIEWS = [
   ['calendar', 'カレンダー'],
   ['list', 'リスト'],
   ['report', 'レポート'],
+  ['weight', '体重'],
 ] as const
 
 type HistoryViewName = (typeof HISTORY_VIEWS)[number][0]
@@ -64,15 +66,17 @@ export const HistoryPage = (): React.JSX.Element => {
         ))}
       </div>
 
-      {isError && <ErrorRetry onRetry={retry} />}
+      {view === 'weight' && <HistoryBodyWeightView />}
 
-      {isPending && !isError && (
+      {view !== 'weight' && isError && <ErrorRetry onRetry={retry} />}
+
+      {view !== 'weight' && isPending && !isError && (
         <div className={styles.skeletonStack}>
           <Skeleton height={320} />
         </div>
       )}
 
-      {!isPending && !isError && (
+      {view !== 'weight' && !isPending && !isError && (
         <>
           {view === 'calendar' && (
             <HistoryCalendarView targets={profileQuery.data.dailyTargets} />
