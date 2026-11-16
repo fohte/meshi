@@ -23,6 +23,7 @@ import type {
   stockLots,
   stockMovements,
   storageLocations,
+  userProfiles,
 } from '#db/schema'
 
 export const seedNutrientDefinition = async (
@@ -321,6 +322,16 @@ export const seedBodyComposition = async (
       ${values.device}, ${values.bodyFatPercent ?? null},
       ${values.muscleMassKg ?? null}, ${values.skeletalMusclePercent ?? null}
     )
+  `
+}
+
+export const seedUserProfile = async (
+  sql: Sql,
+  values: Pick<typeof userProfiles.$inferInsert, 'goalWeightKg'>,
+): Promise<void> => {
+  await sql`
+    INSERT INTO user_profiles (goal_weight_kg)
+    VALUES (${values.goalWeightKg ?? null})
   `
 }
 

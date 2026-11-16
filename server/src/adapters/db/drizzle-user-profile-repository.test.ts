@@ -3,6 +3,7 @@ import { expect, it } from 'vitest'
 import { createDrizzleUserProfileRepository } from '#adapters/db/drizzle-user-profile-repository'
 import { DEFAULT_USER_PROFILE } from '#domain/user-profile/user-profile'
 import { describeIfDb, setupDrizzleTx } from '#test/db'
+import { seedUserProfile } from '#test/seed'
 
 const captureOutput = <Output>(output: Output): Output => output
 
@@ -18,26 +19,25 @@ describeIfDb('createDrizzleUserProfileRepository', () => {
     const loaded = await repository.load()
 
     expect(
-      captureOutput(
-        saved.match(
+      captureOutput({
+        saved: saved.match(
           (profile) => ({ status: 'ok', profile }),
           (error) => ({ status: 'error', message: error.message }),
         ),
-      ),
-    ).toEqual({
-      status: 'ok',
-      profile: { ...DEFAULT_USER_PROFILE, goalWeightKg: 62.45 },
-    })
-    expect(
-      captureOutput(
-        loaded.match(
+        loaded: loaded.match(
           (profile) => ({ status: 'ok', profile }),
           (error) => ({ status: 'error', message: error.message }),
         ),
-      ),
+      }),
     ).toEqual({
-      status: 'ok',
-      profile: { ...DEFAULT_USER_PROFILE, goalWeightKg: 62.45 },
+      saved: {
+        status: 'ok',
+        profile: { ...DEFAULT_USER_PROFILE, goalWeightKg: 62.45 },
+      },
+      loaded: {
+        status: 'ok',
+        profile: { ...DEFAULT_USER_PROFILE, goalWeightKg: 62.45 },
+      },
     })
   })
 
@@ -103,7 +103,7 @@ describeIfDb('createDrizzleUserProfileRepository', () => {
   it('rejects an invalid goal weight stored outside the profile API', async () => {
     const tx = getTx()
     const repository = createDrizzleUserProfileRepository(tx)
-    await tx`INSERT INTO user_profiles (goal_weight_kg) VALUES ('301.00')`
+    await seedUserProfile(tx, { goalWeightKg: '301.00' })
 
     const loaded = await repository.load()
 
