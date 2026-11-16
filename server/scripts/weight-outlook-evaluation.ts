@@ -6,6 +6,7 @@ import {
 import { averageWeightOutlookMeasurementsByDate } from '#domain/weight-outlook/weight-outlook-daily-points'
 import { type JstDate, jstDateSchema } from '#lib/jst-date'
 import {
+  countSpacedForecastOrigins,
   summarizeWeightOutlookForecasts,
   type WeightOutlookForecastResult,
 } from '#scripts/weight-outlook-evaluation-metrics'
@@ -25,10 +26,16 @@ interface WeightOutlookEvaluationReport {
     readonly name: EvaluationPeriodName
     readonly horizons: ReadonlyArray<{
       readonly daysAhead: ForecastHorizon
+      readonly nonOverlappingSampleCount: number
       readonly trend: ReturnType<typeof summarizeWeightOutlookForecasts>
       readonly baseline: ReturnType<typeof summarizeWeightOutlookForecasts>
     }>
   }>
+}
+
+interface HorizonResults {
+  readonly origins: JstDate[]
+  readonly forecasts: Map<ForecastKind, WeightOutlookForecastResult[]>
 }
 
 const shiftDate = (date: JstDate, days: number): JstDate =>
@@ -53,17 +60,20 @@ export const evaluateWeightOutlook = (
   }
   const results = new Map<
     EvaluationPeriodName,
-    Map<ForecastHorizon, Map<ForecastKind, WeightOutlookForecastResult[]>>
+    Map<ForecastHorizon, HorizonResults>
   >(
     (['historical', 'validation'] as const).map((period) => [
       period,
-      new Map(
+      new Map<ForecastHorizon, HorizonResults>(
         WEIGHT_OUTLOOK_EVALUATION_HORIZONS.map((horizon) => [
           horizon,
-          new Map<ForecastKind, WeightOutlookForecastResult[]>([
-            ['trend', []],
-            ['baseline', []],
-          ]),
+          {
+            origins: [],
+            forecasts: new Map<ForecastKind, WeightOutlookForecastResult[]>([
+              ['trend', []],
+              ['baseline', []],
+            ]),
+          },
         ]),
       ),
     ]),
@@ -112,8 +122,8 @@ export const evaluateWeightOutlook = (
             : 'historical'
         const periodResults = results.get(period)
         const horizonResults = periodResults?.get(daysAhead)
-        const trendResults = horizonResults?.get('trend')
-        const baselineResults = horizonResults?.get('baseline')
+        const trendResults = horizonResults?.forecasts.get('trend')
+        const baselineResults = horizonResults?.forecasts.get('baseline')
         if (
           periodResults === undefined ||
           horizonResults === undefined ||
@@ -123,6 +133,7 @@ export const evaluateWeightOutlook = (
           continue
         }
 
+        horizonResults.origins.push(originDate)
         trendResults.push({
           actualKg,
           predictedKg: trendPoint.weightKg,
@@ -152,11 +163,15 @@ export const evaluateWeightOutlook = (
         const horizonResults = results.get(name)?.get(daysAhead)
         return {
           daysAhead,
+          nonOverlappingSampleCount: countSpacedForecastOrigins(
+            horizonResults?.origins ?? [],
+            Math.max(28, daysAhead),
+          ),
           trend: summarizeWeightOutlookForecasts(
-            horizonResults?.get('trend') ?? [],
+            horizonResults?.forecasts.get('trend') ?? [],
           ),
           baseline: summarizeWeightOutlookForecasts(
-            horizonResults?.get('baseline') ?? [],
+            horizonResults?.forecasts.get('baseline') ?? [],
           ),
         }
       }),

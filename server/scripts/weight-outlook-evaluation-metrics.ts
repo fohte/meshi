@@ -1,8 +1,31 @@
+import type { JstDate } from '#lib/jst-date'
+
 export interface WeightOutlookForecastResult {
   readonly actualKg: number
   readonly predictedKg: number
   readonly lowerKg: number
   readonly upperKg: number
+}
+
+export const countSpacedForecastOrigins = (
+  origins: ReadonlyArray<JstDate>,
+  minimumGapDays: number,
+): number => {
+  let lastIncluded: JstDate | null = null
+  let count = 0
+  for (const origin of [...new Set(origins)].sort()) {
+    if (
+      lastIncluded === null ||
+      Temporal.PlainDate.from(lastIncluded).until(
+        Temporal.PlainDate.from(origin),
+        { largestUnit: 'day' },
+      ).days >= minimumGapDays
+    ) {
+      count += 1
+      lastIncluded = origin
+    }
+  }
+  return count
 }
 
 const roundToThreeDecimalPlaces = (value: number): number =>

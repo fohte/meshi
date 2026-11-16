@@ -71,16 +71,16 @@ const main = async (): Promise<void> => {
     for (const period of report.periods) {
       console.log(`\n${period.name}`)
       console.log(
-        '| Days ahead | Forecast | Samples | MAE (kg) | 80% coverage | Mean interval width (kg) | Misses |',
+        '| Days ahead | Forecast | Samples | Non-overlap origins | MAE (kg) | 80% coverage | Mean interval width (kg) | Misses |',
       )
-      console.log('| ---: | --- | ---: | ---: | ---: | ---: | ---: |')
+      console.log('| ---: | --- | ---: | ---: | ---: | ---: | ---: | ---: |')
       for (const horizon of period.horizons) {
         for (const [name, metrics] of [
           ['trend', horizon.trend],
           ['last-value baseline', horizon.baseline],
         ] as const) {
           console.log(
-            `| ${String(horizon.daysAhead)} | ${name} | ${String(metrics.sampleCount)} | ${formatMetric(metrics.maeKg)} | ${formatCoverage(metrics.coverage)} | ${formatMetric(metrics.meanIntervalWidthKg)} | ${String(metrics.misses)} |`,
+            `| ${String(horizon.daysAhead)} | ${name} | ${String(metrics.sampleCount)} | ${String(horizon.nonOverlappingSampleCount)} | ${formatMetric(metrics.maeKg)} | ${formatCoverage(metrics.coverage)} | ${formatMetric(metrics.meanIntervalWidthKg)} | ${String(metrics.misses)} |`,
           )
         }
       }

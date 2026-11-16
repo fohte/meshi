@@ -1,6 +1,10 @@
 import { describe, expect, it } from 'vitest'
 
-import { summarizeWeightOutlookForecasts } from '#scripts/weight-outlook-evaluation-metrics'
+import { jstDateSchema } from '#lib/jst-date'
+import {
+  countSpacedForecastOrigins,
+  summarizeWeightOutlookForecasts,
+} from '#scripts/weight-outlook-evaluation-metrics'
 
 describe('summarizeWeightOutlookForecasts', () => {
   it('computes error, coverage, interval width, and missed intervals', () => {
@@ -27,5 +31,19 @@ describe('summarizeWeightOutlookForecasts', () => {
       meanIntervalWidthKg: null,
       misses: 0,
     })
+  })
+})
+
+describe('countSpacedForecastOrigins', () => {
+  const origins = ['2025-01-01', '2025-01-15', '2025-01-29', '2025-02-01'].map(
+    (date) => jstDateSchema.parse(date),
+  )
+
+  it('counts more origins when the minimum separation is shorter', () => {
+    expect(countSpacedForecastOrigins(origins, 7)).toBe(3)
+  })
+
+  it('excludes overlapping fitting windows when the gap is 28 days', () => {
+    expect(countSpacedForecastOrigins(origins, 28)).toBe(2)
   })
 })
