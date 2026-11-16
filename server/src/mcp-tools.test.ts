@@ -55,9 +55,10 @@ import {
 import type { MealSkipService } from '#domain/meal-skip/meal-skip-service'
 import type { MealSkipRow } from '#domain/meal-skip/types'
 import { UserProfileRepositoryError } from '#domain/user-profile/errors'
-import type {
-  UserProfile,
-  UserProfilePatch,
+import {
+  mergeUserProfile,
+  type UserProfile,
+  type UserProfilePatch,
 } from '#domain/user-profile/user-profile'
 import type { UserProfileService } from '#domain/user-profile/user-profile-service'
 import type { Logger } from '#logger'
@@ -340,23 +341,7 @@ const makeProfileService = (
     update(patch) {
       calls.update.push(patch)
       if (overrides.update) return errAsync(overrides.update)
-      const { dailyTargets, goalWeightKg, ...rest } = patch
-      let next: UserProfile = { ...current, ...rest }
-      if (dailyTargets === null) {
-        // eslint-disable-next-line @typescript-eslint/no-unused-vars -- destructure to remove the cleared field.
-        const { dailyTargets: _drop, ...cleared } = next
-        next = cleared
-      } else if (dailyTargets !== undefined) {
-        next = { ...next, dailyTargets }
-      }
-      if (goalWeightKg === null) {
-        // eslint-disable-next-line @typescript-eslint/no-unused-vars -- destructure to remove the cleared field.
-        const { goalWeightKg: _drop, ...cleared } = next
-        next = cleared
-      } else if (goalWeightKg !== undefined) {
-        next = { ...next, goalWeightKg }
-      }
-      current = next
+      current = mergeUserProfile(current, patch)
       return okAsync(current)
     },
   }

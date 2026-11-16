@@ -775,6 +775,11 @@ describeIfDb('schema migrations', () => {
         validated: true,
       },
       {
+        conname: 'user_profiles_goal_weight_kg_positive',
+        table_name: 'user_profiles',
+        validated: true,
+      },
+      {
         conname: 'user_profiles_singleton',
         table_name: 'user_profiles',
         validated: true,
@@ -1200,6 +1205,15 @@ describeIfDb('schema runtime constraints', () => {
         INSERT INTO user_profiles (id, daily_targets)
         VALUES (1, '[]'::jsonb)
       `),
+    ).toEqual({ status: 'error', code: '23514' })
+  })
+
+  it('rejects nonpositive user_profiles.goal_weight_kg values', async () => {
+    const tx = getTx()
+    expect(
+      await runOutcome(
+        tx`INSERT INTO user_profiles (goal_weight_kg) VALUES (0)`,
+      ),
     ).toEqual({ status: 'error', code: '23514' })
   })
 

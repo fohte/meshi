@@ -38,6 +38,10 @@ export const userProfiles = pgTable(
   (table) => [
     check('user_profiles_singleton', sql`${table.id} = 1`),
     check(
+      'user_profiles_goal_weight_kg_positive',
+      sql`${table.goalWeightKg} IS NULL OR ${table.goalWeightKg} > 0`,
+    ),
+    check(
       'user_profiles_daily_targets_object',
       sql`${table.dailyTargets} IS NULL OR jsonb_typeof(${table.dailyTargets}) = 'object'`,
     ),

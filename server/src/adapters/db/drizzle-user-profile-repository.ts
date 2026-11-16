@@ -85,7 +85,7 @@ export const createDrizzleUserProfileRepository = (
         return row === undefined ? ok(null) : toDomain(row)
       }),
 
-    save: (profile) => {
+    save: (profile, patch) => {
       const values = {
         id: SINGLETON_ID,
         likes: [...profile.likes],
@@ -96,6 +96,34 @@ export const createDrizzleUserProfileRepository = (
         goalWeightKg: profile.goalWeightKg?.toFixed(2) ?? null,
         updatedAt: new Date(),
       }
+      const fieldsToUpdate =
+        patch === undefined
+          ? {
+              likes: values.likes,
+              dislikes: values.dislikes,
+              allergies: values.allergies,
+              constraints: values.constraints,
+              dailyTargets: values.dailyTargets,
+              goalWeightKg: values.goalWeightKg,
+            }
+          : {
+              ...(patch.likes === undefined ? {} : { likes: values.likes }),
+              ...(patch.dislikes === undefined
+                ? {}
+                : { dislikes: values.dislikes }),
+              ...(patch.allergies === undefined
+                ? {}
+                : { allergies: values.allergies }),
+              ...(patch.constraints === undefined
+                ? {}
+                : { constraints: values.constraints }),
+              ...(patch.dailyTargets === undefined
+                ? {}
+                : { dailyTargets: values.dailyTargets }),
+              ...(patch.goalWeightKg === undefined
+                ? {}
+                : { goalWeightKg: values.goalWeightKg }),
+            }
       return ResultAsync.fromPromise(
         db
           .insert(userProfiles)
@@ -103,12 +131,7 @@ export const createDrizzleUserProfileRepository = (
           .onConflictDoUpdate({
             target: userProfiles.id,
             set: {
-              likes: values.likes,
-              dislikes: values.dislikes,
-              allergies: values.allergies,
-              constraints: values.constraints,
-              dailyTargets: values.dailyTargets,
-              goalWeightKg: values.goalWeightKg,
+              ...fieldsToUpdate,
               updatedAt: values.updatedAt,
             },
           })

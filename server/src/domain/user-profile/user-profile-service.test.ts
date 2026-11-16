@@ -161,32 +161,38 @@ describe('createUserProfileService', () => {
     } satisfies UserProfile)
   })
 
-  it('sets and clears goalWeightKg in partial updates', async () => {
+  it('sets goalWeightKg in a partial update', async () => {
     const repo = createInMemoryRepository()
     const service = createUserProfileService(repo)
 
     const set = await service.update({ goalWeightKg: 64.25 })
+
+    expect(captureOutput(set._unsafeUnwrap())).toEqual({
+      likes: [],
+      dislikes: [],
+      allergies: [],
+      constraints: [],
+      goalWeightKg: 64.25,
+    })
+  })
+
+  it('clears goalWeightKg when the patch sets it to null', async () => {
+    const repo = createInMemoryRepository({
+      likes: [],
+      dislikes: [],
+      allergies: [],
+      constraints: [],
+      goalWeightKg: 64.25,
+    })
+    const service = createUserProfileService(repo)
+
     const cleared = await service.update({ goalWeightKg: null })
 
-    expect(
-      captureOutput({
-        set: set._unsafeUnwrap(),
-        cleared: cleared._unsafeUnwrap(),
-      }),
-    ).toEqual({
-      set: {
-        likes: [],
-        dislikes: [],
-        allergies: [],
-        constraints: [],
-        goalWeightKg: 64.25,
-      },
-      cleared: {
-        likes: [],
-        dislikes: [],
-        allergies: [],
-        constraints: [],
-      },
+    expect(captureOutput(cleared._unsafeUnwrap())).toEqual({
+      likes: [],
+      dislikes: [],
+      allergies: [],
+      constraints: [],
     })
   })
 

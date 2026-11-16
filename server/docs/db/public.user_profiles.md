@@ -19,17 +19,18 @@ The singleton user profile for preferences, daily nutrition targets, and a goal 
 
 ## Constraints
 
-| Name                               | Type        | Definition                                                                          |
-| ---------------------------------- | ----------- | ----------------------------------------------------------------------------------- |
-| user_profiles_allergies_not_null   | n           | NOT NULL allergies                                                                  |
-| user_profiles_constraints_not_null | n           | NOT NULL constraints                                                                |
-| user_profiles_daily_targets_object | CHECK       | CHECK (((daily_targets IS NULL) OR (jsonb_typeof(daily_targets) = 'object'::text))) |
-| user_profiles_dislikes_not_null    | n           | NOT NULL dislikes                                                                   |
-| user_profiles_id_not_null          | n           | NOT NULL id                                                                         |
-| user_profiles_likes_not_null       | n           | NOT NULL likes                                                                      |
-| user_profiles_singleton            | CHECK       | CHECK ((id = 1))                                                                    |
-| user_profiles_updated_at_not_null  | n           | NOT NULL updated_at                                                                 |
-| user_profiles_pkey                 | PRIMARY KEY | PRIMARY KEY (id)                                                                    |
+| Name                                  | Type        | Definition                                                                          |
+| ------------------------------------- | ----------- | ----------------------------------------------------------------------------------- |
+| user_profiles_allergies_not_null      | n           | NOT NULL allergies                                                                  |
+| user_profiles_constraints_not_null    | n           | NOT NULL constraints                                                                |
+| user_profiles_daily_targets_object    | CHECK       | CHECK (((daily_targets IS NULL) OR (jsonb_typeof(daily_targets) = 'object'::text))) |
+| user_profiles_dislikes_not_null       | n           | NOT NULL dislikes                                                                   |
+| user_profiles_goal_weight_kg_positive | CHECK       | CHECK (((goal_weight_kg IS NULL) OR (goal_weight_kg > (0)::numeric)))               |
+| user_profiles_id_not_null             | n           | NOT NULL id                                                                         |
+| user_profiles_likes_not_null          | n           | NOT NULL likes                                                                      |
+| user_profiles_singleton               | CHECK       | CHECK ((id = 1))                                                                    |
+| user_profiles_updated_at_not_null     | n           | NOT NULL updated_at                                                                 |
+| user_profiles_pkey                    | PRIMARY KEY | PRIMARY KEY (id)                                                                    |
 
 ## Indexes
 
