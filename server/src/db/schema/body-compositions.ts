@@ -34,6 +34,18 @@ export const bodyCompositions = pgTable(
       .default(sql`now()`),
   },
   (table) => [
+    check(
+      'body_compositions_body_fat_percent_range',
+      sql`${table.bodyFatPercent} IS NULL OR ${table.bodyFatPercent} BETWEEN 1 AND 75`,
+    ),
+    check(
+      'body_compositions_muscle_mass_kg_range',
+      sql`${table.muscleMassKg} IS NULL OR ${table.muscleMassKg} BETWEEN 5 AND 200`,
+    ),
+    check(
+      'body_compositions_skeletal_muscle_percent_range',
+      sql`${table.skeletalMusclePercent} IS NULL OR ${table.skeletalMusclePercent} BETWEEN 1 AND 75`,
+    ),
     unique('body_compositions_measurement_key')
       .on(
         table.measuredDate,

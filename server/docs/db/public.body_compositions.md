@@ -20,16 +20,19 @@ Measured body composition records.
 
 ## Constraints
 
-| Name                                     | Type        | Definition                                                                                                                |
-| ---------------------------------------- | ----------- | ------------------------------------------------------------------------------------------------------------------------- |
-| body_compositions_created_at_not_null    | n           | NOT NULL created_at                                                                                                       |
-| body_compositions_device_not_null        | n           | NOT NULL device                                                                                                           |
-| body_compositions_has_value              | CHECK       | CHECK ((num_nonnulls(body_fat_percent, muscle_mass_kg, skeletal_muscle_percent) >= 1))                                    |
-| body_compositions_id_not_null            | n           | NOT NULL id                                                                                                               |
-| body_compositions_measured_date_not_null | n           | NOT NULL measured_date                                                                                                    |
-| body_compositions_updated_at_not_null    | n           | NOT NULL updated_at                                                                                                       |
-| body_compositions_pkey                   | PRIMARY KEY | PRIMARY KEY (id)                                                                                                          |
-| body_compositions_measurement_key        | UNIQUE      | UNIQUE NULLS NOT DISTINCT (measured_date, measured_at, device, body_fat_percent, muscle_mass_kg, skeletal_muscle_percent) |
+| Name                                            | Type        | Definition                                                                                                                                |
+| ----------------------------------------------- | ----------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
+| body_compositions_body_fat_percent_range        | CHECK       | CHECK (((body_fat_percent IS NULL) OR ((body_fat_percent >= (1)::numeric) AND (body_fat_percent <= (75)::numeric))))                      |
+| body_compositions_created_at_not_null           | n           | NOT NULL created_at                                                                                                                       |
+| body_compositions_device_not_null               | n           | NOT NULL device                                                                                                                           |
+| body_compositions_has_value                     | CHECK       | CHECK ((num_nonnulls(body_fat_percent, muscle_mass_kg, skeletal_muscle_percent) >= 1))                                                    |
+| body_compositions_id_not_null                   | n           | NOT NULL id                                                                                                                               |
+| body_compositions_measured_date_not_null        | n           | NOT NULL measured_date                                                                                                                    |
+| body_compositions_muscle_mass_kg_range          | CHECK       | CHECK (((muscle_mass_kg IS NULL) OR ((muscle_mass_kg >= (5)::numeric) AND (muscle_mass_kg <= (200)::numeric))))                           |
+| body_compositions_skeletal_muscle_percent_range | CHECK       | CHECK (((skeletal_muscle_percent IS NULL) OR ((skeletal_muscle_percent >= (1)::numeric) AND (skeletal_muscle_percent <= (75)::numeric)))) |
+| body_compositions_updated_at_not_null           | n           | NOT NULL updated_at                                                                                                                       |
+| body_compositions_pkey                          | PRIMARY KEY | PRIMARY KEY (id)                                                                                                                          |
+| body_compositions_measurement_key               | UNIQUE      | UNIQUE NULLS NOT DISTINCT (measured_date, measured_at, device, body_fat_percent, muscle_mass_kg, skeletal_muscle_percent)                 |
 
 ## Indexes
 

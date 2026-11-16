@@ -619,7 +619,22 @@ describeIfDb('schema migrations', () => {
     `
     expect(rows).toEqual([
       {
+        conname: 'body_compositions_body_fat_percent_range',
+        table_name: 'body_compositions',
+        validated: true,
+      },
+      {
         conname: 'body_compositions_has_value',
+        table_name: 'body_compositions',
+        validated: true,
+      },
+      {
+        conname: 'body_compositions_muscle_mass_kg_range',
+        table_name: 'body_compositions',
+        validated: true,
+      },
+      {
+        conname: 'body_compositions_skeletal_muscle_percent_range',
         table_name: 'body_compositions',
         validated: true,
       },

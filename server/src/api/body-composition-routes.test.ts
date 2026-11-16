@@ -63,6 +63,22 @@ const normalizeRow = (row: z.infer<typeof responseRowSchema>) => ({
   updatedAt: '<timestamp>',
 })
 
+const expectBadRequests = async (
+  responses: ReadonlyArray<Promise<Response>>,
+  expectedErrors: ReadonlyArray<string>,
+): Promise<void> => {
+  const resolved = await Promise.all(responses)
+  const errors = z
+    .array(responseErrorSchema)
+    .parse(await Promise.all(resolved.map((response) => response.json())))
+
+  expect(
+    captureOutput(
+      resolved.map((response, index) => [response.status, errors[index]]),
+    ),
+  ).toEqual(expectedErrors.map((error) => [400, { error }]))
+}
+
 describeIfDb('body composition API routes', () => {
   const getTx = setupDrizzleTx()
 
@@ -259,6 +275,19 @@ describeIfDb('body composition API routes', () => {
     })
   })
 
+  it('rejects a reversed date range', async () => {
+    const app = createTestApp(getTx())
+    const response = await app.request(
+      '/api/body-compositions?from=2026-11-17&to=2026-11-16',
+    )
+    const error = responseErrorSchema.parse(await response.json())
+
+    expect(captureOutput([response.status, error])).toEqual([
+      400,
+      { error: 'from must be on or before to' },
+    ])
+  })
+
   it('updates provided fields, preserves omitted fields, and trims the device', async () => {
     const tx = getTx()
     await seedBodyComposition(tx, {
@@ -277,6 +306,7 @@ describeIfDb('body composition API routes', () => {
       {
         bodyFatPercent: null,
         skeletalMusclePercent: 32.5,
+        measuredAt: null,
         device: '  Sample Scale  ',
       },
     )
@@ -289,7 +319,7 @@ describeIfDb('body composition API routes', () => {
       {
         id: 'composition_target',
         date: '2026-11-16',
-        measuredAt: '2026-11-16T06:00:00.000Z',
+        measuredAt: null,
         device: 'Sample Scale',
         bodyFatPercent: null,
         muscleMassKg: 48,
@@ -390,179 +420,150 @@ describeIfDb('body composition API routes', () => {
     ])
   })
 
-  it('rejects invalid dates, devices, absent values, future measurements, and invalid values', async () => {
+  it('rejects invalid or future dates and invalid measurement times', async () => {
     const app = createTestApp(getTx())
-    const requests = await Promise.all([
-      requestJson(app, '/api/body-compositions', 'POST', {
-        date: '2026-02-30',
-        device: 'Sample Scale',
-        bodyFatPercent: 24,
-      }),
-      requestJson(app, '/api/body-compositions', 'POST', {
-        date: '2026-11-17',
-        device: 'Sample Scale',
-        bodyFatPercent: 24,
-      }),
-      requestJson(app, '/api/body-compositions', 'POST', {
-        date: '2026-11-16',
-        device: 'Sample Scale',
-        bodyFatPercent: 24,
-        measuredAt: '2026-11-16T12:00:00.001Z',
-      }),
-      requestJson(app, '/api/body-compositions', 'POST', {
-        date: '2026-11-16',
-        device: 'Sample Scale',
-        bodyFatPercent: 24,
-        measuredAt: '2026-11-16T00:00:00+14:00',
-      }),
-      requestJson(app, '/api/body-compositions', 'POST', {
-        date: '2026-11-16',
-        device: '   ',
-        bodyFatPercent: 24,
-      }),
-      requestJson(app, '/api/body-compositions', 'POST', {
-        date: '2026-11-16',
-        device: 'x'.repeat(101),
-        bodyFatPercent: 24,
-      }),
-      requestJson(app, '/api/body-compositions', 'POST', {
-        date: '2026-11-16',
-        device: 'Sample Scale',
-      }),
-      requestJson(app, '/api/body-compositions', 'POST', {
-        date: '2026-11-16',
-        device: 'Sample Scale',
-        bodyFatPercent: 0.99,
-      }),
-      requestJson(app, '/api/body-compositions', 'POST', {
-        date: '2026-11-16',
-        device: 'Sample Scale',
-        bodyFatPercent: 75.01,
-      }),
-      requestJson(app, '/api/body-compositions', 'POST', {
-        date: '2026-11-16',
-        device: 'Sample Scale',
-        bodyFatPercent: 24.001,
-      }),
-      requestJson(app, '/api/body-compositions', 'POST', {
-        date: '2026-11-16',
-        device: 'Sample Scale',
-        muscleMassKg: 4.99,
-      }),
-      requestJson(app, '/api/body-compositions', 'POST', {
-        date: '2026-11-16',
-        device: 'Sample Scale',
-        muscleMassKg: 200.01,
-      }),
-      requestJson(app, '/api/body-compositions', 'POST', {
-        date: '2026-11-16',
-        device: 'Sample Scale',
-        muscleMassKg: 48.001,
-      }),
-      requestJson(app, '/api/body-compositions', 'POST', {
-        date: '2026-11-16',
-        device: 'Sample Scale',
-        skeletalMusclePercent: 0.99,
-      }),
-      requestJson(app, '/api/body-compositions', 'POST', {
-        date: '2026-11-16',
-        device: 'Sample Scale',
-        skeletalMusclePercent: 75.01,
-      }),
-      requestJson(app, '/api/body-compositions', 'POST', {
-        date: '2026-11-16',
-        device: 'Sample Scale',
-        skeletalMusclePercent: 33.001,
-      }),
-    ])
-    const errors = z
-      .array(responseErrorSchema)
-      .parse(await Promise.all(requests.map((response) => response.json())))
+    await expectBadRequests(
+      [
+        requestJson(app, '/api/body-compositions', 'POST', {
+          date: '2026-02-30',
+          device: 'Sample Scale',
+          bodyFatPercent: 24,
+        }),
+        requestJson(app, '/api/body-compositions', 'POST', {
+          date: '2026-11-17',
+          device: 'Sample Scale',
+          bodyFatPercent: 24,
+        }),
+        requestJson(app, '/api/body-compositions', 'POST', {
+          date: '2026-11-16',
+          device: 'Sample Scale',
+          bodyFatPercent: 24,
+          measuredAt: '2026-11-16T12:00:00.001Z',
+        }),
+        requestJson(app, '/api/body-compositions', 'POST', {
+          date: '2026-11-16',
+          device: 'Sample Scale',
+          bodyFatPercent: 24,
+          measuredAt: '2026-11-16T00:00:00+14:00',
+        }),
+      ],
+      [
+        'must be a valid YYYY-MM-DD JST calendar date, got: "2026-02-30"',
+        'body composition date is in the future: 2026-11-17',
+        'measuredAt must not be in the future',
+        'measuredAt must fall on the body composition date in JST',
+      ],
+    )
+  })
 
-    expect(
-      captureOutput(
-        requests.map((response, index) => [response.status, errors[index]]),
-      ),
-    ).toEqual([
+  it('requires a nonblank device name within 100 characters and one value', async () => {
+    const app = createTestApp(getTx())
+    await expectBadRequests(
       [
-        400,
-        {
-          error:
-            'must be a valid YYYY-MM-DD JST calendar date, got: "2026-02-30"',
-        },
-      ],
-      [400, { error: 'body composition date is in the future: 2026-11-17' }],
-      [400, { error: 'measuredAt must not be in the future' }],
-      [
-        400,
-        { error: 'measuredAt must fall on the body composition date in JST' },
-      ],
-      [400, { error: 'device must contain 1 to 100 characters' }],
-      [400, { error: 'device must contain 1 to 100 characters' }],
-      [400, { error: 'at least one body composition value is required' }],
-      [
-        400,
-        {
-          error:
-            'bodyFatPercent is outside its supported range or has more than 2 decimal places: 0.99',
-        },
+        requestJson(app, '/api/body-compositions', 'POST', {
+          date: '2026-11-16',
+          device: '   ',
+          bodyFatPercent: 24,
+        }),
+        requestJson(app, '/api/body-compositions', 'POST', {
+          date: '2026-11-16',
+          device: 'x'.repeat(101),
+          bodyFatPercent: 24,
+        }),
+        requestJson(app, '/api/body-compositions', 'POST', {
+          date: '2026-11-16',
+          device: 'Sample Scale',
+        }),
       ],
       [
-        400,
-        {
-          error:
-            'bodyFatPercent is outside its supported range or has more than 2 decimal places: 75.01',
-        },
+        'device must contain 1 to 100 characters',
+        'device must contain 1 to 100 characters',
+        'at least one body composition value is required',
+      ],
+    )
+  })
+
+  it('rejects body fat percentages outside their range or precision', async () => {
+    const app = createTestApp(getTx())
+    await expectBadRequests(
+      [
+        requestJson(app, '/api/body-compositions', 'POST', {
+          date: '2026-11-16',
+          device: 'Sample Scale',
+          bodyFatPercent: 0.99,
+        }),
+        requestJson(app, '/api/body-compositions', 'POST', {
+          date: '2026-11-16',
+          device: 'Sample Scale',
+          bodyFatPercent: 75.01,
+        }),
+        requestJson(app, '/api/body-compositions', 'POST', {
+          date: '2026-11-16',
+          device: 'Sample Scale',
+          bodyFatPercent: 24.001,
+        }),
       ],
       [
-        400,
-        {
-          error:
-            'bodyFatPercent is outside its supported range or has more than 2 decimal places: 24.001',
-        },
+        'bodyFatPercent is outside its supported range or has more than 2 decimal places: 0.99',
+        'bodyFatPercent is outside its supported range or has more than 2 decimal places: 75.01',
+        'bodyFatPercent is outside its supported range or has more than 2 decimal places: 24.001',
+      ],
+    )
+  })
+
+  it('rejects muscle mass outside its range or precision', async () => {
+    const app = createTestApp(getTx())
+    await expectBadRequests(
+      [
+        requestJson(app, '/api/body-compositions', 'POST', {
+          date: '2026-11-16',
+          device: 'Sample Scale',
+          muscleMassKg: 4.99,
+        }),
+        requestJson(app, '/api/body-compositions', 'POST', {
+          date: '2026-11-16',
+          device: 'Sample Scale',
+          muscleMassKg: 200.01,
+        }),
+        requestJson(app, '/api/body-compositions', 'POST', {
+          date: '2026-11-16',
+          device: 'Sample Scale',
+          muscleMassKg: 48.001,
+        }),
       ],
       [
-        400,
-        {
-          error:
-            'muscleMassKg is outside its supported range or has more than 2 decimal places: 4.99',
-        },
+        'muscleMassKg is outside its supported range or has more than 2 decimal places: 4.99',
+        'muscleMassKg is outside its supported range or has more than 2 decimal places: 200.01',
+        'muscleMassKg is outside its supported range or has more than 2 decimal places: 48.001',
+      ],
+    )
+  })
+
+  it('rejects skeletal muscle percentages outside their range or precision', async () => {
+    const app = createTestApp(getTx())
+    await expectBadRequests(
+      [
+        requestJson(app, '/api/body-compositions', 'POST', {
+          date: '2026-11-16',
+          device: 'Sample Scale',
+          skeletalMusclePercent: 0.99,
+        }),
+        requestJson(app, '/api/body-compositions', 'POST', {
+          date: '2026-11-16',
+          device: 'Sample Scale',
+          skeletalMusclePercent: 75.01,
+        }),
+        requestJson(app, '/api/body-compositions', 'POST', {
+          date: '2026-11-16',
+          device: 'Sample Scale',
+          skeletalMusclePercent: 33.001,
+        }),
       ],
       [
-        400,
-        {
-          error:
-            'muscleMassKg is outside its supported range or has more than 2 decimal places: 200.01',
-        },
+        'skeletalMusclePercent is outside its supported range or has more than 2 decimal places: 0.99',
+        'skeletalMusclePercent is outside its supported range or has more than 2 decimal places: 75.01',
+        'skeletalMusclePercent is outside its supported range or has more than 2 decimal places: 33.001',
       ],
-      [
-        400,
-        {
-          error:
-            'muscleMassKg is outside its supported range or has more than 2 decimal places: 48.001',
-        },
-      ],
-      [
-        400,
-        {
-          error:
-            'skeletalMusclePercent is outside its supported range or has more than 2 decimal places: 0.99',
-        },
-      ],
-      [
-        400,
-        {
-          error:
-            'skeletalMusclePercent is outside its supported range or has more than 2 decimal places: 75.01',
-        },
-      ],
-      [
-        400,
-        {
-          error:
-            'skeletalMusclePercent is outside its supported range or has more than 2 decimal places: 33.001',
-        },
-      ],
-    ])
+    )
   })
 })
