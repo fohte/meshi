@@ -274,6 +274,17 @@ erDiagram
   timestamp_with_time_zone created_at
   timestamp_with_time_zone updated_at
 }
+"public.body_compositions" {
+  text id
+  date measured_date
+  timestamp_with_time_zone measured_at
+  text device
+  numeric_4_2_ body_fat_percent
+  numeric_5_2_ muscle_mass_kg
+  numeric_4_2_ skeletal_muscle_percent
+  timestamp_with_time_zone created_at
+  timestamp_with_time_zone updated_at
+}
 ```
 
 ---
