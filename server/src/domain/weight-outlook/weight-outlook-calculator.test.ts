@@ -253,16 +253,16 @@ it('returns a complete trend when the profile has no goal', () => {
   )
 })
 
-it('reports an upward goal reached when the trend stays at the target for seven days', () => {
-  const weights = linearWeights(75, 0)
-  expect(calculate(weights, START_DATE, 75)).toEqual(
+it('uses the upward comparison when the trend reaches the goal after six days above it', () => {
+  const weights = linearWeights(80.5, -0.5)
+  expect(calculate(weights, START_DATE, 67)).toEqual(
     expectedOutlook({
       weights,
       firstMeasurementDate: START_DATE,
-      goalWeightKg: 75,
+      goalWeightKg: 67,
       status: 'reached',
       reason: null,
-      linearTrend: { firstWeightKg: 75, slopeKgPerDay: 0 },
+      linearTrend: { firstWeightKg: 80.5, slopeKgPerDay: -0.5 },
     }),
   )
 })
