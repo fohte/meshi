@@ -1,6 +1,7 @@
 import type { McpServer } from '@modelcontextprotocol/server'
 import { z } from 'zod'
 
+import type { BodyCompositionService } from '#domain/body-composition/body-composition-service'
 import type { BodyWeightService } from '#domain/body-weight/body-weight-service'
 import type { FoodSearchService } from '#domain/food-browse/food-search-service'
 import type { FoodMasterService } from '#domain/food-master/service'
@@ -14,6 +15,7 @@ import type { StockService } from '#domain/stock/types'
 import type { UserProfileService } from '#domain/user-profile/user-profile-service'
 import type { Logger } from '#logger'
 import { registerAddFoodNutritionVersionTool } from '#mcp-tools/add-food-nutrition-version'
+import { registerBodyCompositionTools } from '#mcp-tools/body-composition'
 import { registerBodyWeightTools } from '#mcp-tools/body-weight'
 import { registerCountStockTool } from '#mcp-tools/count-stock'
 import { registerDeleteMealLogTool } from '#mcp-tools/delete-meal-log'
@@ -47,6 +49,7 @@ import { registerUpdateMealLogTool } from '#mcp-tools/update-meal-log'
 import { registerUpdateStockLotTool } from '#mcp-tools/update-stock-lot'
 
 export interface MeshiToolDeps {
+  readonly bodyCompositionService: BodyCompositionService
   readonly bodyWeightService: BodyWeightService
   readonly mealHistoryService: MealHistoryService
   readonly profileService: UserProfileService
@@ -66,6 +69,7 @@ export const registerMeshiTools = (
   deps: MeshiToolDeps,
 ): void => {
   const {
+    bodyCompositionService,
     bodyWeightService,
     mealHistoryService,
     profileService,
@@ -86,6 +90,7 @@ export const registerMeshiTools = (
     mealLogService,
     logger,
   })
+  registerBodyCompositionTools(server, { bodyCompositionService, logger })
   registerBodyWeightTools(server, { bodyWeightService, logger })
   registerMealSetTool(server, { mealSetService, logger })
   registerMealSkipTools(server, { mealSkipService, logger })

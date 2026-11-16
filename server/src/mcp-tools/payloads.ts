@@ -1,5 +1,6 @@
 import type { CallToolResult } from '@modelcontextprotocol/server'
 
+import type { BodyComposition } from '#domain/body-composition/types'
 import type { BodyWeight } from '#domain/body-weight/types'
 import { toMealHistoryPayload } from '#domain/meal-history/mealHistoryPayload'
 import type { MealHistoryAggregate } from '#domain/meal-history/types'
@@ -26,14 +27,16 @@ export const errorResult = (
   err: unknown,
   options: {
     readonly code?: string
+    readonly logMessage?: string
     readonly structuredContent?: Record<string, unknown>
   } = {},
 ): CallToolResult => {
   const message = err instanceof Error ? err.message : String(err)
+  const logMessage = options.logMessage ?? message
   const code =
     options.code ??
     (err instanceof Error && err.name !== 'Error' ? err.name : 'internal_error')
-  logger.log(TOOL_FAILED, { tool: toolName, code, message })
+  logger.log(TOOL_FAILED, { tool: toolName, code, message: logMessage })
   return {
     isError: true,
     content: [{ type: 'text', text: toErrorSummary(message) }],
@@ -42,6 +45,20 @@ export const errorResult = (
       : { structuredContent: options.structuredContent }),
   }
 }
+
+export const errorResultWithCode = (
+  logger: Logger,
+  toolName: string,
+  error: { readonly code: string; readonly message: string },
+  options: { readonly logMessage?: string } = {},
+) =>
+  errorResult(logger, toolName, error, {
+    code: error.code,
+    structuredContent: {
+      error: { code: error.code, message: error.message },
+    },
+    ...options,
+  })
 
 export const buildMealHistoryPayload = (
   aggregate: MealHistoryAggregate,
@@ -56,6 +73,20 @@ export const buildBodyWeightPayload = (bodyWeight: BodyWeight) => ({
   weight_kg: bodyWeight.weightKg,
   created_at: bodyWeight.createdAt.toISOString(),
   updated_at: bodyWeight.updatedAt.toISOString(),
+})
+
+export const buildBodyCompositionPayload = (
+  bodyComposition: BodyComposition,
+) => ({
+  body_composition_id: bodyComposition.id,
+  date: bodyComposition.date,
+  measured_at: bodyComposition.measuredAt?.toISOString() ?? null,
+  device: bodyComposition.device,
+  body_fat_percent: bodyComposition.bodyFatPercent,
+  muscle_mass_kg: bodyComposition.muscleMassKg,
+  skeletal_muscle_percent: bodyComposition.skeletalMusclePercent,
+  created_at: bodyComposition.createdAt.toISOString(),
+  updated_at: bodyComposition.updatedAt.toISOString(),
 })
 
 export const buildMealLogMutationPayload = (

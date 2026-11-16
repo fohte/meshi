@@ -14,22 +14,10 @@ import {
 } from '#mcp-tools/body-weight-schemas'
 import {
   buildBodyWeightPayload,
-  errorResult,
+  errorResultWithCode,
   TOOL_CALLED,
   TOOL_SUCCEEDED,
 } from '#mcp-tools/payloads'
-
-const errorResultWithCode = (
-  logger: Logger,
-  toolName: string,
-  error: { readonly code: string; readonly message: string },
-) =>
-  errorResult(logger, toolName, error, {
-    code: error.code,
-    structuredContent: {
-      error: { code: error.code, message: error.message },
-    },
-  })
 
 export const registerBodyWeightTools = (
   server: McpServer,
