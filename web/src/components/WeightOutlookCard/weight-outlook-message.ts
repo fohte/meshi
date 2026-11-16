@@ -39,7 +39,7 @@ export const getWeightOutlookMessage = (
     case 'not_approaching':
       return '現在のトレンドでは、目標体重に近づいていません。'
     case 'no_arrival_estimate':
-      return '予測できる期間内には目標体重に届きません。'
+      return '予測期間内の到達時期は見積もれません。'
     case 'arrival_estimate':
       if (outlook.arrivalDateRange === null) {
         return '到達時期を見積もれません。'

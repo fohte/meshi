@@ -65,7 +65,7 @@ describe('getWeightOutlookMessage', () => {
       null,
       null,
       63.4,
-      '予測できる期間内には目標体重に届きません。',
+      '予測期間内の到達時期は見積もれません。',
     ],
     [
       'arrival_estimate',
