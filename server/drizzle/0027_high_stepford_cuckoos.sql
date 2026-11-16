@@ -9,5 +9,8 @@ CREATE TABLE "body_compositions" (
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
 	"updated_at" timestamp with time zone DEFAULT now() NOT NULL,
 	CONSTRAINT "body_compositions_measurement_key" UNIQUE NULLS NOT DISTINCT("measured_date","measured_at","device","body_fat_percent","muscle_mass_kg","skeletal_muscle_percent"),
+	CONSTRAINT "body_compositions_body_fat_percent_range" CHECK ("body_compositions"."body_fat_percent" IS NULL OR "body_compositions"."body_fat_percent" BETWEEN 1 AND 75),
+	CONSTRAINT "body_compositions_muscle_mass_kg_range" CHECK ("body_compositions"."muscle_mass_kg" IS NULL OR "body_compositions"."muscle_mass_kg" BETWEEN 5 AND 200),
+	CONSTRAINT "body_compositions_skeletal_muscle_percent_range" CHECK ("body_compositions"."skeletal_muscle_percent" IS NULL OR "body_compositions"."skeletal_muscle_percent" BETWEEN 1 AND 75),
 	CONSTRAINT "body_compositions_has_value" CHECK (num_nonnulls("body_compositions"."body_fat_percent", "body_compositions"."muscle_mass_kg", "body_compositions"."skeletal_muscle_percent") >= 1)
 );

@@ -179,6 +179,76 @@ describeIfDb('body composition API routes', () => {
     })
   })
 
+  it('roundtrips all values and returns the existing row on resend', async () => {
+    const tx = getTx()
+    const app = createTestApp(tx)
+    const input = {
+      date: '2026-11-15',
+      measuredAt: '2026-11-15T23:30:00+09:00',
+      device: 'Sample Scale',
+      bodyFatPercent: 23.45,
+      muscleMassKg: 52.35,
+      skeletalMusclePercent: 34.56,
+    }
+    const response = await requestJson(
+      app,
+      '/api/body-compositions',
+      'POST',
+      input,
+    )
+    const row = responseRowSchema.parse(await response.json())
+    const resendResponse = await requestJson(
+      app,
+      '/api/body-compositions',
+      'POST',
+      input,
+    )
+    const resend = responseRowSchema.parse(await resendResponse.json())
+    const persistedIds = await tx<{ id: string }[]>`
+      SELECT id FROM body_compositions ORDER BY id
+    `
+
+    expect(
+      captureOutput({
+        responses: [
+          response.status,
+          normalizeRow(row),
+          resendResponse.status,
+          normalizeRow(resend),
+        ],
+        persistedIds: persistedIds.map(({ id }) => id),
+      }),
+    ).toEqual({
+      responses: [
+        201,
+        {
+          id: 'body_composition_1',
+          date: '2026-11-15',
+          measuredAt: '2026-11-15T14:30:00.000Z',
+          device: 'Sample Scale',
+          bodyFatPercent: 23.45,
+          muscleMassKg: 52.35,
+          skeletalMusclePercent: 34.56,
+          createdAt: '<timestamp>',
+          updatedAt: '<timestamp>',
+        },
+        201,
+        {
+          id: 'body_composition_1',
+          date: '2026-11-15',
+          measuredAt: '2026-11-15T14:30:00.000Z',
+          device: 'Sample Scale',
+          bodyFatPercent: 23.45,
+          muscleMassKg: 52.35,
+          skeletalMusclePercent: 34.56,
+          createdAt: '<timestamp>',
+          updatedAt: '<timestamp>',
+        },
+      ],
+      persistedIds: ['body_composition_1'],
+    })
+  })
+
   it('lists the inclusive date range in date and measurement time order', async () => {
     const tx = getTx()
     await seedBodyComposition(tx, {

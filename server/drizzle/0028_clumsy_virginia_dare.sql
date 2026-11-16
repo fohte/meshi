@@ -1,3 +1,0 @@
-ALTER TABLE "body_compositions" ADD CONSTRAINT "body_compositions_body_fat_percent_range" CHECK ("body_compositions"."body_fat_percent" IS NULL OR "body_compositions"."body_fat_percent" BETWEEN 1 AND 75);--> statement-breakpoint
-ALTER TABLE "body_compositions" ADD CONSTRAINT "body_compositions_muscle_mass_kg_range" CHECK ("body_compositions"."muscle_mass_kg" IS NULL OR "body_compositions"."muscle_mass_kg" BETWEEN 5 AND 200);--> statement-breakpoint
-ALTER TABLE "body_compositions" ADD CONSTRAINT "body_compositions_skeletal_muscle_percent_range" CHECK ("body_compositions"."skeletal_muscle_percent" IS NULL OR "body_compositions"."skeletal_muscle_percent" BETWEEN 1 AND 75);
