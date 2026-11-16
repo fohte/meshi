@@ -8,19 +8,16 @@ import {
 import { fetchUserProfile, PROFILE_QUERY_KEY } from '#api/profile'
 import { toPromise } from '#api/to-promise'
 import { ErrorRetry } from '#components/ErrorRetry/ErrorRetry'
+import {
+  HistoryTabs,
+  type HistoryViewName,
+} from '#components/HistoryTabs/HistoryTabs'
 import { Skeleton } from '#components/Skeleton/Skeleton'
+import { HistoryBodyWeightView } from '#pages/history/HistoryBodyWeightView'
 import { HistoryCalendarView } from '#pages/history/HistoryCalendarView'
 import { HistoryListView } from '#pages/history/HistoryListView'
 import { HistoryReportView } from '#pages/history/HistoryReportView'
 import styles from '#pages/HistoryPage.module.css'
-
-const HISTORY_VIEWS = [
-  ['calendar', 'カレンダー'],
-  ['list', 'リスト'],
-  ['report', 'レポート'],
-] as const
-
-type HistoryViewName = (typeof HISTORY_VIEWS)[number][0]
 
 export const HistoryPage = (): React.JSX.Element => {
   const [view, setView] = useState<HistoryViewName>('calendar')
@@ -48,31 +45,24 @@ export const HistoryPage = (): React.JSX.Element => {
       <h1 className={styles.heading}>
         <span className={styles.hash}>#</span> 履歴
       </h1>
-      <div className={styles.tabs}>
-        {HISTORY_VIEWS.map(([name, label]) => (
-          <button
-            key={name}
-            type="button"
-            className={styles.tab}
-            data-active={view === name ? '' : undefined}
-            onClick={() => {
-              setView(name)
-            }}
-          >
-            {label}
-          </button>
-        ))}
-      </div>
+      <HistoryTabs
+        activeView={view}
+        onViewChange={(nextView) => {
+          setView(nextView)
+        }}
+      />
 
-      {isError && <ErrorRetry onRetry={retry} />}
+      {view === 'weight' && <HistoryBodyWeightView />}
 
-      {isPending && !isError && (
+      {view !== 'weight' && isError && <ErrorRetry onRetry={retry} />}
+
+      {view !== 'weight' && isPending && !isError && (
         <div className={styles.skeletonStack}>
           <Skeleton height={320} />
         </div>
       )}
 
-      {!isPending && !isError && (
+      {view !== 'weight' && !isPending && !isError && (
         <>
           {view === 'calendar' && (
             <HistoryCalendarView targets={profileQuery.data.dailyTargets} />
