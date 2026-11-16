@@ -1,0 +1,5 @@
+export * from '#domain/body-composition/body-composition-repository'
+export * from '#domain/body-composition/body-composition-service'
+export * from '#domain/body-composition/drizzle-body-composition-repository'
+export * from '#domain/body-composition/errors'
+export * from '#domain/body-composition/types'

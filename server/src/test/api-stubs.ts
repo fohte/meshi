@@ -1,6 +1,7 @@
 import { errAsync, okAsync } from 'neverthrow'
 
 import type { ApiDeps } from '#api/index'
+import { BodyCompositionPersistenceError } from '#domain/body-composition/errors'
 import { BodyWeightPersistenceError } from '#domain/body-weight/errors'
 import { FoodMasterDomainError } from '#domain/food-master/errors'
 import { MealLogPersistenceError } from '#domain/meal-log/errors'
@@ -38,6 +39,27 @@ export const createStubApiDeps = (): ApiDeps => ({
     delete: () =>
       errAsync(
         new BodyWeightPersistenceError('bodyWeightService.delete not stubbed'),
+      ),
+  },
+  bodyCompositionService: {
+    record: () =>
+      errAsync(
+        new BodyCompositionPersistenceError(
+          'bodyCompositionService.record not stubbed',
+        ),
+      ),
+    list: () => okAsync([]),
+    update: () =>
+      errAsync(
+        new BodyCompositionPersistenceError(
+          'bodyCompositionService.update not stubbed',
+        ),
+      ),
+    delete: () =>
+      errAsync(
+        new BodyCompositionPersistenceError(
+          'bodyCompositionService.delete not stubbed',
+        ),
       ),
   },
   dayDetailService: {

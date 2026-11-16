@@ -7,6 +7,7 @@ import { ResultAsync } from 'neverthrow'
 import { mountApiRoutes } from '#api/index'
 import type { Sql } from '#db/index'
 import { pingDb } from '#db/index'
+import type { BodyCompositionService } from '#domain/body-composition/body-composition-service'
 import type { BodyWeightService } from '#domain/body-weight/body-weight-service'
 import type { DayDetailService } from '#domain/day-detail/types'
 import type { FoodBrowseService } from '#domain/food-browse/types'
@@ -29,6 +30,7 @@ export interface AppDeps {
   sql: Sql
   mealHistoryService: MealHistoryService
   bodyWeightService: BodyWeightService
+  bodyCompositionService: BodyCompositionService
   dayDetailService: DayDetailService
   nutrientDefinitionRepository: NutrientDefinitionRepository
   userProfileService: UserProfileService
@@ -59,6 +61,7 @@ export const createApp = (deps: AppDeps): Hono => {
   mountApiRoutes(app, {
     mealHistoryService: deps.mealHistoryService,
     bodyWeightService: deps.bodyWeightService,
+    bodyCompositionService: deps.bodyCompositionService,
     dayDetailService: deps.dayDetailService,
     nutrientDefinitionRepository: deps.nutrientDefinitionRepository,
     userProfileService: deps.userProfileService,
