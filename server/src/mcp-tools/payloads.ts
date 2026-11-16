@@ -27,14 +27,16 @@ export const errorResult = (
   err: unknown,
   options: {
     readonly code?: string
+    readonly logMessage?: string
     readonly structuredContent?: Record<string, unknown>
   } = {},
 ): CallToolResult => {
   const message = err instanceof Error ? err.message : String(err)
+  const logMessage = options.logMessage ?? message
   const code =
     options.code ??
     (err instanceof Error && err.name !== 'Error' ? err.name : 'internal_error')
-  logger.log(TOOL_FAILED, { tool: toolName, code, message })
+  logger.log(TOOL_FAILED, { tool: toolName, code, message: logMessage })
   return {
     isError: true,
     content: [{ type: 'text', text: toErrorSummary(message) }],
@@ -43,6 +45,20 @@ export const errorResult = (
       : { structuredContent: options.structuredContent }),
   }
 }
+
+export const errorResultWithCode = (
+  logger: Logger,
+  toolName: string,
+  error: { readonly code: string; readonly message: string },
+  options: { readonly logMessage?: string } = {},
+) =>
+  errorResult(logger, toolName, error, {
+    code: error.code,
+    structuredContent: {
+      error: { code: error.code, message: error.message },
+    },
+    ...options,
+  })
 
 export const buildMealHistoryPayload = (
   aggregate: MealHistoryAggregate,

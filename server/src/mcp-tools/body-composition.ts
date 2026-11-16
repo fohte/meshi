@@ -15,22 +15,10 @@ import {
 } from '#mcp-tools/body-composition-schemas'
 import {
   buildBodyCompositionPayload,
-  errorResult,
+  errorResultWithCode,
   TOOL_CALLED,
   TOOL_SUCCEEDED,
 } from '#mcp-tools/payloads'
-
-const errorResultWithCode = (
-  logger: Logger,
-  toolName: string,
-  error: { readonly code: string; readonly message: string },
-) =>
-  errorResult(logger, toolName, error, {
-    code: error.code,
-    structuredContent: {
-      error: { code: error.code, message: error.message },
-    },
-  })
 
 export const registerBodyCompositionTools = (
   server: McpServer,
@@ -79,7 +67,9 @@ export const registerBodyCompositionTools = (
             }
           },
           (error) =>
-            errorResultWithCode(logger, 'record_body_composition', error),
+            errorResultWithCode(logger, 'record_body_composition', error, {
+              logMessage: error.code,
+            }),
         )
     },
   )
@@ -111,7 +101,10 @@ export const registerBodyCompositionTools = (
             structuredContent: { body_compositions: payload },
           }
         },
-        (error) => errorResultWithCode(logger, 'list_body_compositions', error),
+        (error) =>
+          errorResultWithCode(logger, 'list_body_compositions', error, {
+            logMessage: error.code,
+          }),
       )
     },
   )
@@ -158,7 +151,9 @@ export const registerBodyCompositionTools = (
             }
           },
           (error) =>
-            errorResultWithCode(logger, 'update_body_composition', error),
+            errorResultWithCode(logger, 'update_body_composition', error, {
+              logMessage: error.code,
+            }),
         )
     },
   )
@@ -186,7 +181,9 @@ export const registerBodyCompositionTools = (
           }
         },
         (error) =>
-          errorResultWithCode(logger, 'delete_body_composition', error),
+          errorResultWithCode(logger, 'delete_body_composition', error, {
+            logMessage: error.code,
+          }),
       )
     },
   )

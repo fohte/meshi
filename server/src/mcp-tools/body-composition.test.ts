@@ -15,6 +15,7 @@ import {
   InvalidBodyCompositionValueError,
 } from '#domain/body-composition/errors'
 import type { BodyComposition } from '#domain/body-composition/types'
+import type { Logger } from '#logger'
 import { createMcpServer } from '#mcp'
 import { describeIfDb, setupDrizzleTx } from '#test/db'
 import { jstDate } from '#test/jst-date'
@@ -65,11 +66,12 @@ interface Harness {
 
 const start = async (
   bodyCompositionService: BodyCompositionService,
+  logger: Logger = createNullLogger(),
 ): Promise<Harness> => {
   const server = createMcpServer({
     ...createStubMcpDeps(),
     bodyCompositionService,
-    logger: createNullLogger(),
+    logger,
   })
   const [clientTransport, serverTransport] =
     InMemoryTransport.createLinkedPair()
@@ -157,7 +159,7 @@ describe('body composition MCP tools', () => {
       serviceWith({
         record(input) {
           calls.push(input)
-          return okAsync(bodyComposition)
+          return okAsync({ ...bodyComposition, skeletalMusclePercent: 35.25 })
         },
       }),
     )
@@ -193,7 +195,7 @@ describe('body composition MCP tools', () => {
             device: 'Example Scale A',
             body_fat_percent: 22.5,
             muscle_mass_kg: 48.75,
-            skeletal_muscle_percent: null,
+            skeletal_muscle_percent: 35.25,
             created_at: '2026-10-12T01:31:00.000Z',
             updated_at: '2026-10-12T01:32:00.000Z',
           },
@@ -206,24 +208,51 @@ describe('body composition MCP tools', () => {
 
   it('maps invalid values to structured domain errors', async () => {
     const error = new InvalidBodyCompositionValueError('bodyFatPercent', 0.5)
-    const h = await start(serviceWith({ record: () => errAsync(error) }))
+    const logs: {
+      readonly event: string
+      readonly payload: Readonly<Record<string, unknown>>
+    }[] = []
+    const h = await start(serviceWith({ record: () => errAsync(error) }), {
+      log(event, payload) {
+        logs.push({ event, payload: payload ?? {} })
+      },
+    })
     try {
       expect(
-        await h.client.callTool({
-          name: 'record_body_composition',
-          arguments: {
-            date: '2026-10-12',
-            device: 'Example Scale A',
-            body_fat_percent: 0.5,
-          },
+        observation({
+          logs,
+          result: await h.client.callTool({
+            name: 'record_body_composition',
+            arguments: {
+              date: '2026-10-12',
+              device: 'Example Scale A',
+              body_fat_percent: 0.5,
+            },
+          }),
         }),
       ).toEqual({
-        content: [{ type: 'text', text: error.message }],
-        isError: true,
-        structuredContent: {
-          error: {
-            code: 'body_composition/invalid_value',
-            message: error.message,
+        logs: [
+          {
+            event: 'meshi.tool_called',
+            payload: { tool: 'record_body_composition' },
+          },
+          {
+            event: 'meshi.tool_failed',
+            payload: {
+              tool: 'record_body_composition',
+              code: 'body_composition/invalid_value',
+              message: 'body_composition/invalid_value',
+            },
+          },
+        ],
+        result: {
+          content: [{ type: 'text', text: error.message }],
+          isError: true,
+          structuredContent: {
+            error: {
+              code: 'body_composition/invalid_value',
+              message: error.message,
+            },
           },
         },
       })
