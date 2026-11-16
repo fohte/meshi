@@ -777,6 +777,7 @@ const start = async (config: HarnessConfig = {}): Promise<Harness> => {
     mealSkipService,
     mealPlanService,
     stockService: createStubMcpDeps().stockService,
+    bodyCompositionService: createStubMcpDeps().bodyCompositionService,
     bodyWeightService: createStubMcpDeps().bodyWeightService,
     profileService,
     foodSearchService,
@@ -806,7 +807,7 @@ const start = async (config: HarnessConfig = {}): Promise<Harness> => {
 }
 
 describe('MeshiMcpServer tools/list', () => {
-  it('exposes the thirty-four public tools with stable names', async () => {
+  it('exposes the thirty-eight public tools with stable names', async () => {
     const h = await start()
     try {
       const result = await h.client.listTools()
@@ -816,12 +817,14 @@ describe('MeshiMcpServer tools/list', () => {
         'cancel_meal_plan',
         'cancel_meal_skip',
         'count_stock',
+        'delete_body_composition',
         'delete_body_weight',
         'delete_meal_log',
         'fill_food_nutrition',
         'get_profile',
         'get_recommendation_context',
         'get_stock_status',
+        'list_body_compositions',
         'list_body_weights',
         'list_deliveries',
         'list_food_nutrition_versions',
@@ -830,6 +833,7 @@ describe('MeshiMcpServer tools/list', () => {
         'query_meals',
         'reassign_meal_log_nutrition',
         'receive_delivery',
+        'record_body_composition',
         'record_body_weight',
         'record_meal_log',
         'record_meal_skip',
@@ -841,6 +845,7 @@ describe('MeshiMcpServer tools/list', () => {
         'save_meal_plan',
         'search_foods',
         'set_stock_item',
+        'update_body_composition',
         'update_body_weight',
         'update_delivery_source_ref',
         'update_meal_log',
@@ -1002,6 +1007,7 @@ describe('MeshiMcpServer tools/list', () => {
         ],
         cancel_meal_skip: ['date', 'meal_type'],
         cancel_meal_plan: ['meal_plan_id'],
+        delete_body_composition: ['body_composition_id'],
         delete_body_weight: ['body_weight_id'],
         count_stock: [
           'best_before',
@@ -1021,6 +1027,7 @@ describe('MeshiMcpServer tools/list', () => {
         get_recommendation_context: ['period_from', 'period_to'],
         get_stock_status: [],
         list_deliveries: ['delivery_id', 'limit', 'source_ref', 'status'],
+        list_body_compositions: ['from', 'to'],
         list_body_weights: ['from', 'to'],
         list_food_nutrition_versions: ['food_master_id'],
         list_meal_plans: ['period_from', 'period_to'],
@@ -1038,6 +1045,14 @@ describe('MeshiMcpServer tools/list', () => {
           'to_nutrition_version_id',
         ],
         receive_delivery: ['delivery_id', 'items', 'received_date'],
+        record_body_composition: [
+          'body_fat_percent',
+          'date',
+          'device',
+          'measured_at',
+          'muscle_mass_kg',
+          'skeletal_muscle_percent',
+        ],
         record_body_weight: ['date', 'measured_at', 'weight_kg'],
         record_meal_log: ['date', 'items', 'meal_plan_id', 'meal_type'],
         record_meal_skip: ['date', 'meal_type'],
@@ -1060,6 +1075,15 @@ describe('MeshiMcpServer tools/list', () => {
         ],
         update_stock_lot: ['best_before', 'eat_by', 'stock_lot_id'],
         update_delivery_source_ref: ['delivery_id', 'source_ref'],
+        update_body_composition: [
+          'body_composition_id',
+          'body_fat_percent',
+          'date',
+          'device',
+          'measured_at',
+          'muscle_mass_kg',
+          'skeletal_muscle_percent',
+        ],
         update_body_weight: [
           'body_weight_id',
           'date',

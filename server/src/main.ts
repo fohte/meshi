@@ -148,6 +148,7 @@ export const main = async (): Promise<void> => {
   )
   const logger = createJsonStdoutLogger()
   const toolDeps: MeshiToolDeps = {
+    bodyCompositionService,
     bodyWeightService,
     mealHistoryService,
     profileService: userProfileService,

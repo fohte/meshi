@@ -8,6 +8,10 @@ import { createDrizzleUserProfileRepository } from '#adapters/db/drizzle-user-pr
 import type { Sql } from '#db/index'
 import { upsertNutrientDefinitions } from '#db/seed/nutrient-definitions'
 import {
+  createBodyCompositionService,
+  createDrizzleBodyCompositionRepository,
+} from '#domain/body-composition/index'
+import {
   createBodyWeightService,
   createDrizzleBodyWeightRepository,
 } from '#domain/body-weight/index'
@@ -164,6 +168,11 @@ const startHarness = async (opts: HarnessOptions): Promise<Harness> => {
     idGenerator: () => randomUUID(),
     now: () => new Date('2026-06-12T22:00:00+09:00'),
   })
+  const bodyCompositionService = createBodyCompositionService({
+    repository: createDrizzleBodyCompositionRepository(tx),
+    idGenerator: () => randomUUID(),
+    now: () => new Date(),
+  })
   const mealPlanService = createMealPlanService({
     repository: createDrizzleMealPlanRepository(tx, {
       wrapInTransaction: false,
@@ -195,6 +204,7 @@ const startHarness = async (opts: HarnessOptions): Promise<Harness> => {
   // so restore them.
   restoreTimestampHandlers(tx, timestampSnapshot)
   const server = createMcpServer({
+    bodyCompositionService,
     bodyWeightService,
     mealHistoryService,
     profileService: userProfileService,

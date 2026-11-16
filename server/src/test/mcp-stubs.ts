@@ -1,5 +1,7 @@
 import { errAsync, okAsync } from 'neverthrow'
 
+import type { BodyCompositionService } from '#domain/body-composition/body-composition-service'
+import { BodyCompositionPersistenceError } from '#domain/body-composition/errors'
 import type { BodyWeightService } from '#domain/body-weight/body-weight-service'
 import { BodyWeightPersistenceError } from '#domain/body-weight/errors'
 import type { FoodSearchService } from '#domain/food-browse/food-search-service'
@@ -35,6 +37,13 @@ const rejectingBodyWeightService: BodyWeightService = {
   list: () => errAsync(new BodyWeightPersistenceError('stub')),
   update: () => errAsync(new BodyWeightPersistenceError('stub')),
   delete: () => errAsync(new BodyWeightPersistenceError('stub')),
+}
+
+const rejectingBodyCompositionService: BodyCompositionService = {
+  record: () => errAsync(new BodyCompositionPersistenceError('stub')),
+  list: () => errAsync(new BodyCompositionPersistenceError('stub')),
+  update: () => errAsync(new BodyCompositionPersistenceError('stub')),
+  delete: () => errAsync(new BodyCompositionPersistenceError('stub')),
 }
 
 const rejectingProfileService: UserProfileService = {
@@ -127,6 +136,7 @@ const rejectingStockService: StockService = {
 }
 
 export const createStubMcpDeps = (): MeshiToolDeps => ({
+  bodyCompositionService: rejectingBodyCompositionService,
   bodyWeightService: rejectingBodyWeightService,
   mealHistoryService: rejectingMealHistoryService,
   profileService: rejectingProfileService,

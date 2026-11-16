@@ -1,5 +1,6 @@
 import type { CallToolResult } from '@modelcontextprotocol/server'
 
+import type { BodyComposition } from '#domain/body-composition/types'
 import type { BodyWeight } from '#domain/body-weight/types'
 import { toMealHistoryPayload } from '#domain/meal-history/mealHistoryPayload'
 import type { MealHistoryAggregate } from '#domain/meal-history/types'
@@ -56,6 +57,20 @@ export const buildBodyWeightPayload = (bodyWeight: BodyWeight) => ({
   weight_kg: bodyWeight.weightKg,
   created_at: bodyWeight.createdAt.toISOString(),
   updated_at: bodyWeight.updatedAt.toISOString(),
+})
+
+export const buildBodyCompositionPayload = (
+  bodyComposition: BodyComposition,
+) => ({
+  body_composition_id: bodyComposition.id,
+  date: bodyComposition.date,
+  measured_at: bodyComposition.measuredAt?.toISOString() ?? null,
+  device: bodyComposition.device,
+  body_fat_percent: bodyComposition.bodyFatPercent,
+  muscle_mass_kg: bodyComposition.muscleMassKg,
+  skeletal_muscle_percent: bodyComposition.skeletalMusclePercent,
+  created_at: bodyComposition.createdAt.toISOString(),
+  updated_at: bodyComposition.updatedAt.toISOString(),
 })
 
 export const buildMealLogMutationPayload = (
