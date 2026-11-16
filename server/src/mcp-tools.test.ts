@@ -340,19 +340,23 @@ const makeProfileService = (
     update(patch) {
       calls.update.push(patch)
       if (overrides.update) return errAsync(overrides.update)
-      const { dailyTargets, ...rest } = patch
-      // exhaustively cover the three cases — clear / set / keep — so the
-      // resulting object never carries a stray null in dailyTargets.
-      const base = { ...current, ...rest }
+      const { dailyTargets, goalWeightKg, ...rest } = patch
+      let next: UserProfile = { ...current, ...rest }
       if (dailyTargets === null) {
-        // eslint-disable-next-line @typescript-eslint/no-unused-vars -- destructure to drop the field from the rest spread.
-        const { dailyTargets: _drop, ...cleared } = base
-        current = cleared
+        // eslint-disable-next-line @typescript-eslint/no-unused-vars -- destructure to remove the cleared field.
+        const { dailyTargets: _drop, ...cleared } = next
+        next = cleared
       } else if (dailyTargets !== undefined) {
-        current = { ...base, dailyTargets }
-      } else {
-        current = base
+        next = { ...next, dailyTargets }
       }
+      if (goalWeightKg === null) {
+        // eslint-disable-next-line @typescript-eslint/no-unused-vars -- destructure to remove the cleared field.
+        const { goalWeightKg: _drop, ...cleared } = next
+        next = cleared
+      } else if (goalWeightKg !== undefined) {
+        next = { ...next, goalWeightKg }
+      }
+      current = next
       return okAsync(current)
     },
   }

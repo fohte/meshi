@@ -6,12 +6,17 @@ export interface UserProfile {
   readonly allergies: ReadonlyArray<string>
   readonly constraints: ReadonlyArray<string>
   readonly dailyTargets?: NutritionTargets
+  readonly goalWeightKg?: number
 }
 
 // dailyTargets accepts null to mean "clear the field"; the other keys keep
 // the Partial<UserProfile> semantics of "omit = keep current".
-export type UserProfilePatch = Omit<Partial<UserProfile>, 'dailyTargets'> & {
+export type UserProfilePatch = Omit<
+  Partial<UserProfile>,
+  'dailyTargets' | 'goalWeightKg'
+> & {
   readonly dailyTargets?: NutritionTargets | null
+  readonly goalWeightKg?: number | null
 }
 
 export const DEFAULT_USER_PROFILE: UserProfile = {
@@ -36,6 +41,11 @@ export const mergeUserProfile = (
     delete next.dailyTargets
   } else if (patch.dailyTargets !== undefined) {
     next.dailyTargets = { ...current.dailyTargets, ...patch.dailyTargets }
+  }
+  if (patch.goalWeightKg === null) {
+    delete next.goalWeightKg
+  } else if (patch.goalWeightKg !== undefined) {
+    next.goalWeightKg = patch.goalWeightKg
   }
   return next
 }

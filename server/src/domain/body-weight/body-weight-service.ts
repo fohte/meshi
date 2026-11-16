@@ -15,6 +15,7 @@ import type {
   RecordBodyWeightInput,
   UpdateBodyWeightInput,
 } from '#domain/body-weight/types'
+import { bodyWeightKgSchema } from '#domain/body-weight/value-schema'
 import {
   isValidJstCalendarDateString,
   type JstDate,
@@ -41,13 +42,6 @@ export interface BodyWeightServiceDeps {
   readonly now: () => Date
 }
 
-const hasAtMostTwoDecimalPlaces = (weightKg: number): boolean => {
-  const value = String(weightKg).toLowerCase()
-  const [coefficient = value] = value.split('e')
-  const decimalPlaces = coefficient.split('.')[1]?.length ?? 0
-  return decimalPlaces <= 2
-}
-
 const validate = (
   date: string,
   measuredAt: Date | null,
@@ -60,12 +54,7 @@ const validate = (
   if (date > toJstDateString(now)) {
     return new FutureBodyWeightDateError(date)
   }
-  if (
-    !Number.isFinite(weightKg) ||
-    weightKg < 20 ||
-    weightKg > 300 ||
-    !hasAtMostTwoDecimalPlaces(weightKg)
-  ) {
+  if (!bodyWeightKgSchema.safeParse(weightKg).success) {
     return new InvalidBodyWeightValueError(weightKg)
   }
   if (measuredAt !== null) {

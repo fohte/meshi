@@ -8,6 +8,7 @@ import { UserProfileRepositoryError } from '#domain/user-profile/errors'
 import type { UserProfileService } from '#domain/user-profile/user-profile-service'
 
 const errorResponseSchema = z.object({ error: z.string() })
+const captureOutput = <Output>(output: Output): Output => output
 
 const buildApp = (userProfileService: UserProfileService): Hono => {
   const app = new Hono()
@@ -25,7 +26,7 @@ const DEFAULT_PROFILE = {
 const noopUpdate: UserProfileService['update'] = () => okAsync(DEFAULT_PROFILE)
 
 describe('GET /api/profile', () => {
-  it('defaults dailyTargets to null when unset', async () => {
+  it('defaults unset optional profile values to null', async () => {
     const app = buildApp({
       get: () =>
         okAsync({
@@ -46,6 +47,7 @@ describe('GET /api/profile', () => {
       allergies: [],
       constraints: [],
       dailyTargets: null,
+      goalWeightKg: null,
     })
   })
 
@@ -58,6 +60,7 @@ describe('GET /api/profile', () => {
           allergies: [],
           constraints: [],
           dailyTargets: { energy_kcal: 2000 },
+          goalWeightKg: 62.45,
         }),
       update: noopUpdate,
     })
@@ -70,6 +73,7 @@ describe('GET /api/profile', () => {
       allergies: [],
       constraints: [],
       dailyTargets: { energy_kcal: 2000 },
+      goalWeightKg: 62.45,
     })
   })
 
@@ -105,7 +109,10 @@ describe('PATCH /api/profile', () => {
     })
 
     const res = await app.request(
-      patchRequest({ likes: ['ramen'], dailyTargets: { energy_kcal: 2000 } }),
+      patchRequest({
+        likes: ['ramen'],
+        dailyTargets: { energy_kcal: 2000 },
+      }),
     )
 
     expect(res.status).toBe(200)
@@ -131,6 +138,84 @@ describe('PATCH /api/profile', () => {
     expect(res.status).toBe(200)
   })
 
+  it('forwards a null goalWeightKg to clear it', async () => {
+    let capturedPatch: unknown
+    const app = buildApp({
+      get: () => okAsync(DEFAULT_PROFILE),
+      update: (patch) => {
+        capturedPatch = patch
+        return okAsync(DEFAULT_PROFILE)
+      },
+    })
+
+    const res = await app.request(patchRequest({ goalWeightKg: null }))
+
+    expect(captureOutput({ status: res.status, patch: capturedPatch })).toEqual(
+      {
+        status: 200,
+        patch: { goalWeightKg: null },
+      },
+    )
+  })
+
+  it('accepts goal weights at the supported range and precision', async () => {
+    const app = buildApp({
+      get: () => okAsync(DEFAULT_PROFILE),
+      update: (patch) =>
+        patch.goalWeightKg === null || patch.goalWeightKg === undefined
+          ? okAsync(DEFAULT_PROFILE)
+          : okAsync({ ...DEFAULT_PROFILE, goalWeightKg: patch.goalWeightKg }),
+    })
+
+    const responses = await Promise.all([
+      app.request(patchRequest({ goalWeightKg: 20 })),
+      app.request(patchRequest({ goalWeightKg: 300 })),
+      app.request(patchRequest({ goalWeightKg: 62.45 })),
+    ])
+
+    expect(
+      await Promise.all(
+        responses.map(async (res) => ({
+          status: res.status,
+          body: await res.json(),
+        })),
+      ),
+    ).toEqual([
+      {
+        status: 200,
+        body: { ...DEFAULT_PROFILE, dailyTargets: null, goalWeightKg: 20 },
+      },
+      {
+        status: 200,
+        body: { ...DEFAULT_PROFILE, dailyTargets: null, goalWeightKg: 300 },
+      },
+      {
+        status: 200,
+        body: { ...DEFAULT_PROFILE, dailyTargets: null, goalWeightKg: 62.45 },
+      },
+    ])
+  })
+
+  it.each([19.99, 300.01, 20.001])(
+    'rejects goalWeightKg %s with a bad request',
+    async (goalWeightKg) => {
+      const app = buildApp({
+        get: () => okAsync(DEFAULT_PROFILE),
+        update: noopUpdate,
+      })
+
+      const res = await app.request(patchRequest({ goalWeightKg }))
+      const body = await res.json()
+
+      expect(
+        captureOutput({
+          status: res.status,
+          errorResponseValid: errorResponseSchema.safeParse(body).success,
+        }),
+      ).toEqual({ status: 400, errorResponseValid: true })
+    },
+  )
+
   it('returns the updated profile from the service', async () => {
     const app = buildApp({
       get: () => okAsync(DEFAULT_PROFILE),
@@ -141,6 +226,7 @@ describe('PATCH /api/profile', () => {
           allergies: [],
           constraints: [],
           dailyTargets: { energy_kcal: 2000 },
+          goalWeightKg: 62.45,
         }),
     })
 
@@ -152,6 +238,7 @@ describe('PATCH /api/profile', () => {
       allergies: [],
       constraints: [],
       dailyTargets: { energy_kcal: 2000 },
+      goalWeightKg: 62.45,
     })
   })
 

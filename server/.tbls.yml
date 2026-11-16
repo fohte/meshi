@@ -127,13 +127,14 @@ comments:
       nutrient_code: 'Identifier of the nutrient.'
       value: 'Nutrient value per 100 g of the food composition entry.'
   - table: user_profiles
-    tableComment: 'The singleton user profile for preferences and daily nutrition targets.'
+    tableComment: 'The singleton user profile for preferences, daily nutrition targets, and a goal weight.'
     columnComments:
       likes: 'Items the user likes.'
       dislikes: 'Items the user dislikes.'
       allergies: 'User allergy entries.'
       constraints: 'User dietary constraint entries.'
       daily_targets: 'Daily nutrition target values keyed by nutrient code.'
+      goal_weight_kg: 'User-selected target body weight in kilograms.'
   - table: storage_locations
     tableComment: 'Named places where stock items are stored.'
     columnComments:

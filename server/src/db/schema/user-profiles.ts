@@ -2,6 +2,7 @@ import { sql } from 'drizzle-orm'
 import {
   check,
   jsonb,
+  numeric,
   pgTable,
   smallint,
   text,
@@ -29,6 +30,7 @@ export const userProfiles = pgTable(
       .notNull()
       .default(sql`'{}'::text[]`),
     dailyTargets: jsonb('daily_targets').$type<Record<string, number>>(),
+    goalWeightKg: numeric('goal_weight_kg', { precision: 5, scale: 2 }),
     updatedAt: timestamp('updated_at', { withTimezone: true, mode: 'date' })
       .notNull()
       .default(sql`now()`),

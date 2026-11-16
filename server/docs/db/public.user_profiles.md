@@ -2,19 +2,20 @@
 
 ## Description
 
-The singleton user profile for preferences and daily nutrition targets.
+The singleton user profile for preferences, daily nutrition targets, and a goal weight.
 
 ## Columns
 
-| Name          | Type                     | Default      | Nullable | Children | Parents | Comment                                               |
-| ------------- | ------------------------ | ------------ | -------- | -------- | ------- | ----------------------------------------------------- |
-| id            | smallint                 | 1            | false    |          |         |                                                       |
-| likes         | text[]                   | '{}'::text[] | false    |          |         | Items the user likes.                                 |
-| dislikes      | text[]                   | '{}'::text[] | false    |          |         | Items the user dislikes.                              |
-| allergies     | text[]                   | '{}'::text[] | false    |          |         | User allergy entries.                                 |
-| constraints   | text[]                   | '{}'::text[] | false    |          |         | User dietary constraint entries.                      |
-| daily_targets | jsonb                    |              | true     |          |         | Daily nutrition target values keyed by nutrient code. |
-| updated_at    | timestamp with time zone | now()        | false    |          |         |                                                       |
+| Name           | Type                     | Default      | Nullable | Children | Parents | Comment                                               |
+| -------------- | ------------------------ | ------------ | -------- | -------- | ------- | ----------------------------------------------------- |
+| id             | smallint                 | 1            | false    |          |         |                                                       |
+| likes          | text[]                   | '{}'::text[] | false    |          |         | Items the user likes.                                 |
+| dislikes       | text[]                   | '{}'::text[] | false    |          |         | Items the user dislikes.                              |
+| allergies      | text[]                   | '{}'::text[] | false    |          |         | User allergy entries.                                 |
+| constraints    | text[]                   | '{}'::text[] | false    |          |         | User dietary constraint entries.                      |
+| daily_targets  | jsonb                    |              | true     |          |         | Daily nutrition target values keyed by nutrient code. |
+| updated_at     | timestamp with time zone | now()        | false    |          |         |                                                       |
+| goal_weight_kg | numeric(5,2)             |              | true     |          |         | User-selected target body weight in kilograms.        |
 
 ## Constraints
 
@@ -50,6 +51,7 @@ erDiagram
   text__ constraints
   jsonb daily_targets
   timestamp_with_time_zone updated_at
+  numeric_5_2_ goal_weight_kg
 }
 ```
 
