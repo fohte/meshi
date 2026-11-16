@@ -11,6 +11,7 @@ import { MealSetPersistenceError } from '#domain/meal-set/errors'
 import { MealSkipPersistenceError } from '#domain/meal-skip/errors'
 import { StockDomainError } from '#domain/stock/errors'
 import { DEFAULT_USER_PROFILE } from '#domain/user-profile/user-profile'
+import { jstDateSchema } from '#lib/jst-date'
 
 // createApp's /api deps have their own dedicated route tests; callers that
 // only exercise /health still need something satisfying ApiDeps.
@@ -263,6 +264,19 @@ export const createStubApiDeps = (): ApiDeps => ({
         capacityWarnings: [],
         eatByWarnings: [],
         priorityLots: [],
+      }),
+  },
+  weightOutlookService: {
+    get: () =>
+      okAsync({
+        asOf: jstDateSchema.parse('2026-01-01'),
+        points: [],
+        latestWeightKg: null,
+        goalWeightKg: null,
+        trend: null,
+        status: 'insufficient_data' as const,
+        reason: 'first_measurement_too_recent' as const,
+        arrivalDateRange: null,
       }),
   },
   mealPhotoService: {

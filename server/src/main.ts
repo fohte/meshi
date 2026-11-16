@@ -52,6 +52,7 @@ import { createDrizzleNutrientDefinitionRepository } from '#domain/nutrient-defi
 import { createDrizzleStockRepository } from '#domain/stock/drizzle-stock-repository'
 import { createStockService } from '#domain/stock/stock-service'
 import { createUserProfileService } from '#domain/user-profile/user-profile-service'
+import { createWeightOutlookService } from '#domain/weight-outlook/weight-outlook-service'
 import { EnvError, loadEnv } from '#env'
 import { createJsonStdoutLogger } from '#logger'
 import { handleMcpRequest } from '#mcp-http'
@@ -105,8 +106,9 @@ export const main = async (): Promise<void> => {
     idGenerator: () => randomUUID(),
     now: () => new Date(),
   })
+  const bodyWeightRepository = createDrizzleBodyWeightRepository(sql)
   const bodyWeightService = createBodyWeightService({
-    repository: createDrizzleBodyWeightRepository(sql),
+    repository: bodyWeightRepository,
     idGenerator: () => randomUUID(),
     now: () => new Date(),
   })
@@ -146,6 +148,11 @@ export const main = async (): Promise<void> => {
   const userProfileService = createUserProfileService(
     createDrizzleUserProfileRepository(sql),
   )
+  const weightOutlookService = createWeightOutlookService({
+    bodyWeightService,
+    bodyWeightHistoryRepository: bodyWeightRepository,
+    userProfileService,
+  })
   const logger = createJsonStdoutLogger()
   const toolDeps: MeshiToolDeps = {
     bodyCompositionService,
@@ -180,6 +187,7 @@ export const main = async (): Promise<void> => {
     mealSkipService,
     mealPhotoService,
     stockService,
+    weightOutlookService,
   })
   const honoListener = getRequestListener(app.fetch)
 

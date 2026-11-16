@@ -22,6 +22,7 @@ import type { MealSkipService } from '#domain/meal-skip/meal-skip-service'
 import type { NutrientDefinitionRepository } from '#domain/nutrient-definition/types'
 import type { StockService } from '#domain/stock/types'
 import type { UserProfileService } from '#domain/user-profile/user-profile-service'
+import type { WeightOutlookService } from '#domain/weight-outlook/weight-outlook-service'
 import { resolveWebDistRoot } from '#web-dist-root'
 
 const WEB_DIST_ROOT = resolveWebDistRoot(process.cwd())
@@ -43,6 +44,7 @@ export interface AppDeps {
   foodMasterService: FoodMasterService
   mealSkipService: MealSkipService
   stockService: StockService
+  weightOutlookService: WeightOutlookService
 }
 
 const errorMessage = (err: unknown): string =>
@@ -74,6 +76,7 @@ export const createApp = (deps: AppDeps): Hono => {
     foodMasterService: deps.foodMasterService,
     mealSkipService: deps.mealSkipService,
     stockService: deps.stockService,
+    weightOutlookService: deps.weightOutlookService,
   })
 
   // SPA static assets, then an index.html fallback for client-side routes

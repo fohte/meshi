@@ -90,6 +90,9 @@ describeIfDb('body weight API routes', () => {
     const persistedIds = await tx<{ id: string }[]>`
       SELECT id FROM body_weights ORDER BY id
     `
+    const firstMeasurementDate = (
+      await createDrizzleBodyWeightRepository(tx).firstMeasurementDate()
+    )._unsafeUnwrap()
 
     expect(
       captureOutput({
@@ -104,6 +107,7 @@ describeIfDb('body weight API routes', () => {
           normalizeRow(past),
         ],
         persistedIds: persistedIds.map(({ id }) => id),
+        firstMeasurementDate,
       }),
     ).toEqual({
       responses: [
@@ -145,6 +149,7 @@ describeIfDb('body weight API routes', () => {
         },
       ],
       persistedIds: ['body_weight_1', 'body_weight_3', 'body_weight_4'],
+      firstMeasurementDate: '2025-01-02',
     })
   })
 

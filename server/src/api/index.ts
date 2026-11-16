@@ -15,6 +15,7 @@ import { mountNutrientDefinitionRoutes } from '#api/nutrient-definition-routes'
 import { mountProfileRoutes } from '#api/profile-routes'
 import { mountStockDeliveryRoutes } from '#api/stock-delivery-routes'
 import { mountStockRoutes } from '#api/stock-routes'
+import { mountWeightOutlookRoutes } from '#api/weight-outlook-routes'
 import type { BodyCompositionService } from '#domain/body-composition/body-composition-service'
 import type { BodyWeightService } from '#domain/body-weight/body-weight-service'
 import type { DayDetailService } from '#domain/day-detail/types'
@@ -30,6 +31,7 @@ import type { MealSkipService } from '#domain/meal-skip/meal-skip-service'
 import type { NutrientDefinitionRepository } from '#domain/nutrient-definition/types'
 import type { StockService } from '#domain/stock/types'
 import type { UserProfileService } from '#domain/user-profile/user-profile-service'
+import type { WeightOutlookService } from '#domain/weight-outlook/weight-outlook-service'
 
 export interface ApiDeps {
   mealHistoryService: MealHistoryService
@@ -47,6 +49,7 @@ export interface ApiDeps {
   foodMasterService: FoodMasterService
   mealSkipService: MealSkipService
   stockService: StockService
+  weightOutlookService: WeightOutlookService
 }
 
 export const mountApiRoutes = (app: Hono, deps: ApiDeps): void => {
@@ -68,4 +71,5 @@ export const mountApiRoutes = (app: Hono, deps: ApiDeps): void => {
   mountMealSkipRoutes(app, deps.mealSkipService)
   mountStockRoutes(app, deps.stockService)
   mountStockDeliveryRoutes(app, deps.stockService)
+  mountWeightOutlookRoutes(app, deps.weightOutlookService)
 }
