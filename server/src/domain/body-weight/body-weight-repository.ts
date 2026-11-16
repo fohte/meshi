@@ -1,4 +1,4 @@
-import type { ResultAsync } from 'neverthrow'
+import type { Result, ResultAsync } from 'neverthrow'
 
 import type { BodyWeightDomainError } from '#domain/body-weight/errors'
 import type { BodyWeight } from '#domain/body-weight/types'
@@ -19,10 +19,11 @@ export interface BodyWeightRepository {
     from: JstDate,
     to: JstDate,
   ): ResultAsync<ReadonlyArray<BodyWeight>, BodyWeightDomainError>
-  findById(id: string): ResultAsync<BodyWeight | null, BodyWeightDomainError>
   update(
     id: string,
-    input: BodyWeightUpdate,
+    resolveUpdate: (
+      existing: BodyWeight,
+    ) => Result<BodyWeightUpdate, BodyWeightDomainError>,
   ): ResultAsync<BodyWeight | null, BodyWeightDomainError>
   delete(id: string): ResultAsync<boolean, BodyWeightDomainError>
 }

@@ -7,6 +7,8 @@ import { createBodyWeightService } from '#domain/body-weight/body-weight-service
 import { createDrizzleBodyWeightRepository } from '#domain/body-weight/drizzle-body-weight-repository'
 import { jstDateSchema } from '#lib/jst-date'
 import { describeIfDb, setupDrizzleTx } from '#test/db'
+import { jstDate } from '#test/jst-date'
+import { seedBodyWeight } from '#test/seed'
 
 const NOW = new Date('2026-11-16T12:00:00.000Z')
 const responseRowSchema = z.strictObject({
@@ -52,7 +54,7 @@ const requestJson = (
     }),
   )
 
-const normalizeRow = (row: Record<string, unknown>) => ({
+const normalizeRow = (row: z.infer<typeof responseRowSchema>) => ({
   ...row,
   createdAt: '<timestamp>',
   updatedAt: '<timestamp>',
@@ -61,8 +63,9 @@ const normalizeRow = (row: Record<string, unknown>) => ({
 describeIfDb('body weight API routes', () => {
   const getTx = setupDrizzleTx()
 
-  it('records, lists, corrects, and deletes body weights', async () => {
-    const app = createTestApp(getTx())
+  it('records multiple measurements, accepts past dates, and handles resends', async () => {
+    const tx = getTx()
+    const app = createTestApp(tx)
     const firstResponse = await requestJson(app, '/api/body-weights', 'POST', {
       date: '2026-11-16',
       weightKg: 70.25,
@@ -84,130 +87,267 @@ describeIfDb('body weight API routes', () => {
       weightKg: 71,
     })
     const past = responseRowSchema.parse(await pastResponse.json())
+    const persistedIds = await tx<{ id: string }[]>`
+      SELECT id FROM body_weights ORDER BY id
+    `
 
-    const recording = [
-      firstResponse.status,
-      normalizeRow(first),
-      resendResponse.status,
-      normalizeRow(resend),
-      secondResponse.status,
-      normalizeRow(second),
-      pastResponse.status,
-      normalizeRow(past),
-    ]
-    const expectedRecording = [
-      201,
-      {
-        id: 'body_weight_1',
+    expect(
+      captureOutput({
+        responses: [
+          firstResponse.status,
+          normalizeRow(first),
+          resendResponse.status,
+          normalizeRow(resend),
+          secondResponse.status,
+          normalizeRow(second),
+          pastResponse.status,
+          normalizeRow(past),
+        ],
+        persistedIds: persistedIds.map(({ id }) => id),
+      }),
+    ).toEqual({
+      responses: [
+        201,
+        {
+          id: 'body_weight_1',
+          date: '2026-11-16',
+          measuredAt: null,
+          weightKg: 70.25,
+          createdAt: '<timestamp>',
+          updatedAt: '<timestamp>',
+        },
+        201,
+        {
+          id: 'body_weight_1',
+          date: '2026-11-16',
+          measuredAt: null,
+          weightKg: 70.25,
+          createdAt: '<timestamp>',
+          updatedAt: '<timestamp>',
+        },
+        201,
+        {
+          id: 'body_weight_3',
+          date: '2026-11-16',
+          measuredAt: '2026-11-15T23:00:00.000Z',
+          weightKg: 69.75,
+          createdAt: '<timestamp>',
+          updatedAt: '<timestamp>',
+        },
+        201,
+        {
+          id: 'body_weight_4',
+          date: '2025-01-02',
+          measuredAt: null,
+          weightKg: 71,
+          createdAt: '<timestamp>',
+          updatedAt: '<timestamp>',
+        },
+      ],
+      persistedIds: ['body_weight_1', 'body_weight_3', 'body_weight_4'],
+    })
+  })
+
+  it('lists records in an inclusive range ordered by date and measurement time', async () => {
+    const tx = getTx()
+    await seedBodyWeight(tx, {
+      id: 'body_weight_morning',
+      measuredDate: jstDate('2026-11-16'),
+      measuredAt: new Date('2026-11-16T00:00:00.000Z'),
+      weightKg: 70,
+    })
+    await seedBodyWeight(tx, {
+      id: 'body_weight_evening',
+      measuredDate: jstDate('2026-11-16'),
+      measuredAt: new Date('2026-11-16T03:00:00.000Z'),
+      weightKg: 69.9,
+    })
+    await seedBodyWeight(tx, {
+      id: 'body_weight_unknown_time',
+      measuredDate: jstDate('2026-11-16'),
+      measuredAt: null,
+      weightKg: 70.1,
+    })
+    await seedBodyWeight(tx, {
+      id: 'body_weight_past',
+      measuredDate: jstDate('2025-01-02'),
+      measuredAt: null,
+      weightKg: 71,
+    })
+    const app = createTestApp(tx)
+    const response = await app.request(
+      '/api/body-weights?from=2025-01-02&to=2026-11-16',
+    )
+    const rows = z.array(responseRowSchema).parse(await response.json())
+
+    expect(
+      captureOutput({ status: response.status, rows: rows.map(normalizeRow) }),
+    ).toEqual({
+      status: 200,
+      rows: [
+        {
+          id: 'body_weight_evening',
+          date: '2026-11-16',
+          measuredAt: '2026-11-16T03:00:00.000Z',
+          weightKg: 69.9,
+          createdAt: '<timestamp>',
+          updatedAt: '<timestamp>',
+        },
+        {
+          id: 'body_weight_morning',
+          date: '2026-11-16',
+          measuredAt: '2026-11-16T00:00:00.000Z',
+          weightKg: 70,
+          createdAt: '<timestamp>',
+          updatedAt: '<timestamp>',
+        },
+        {
+          id: 'body_weight_unknown_time',
+          date: '2026-11-16',
+          measuredAt: null,
+          weightKg: 70.1,
+          createdAt: '<timestamp>',
+          updatedAt: '<timestamp>',
+        },
+        {
+          id: 'body_weight_past',
+          date: '2025-01-02',
+          measuredAt: null,
+          weightKg: 71,
+          createdAt: '<timestamp>',
+          updatedAt: '<timestamp>',
+        },
+      ],
+    })
+  })
+
+  it('corrects provided fields and preserves omitted fields', async () => {
+    const tx = getTx()
+    await seedBodyWeight(tx, {
+      id: 'body_weight_partial',
+      measuredDate: jstDate('2026-11-16'),
+      measuredAt: new Date('2026-11-16T06:00:00.000Z'),
+      weightKg: 70,
+    })
+    const app = createTestApp(tx)
+    const response = await requestJson(
+      app,
+      '/api/body-weights/body_weight_partial',
+      'PATCH',
+      { weightKg: 69.75 },
+    )
+    const row = responseRowSchema.parse(await response.json())
+
+    expect(
+      captureOutput({ status: response.status, row: normalizeRow(row) }),
+    ).toEqual({
+      status: 200,
+      row: {
+        id: 'body_weight_partial',
         date: '2026-11-16',
-        measuredAt: null,
-        weightKg: 70.25,
-        createdAt: '<timestamp>',
-        updatedAt: '<timestamp>',
-      },
-      201,
-      {
-        id: 'body_weight_1',
-        date: '2026-11-16',
-        measuredAt: null,
-        weightKg: 70.25,
-        createdAt: '<timestamp>',
-        updatedAt: '<timestamp>',
-      },
-      201,
-      {
-        id: 'body_weight_3',
-        date: '2026-11-16',
-        measuredAt: '2026-11-15T23:00:00.000Z',
+        measuredAt: '2026-11-16T06:00:00.000Z',
         weightKg: 69.75,
         createdAt: '<timestamp>',
         updatedAt: '<timestamp>',
       },
-      201,
-      {
-        id: 'body_weight_4',
-        date: '2025-01-02',
+    })
+  })
+
+  it('clears the measurement time when PATCH receives null', async () => {
+    const tx = getTx()
+    await seedBodyWeight(tx, {
+      id: 'body_weight_clear_time',
+      measuredDate: jstDate('2026-11-16'),
+      measuredAt: new Date('2026-11-16T06:00:00.000Z'),
+      weightKg: 70,
+    })
+    const app = createTestApp(tx)
+    const response = await requestJson(
+      app,
+      '/api/body-weights/body_weight_clear_time',
+      'PATCH',
+      { measuredAt: null },
+    )
+    const row = responseRowSchema.parse(await response.json())
+
+    expect(
+      captureOutput({ status: response.status, row: normalizeRow(row) }),
+    ).toEqual({
+      status: 200,
+      row: {
+        id: 'body_weight_clear_time',
+        date: '2026-11-16',
         measuredAt: null,
-        weightKg: 71,
+        weightKg: 70,
         createdAt: '<timestamp>',
         updatedAt: '<timestamp>',
       },
-    ]
+    })
+  })
 
-    const listResponse = await app.request(
-      '/api/body-weights?from=2025-01-01&to=2026-11-16',
-    )
-    const list = z.array(responseRowSchema).parse(await listResponse.json())
-    const listing = [listResponse.status, list.map(normalizeRow)]
-    const expectedListing = [
-      200,
-      [normalizeRow(second), normalizeRow(first), normalizeRow(past)],
-    ]
-
-    const collisionResponse = await requestJson(
+  it('returns a conflict when a correction duplicates another record', async () => {
+    const tx = getTx()
+    await seedBodyWeight(tx, {
+      id: 'body_weight_duplicate_target',
+      measuredDate: jstDate('2026-11-16'),
+      measuredAt: null,
+      weightKg: 70.25,
+    })
+    await seedBodyWeight(tx, {
+      id: 'body_weight_duplicate_source',
+      measuredDate: jstDate('2026-11-16'),
+      measuredAt: null,
+      weightKg: 69.5,
+    })
+    const app = createTestApp(tx)
+    const response = await requestJson(
       app,
-      `/api/body-weights/${second.id}`,
+      '/api/body-weights/body_weight_duplicate_source',
       'PATCH',
-      { measuredAt: null, weightKg: 70.25 },
+      { weightKg: 70.25 },
     )
-    const collision = [
-      collisionResponse.status,
-      responseErrorSchema.parse(await collisionResponse.json()),
-    ]
+    const error = responseErrorSchema.parse(await response.json())
 
-    const correctedResponse = await requestJson(
-      app,
-      `/api/body-weights/${second.id}`,
-      'PATCH',
-      { measuredAt: null, weightKg: 69.5 },
-    )
-    const corrected = responseRowSchema.parse(await correctedResponse.json())
-    const correction = [correctedResponse.status, normalizeRow(corrected)]
-    const expectedCorrection = [
-      200,
-      {
-        ...normalizeRow(second),
-        measuredAt: null,
-        weightKg: 69.5,
-      },
-    ]
+    expect(captureOutput({ status: response.status, error })).toEqual({
+      status: 409,
+      error: { error: 'body weight conflicts with another measurement' },
+    })
+  })
 
-    const deleteResponse = await requestJson(
+  it('deletes an existing measurement', async () => {
+    const tx = getTx()
+    await seedBodyWeight(tx, {
+      id: 'body_weight_delete',
+      measuredDate: jstDate('2026-11-16'),
+      measuredAt: null,
+      weightKg: 70,
+    })
+    const app = createTestApp(tx)
+    const response = await requestJson(
       app,
-      `/api/body-weights/${past.id}`,
+      '/api/body-weights/body_weight_delete',
       'DELETE',
     )
-    const missingResponse = await requestJson(
+
+    expect(captureOutput(response.status)).toEqual(204)
+  })
+
+  it('returns not found when deleting a missing measurement', async () => {
+    const app = createTestApp(getTx())
+    const response = await requestJson(
       app,
       '/api/body-weights/missing',
       'DELETE',
     )
-    const deletion = [
-      deleteResponse.status,
-      missingResponse.status,
-      responseErrorSchema.parse(await missingResponse.json()),
-    ]
+    const error = responseErrorSchema.parse(await response.json())
 
-    const actual = captureOutput({
-      recording,
-      listing,
-      collision,
-      correction,
-      deletion,
-    })
-    expect(actual).toEqual({
-      recording: expectedRecording,
-      listing: expectedListing,
-      collision: [
-        409,
-        { error: 'body weight conflicts with another measurement' },
-      ],
-      correction: expectedCorrection,
-      deletion: [204, 404, { error: 'body weight not found: missing' }],
+    expect(captureOutput({ status: response.status, error })).toEqual({
+      status: 404,
+      error: { error: 'body weight not found: missing' },
     })
   })
 
-  it('rejects invalid dates, future dates, and invalid values', async () => {
+  it('rejects invalid dates, future dates, and invalid weight values', async () => {
     const app = createTestApp(getTx())
     const requests = await Promise.all([
       requestJson(app, '/api/body-weights', 'POST', {
@@ -233,16 +373,22 @@ describeIfDb('body weight API routes', () => {
       requestJson(app, '/api/body-weights', 'POST', {
         date: '2026-11-16',
         weightKg: 70,
+        measuredAt: '2026-11-16T12:00:00.001Z',
+      }),
+      requestJson(app, '/api/body-weights', 'POST', {
+        date: '2026-11-16',
+        weightKg: 70,
         measuredAt: '2026-11-16T00:00:00+14:00',
       }),
-      app.request('/api/body-weights?from=2026-11-17&to=2026-11-16'),
     ])
     const errors = z
       .array(responseErrorSchema)
       .parse(await Promise.all(requests.map((response) => response.json())))
 
     expect(
-      requests.map((response, index) => [response.status, errors[index]]),
+      captureOutput(
+        requests.map((response, index) => [response.status, errors[index]]),
+      ),
     ).toEqual([
       [
         400,
@@ -273,8 +419,21 @@ describeIfDb('body weight API routes', () => {
             'weightKg must be between 20 and 300 kg with at most 2 decimal places: 70.001',
         },
       ],
+      [400, { error: 'measuredAt must not be in the future' }],
       [400, { error: 'measuredAt must fall on the body weight date in JST' }],
-      [400, { error: 'from must be on or before to' }],
     ])
+  })
+
+  it('rejects a reversed date range', async () => {
+    const app = createTestApp(getTx())
+    const response = await app.request(
+      '/api/body-weights?from=2026-11-17&to=2026-11-16',
+    )
+    const error = responseErrorSchema.parse(await response.json())
+
+    expect(captureOutput({ status: response.status, error })).toEqual({
+      status: 400,
+      error: { error: 'from must be on or before to' },
+    })
   })
 })

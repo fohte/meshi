@@ -90,30 +90,32 @@ export const createDrizzleBodyWeightRepository = (
           persistenceError('failed to list body_weights', caughtError),
       ).map((rows) => rows.map(toBodyWeight))
     },
-    findById(id) {
+    update(id, resolveUpdate) {
       return ResultAsync.fromPromise(
-        db.select().from(bodyWeights).where(eq(bodyWeights.id, id)).limit(1),
-        (caughtError) =>
-          persistenceError('failed to load body_weight', caughtError),
-      ).map((rows) => {
-        const [row] = rows
-        return row === undefined ? null : toBodyWeight(row)
-      })
-    },
-    update(id, input) {
-      return ResultAsync.fromPromise(
-        db.transaction((session) =>
-          session
+        db.transaction(async (session) => {
+          const [existing] = await session
+            .select()
+            .from(bodyWeights)
+            .where(eq(bodyWeights.id, id))
+            .for('update')
+            .limit(1)
+          if (existing === undefined) return ok(null)
+
+          const changes = resolveUpdate(toBodyWeight(existing))
+          if (changes.isErr()) return err(changes.error)
+
+          const [updated] = await session
             .update(bodyWeights)
             .set({
-              measuredDate: input.date,
-              measuredAt: input.measuredAt,
-              weightKg: input.weightKg.toString(),
+              measuredDate: changes.value.date,
+              measuredAt: changes.value.measuredAt,
+              weightKg: changes.value.weightKg.toString(),
               updatedAt: new Date(),
             })
             .where(eq(bodyWeights.id, id))
-            .returning(),
-        ),
+            .returning()
+          return updated === undefined ? ok(null) : ok(toBodyWeight(updated))
+        }),
         (caughtError) => {
           if (
             isUniqueViolation(caughtError) &&
@@ -123,10 +125,7 @@ export const createDrizzleBodyWeightRepository = (
           }
           return persistenceError('failed to update body_weight', caughtError)
         },
-      ).map((rows) => {
-        const [row] = rows
-        return row === undefined ? null : toBodyWeight(row)
-      })
+      ).andThen((result) => result)
     },
     delete(id) {
       return ResultAsync.fromPromise(

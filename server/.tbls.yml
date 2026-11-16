@@ -19,7 +19,7 @@ comments:
     columnComments:
       measured_date: 'Asia/Tokyo calendar date when the weight was measured.'
       measured_at: 'Measurement instant, when known.'
-      weight_kg: 'Measured body weight in kilograms.'
+      weight_kg: 'Measured body weight in kilograms; the API accepts values from 20 to 300 kg.'
   - table: nutrient_definitions
     tableComment: 'Catalog of nutrient codes, names, units, and display ordering.'
     columnComments:

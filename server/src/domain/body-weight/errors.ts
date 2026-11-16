@@ -43,6 +43,15 @@ export class FutureBodyWeightDateError extends BodyWeightDomainError {
   }
 }
 
+export class FutureBodyWeightMeasurementError extends BodyWeightDomainError {
+  constructor(measuredAt: Date) {
+    super('body_weight/future_date', 'measuredAt must not be in the future', {
+      measuredAt: measuredAt.toISOString(),
+    })
+    this.name = 'FutureBodyWeightMeasurementError'
+  }
+}
+
 export class BodyWeightMeasuredAtDateMismatchError extends BodyWeightDomainError {
   constructor(date: string, measuredAt: Date) {
     super(

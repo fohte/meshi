@@ -6,14 +6,14 @@ Measured body weight records.
 
 ## Columns
 
-| Name          | Type                     | Default | Nullable | Children | Parents | Comment                                                |
-| ------------- | ------------------------ | ------- | -------- | -------- | ------- | ------------------------------------------------------ |
-| id            | text                     |         | false    |          |         |                                                        |
-| measured_date | date                     |         | false    |          |         | Asia/Tokyo calendar date when the weight was measured. |
-| measured_at   | timestamp with time zone |         | true     |          |         | Measurement instant, when known.                       |
-| weight_kg     | numeric(5,2)             |         | false    |          |         | Measured body weight in kilograms.                     |
-| created_at    | timestamp with time zone | now()   | false    |          |         |                                                        |
-| updated_at    | timestamp with time zone | now()   | false    |          |         |                                                        |
+| Name          | Type                     | Default | Nullable | Children | Parents | Comment                                                                      |
+| ------------- | ------------------------ | ------- | -------- | -------- | ------- | ---------------------------------------------------------------------------- |
+| id            | text                     |         | false    |          |         |                                                                              |
+| measured_date | date                     |         | false    |          |         | Asia/Tokyo calendar date when the weight was measured.                       |
+| measured_at   | timestamp with time zone |         | true     |          |         | Measurement instant, when known.                                             |
+| weight_kg     | numeric(5,2)             |         | false    |          |         | Measured body weight in kilograms; the API accepts values from 20 to 300 kg. |
+| created_at    | timestamp with time zone | now()   | false    |          |         |                                                                              |
+| updated_at    | timestamp with time zone | now()   | false    |          |         |                                                                              |
 
 ## Constraints
 

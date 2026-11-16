@@ -1,4 +1,4 @@
-import { okAsync } from 'neverthrow'
+import { errAsync, okAsync } from 'neverthrow'
 import { describe, expect, it } from 'vitest'
 
 import type { BodyWeightRepository } from '#domain/body-weight/body-weight-repository'
@@ -7,6 +7,7 @@ import {
   BodyWeightMeasuredAtDateMismatchError,
   BodyWeightNotFoundError,
   FutureBodyWeightDateError,
+  FutureBodyWeightMeasurementError,
   InvalidBodyWeightDateError,
   InvalidBodyWeightValueError,
 } from '#domain/body-weight/errors'
@@ -47,11 +48,12 @@ const createHarness = () => {
       okAsync(
         [...rows.values()].filter((row) => row.date >= from && row.date <= to),
       ),
-    findById: (id) => okAsync(rows.get(id) ?? null),
-    update: (id, input) => {
+    update: (id, resolveUpdate) => {
       const existing = rows.get(id)
       if (existing === undefined) return okAsync(null)
-      const row = { ...existing, ...input, updatedAt: NOW }
+      const changes = resolveUpdate(existing)
+      if (changes.isErr()) return errAsync(changes.error)
+      const row = { ...existing, ...changes.value, updatedAt: NOW }
       rows.set(id, row)
       return okAsync(row)
     },
@@ -176,7 +178,9 @@ describe('BodyWeightService', () => {
       mismatch._unsafeUnwrapErr(),
     ])
     expect(actual).toEqual([
-      new FutureBodyWeightDateError('2026-11-16T12:00:00.001Z'),
+      new FutureBodyWeightMeasurementError(
+        new Date('2026-11-16T12:00:00.001Z'),
+      ),
       new BodyWeightMeasuredAtDateMismatchError(
         '2026-11-16',
         new Date('2026-11-15T14:59:59.999Z'),
@@ -184,18 +188,40 @@ describe('BodyWeightService', () => {
     ])
   })
 
-  it('returns not found when updating or deleting a missing id', async () => {
+  it('returns not found when updating a missing id', async () => {
     const { service } = createHarness()
     const update = await service.update({ id: 'missing', weightKg: 70 })
-    const remove = await service.delete('missing')
+    expect(captureOutput(update._unsafeUnwrapErr())).toEqual(
+      new BodyWeightNotFoundError('missing'),
+    )
+  })
 
-    const actual = captureOutput([
-      update._unsafeUnwrapErr(),
-      remove._unsafeUnwrapErr(),
-    ])
-    expect(actual).toEqual([
+  it('preserves omitted fields when correcting a record', async () => {
+    const { service } = createHarness()
+    const created = await service.record({
+      date: jstDate('2026-11-16'),
+      measuredAt: new Date('2026-11-16T06:00:00.000Z'),
+      weightKg: 70,
+    })
+    const existing = created._unsafeUnwrap()
+    const updated = await service.update({ id: existing.id, weightKg: 69.8 })
+
+    expect(captureOutput(updated._unsafeUnwrap())).toEqual({
+      id: 'bw_1',
+      date: '2026-11-16',
+      measuredAt: new Date('2026-11-16T06:00:00.000Z'),
+      weightKg: 69.8,
+      createdAt: CREATED_AT,
+      updatedAt: NOW,
+    })
+  })
+
+  it('returns not found when deleting a missing id', async () => {
+    const { service } = createHarness()
+    const result = await service.delete('missing')
+
+    expect(captureOutput(result._unsafeUnwrapErr())).toEqual(
       new BodyWeightNotFoundError('missing'),
-      new BodyWeightNotFoundError('missing'),
-    ])
+    )
   })
 })

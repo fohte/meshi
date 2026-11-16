@@ -1,4 +1,4 @@
-import { errAsync, okAsync, type ResultAsync } from 'neverthrow'
+import { err, errAsync, ok, okAsync, type ResultAsync } from 'neverthrow'
 
 import type { BodyWeightRepository } from '#domain/body-weight/body-weight-repository'
 import {
@@ -6,6 +6,7 @@ import {
   BodyWeightMeasuredAtDateMismatchError,
   BodyWeightNotFoundError,
   FutureBodyWeightDateError,
+  FutureBodyWeightMeasurementError,
   InvalidBodyWeightDateError,
   InvalidBodyWeightValueError,
 } from '#domain/body-weight/errors'
@@ -69,10 +70,10 @@ const validate = (
   }
   if (measuredAt !== null) {
     if (!Number.isFinite(measuredAt.getTime())) {
-      return new FutureBodyWeightDateError('invalid measuredAt')
+      return new InvalidBodyWeightDateError('measuredAt')
     }
     if (measuredAt > now) {
-      return new FutureBodyWeightDateError(measuredAt.toISOString())
+      return new FutureBodyWeightMeasurementError(measuredAt)
     }
     if (toJstDateString(measuredAt) !== date) {
       return new BodyWeightMeasuredAtDateMismatchError(date, measuredAt)
@@ -105,23 +106,24 @@ export const createBodyWeightService = (
     return deps.repository.list(from, to)
   },
   update(input) {
-    return deps.repository.findById(input.id).andThen((existing) => {
-      if (existing === null)
-        return errAsync(new BodyWeightNotFoundError(input.id))
-      const date = input.date ?? existing.date
-      const measuredAt =
-        input.measuredAt === undefined ? existing.measuredAt : input.measuredAt
-      const weightKg = input.weightKg ?? existing.weightKg
-      const error = validate(date, measuredAt, weightKg, deps.now())
-      if (error !== undefined) return errAsync(error)
-      return deps.repository
-        .update(input.id, { date, measuredAt, weightKg })
-        .andThen((row) =>
-          row === null
-            ? errAsync(new BodyWeightNotFoundError(input.id))
-            : okAsync(row),
-        )
-    })
+    const now = deps.now()
+    return deps.repository
+      .update(input.id, (existing) => {
+        const date = input.date ?? existing.date
+        const measuredAt =
+          input.measuredAt === undefined
+            ? existing.measuredAt
+            : input.measuredAt
+        const weightKg = input.weightKg ?? existing.weightKg
+        const error = validate(date, measuredAt, weightKg, now)
+        if (error !== undefined) return err(error)
+        return ok({ date, measuredAt, weightKg })
+      })
+      .andThen((row) =>
+        row === null
+          ? errAsync(new BodyWeightNotFoundError(input.id))
+          : okAsync(row),
+      )
   },
   delete(id) {
     return deps.repository
