@@ -36,6 +36,12 @@ const linearWeights = (
     ),
   )
 
+const noisySameDayWeights = (): BodyWeight[] => [
+  ...linearWeights(70, -0.1).filter(({ date }) => date !== AS_OF),
+  weight(AS_OF, 68, 'same_day_first'),
+  weight(AS_OF, 70, 'same_day_second'),
+]
+
 interface ExpectedOutlookInput {
   readonly weights: ReadonlyArray<BodyWeight>
   readonly firstMeasurementDate: JstDate | null
@@ -145,6 +151,36 @@ const expectedOutlook = (input: ExpectedOutlookInput) => {
   }
 }
 
+const expectedNoisyTrend = () => {
+  const delta = 1.7
+  const meanX = 13.5
+  const sumSquaredX = 1827
+  const slopeKgPerDay = -0.1 + (delta * (27 - meanX)) / sumSquaredX
+  const intercept = 68.65 + delta / 28 - slopeKgPerDay * meanX
+  const leverageAtLastDay = 1 / 28 + (27 - meanX) ** 2 / sumSquaredX
+  const residualStandardError = Math.sqrt(
+    (delta ** 2 * (1 - leverageAtLastDay)) / 26,
+  )
+  const marginAt = (x: number): number =>
+    1.315 *
+    residualStandardError *
+    Math.sqrt(1 / 28 + (x - meanX) ** 2 / sumSquaredX)
+  return {
+    slopeKgPerDay: rounded(slopeKgPerDay),
+    slopeKgPerWeek: rounded(slopeKgPerDay * 7),
+    points: Array.from({ length: 112 }, (_, index) => {
+      const weightKg = intercept + slopeKgPerDay * index
+      const margin = marginAt(index)
+      return {
+        date: shiftDate(START_DATE, index),
+        weightKg: rounded(weightKg),
+        lowerKg: rounded(weightKg - margin),
+        upperKg: rounded(weightKg + margin),
+      }
+    }),
+  }
+}
+
 const calculate = (
   weights: ReadonlyArray<BodyWeight>,
   firstMeasurementDate: JstDate | null,
@@ -217,14 +253,28 @@ it('returns a complete trend when the profile has no goal', () => {
   )
 })
 
-it('reports a goal reached after the trend has stayed past it for seven days', () => {
+it('reports an upward goal reached when the trend stays at the target for seven days', () => {
+  const weights = linearWeights(75, 0)
+  expect(calculate(weights, START_DATE, 75)).toEqual(
+    expectedOutlook({
+      weights,
+      firstMeasurementDate: START_DATE,
+      goalWeightKg: 75,
+      status: 'reached',
+      reason: null,
+      linearTrend: { firstWeightKg: 75, slopeKgPerDay: 0 },
+    }),
+  )
+})
+
+it('reports when a heavier goal is not approached by a decreasing trend', () => {
   const weights = linearWeights(66.5, -0.1)
   expect(calculate(weights, START_DATE, 65)).toEqual(
     expectedOutlook({
       weights,
       firstMeasurementDate: START_DATE,
       goalWeightKg: 65,
-      status: 'reached',
+      status: 'not_approaching',
       reason: null,
       linearTrend: { firstWeightKg: 66.5, slopeKgPerDay: -0.1 },
     }),
@@ -277,6 +327,25 @@ it('returns the earliest and latest goal arrival dates for a weight loss trend',
   )
 })
 
+it('returns different arrival dates when measurement noise widens the trend band', () => {
+  const weights = noisySameDayWeights()
+  const expected = expectedOutlook({
+    weights,
+    firstMeasurementDate: START_DATE,
+    goalWeightKg: 65,
+    status: 'arrival_estimate',
+    reason: null,
+    arrivalDateRange: {
+      from: jstDateSchema.parse('2026-12-12'),
+      to: jstDateSchema.parse('2026-12-22'),
+    },
+  })
+  expect(calculate(weights, START_DATE, 65)).toEqual({
+    ...expected,
+    trend: expectedNoisyTrend(),
+  })
+})
+
 it('uses the upward goal direction when the target is heavier than the trend', () => {
   const weights = linearWeights(70, 0.1)
   expect(calculate(weights, START_DATE, 75)).toEqual(
@@ -296,34 +365,7 @@ it('uses the upward goal direction when the target is heavier than the trend', (
 })
 
 it('averages same-day measurements and returns the complete 80% confidence band', () => {
-  const weights = [
-    ...linearWeights(70, -0.1).filter(({ date }) => date !== AS_OF),
-    weight(AS_OF, 68, 'same_day_first'),
-    weight(AS_OF, 70, 'same_day_second'),
-  ]
-  const delta = 1.7
-  const meanX = 13.5
-  const sumSquaredX = 1827
-  const slopeKgPerDay = -0.1 + (delta * (27 - meanX)) / sumSquaredX
-  const intercept = 68.65 + delta / 28 - slopeKgPerDay * meanX
-  const leverageAtLastDay = 1 / 28 + (27 - meanX) ** 2 / sumSquaredX
-  const residualStandardError = Math.sqrt(
-    (delta ** 2 * (1 - leverageAtLastDay)) / 26,
-  )
-  const marginAt = (x: number): number =>
-    1.315 *
-    residualStandardError *
-    Math.sqrt(1 / 28 + (x - meanX) ** 2 / sumSquaredX)
-  const expectedTrendPoints = Array.from({ length: 112 }, (_, index) => {
-    const weightKg = intercept + slopeKgPerDay * index
-    const margin = marginAt(index)
-    return {
-      date: shiftDate(START_DATE, index),
-      weightKg: rounded(weightKg),
-      lowerKg: rounded(weightKg - margin),
-      upperKg: rounded(weightKg + margin),
-    }
-  })
+  const weights = noisySameDayWeights()
   const expected = expectedOutlook({
     weights,
     firstMeasurementDate: START_DATE,
@@ -333,10 +375,6 @@ it('averages same-day measurements and returns the complete 80% confidence band'
   })
   expect(calculate(weights, START_DATE, null)).toEqual({
     ...expected,
-    trend: {
-      slopeKgPerDay: rounded(slopeKgPerDay),
-      slopeKgPerWeek: rounded(slopeKgPerDay * 7),
-      points: expectedTrendPoints,
-    },
+    trend: expectedNoisyTrend(),
   })
 })

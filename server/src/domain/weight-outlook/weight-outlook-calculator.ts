@@ -119,9 +119,13 @@ const findInsufficientReason = (
   if (recentPoints.length < WEIGHT_OUTLOOK_POLICY.minimumMeasurementDays) {
     return 'too_few_measurement_days'
   }
-  const weekCounts = [0, 0, 0, 0]
+  const intervalCount =
+    WEIGHT_OUTLOOK_POLICY.windowDays / WEIGHT_OUTLOOK_POLICY.daysPerWeek
+  const weekCounts = Array.from({ length: intervalCount }, () => 0)
   for (const point of recentPoints) {
-    const weekIndex = Math.floor(daysBetween(startDate, point.date) / 7)
+    const weekIndex = Math.floor(
+      daysBetween(startDate, point.date) / WEIGHT_OUTLOOK_POLICY.daysPerWeek,
+    )
     if (weekIndex >= 0 && weekIndex < weekCounts.length) {
       weekCounts[weekIndex] = (weekCounts[weekIndex] ?? 0) + 1
     }
@@ -253,14 +257,10 @@ export const calculateWeightOutlook = (
 
   const trendToday = trendPoints.find(({ date }) => date === asOf)
   const trendSixDaysAgo = trendPoints.find(
-    ({ date }) => date === shiftDate(asOf, -6),
+    ({ date }) =>
+      date === shiftDate(asOf, -(WEIGHT_OUTLOOK_POLICY.daysPerWeek - 1)),
   )
-  const trendAtWindowStart = trendPoints.find(({ date }) => date === startDate)
-  if (
-    trendToday === undefined ||
-    trendSixDaysAgo === undefined ||
-    trendAtWindowStart === undefined
-  ) {
+  if (trendToday === undefined || trendSixDaysAgo === undefined) {
     return {
       ...shared,
       trend,
@@ -269,7 +269,7 @@ export const calculateWeightOutlook = (
       arrivalDateRange: null,
     }
   }
-  const direction = goalWeightKg <= trendAtWindowStart.weightKg ? -1 : 1
+  const direction = goalWeightKg < trendToday.weightKg ? -1 : 1
   const hasReached =
     direction < 0
       ? trendSixDaysAgo.weightKg <= goalWeightKg &&
