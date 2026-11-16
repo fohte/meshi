@@ -1,9 +1,11 @@
 import type { BodyComposition } from '#api/body-compositions'
 import type { BodyWeight } from '#api/body-weights'
+import type { WeightOutlook } from '#api/weight-outlook'
 import {
   type BodyCompositionDraft,
   BodyCompositionForm,
 } from '#components/BodyCompositionForm/BodyCompositionForm'
+import { BodyWeightOutlookChart } from '#components/BodyWeightOutlookChart/BodyWeightOutlookChart'
 import styles from '#components/BodyWeightPanel/BodyWeightPanel.module.css'
 import { ErrorRetry } from '#components/ErrorRetry/ErrorRetry'
 import { RecordDeleteDialog } from '#components/RecordDeleteDialog/RecordDeleteDialog'
@@ -18,6 +20,9 @@ export interface BodyWeightDraft {
 }
 
 export interface BodyWeightPanelProps {
+  readonly outlookState: 'loading' | 'error' | 'loaded'
+  readonly outlook?: WeightOutlook | undefined
+  readonly onRetryOutlook: () => void
   readonly records: ReadonlyArray<BodyWeight>
   readonly compositionRecords: ReadonlyArray<BodyComposition>
   readonly loadState: 'loading' | 'error' | 'loaded'
@@ -86,6 +91,9 @@ const formatValue = (value: number | null, unit: string): string =>
     : `${new Intl.NumberFormat('ja-JP', { maximumFractionDigits: 2 }).format(value)} ${unit}`
 
 export const BodyWeightPanel = ({
+  outlookState,
+  outlook,
+  onRetryOutlook,
   records,
   compositionRecords,
   loadState,
@@ -155,6 +163,11 @@ export const BodyWeightPanel = ({
 
   return (
     <div className={styles.panel}>
+      <BodyWeightOutlookChart
+        state={outlookState}
+        outlook={outlook}
+        onRetry={onRetryOutlook}
+      />
       <form
         className={styles.form}
         onSubmit={(event) => {

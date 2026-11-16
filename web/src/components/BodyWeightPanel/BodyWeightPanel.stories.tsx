@@ -2,6 +2,7 @@ import type { Meta, StoryObj } from '@storybook/react-vite'
 
 import type { BodyComposition } from '#api/body-compositions'
 import type { BodyWeight } from '#api/body-weights'
+import type { WeightOutlook } from '#api/weight-outlook'
 import { BodyWeightPanel } from '#components/BodyWeightPanel/BodyWeightPanel'
 
 const record: BodyWeight = {
@@ -25,10 +26,37 @@ const composition: BodyComposition = {
   updatedAt: '2031-04-12T00:20:00.000Z',
 }
 
+const outlook: WeightOutlook = {
+  asOf: '2031-04-12',
+  points: [
+    { date: '2031-04-05', weightKg: 64.1 },
+    { date: '2031-04-08', weightKg: 63.8 },
+    { date: '2031-04-12', weightKg: 63.4 },
+  ],
+  latestWeightKg: 63.4,
+  goalWeightKg: 60,
+  trend: {
+    slopeKgPerDay: -0.02,
+    slopeKgPerWeek: -0.14,
+    points: [
+      { date: '2031-04-05', weightKg: 64.1, lowerKg: 63.8, upperKg: 64.4 },
+      { date: '2031-04-12', weightKg: 63.4, lowerKg: 63.1, upperKg: 63.7 },
+      { date: '2031-05-12', weightKg: 62.8, lowerKg: 61.9, upperKg: 63.6 },
+      { date: '2031-07-05', weightKg: 61.7, lowerKg: 59.7, upperKg: 63.8 },
+    ],
+  },
+  status: 'arrival_estimate',
+  reason: null,
+  arrivalDateRange: { from: '2031-06-16', to: '2031-06-27' },
+}
+
 const meta = {
   title: 'Components/BodyWeightPanel',
   component: BodyWeightPanel,
   args: {
+    outlookState: 'loaded',
+    outlook,
+    onRetryOutlook: () => undefined,
     records: [],
     compositionRecords: [],
     loadState: 'loaded',

@@ -18,6 +18,10 @@ import {
   postBodyWeight,
 } from '#api/body-weights'
 import { toPromise } from '#api/to-promise'
+import {
+  fetchWeightOutlook,
+  WEIGHT_OUTLOOK_QUERY_KEY,
+} from '#api/weight-outlook'
 import { type BodyCompositionDraft } from '#components/BodyCompositionForm/BodyCompositionForm'
 import {
   type BodyWeightDraft,
@@ -136,6 +140,10 @@ export const HistoryBodyWeightView = (): React.JSX.Element => {
     queryKey: [...BODY_WEIGHTS_QUERY_KEY, start, end],
     queryFn: () => toPromise(fetchBodyWeights(start, end)),
   })
+  const outlookQuery = useQuery({
+    queryKey: WEIGHT_OUTLOOK_QUERY_KEY,
+    queryFn: () => toPromise(fetchWeightOutlook()),
+  })
   const compositionQuery = useQuery({
     queryKey: [...BODY_COMPOSITIONS_QUERY_KEY, start, end],
     queryFn: () => toPromise(fetchBodyCompositions(start, end)),
@@ -237,6 +245,9 @@ export const HistoryBodyWeightView = (): React.JSX.Element => {
     },
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: BODY_WEIGHTS_QUERY_KEY })
+      await queryClient.invalidateQueries({
+        queryKey: WEIGHT_OUTLOOK_QUERY_KEY,
+      })
       resetDraft()
     },
   })
@@ -245,6 +256,9 @@ export const HistoryBodyWeightView = (): React.JSX.Element => {
     mutationFn: (id: string) => toPromise(deleteBodyWeight(id)),
     onSuccess: async (_record, id) => {
       await queryClient.invalidateQueries({ queryKey: BODY_WEIGHTS_QUERY_KEY })
+      await queryClient.invalidateQueries({
+        queryKey: WEIGHT_OUTLOOK_QUERY_KEY,
+      })
       setDeleteTarget(null)
       if (editingId === id) resetDraft()
     },
@@ -372,6 +386,17 @@ export const HistoryBodyWeightView = (): React.JSX.Element => {
 
   return (
     <BodyWeightPanel
+      outlookState={
+        outlookQuery.isPending
+          ? 'loading'
+          : outlookQuery.isError
+            ? 'error'
+            : 'loaded'
+      }
+      outlook={outlookQuery.data}
+      onRetryOutlook={() => {
+        void outlookQuery.refetch()
+      }}
       records={newestFirst(query.data ?? [])}
       compositionRecords={compositionRecords}
       loadState={loadState}

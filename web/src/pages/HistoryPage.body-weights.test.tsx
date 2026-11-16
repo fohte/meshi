@@ -21,6 +21,29 @@ const jsonResponse = (body: unknown, status = 200): Response =>
     headers: { 'content-type': 'application/json' },
   })
 
+const weightOutlookResponse = {
+  asOf: '2093-04-12',
+  points: [
+    { date: '2093-04-05', weightKg: 64.1 },
+    { date: '2093-04-08', weightKg: 63.8 },
+    { date: '2093-04-12', weightKg: 63.4 },
+  ],
+  latestWeightKg: 63.4,
+  goalWeightKg: 60,
+  trend: {
+    slopeKgPerDay: -0.02,
+    slopeKgPerWeek: -0.14,
+    points: [
+      { date: '2093-04-05', weightKg: 64.1, lowerKg: 63.8, upperKg: 64.4 },
+      { date: '2093-04-12', weightKg: 63.4, lowerKg: 63.1, upperKg: 63.7 },
+      { date: '2093-05-12', weightKg: 62.8, lowerKg: 61.9, upperKg: 63.6 },
+    ],
+  },
+  status: 'arrival_estimate',
+  reason: null,
+  arrivalDateRange: { from: '2093-05-01', to: '2093-05-12' },
+}
+
 const waitFor = async (condition: () => boolean): Promise<void> => {
   for (let attempt = 0; attempt < 40 && !condition(); attempt += 1) {
     await act(async () => {
@@ -31,6 +54,27 @@ const waitFor = async (condition: () => boolean): Promise<void> => {
 
 const bodyWeightRequests = (requests: ReadonlyArray<RequestRecord>) =>
   requests.filter((request) => request.path.startsWith('/api/body-weights'))
+
+const weightOutlookRequests = (requests: ReadonlyArray<RequestRecord>) =>
+  requests.filter((request) => request.path === '/api/weight-outlook')
+
+const weightOutlookChartOutput = (
+  requests: ReadonlyArray<RequestRecord>,
+  container: HTMLElement,
+) => {
+  const section = container.querySelector<HTMLElement>(
+    '[aria-labelledby="body-weight-outlook-title"]',
+  )
+  const svg = section?.querySelector('svg')
+  return {
+    requests: weightOutlookRequests(requests),
+    chartLabel: svg?.getAttribute('aria-label'),
+    message: section?.querySelector('p')?.textContent,
+    paths: svg?.querySelectorAll('path').length,
+    points: svg?.querySelectorAll('circle').length,
+    arrivalRange: svg?.querySelectorAll('rect').length,
+  }
+}
 
 const visibleRecords = (container: HTMLElement) =>
   Array.from(container.querySelectorAll<HTMLElement>('[data-record-id]')).map(
@@ -183,6 +227,9 @@ const setupPage = (
       if (path === '/api/nutrient-definitions') {
         return Promise.resolve(jsonResponse([]))
       }
+      if (path === '/api/weight-outlook') {
+        return Promise.resolve(jsonResponse(weightOutlookResponse))
+      }
       if (path.startsWith('/api/meal-history?')) {
         return Promise.resolve(
           jsonResponse({
@@ -284,6 +331,42 @@ afterEach(() => {
 })
 
 describe('HistoryPage body-weight tab', () => {
+  it('loads the outlook API and renders its chart and arrival message', async () => {
+    vi.spyOn(Temporal.Now, 'plainDateISO').mockReturnValue(
+      Temporal.PlainDate.from('2026-07-05'),
+    )
+    const { container, root, queryClient, requests } = setupPage((path) => {
+      if (path.startsWith('/api/body-weights?')) return jsonResponse([])
+      return jsonResponse({ error: 'unexpected request' }, 500)
+    })
+
+    try {
+      await performAct(() => {
+        renderPage(root, queryClient)
+      })
+      await openBodyWeightTab(container)
+      await waitFor(() => container.querySelector('svg[role="img"]') !== null)
+
+      expect(weightOutlookChartOutput(requests, container)).toEqual({
+        requests: [
+          {
+            method: 'GET',
+            path: '/api/weight-outlook',
+            body: null,
+          },
+        ],
+        chartLabel: '体重の記録、トレンド、目標体重と到達時期の見通し',
+        message:
+          '今のペースが続けば、目標体重への到達時期は 2093年5月1日〜2093年5月12日 ごろです。未検証の目安です。',
+        paths: 3,
+        points: 3,
+        arrivalRange: 1,
+      })
+    } finally {
+      await cleanupPage(container, root, queryClient)
+    }
+  })
+
   it('adds a measurement with its date and optional time', async () => {
     vi.spyOn(Temporal.Now, 'plainDateISO').mockReturnValue(
       Temporal.PlainDate.from('2026-07-05'),
