@@ -13,17 +13,22 @@ const formatDate = (date: string): string => {
 }
 
 export const getWeightOutlookMessage = (
-  outlook: Pick<WeightOutlook, 'status' | 'reason' | 'arrivalDateRange'>,
+  outlook: Pick<
+    WeightOutlook,
+    'status' | 'reason' | 'arrivalDateRange' | 'latestWeightKg'
+  >,
 ): string => {
   switch (outlook.status) {
     case 'insufficient_data':
       switch (outlook.reason) {
         case 'first_measurement_too_recent':
-          return '記録を始めたばかりです。もう少し続けると見通しを表示できます。'
+          return outlook.latestWeightKg === null
+            ? '体重の記録がまだありません。'
+            : '最近記録を始めたため、見通しを表示するにはもう少し記録が必要です。'
         case 'too_few_measurement_days':
-          return '直近 4 週間の記録がまだ十分ではありません。'
+          return '直近の体重記録が足りません。'
         case 'measurement_gap':
-          return '直近 4 週間の記録に空きがあります。週 2 日以上の記録がそろうと見通しを表示できます。'
+          return '体重記録に空きがあります。継続して記録すると見通しを表示できます。'
         case null:
           return '見通しを出すには、もう少し記録が必要です。'
       }
@@ -34,7 +39,7 @@ export const getWeightOutlookMessage = (
     case 'not_approaching':
       return '現在のトレンドでは、目標体重に近づいていません。'
     case 'no_arrival_estimate':
-      return '今のペースでは 12 週間以内の到達時期を見積もれません。'
+      return '予測できる期間内には目標体重に届きません。'
     case 'arrival_estimate':
       if (outlook.arrivalDateRange === null) {
         return '到達時期を見積もれません。'

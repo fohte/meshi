@@ -7,10 +7,14 @@ const makeOutlook = (
   status: WeightOutlook['status'],
   reason: WeightOutlook['reason'] = null,
   arrivalDateRange: WeightOutlook['arrivalDateRange'] = null,
+  latestWeightKg: number | null = 63.4,
 ): WeightOutlook => ({
   asOf: '2093-04-12',
-  points: [{ date: '2093-04-12', weightKg: 63.4 }],
-  latestWeightKg: 63.4,
+  points:
+    latestWeightKg === null
+      ? []
+      : [{ date: '2093-04-12', weightKg: latestWeightKg }],
+  latestWeightKg,
   goalWeightKg: 60,
   trend:
     status === 'insufficient_data'
@@ -63,6 +67,18 @@ export const FirstMeasurementIsRecent = {
   name: 'the first measurement was recorded recently',
   args: {
     outlook: makeOutlook('insufficient_data', 'first_measurement_too_recent'),
+  },
+} satisfies Story
+
+export const NoMeasurements = {
+  name: 'the user has no recorded measurements',
+  args: {
+    outlook: makeOutlook(
+      'insufficient_data',
+      'first_measurement_too_recent',
+      null,
+      null,
+    ),
   },
 } satisfies Story
 
