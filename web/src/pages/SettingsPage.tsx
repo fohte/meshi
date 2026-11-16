@@ -11,6 +11,7 @@ import {
   type UserProfilePatch,
 } from '#api/profile'
 import { toPromise } from '#api/to-promise'
+import { GoalWeightSection } from '#components/GoalWeightSection/GoalWeightSection'
 import { NutritionTargetsSection } from '#pages/settings/NutritionTargetsSection'
 import { TagField } from '#pages/settings/TagField'
 import styles from '#pages/SettingsPage.module.css'
@@ -126,6 +127,17 @@ export const SettingsPage = (): React.JSX.Element => {
           disabled={patchMutation.isPending}
         />
       </section>
+
+      <GoalWeightSection
+        goalWeightKg={profile.goalWeightKg}
+        onSave={(goalWeightKg) => {
+          patchMutation.mutate({ goalWeightKg })
+        }}
+        onClear={() => {
+          patchMutation.mutate({ goalWeightKg: null })
+        }}
+        disabled={patchMutation.isPending}
+      />
     </div>
   )
 }

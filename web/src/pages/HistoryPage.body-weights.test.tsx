@@ -171,6 +171,7 @@ const setupPage = (
             allergies: [],
             constraints: [],
             dailyTargets: null,
+            goalWeightKg: null,
           }),
         )
       }
