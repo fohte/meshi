@@ -80,6 +80,15 @@ export const DeleteError = {
   },
 } satisfies Story
 
+export const Deleting = {
+  name: 'the measurement is being deleted',
+  args: {
+    records: [record],
+    deleteTarget: record,
+    isDeleting: true,
+  },
+} satisfies Story
+
 export const Saving = {
   name: 'the measurement is being saved',
   args: {

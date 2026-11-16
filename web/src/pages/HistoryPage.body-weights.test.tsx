@@ -86,6 +86,19 @@ const validationErrorOutput = (
   error: container.querySelector('[role="alert"]')?.textContent,
 })
 
+const currentPeriodLabel = (container: HTMLElement): string | null =>
+  container
+    .querySelector('[aria-label="前の期間"]')
+    ?.parentElement?.querySelector('span')?.textContent ?? null
+
+const periodNavigationOutput = (
+  requests: ReadonlyArray<RequestRecord>,
+  labels: ReadonlyArray<string | null>,
+) => ({
+  requests: bodyWeightRequests(requests),
+  labels,
+})
+
 const savedRecord = (input: {
   readonly id: string
   readonly date: string
@@ -207,6 +220,18 @@ const clickButton = async (
   selector: string,
 ): Promise<void> => {
   const button = container.querySelector<HTMLButtonElement>(selector)
+  await performAct(() => {
+    button?.click()
+  })
+}
+
+const clickButtonByText = async (
+  container: HTMLElement,
+  text: string,
+): Promise<void> => {
+  const button = Array.from(container.querySelectorAll('button')).find(
+    (candidate) => candidate.textContent === text,
+  )
   await performAct(() => {
     button?.click()
   })
@@ -517,6 +542,74 @@ describe('HistoryPage body-weight tab', () => {
           },
         ],
         error: 'body weight date is in the future',
+      })
+    } finally {
+      await cleanupPage(container, root, queryClient)
+    }
+  })
+
+  it('loads inclusive ranges for 30 days and older periods', async () => {
+    vi.spyOn(Temporal.Now, 'plainDateISO').mockReturnValue(
+      Temporal.PlainDate.from('2026-07-05'),
+    )
+    const { container, root, queryClient, requests } = setupPage((path) => {
+      if (path.startsWith('/api/body-weights?')) return jsonResponse([])
+      return jsonResponse({ error: 'unexpected request' }, 500)
+    })
+
+    try {
+      await performAct(() => {
+        renderPage(root, queryClient)
+      })
+      await openBodyWeightTab(container)
+      const labels: Array<string | null> = [currentPeriodLabel(container)]
+
+      await clickButtonByText(container, '30 日')
+      await waitFor(
+        () =>
+          bodyWeightRequests(requests).length === 2 &&
+          currentPeriodLabel(container) === '2026-06-06 – 2026-07-05',
+      )
+      labels.push(currentPeriodLabel(container))
+
+      await clickButton(container, 'button[aria-label="前の期間"]')
+      await waitFor(
+        () =>
+          bodyWeightRequests(requests).length === 3 &&
+          currentPeriodLabel(container) === '2026-05-07 – 2026-06-05',
+      )
+      labels.push(currentPeriodLabel(container))
+
+      await clickButton(container, 'button[aria-label="次の期間"]')
+      await waitFor(
+        () => currentPeriodLabel(container) === '2026-06-06 – 2026-07-05',
+      )
+      labels.push(currentPeriodLabel(container))
+
+      expect(periodNavigationOutput(requests, labels)).toEqual({
+        requests: [
+          {
+            method: 'GET',
+            path: '/api/body-weights?from=2026-06-29&to=2026-07-05',
+            body: null,
+          },
+          {
+            method: 'GET',
+            path: '/api/body-weights?from=2026-06-06&to=2026-07-05',
+            body: null,
+          },
+          {
+            method: 'GET',
+            path: '/api/body-weights?from=2026-05-07&to=2026-06-05',
+            body: null,
+          },
+        ],
+        labels: [
+          '2026-06-29 – 2026-07-05',
+          '2026-06-06 – 2026-07-05',
+          '2026-05-07 – 2026-06-05',
+          '2026-06-06 – 2026-07-05',
+        ],
       })
     } finally {
       await cleanupPage(container, root, queryClient)

@@ -101,6 +101,7 @@ export const BodyWeightPanel = ({
             type="date"
             value={draft.date}
             required
+            disabled={isSaving}
             onChange={(event) => {
               onDraftChange({ ...draft, date: event.currentTarget.value })
             }}
@@ -114,6 +115,7 @@ export const BodyWeightPanel = ({
             step="any"
             value={draft.weightKg}
             required
+            disabled={isSaving}
             onChange={(event) => {
               onDraftChange({ ...draft, weightKg: event.currentTarget.value })
             }}
@@ -124,6 +126,7 @@ export const BodyWeightPanel = ({
           <input
             type="time"
             value={draft.measuredTime}
+            disabled={isSaving}
             onChange={(event) => {
               onDraftChange({
                 ...draft,
