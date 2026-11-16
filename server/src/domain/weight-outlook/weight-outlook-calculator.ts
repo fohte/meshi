@@ -260,7 +260,12 @@ export const calculateWeightOutlook = (
     ({ date }) =>
       date === shiftDate(asOf, -(WEIGHT_OUTLOOK_POLICY.daysPerWeek - 1)),
   )
-  if (trendToday === undefined || trendSixDaysAgo === undefined) {
+  const trendAtWindowStart = trendPoints.find(({ date }) => date === startDate)
+  if (
+    trendToday === undefined ||
+    trendSixDaysAgo === undefined ||
+    trendAtWindowStart === undefined
+  ) {
     return {
       ...shared,
       trend,
@@ -269,7 +274,7 @@ export const calculateWeightOutlook = (
       arrivalDateRange: null,
     }
   }
-  const direction = goalWeightKg < trendToday.weightKg ? -1 : 1
+  const direction = goalWeightKg <= trendAtWindowStart.weightKg ? -1 : 1
   const hasReached =
     direction < 0
       ? trendSixDaysAgo.weightKg <= goalWeightKg &&
