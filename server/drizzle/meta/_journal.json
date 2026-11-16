@@ -183,6 +183,13 @@
       "when": 1794292316325,
       "tag": "0025_heavy_sasquatch",
       "breakpoints": true
+    },
+    {
+      "idx": 26,
+      "version": "7",
+      "when": 1794837299205,
+      "tag": "0026_reflective_boomerang",
+      "breakpoints": true
     }
   ]
 }

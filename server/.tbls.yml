@@ -14,6 +14,12 @@ lint:
     enabled: true
     exclude: [id, created_at, updated_at]
 comments:
+  - table: body_weights
+    tableComment: 'Measured body weight records.'
+    columnComments:
+      measured_date: 'Asia/Tokyo calendar date when the weight was measured.'
+      measured_at: 'Measurement instant, when known.'
+      weight_kg: 'Measured body weight in kilograms.'
   - table: nutrient_definitions
     tableComment: 'Catalog of nutrient codes, names, units, and display ordering.'
     columnComments:

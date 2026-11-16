@@ -1,3 +1,4 @@
+export * from '#db/schema/body-weights'
 export * from '#db/schema/enums'
 export * from '#db/schema/foods'
 export * from '#db/schema/inventory'
