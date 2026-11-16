@@ -1,9 +1,108 @@
 {
-  "id": "624a8482-98b1-4a85-b519-8a38e942ab48",
+  "id": "0381009a-e849-435d-be1a-fd7749442798",
   "prevId": "d335b6a5-d466-4994-b93d-c0fa91502f68",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
+    "public.body_compositions": {
+      "name": "body_compositions",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "measured_date": {
+          "name": "measured_date",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "measured_at": {
+          "name": "measured_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "device": {
+          "name": "device",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "body_fat_percent": {
+          "name": "body_fat_percent",
+          "type": "numeric(4, 2)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "muscle_mass_kg": {
+          "name": "muscle_mass_kg",
+          "type": "numeric(5, 2)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "skeletal_muscle_percent": {
+          "name": "skeletal_muscle_percent",
+          "type": "numeric(4, 2)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "body_compositions_measurement_key": {
+          "name": "body_compositions_measurement_key",
+          "nullsNotDistinct": true,
+          "columns": [
+            "measured_date",
+            "measured_at",
+            "device",
+            "body_fat_percent",
+            "muscle_mass_kg",
+            "skeletal_muscle_percent"
+          ]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {
+        "body_compositions_body_fat_percent_range": {
+          "name": "body_compositions_body_fat_percent_range",
+          "value": "\"body_compositions\".\"body_fat_percent\" IS NULL OR \"body_compositions\".\"body_fat_percent\" BETWEEN 1 AND 75"
+        },
+        "body_compositions_muscle_mass_kg_range": {
+          "name": "body_compositions_muscle_mass_kg_range",
+          "value": "\"body_compositions\".\"muscle_mass_kg\" IS NULL OR \"body_compositions\".\"muscle_mass_kg\" BETWEEN 5 AND 200"
+        },
+        "body_compositions_skeletal_muscle_percent_range": {
+          "name": "body_compositions_skeletal_muscle_percent_range",
+          "value": "\"body_compositions\".\"skeletal_muscle_percent\" IS NULL OR \"body_compositions\".\"skeletal_muscle_percent\" BETWEEN 1 AND 75"
+        },
+        "body_compositions_has_value": {
+          "name": "body_compositions_has_value",
+          "value": "num_nonnulls(\"body_compositions\".\"body_fat_percent\", \"body_compositions\".\"muscle_mass_kg\", \"body_compositions\".\"skeletal_muscle_percent\") >= 1"
+        }
+      },
+      "isRLSEnabled": false
+    },
     "public.body_weights": {
       "name": "body_weights",
       "schema": "",
@@ -2155,12 +2254,6 @@
         "daily_targets": {
           "name": "daily_targets",
           "type": "jsonb",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "goal_weight_kg": {
-          "name": "goal_weight_kg",
-          "type": "numeric(5, 2)",
           "primaryKey": false,
           "notNull": false
         },

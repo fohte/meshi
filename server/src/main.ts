@@ -13,6 +13,10 @@ import { createSql, pingDb } from '#db/index'
 import { runMigrations } from '#db/migrations'
 import { seedNutrientDefinitions } from '#db/seed/index'
 import {
+  createBodyCompositionService,
+  createDrizzleBodyCompositionRepository,
+} from '#domain/body-composition/index'
+import {
   createBodyWeightService,
   createDrizzleBodyWeightRepository,
 } from '#domain/body-weight/index'
@@ -106,6 +110,11 @@ export const main = async (): Promise<void> => {
     idGenerator: () => randomUUID(),
     now: () => new Date(),
   })
+  const bodyCompositionService = createBodyCompositionService({
+    repository: createDrizzleBodyCompositionRepository(sql),
+    idGenerator: () => randomUUID(),
+    now: () => new Date(),
+  })
   const mealPlanService = createMealPlanService({
     repository: createDrizzleMealPlanRepository(sql),
     now: () => new Date(),
@@ -139,6 +148,7 @@ export const main = async (): Promise<void> => {
   )
   const logger = createJsonStdoutLogger()
   const toolDeps: MeshiToolDeps = {
+    bodyWeightService,
     mealHistoryService,
     profileService: userProfileService,
     foodSearchService,
@@ -156,6 +166,7 @@ export const main = async (): Promise<void> => {
     sql,
     mealHistoryService,
     bodyWeightService,
+    bodyCompositionService,
     dayDetailService,
     nutrientDefinitionRepository,
     userProfileService,

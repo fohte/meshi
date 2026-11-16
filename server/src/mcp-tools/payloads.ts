@@ -1,5 +1,6 @@
 import type { CallToolResult } from '@modelcontextprotocol/server'
 
+import type { BodyWeight } from '#domain/body-weight/types'
 import { toMealHistoryPayload } from '#domain/meal-history/mealHistoryPayload'
 import type { MealHistoryAggregate } from '#domain/meal-history/types'
 import type { MealLogDeletionResult } from '#domain/meal-log/types'
@@ -46,6 +47,15 @@ export const buildMealHistoryPayload = (
   aggregate: MealHistoryAggregate,
 ): Record<string, unknown> => ({
   ...toMealHistoryPayload(aggregate, { includeRecordedAt: true }),
+})
+
+export const buildBodyWeightPayload = (bodyWeight: BodyWeight) => ({
+  body_weight_id: bodyWeight.id,
+  date: bodyWeight.date,
+  measured_at: bodyWeight.measuredAt?.toISOString() ?? null,
+  weight_kg: bodyWeight.weightKg,
+  created_at: bodyWeight.createdAt.toISOString(),
+  updated_at: bodyWeight.updatedAt.toISOString(),
 })
 
 export const buildMealLogMutationPayload = (

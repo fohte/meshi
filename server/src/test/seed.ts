@@ -2,6 +2,7 @@ import { z } from 'zod'
 
 import type { Sql } from '#db/index'
 import type {
+  bodyCompositions,
   bodyWeights,
   deliveries,
   deliverySourceRefs,
@@ -291,6 +292,34 @@ export const seedBodyWeight = async (
       ${values.id}, ${values.measuredDate},
       ${values.measuredAt?.toISOString() ?? null}::timestamptz,
       ${values.weightKg}
+    )
+  `
+}
+
+export const seedBodyComposition = async (
+  sql: Sql,
+  values: Omit<
+    typeof bodyCompositions.$inferInsert,
+    | 'createdAt'
+    | 'updatedAt'
+    | 'bodyFatPercent'
+    | 'muscleMassKg'
+    | 'skeletalMusclePercent'
+  > & {
+    bodyFatPercent?: number | null
+    muscleMassKg?: number | null
+    skeletalMusclePercent?: number | null
+  },
+): Promise<void> => {
+  await sql`
+    INSERT INTO body_compositions (
+      id, measured_date, measured_at, device, body_fat_percent,
+      muscle_mass_kg, skeletal_muscle_percent
+    ) VALUES (
+      ${values.id}, ${values.measuredDate},
+      ${values.measuredAt?.toISOString() ?? null}::timestamptz,
+      ${values.device}, ${values.bodyFatPercent ?? null},
+      ${values.muscleMassKg ?? null}, ${values.skeletalMusclePercent ?? null}
     )
   `
 }
