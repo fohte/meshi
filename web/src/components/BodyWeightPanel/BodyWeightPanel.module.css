@@ -142,21 +142,31 @@
   flex-direction: column;
 }
 
+.dayGroup {
+  border-top: var(--border-width) solid var(--color-border);
+  padding-top: 12px;
+}
+
+.dayGroup > h3 {
+  margin: 0 0 4px;
+  font-size: 14px;
+}
+
 .record {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto auto;
   align-items: center;
   gap: 16px;
-  border-top: var(--border-width) solid var(--color-border);
   padding: 14px 0;
 }
 
-.recordText h3,
+.recordText h4,
 .recordText p {
   margin: 0;
 }
 
-.recordText h3 {
+.recordText h4,
+.compositionText h4 {
   font-size: 14px;
   font-weight: 500;
 }
@@ -181,6 +191,45 @@
 
 .recordActions button {
   padding: 6px 9px;
+}
+
+.compositionRecord {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 16px;
+  border-top: var(--border-width) solid var(--color-border);
+  padding: 14px 0;
+}
+
+.compositionText h4,
+.compositionText p {
+  margin: 0;
+}
+
+.compositionText p {
+  margin-top: 4px;
+  color: var(--color-muted);
+  font-family: var(--font-mono);
+  font-size: 11px;
+}
+
+.compositionValues {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 16px;
+  margin-top: 8px;
+  font-size: 12px;
+}
+
+.compositionValues span {
+  color: var(--color-muted);
+}
+
+.compositionValues strong {
+  color: var(--color-text);
+  font-family: var(--font-mono);
+  font-weight: 500;
 }
 
 .empty {
@@ -241,7 +290,8 @@
     grid-column: 1 / -1;
   }
 
-  .record {
+  .record,
+  .compositionRecord {
     grid-template-columns: minmax(0, 1fr) auto;
     gap: 10px;
   }

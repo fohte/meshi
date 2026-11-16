@@ -36,7 +36,7 @@ const visibleRecords = (container: HTMLElement) =>
   Array.from(container.querySelectorAll<HTMLElement>('[data-record-id]')).map(
     (article) => ({
       id: article.dataset.recordId,
-      date: article.querySelector('h3')?.textContent,
+      date: article.closest('[data-day]')?.querySelector('h3')?.textContent,
       time: article.querySelector('p')?.textContent ?? null,
       weight: article.querySelector('strong')?.textContent,
     }),
@@ -142,6 +142,11 @@ const updateInputSchema = z.object({
 
 const setupPage = (
   fetchHandler: (path: string, method: string, body: unknown) => Response,
+  compositionHandler?: (
+    path: string,
+    method: string,
+    body: unknown,
+  ) => Response,
 ): {
   readonly container: HTMLDivElement
   readonly root: Root
@@ -190,6 +195,11 @@ const setupPage = (
       }
       if (path.startsWith('/api/meal-plans?')) {
         return Promise.resolve(jsonResponse([]))
+      }
+      if (path.startsWith('/api/body-compositions')) {
+        return Promise.resolve(
+          compositionHandler?.(path, method, body) ?? jsonResponse([]),
+        )
       }
       return Promise.resolve(fetchHandler(path, method, body))
     }),

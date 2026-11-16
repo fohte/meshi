@@ -1,6 +1,14 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 
+import {
+  BODY_COMPOSITIONS_QUERY_KEY,
+  type BodyComposition,
+  deleteBodyComposition,
+  fetchBodyCompositions,
+  patchBodyComposition,
+  postBodyComposition,
+} from '#api/body-compositions'
 import {
   BODY_WEIGHTS_QUERY_KEY,
   type BodyWeight,
@@ -10,6 +18,7 @@ import {
   postBodyWeight,
 } from '#api/body-weights'
 import { toPromise } from '#api/to-promise'
+import { type BodyCompositionDraft } from '#components/BodyCompositionForm/BodyCompositionForm'
 import {
   type BodyWeightDraft,
   BodyWeightPanel,
@@ -23,6 +32,15 @@ const emptyDraft = (): BodyWeightDraft => ({
   date: todayJstDate(),
   weightKg: '',
   measuredTime: '',
+})
+
+const emptyCompositionDraft = (device = ''): BodyCompositionDraft => ({
+  date: todayJstDate(),
+  measuredTime: '',
+  device,
+  bodyFatPercent: '',
+  muscleMassKg: '',
+  skeletalMusclePercent: '',
 })
 
 const toJstTime = (measuredAt: string | null): string => {
@@ -62,13 +80,34 @@ const newestFirst = (records: ReadonlyArray<BodyWeight>): BodyWeight[] =>
     return right.measuredAt.localeCompare(left.measuredAt)
   })
 
+const newestCompositionsFirst = (
+  records: ReadonlyArray<BodyComposition>,
+): BodyComposition[] =>
+  [...records].sort((left, right) => {
+    const dateOrder = right.date.localeCompare(left.date)
+    if (dateOrder !== 0) return dateOrder
+    if (left.measuredAt === null) return right.measuredAt === null ? 0 : 1
+    if (right.measuredAt === null) return -1
+    return right.measuredAt.localeCompare(left.measuredAt)
+  })
+
+const parseOptionalNumber = (value: string): number | null =>
+  value === '' ? null : Number(value)
+
 export const HistoryBodyWeightView = (): React.JSX.Element => {
   const queryClient = useQueryClient()
   const today = todayJstDate()
   const [period, setPeriod] = useState<BodyWeightPeriod>('week')
   const [periodOffset, setPeriodOffset] = useState(0)
   const [draft, setDraft] = useState<BodyWeightDraft>(emptyDraft)
+  const [compositionDraft, setCompositionDraft] =
+    useState<BodyCompositionDraft>(() => emptyCompositionDraft())
+  const [hasInitializedCompositionDevice, setHasInitializedCompositionDevice] =
+    useState(false)
   const [editingId, setEditingId] = useState<string | null>(null)
+  const [compositionEditingId, setCompositionEditingId] = useState<
+    string | null
+  >(null)
   const [initialDate, setInitialDate] = useState<string | null>(null)
   const [initialMeasuredTime, setInitialMeasuredTime] = useState<string | null>(
     null,
@@ -76,7 +115,16 @@ export const HistoryBodyWeightView = (): React.JSX.Element => {
   const [initialMeasuredAt, setInitialMeasuredAt] = useState<string | null>(
     null,
   )
+  const [compositionInitialDate, setCompositionInitialDate] = useState<
+    string | null
+  >(null)
+  const [compositionInitialMeasuredTime, setCompositionInitialMeasuredTime] =
+    useState<string | null>(null)
+  const [compositionInitialMeasuredAt, setCompositionInitialMeasuredAt] =
+    useState<string | null>(null)
   const [deleteTarget, setDeleteTarget] = useState<BodyWeight | null>(null)
+  const [compositionDeleteTarget, setCompositionDeleteTarget] =
+    useState<BodyComposition | null>(null)
 
   const span = PERIOD_DAYS[period]
   const end = shiftDateString(today, periodOffset * span)
@@ -85,6 +133,28 @@ export const HistoryBodyWeightView = (): React.JSX.Element => {
     queryKey: [...BODY_WEIGHTS_QUERY_KEY, start, end],
     queryFn: () => toPromise(fetchBodyWeights(start, end)),
   })
+  const compositionQuery = useQuery({
+    queryKey: [...BODY_COMPOSITIONS_QUERY_KEY, start, end],
+    queryFn: () => toPromise(fetchBodyCompositions(start, end)),
+  })
+  const compositionRecords = newestCompositionsFirst(
+    compositionQuery.data ?? [],
+  )
+  const latestDevice = compositionRecords[0]?.device
+
+  useEffect(() => {
+    if (compositionQuery.isPending || hasInitializedCompositionDevice) return
+    if (latestDevice !== undefined) {
+      setCompositionDraft((current) =>
+        current.device === '' ? { ...current, device: latestDevice } : current,
+      )
+    }
+    setHasInitializedCompositionDevice(true)
+  }, [
+    compositionQuery.isPending,
+    hasInitializedCompositionDevice,
+    latestDevice,
+  ])
 
   const resetDraft = (): void => {
     setEditingId(null)
@@ -92,6 +162,14 @@ export const HistoryBodyWeightView = (): React.JSX.Element => {
     setInitialMeasuredTime(null)
     setInitialMeasuredAt(null)
     setDraft(emptyDraft())
+  }
+
+  const resetCompositionDraft = (): void => {
+    setCompositionEditingId(null)
+    setCompositionInitialDate(null)
+    setCompositionInitialMeasuredTime(null)
+    setCompositionInitialMeasuredAt(null)
+    setCompositionDraft(emptyCompositionDraft(latestDevice ?? ''))
   }
 
   const saveMutation = useMutation({
@@ -142,6 +220,70 @@ export const HistoryBodyWeightView = (): React.JSX.Element => {
     },
   })
 
+  const compositionSaveMutation = useMutation({
+    mutationFn: () => {
+      const seconds =
+        compositionEditingId !== null &&
+        compositionDraft.measuredTime === compositionInitialMeasuredTime &&
+        compositionInitialMeasuredAt !== null
+          ? toJstSecondAndMillisecond(compositionInitialMeasuredAt)
+          : '00'
+      const measuredAt =
+        compositionDraft.measuredTime === ''
+          ? null
+          : `${compositionDraft.date}T${compositionDraft.measuredTime}:${seconds}+09:00`
+      const bodyFatPercent = parseOptionalNumber(
+        compositionDraft.bodyFatPercent,
+      )
+      const muscleMassKg = parseOptionalNumber(compositionDraft.muscleMassKg)
+      const skeletalMusclePercent = parseOptionalNumber(
+        compositionDraft.skeletalMusclePercent,
+      )
+      if (compositionEditingId !== null) {
+        const shouldUpdateMeasuredAt =
+          compositionDraft.date !== compositionInitialDate ||
+          compositionDraft.measuredTime !== compositionInitialMeasuredTime
+        return toPromise(
+          patchBodyComposition(compositionEditingId, {
+            date: compositionDraft.date,
+            device: compositionDraft.device,
+            ...(shouldUpdateMeasuredAt ? { measuredAt } : {}),
+            bodyFatPercent,
+            muscleMassKg,
+            skeletalMusclePercent,
+          }),
+        )
+      }
+      return toPromise(
+        postBodyComposition({
+          date: compositionDraft.date,
+          device: compositionDraft.device,
+          ...(measuredAt === null ? {} : { measuredAt }),
+          ...(bodyFatPercent === null ? {} : { bodyFatPercent }),
+          ...(muscleMassKg === null ? {} : { muscleMassKg }),
+          ...(skeletalMusclePercent === null ? {} : { skeletalMusclePercent }),
+        }),
+      )
+    },
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({
+        queryKey: BODY_COMPOSITIONS_QUERY_KEY,
+      })
+      resetCompositionDraft()
+    },
+  })
+
+  const compositionDeleteMutation = useMutation({
+    mutationFn: (id: string) => toPromise(deleteBodyComposition(id)),
+    onSuccess: async (_record, id) => {
+      await queryClient.invalidateQueries({
+        queryKey: BODY_COMPOSITIONS_QUERY_KEY,
+      })
+      setCompositionDeleteTarget(null)
+      if (compositionEditingId === id) resetCompositionDraft()
+    },
+  })
+
   const changePeriod = (next: BodyWeightPeriod): void => {
     setPeriod(next)
     setPeriodOffset(0)
@@ -161,19 +303,44 @@ export const HistoryBodyWeightView = (): React.JSX.Element => {
     })
   }
 
-  const loadState = query.isPending
-    ? 'loading'
-    : query.isError
-      ? 'error'
-      : 'loaded'
+  const editComposition = (record: BodyComposition): void => {
+    compositionSaveMutation.reset()
+    const measuredTime = toJstTime(record.measuredAt)
+    setCompositionEditingId(record.id)
+    setCompositionInitialDate(record.date)
+    setCompositionInitialMeasuredTime(measuredTime)
+    setCompositionInitialMeasuredAt(record.measuredAt)
+    setCompositionDraft({
+      date: record.date,
+      measuredTime,
+      device: record.device,
+      bodyFatPercent:
+        record.bodyFatPercent === null ? '' : String(record.bodyFatPercent),
+      muscleMassKg:
+        record.muscleMassKg === null ? '' : String(record.muscleMassKg),
+      skeletalMusclePercent:
+        record.skeletalMusclePercent === null
+          ? ''
+          : String(record.skeletalMusclePercent),
+    })
+  }
+
+  const loadState =
+    query.isPending || compositionQuery.isPending
+      ? 'loading'
+      : query.isError || compositionQuery.isError
+        ? 'error'
+        : 'loaded'
 
   return (
     <BodyWeightPanel
       records={newestFirst(query.data ?? [])}
+      compositionRecords={compositionRecords}
       loadState={loadState}
-      loadError={query.error?.message}
+      loadError={query.error?.message ?? compositionQuery.error?.message}
       onRetry={() => {
         void query.refetch()
+        void compositionQuery.refetch()
       }}
       period={period}
       rangeLabel={`${start} – ${end}`}
@@ -212,6 +379,35 @@ export const HistoryBodyWeightView = (): React.JSX.Element => {
       deleteError={deleteMutation.error?.message}
       isDeleting={deleteMutation.isPending}
       onEdit={edit}
+      compositionDraft={compositionDraft}
+      compositionEditingId={compositionEditingId}
+      onCompositionDraftChange={(nextDraft) => {
+        setCompositionDraft(nextDraft)
+        compositionSaveMutation.reset()
+      }}
+      onCompositionSave={() => {
+        compositionSaveMutation.mutate()
+      }}
+      onCancelCompositionEdit={resetCompositionDraft}
+      compositionSaveError={compositionSaveMutation.error?.message}
+      isSavingComposition={compositionSaveMutation.isPending}
+      compositionDeleteTarget={compositionDeleteTarget}
+      onRequestCompositionDelete={(record) => {
+        compositionDeleteMutation.reset()
+        setCompositionDeleteTarget(record)
+      }}
+      onCancelCompositionDelete={() => {
+        setCompositionDeleteTarget(null)
+        compositionDeleteMutation.reset()
+      }}
+      onConfirmCompositionDelete={() => {
+        if (compositionDeleteTarget !== null) {
+          compositionDeleteMutation.mutate(compositionDeleteTarget.id)
+        }
+      }}
+      compositionDeleteError={compositionDeleteMutation.error?.message}
+      isDeletingComposition={compositionDeleteMutation.isPending}
+      onEditComposition={editComposition}
     />
   )
 }
