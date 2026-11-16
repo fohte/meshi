@@ -768,6 +768,7 @@ const start = async (config: HarnessConfig = {}): Promise<Harness> => {
     stockService: createStubMcpDeps().stockService,
     bodyCompositionService: createStubMcpDeps().bodyCompositionService,
     bodyWeightService: createStubMcpDeps().bodyWeightService,
+    weightOutlookService: createStubMcpDeps().weightOutlookService,
     profileService,
     foodSearchService,
     mealSetService,
@@ -796,7 +797,7 @@ const start = async (config: HarnessConfig = {}): Promise<Harness> => {
 }
 
 describe('MeshiMcpServer tools/list', () => {
-  it('exposes the thirty-eight public tools with stable names', async () => {
+  it('exposes the thirty-nine public tools with stable names', async () => {
     const h = await start()
     try {
       const result = await h.client.listTools()
@@ -813,6 +814,7 @@ describe('MeshiMcpServer tools/list', () => {
         'get_profile',
         'get_recommendation_context',
         'get_stock_status',
+        'get_weight_outlook',
         'list_body_compositions',
         'list_body_weights',
         'list_deliveries',
@@ -1015,6 +1017,7 @@ describe('MeshiMcpServer tools/list', () => {
         get_profile: [],
         get_recommendation_context: ['period_from', 'period_to'],
         get_stock_status: [],
+        get_weight_outlook: [],
         list_deliveries: ['delivery_id', 'limit', 'source_ref', 'status'],
         list_body_compositions: ['from', 'to'],
         list_body_weights: ['from', 'to'],

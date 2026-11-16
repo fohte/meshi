@@ -25,6 +25,7 @@ import { StockDomainError } from '#domain/stock/errors'
 import type { StockService } from '#domain/stock/types'
 import { UserProfileRepositoryError } from '#domain/user-profile/errors'
 import type { UserProfileService } from '#domain/user-profile/user-profile-service'
+import type { WeightOutlookService } from '#domain/weight-outlook/weight-outlook-service'
 import type { MeshiToolDeps } from '#mcp-tools'
 import { createNullLogger } from '#test/logger'
 
@@ -37,6 +38,10 @@ const rejectingBodyWeightService: BodyWeightService = {
   list: () => errAsync(new BodyWeightPersistenceError('stub')),
   update: () => errAsync(new BodyWeightPersistenceError('stub')),
   delete: () => errAsync(new BodyWeightPersistenceError('stub')),
+}
+
+const rejectingWeightOutlookService: WeightOutlookService = {
+  get: () => errAsync(new BodyWeightPersistenceError('stub')),
 }
 
 const rejectingBodyCompositionService: BodyCompositionService = {
@@ -138,6 +143,7 @@ const rejectingStockService: StockService = {
 export const createStubMcpDeps = (): MeshiToolDeps => ({
   bodyCompositionService: rejectingBodyCompositionService,
   bodyWeightService: rejectingBodyWeightService,
+  weightOutlookService: rejectingWeightOutlookService,
   mealHistoryService: rejectingMealHistoryService,
   profileService: rejectingProfileService,
   mealLogService: rejectingMealLogService,

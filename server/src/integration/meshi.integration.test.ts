@@ -55,6 +55,7 @@ import {
 } from '#test/db'
 import { jstDate } from '#test/jst-date'
 import { createNullLogger } from '#test/logger'
+import { createStubMcpDeps } from '#test/mcp-stubs'
 import {
   seedDelivery,
   seedFoodMaster as seedFoodMasterRow,
@@ -206,6 +207,7 @@ const startHarness = async (opts: HarnessOptions): Promise<Harness> => {
   const server = createMcpServer({
     bodyCompositionService,
     bodyWeightService,
+    weightOutlookService: createStubMcpDeps().weightOutlookService,
     mealHistoryService,
     profileService: userProfileService,
     foodSearchService,
