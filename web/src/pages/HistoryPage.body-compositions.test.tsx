@@ -78,6 +78,7 @@ const setupPage = (
   compositions: Array<BodyComposition>,
   compositionPostError?: string,
   compositionLoadError?: string,
+  latestDeviceLoadErrorOnce?: string,
 ): {
   readonly container: HTMLDivElement
   readonly root: Root
@@ -85,6 +86,7 @@ const setupPage = (
   readonly requests: Array<RequestRecord>
 } => {
   const requests: Array<RequestRecord> = []
+  let shouldFailLatestDeviceLoad = latestDeviceLoadErrorOnce !== undefined
   vi.stubGlobal(
     'fetch',
     vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
@@ -133,6 +135,15 @@ const setupPage = (
         const { searchParams } = new URL(path, 'http://meshi.test')
         const from = searchParams.get('from') ?? ''
         const to = searchParams.get('to') ?? ''
+        if (
+          path === ALL_BODY_COMPOSITIONS_RANGE &&
+          shouldFailLatestDeviceLoad
+        ) {
+          shouldFailLatestDeviceLoad = false
+          return Promise.resolve(
+            jsonResponse({ error: latestDeviceLoadErrorOnce }, 500),
+          )
+        }
         if (
           compositionLoadError !== undefined &&
           path !== ALL_BODY_COMPOSITIONS_RANGE
@@ -364,6 +375,17 @@ const compositionDraftOutput = (container: HTMLElement) => {
   }
 }
 
+const latestDeviceRetryOutput = (
+  container: HTMLElement,
+  requests: ReadonlyArray<RequestRecord>,
+) => ({
+  errorVisible: container.textContent.includes('latest device lookup failed'),
+  latestDeviceRequests: requests
+    .filter((request) => request.path === ALL_BODY_COMPOSITIONS_RANGE)
+    .map((request) => request.path),
+  draft: compositionDraftOutput(container),
+})
+
 const createdCompositionOutput = (
   container: HTMLElement,
   requests: ReadonlyArray<RequestRecord>,
@@ -395,6 +417,7 @@ const deletedCompositionOutput = (
   emptyMessage: Array.from(container.querySelectorAll('p')).find(
     (paragraph) => paragraph.textContent === 'この期間の記録はありません',
   )?.textContent,
+  draft: compositionDraftOutput(container),
 })
 
 const compositionSaveErrorOutput = (
@@ -542,6 +565,64 @@ describe('HistoryPage body-composition tab content', () => {
       expect(emptyPageOutput(container)).toEqual({
         days: [],
         emptyMessage: 'この期間の記録はありません',
+      })
+    } finally {
+      await cleanupPage(container, root, queryClient)
+    }
+  })
+
+  it('retries the latest device lookup after a failed all-history request', async () => {
+    vi.spyOn(Temporal.Now, 'plainDateISO').mockReturnValue(
+      Temporal.PlainDate.from('2026-07-05'),
+    )
+    const compositions = [
+      savedComposition({
+        id: 'composition_demo_latest',
+        date: '2026-06-20',
+        device: 'Example Scale Z',
+        bodyFatPercent: 23.4,
+      }),
+    ]
+    const { container, root, queryClient, requests } = setupPage(
+      [],
+      compositions,
+      undefined,
+      undefined,
+      'latest device lookup failed',
+    )
+
+    try {
+      await performAct(() => {
+        renderPage(root, queryClient)
+      })
+      await openBodyWeightTab(container)
+      await waitFor(() =>
+        container.textContent.includes('latest device lookup failed'),
+      )
+      const retryButton = Array.from(
+        container.querySelectorAll<HTMLButtonElement>('button'),
+      ).find((button) => button.textContent === '再試行')
+      await performAct(() => {
+        retryButton?.click()
+      })
+      const deviceInput = findInput(compositionForm(container), '機器名')
+      await waitFor(() => deviceInput?.value === 'Example Scale Z')
+
+      expect(latestDeviceRetryOutput(container, requests)).toEqual({
+        errorVisible: false,
+        latestDeviceRequests: [
+          ALL_BODY_COMPOSITIONS_RANGE,
+          ALL_BODY_COMPOSITIONS_RANGE,
+        ],
+        draft: {
+          title: '体組成を記録',
+          date: '2026-07-05',
+          time: '',
+          device: 'Example Scale Z',
+          bodyFatPercent: '',
+          muscleMassKg: '',
+          skeletalMusclePercent: '',
+        },
       })
     } finally {
       await cleanupPage(container, root, queryClient)
@@ -864,6 +945,15 @@ describe('HistoryPage body-composition tab content', () => {
         ],
         records: [],
         emptyMessage: 'この期間の記録はありません',
+        draft: {
+          title: '体組成を記録',
+          date: '2026-07-05',
+          time: '',
+          device: 'Example Scale Z',
+          bodyFatPercent: '',
+          muscleMassKg: '',
+          skeletalMusclePercent: '',
+        },
       })
     } finally {
       await cleanupPage(container, root, queryClient)
@@ -886,11 +976,18 @@ describe('HistoryPage body-composition tab content', () => {
       })
       await openBodyWeightTab(container)
       const form = compositionForm(container)
+      const timeInput = findInput(form, '測定時刻 (任意)')
       const deviceInput = findInput(form, '機器名')
       const bodyFatInput = findInput(form, '体脂肪率 (%)')
+      const muscleMassInput = findInput(form, '筋肉量 (kg)')
+      const skeletalMuscleInput = findInput(form, '骨格筋率 (%)')
+      if (timeInput !== null) await setInputValue(timeInput, '08:15')
       if (deviceInput !== null)
         await setInputValue(deviceInput, 'Example Scale Z')
       if (bodyFatInput !== null) await setInputValue(bodyFatInput, '25.1')
+      if (muscleMassInput !== null) await setInputValue(muscleMassInput, '50.2')
+      if (skeletalMuscleInput !== null)
+        await setInputValue(skeletalMuscleInput, '36.7')
       await clickButton(form, 'button[type="submit"]')
       await waitFor(() =>
         Array.from(container.querySelectorAll('[role="alert"]')).some(
@@ -904,8 +1001,11 @@ describe('HistoryPage body-composition tab content', () => {
             path: '/api/body-compositions',
             body: {
               date: '2026-07-05',
+              measuredAt: '2026-07-05T08:15:00+09:00',
               device: 'Example Scale Z',
               bodyFatPercent: 25.1,
+              muscleMassKg: 50.2,
+              skeletalMusclePercent: 36.7,
             },
           },
         ],
@@ -913,11 +1013,11 @@ describe('HistoryPage body-composition tab content', () => {
         draft: {
           title: '体組成を記録',
           date: '2026-07-05',
-          time: '',
+          time: '08:15',
           device: 'Example Scale Z',
           bodyFatPercent: '25.1',
-          muscleMassKg: '',
-          skeletalMusclePercent: '',
+          muscleMassKg: '50.2',
+          skeletalMusclePercent: '36.7',
         },
       })
     } finally {

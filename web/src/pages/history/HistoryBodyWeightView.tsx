@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 
 import {
   BODY_COMPOSITIONS_QUERY_KEY,
@@ -153,9 +153,10 @@ export const HistoryBodyWeightView = (): React.JSX.Element => {
   const compositionRecords = newestCompositionsFirst(
     compositionQuery.data ?? [],
   )
-  const latestDevice = newestCompositionsFirst(
-    latestCompositionQuery.data ?? [],
-  )[0]?.device
+  const latestDevice = useMemo(
+    () => newestCompositionsFirst(latestCompositionQuery.data ?? [])[0]?.device,
+    [latestCompositionQuery.data],
+  )
   const latestDeviceFromCache = (): string => {
     const cachedRecords =
       queryClient.getQueryData<ReadonlyArray<BodyComposition>>(
@@ -362,11 +363,12 @@ export const HistoryBodyWeightView = (): React.JSX.Element => {
     : query.isError
       ? 'error'
       : 'loaded'
-  const compositionLoadState = compositionQuery.isPending
-    ? 'loading'
-    : compositionQuery.isError
-      ? 'error'
-      : 'loaded'
+  const compositionLoadState =
+    compositionQuery.isPending || latestCompositionQuery.isPending
+      ? 'loading'
+      : compositionQuery.isError || latestCompositionQuery.isError
+        ? 'error'
+        : 'loaded'
 
   return (
     <BodyWeightPanel
@@ -378,9 +380,12 @@ export const HistoryBodyWeightView = (): React.JSX.Element => {
         void query.refetch()
       }}
       compositionLoadState={compositionLoadState}
-      compositionLoadError={compositionQuery.error?.message}
+      compositionLoadError={
+        compositionQuery.error?.message ?? latestCompositionQuery.error?.message
+      }
       onRetryComposition={() => {
         void compositionQuery.refetch()
+        void latestCompositionQuery.refetch()
       }}
       period={period}
       rangeLabel={`${start} – ${end}`}
