@@ -48,7 +48,7 @@ export const Empty = {
 } satisfies Story
 
 export const Populated = {
-  name: 'the list shows the newest measurements first',
+  name: 'the list shows a saved measurement',
   args: {
     records: [record],
   },

@@ -65,6 +65,15 @@ const correctedMeasurementOutput = (
   formTitle: container.querySelector('form h2')?.textContent,
 })
 
+const editedTimePreservationOutput = (
+  requests: ReadonlyArray<RequestRecord>,
+  container: HTMLElement,
+) => ({
+  requests: bodyWeightRequests(requests),
+  records: visibleRecords(container),
+  formTitle: container.querySelector('form h2')?.textContent,
+})
+
 const deletedMeasurementOutput = (
   requestCountBeforeConfirm: number,
   dialogVisible: boolean,
@@ -76,6 +85,15 @@ const deletedMeasurementOutput = (
   requests: bodyWeightRequests(requests),
   records: visibleRecords(container),
   dialogAfterDelete: container.querySelector('[role="alertdialog"]'),
+  form: {
+    title: container.querySelector('form h2')?.textContent,
+    date: container.querySelector<HTMLInputElement>('input[type="date"]')
+      ?.value,
+    weight: container.querySelector<HTMLInputElement>('input[type="number"]')
+      ?.value,
+    time: container.querySelector<HTMLInputElement>('input[type="time"]')
+      ?.value,
+  },
 })
 
 const validationErrorOutput = (
@@ -119,7 +137,7 @@ const createInputSchema = z.object({
 const updateInputSchema = z.object({
   date: z.string(),
   weightKg: z.number(),
-  measuredAt: z.string().nullable(),
+  measuredAt: z.string().nullable().optional(),
 })
 
 const setupPage = (
@@ -357,7 +375,10 @@ describe('HistoryPage body-weight tab', () => {
             ...record,
             date: input.date,
             weightKg: input.weightKg,
-            measuredAt: input.measuredAt,
+            measuredAt:
+              input.measuredAt === undefined
+                ? record.measuredAt
+                : input.measuredAt,
           })
           records[0] = saved
           return jsonResponse(saved)
@@ -419,7 +440,90 @@ describe('HistoryPage body-weight tab', () => {
     }
   })
 
-  it('deletes a measurement only after confirmation', async () => {
+  it('preserves measurement seconds when only the weight changes', async () => {
+    vi.spyOn(Temporal.Now, 'plainDateISO').mockReturnValue(
+      Temporal.PlainDate.from('2026-07-05'),
+    )
+    const record = savedRecord({
+      id: 'weight_demo_seconds',
+      date: '2026-07-04',
+      weightKg: 63.4,
+      measuredAt: '2026-07-04T00:30:45.000Z',
+    })
+    const records: BodyWeight[] = [record]
+    const { container, root, queryClient, requests } = setupPage(
+      (path, method, body) => {
+        if (path === '/api/body-weights?from=2026-06-29&to=2026-07-05') {
+          return jsonResponse(records)
+        }
+        if (
+          path === '/api/body-weights/weight_demo_seconds' &&
+          method === 'PATCH'
+        ) {
+          const input = updateInputSchema.parse(body)
+          const saved = savedRecord({
+            ...record,
+            date: input.date,
+            weightKg: input.weightKg,
+            measuredAt:
+              input.measuredAt === undefined
+                ? record.measuredAt
+                : input.measuredAt,
+          })
+          records[0] = saved
+          return jsonResponse(saved)
+        }
+        return jsonResponse({ error: 'unexpected request' }, 500)
+      },
+    )
+
+    try {
+      await performAct(() => {
+        renderPage(root, queryClient)
+      })
+      await openBodyWeightTab(container)
+      await clickButton(container, 'button[aria-label="訂正 2026年7月4日"]')
+      const weightInput = container.querySelector<HTMLInputElement>(
+        'input[type="number"]',
+      )
+      if (weightInput !== null) await setInputValue(weightInput, '64.2')
+      await clickButton(container, 'button[type="submit"]')
+      await waitFor(() => visibleRecords(container)[0]?.weight === '64.2 kg')
+
+      expect(editedTimePreservationOutput(requests, container)).toEqual({
+        requests: [
+          {
+            method: 'GET',
+            path: '/api/body-weights?from=2026-06-29&to=2026-07-05',
+            body: null,
+          },
+          {
+            method: 'PATCH',
+            path: '/api/body-weights/weight_demo_seconds',
+            body: { date: '2026-07-04', weightKg: 64.2 },
+          },
+          {
+            method: 'GET',
+            path: '/api/body-weights?from=2026-06-29&to=2026-07-05',
+            body: null,
+          },
+        ],
+        records: [
+          {
+            id: 'weight_demo_seconds',
+            date: '2026年7月4日',
+            time: '09:30',
+            weight: '64.2 kg',
+          },
+        ],
+        formTitle: '体重を記録',
+      })
+    } finally {
+      await cleanupPage(container, root, queryClient)
+    }
+  })
+
+  it('deletes a measurement after confirmation and exits its edit form', async () => {
     vi.spyOn(Temporal.Now, 'plainDateISO').mockReturnValue(
       Temporal.PlainDate.from('2026-07-05'),
     )
@@ -452,12 +556,20 @@ describe('HistoryPage body-weight tab', () => {
         renderPage(root, queryClient)
       })
       await openBodyWeightTab(container)
+      await clickButton(container, 'button[aria-label="訂正 2026年7月4日"]')
+      await waitFor(
+        () => container.querySelector('form h2')?.textContent === '記録を訂正',
+      )
       await clickButton(container, 'button[aria-label="削除 2026年7月4日"]')
       const requestCountBeforeConfirm = bodyWeightRequests(requests).length
       const dialogVisible =
         container.querySelector('[role="alertdialog"]') !== null
       await clickButton(container, 'button[aria-label="記録を削除"]')
-      await waitFor(() => visibleRecords(container).length === 0)
+      await waitFor(
+        () =>
+          visibleRecords(container).length === 0 &&
+          container.querySelector('form h2')?.textContent === '体重を記録',
+      )
 
       expect(
         deletedMeasurementOutput(
@@ -488,6 +600,12 @@ describe('HistoryPage body-weight tab', () => {
         ],
         records: [],
         dialogAfterDelete: null,
+        form: {
+          title: '体重を記録',
+          date: '2026-07-05',
+          weight: '',
+          time: '',
+        },
       })
     } finally {
       await cleanupPage(container, root, queryClient)

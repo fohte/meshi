@@ -54,6 +54,9 @@ export const HistoryBodyWeightView = (): React.JSX.Element => {
   const [periodOffset, setPeriodOffset] = useState(0)
   const [draft, setDraft] = useState<BodyWeightDraft>(emptyDraft)
   const [editingId, setEditingId] = useState<string | null>(null)
+  const [initialMeasuredTime, setInitialMeasuredTime] = useState<string | null>(
+    null,
+  )
   const [deleteTarget, setDeleteTarget] = useState<BodyWeight | null>(null)
 
   const span = PERIOD_DAYS[period]
@@ -66,6 +69,7 @@ export const HistoryBodyWeightView = (): React.JSX.Element => {
 
   const resetDraft = (): void => {
     setEditingId(null)
+    setInitialMeasuredTime(null)
     setDraft(emptyDraft())
   }
 
@@ -81,7 +85,9 @@ export const HistoryBodyWeightView = (): React.JSX.Element => {
           patchBodyWeight(editingId, {
             date: draft.date,
             weightKg,
-            measuredAt,
+            ...(draft.measuredTime === initialMeasuredTime
+              ? {}
+              : { measuredAt }),
           }),
         )
       }
@@ -101,9 +107,10 @@ export const HistoryBodyWeightView = (): React.JSX.Element => {
 
   const deleteMutation = useMutation({
     mutationFn: (id: string) => toPromise(deleteBodyWeight(id)),
-    onSuccess: async () => {
+    onSuccess: async (_record, id) => {
       await queryClient.invalidateQueries({ queryKey: BODY_WEIGHTS_QUERY_KEY })
       setDeleteTarget(null)
+      if (editingId === id) resetDraft()
     },
   })
 
@@ -114,11 +121,13 @@ export const HistoryBodyWeightView = (): React.JSX.Element => {
 
   const edit = (record: BodyWeight): void => {
     saveMutation.reset()
+    const measuredTime = toJstTime(record.measuredAt)
     setEditingId(record.id)
+    setInitialMeasuredTime(measuredTime)
     setDraft({
       date: record.date,
       weightKg: String(record.weightKg),
-      measuredTime: toJstTime(record.measuredAt),
+      measuredTime,
     })
   }
 

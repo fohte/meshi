@@ -26,7 +26,7 @@ export interface SaveBodyWeightInput {
 export interface UpdateBodyWeightInput {
   readonly date: string
   readonly weightKg: number
-  readonly measuredAt: string | null
+  readonly measuredAt?: string | null
 }
 
 export const BODY_WEIGHTS_QUERY_KEY = ['body-weights']
