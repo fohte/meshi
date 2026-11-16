@@ -276,6 +276,20 @@ it('reports an increasing goal as reached after the trend stays above it for sev
   )
 })
 
+it('reports a decreasing goal as reached after the trend stays below it for seven days', () => {
+  const weights = linearWeights(66.5, -0.1)
+  expect(calculate(weights, START_DATE, 65)).toEqual(
+    expectedOutlook({
+      weights,
+      firstMeasurementDate: START_DATE,
+      goalWeightKg: 65,
+      status: 'reached',
+      reason: null,
+      linearTrend: { firstWeightKg: 66.5, slopeKgPerDay: -0.1 },
+    }),
+  )
+})
+
 it('reports when a heavier goal is not approached by a decreasing trend', () => {
   const weights = linearWeights(70, -0.1)
   expect(calculate(weights, START_DATE, 75)).toEqual(
