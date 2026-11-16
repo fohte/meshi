@@ -15,6 +15,29 @@ import { jstDate } from '#test/jst-date'
 import { createNullLogger } from '#test/logger'
 import { createStubMcpDeps } from '#test/mcp-stubs'
 
+const VALIDATION_ERROR_TEXT = '<schema validation error>'
+const observation = <T extends object>(value: T): T => value
+
+const toolResultSchema = z.object({
+  isError: z.boolean().optional(),
+  structuredContent: z.unknown().optional(),
+  content: z.array(
+    z.object({ type: z.string(), text: z.string().optional() }).loose(),
+  ),
+})
+
+const normalizeValidationError = (raw: unknown) => {
+  const result = toolResultSchema.parse(raw)
+  return {
+    ...result,
+    content: result.content.map((content) =>
+      content.type === 'text'
+        ? { ...content, text: VALIDATION_ERROR_TEXT }
+        : content,
+    ),
+  }
+}
+
 const bodyWeight: BodyWeight = {
   id: 'body_weight_fixture_alpha',
   date: jstDate('2026-05-06'),
@@ -77,16 +100,18 @@ describe('body weight MCP tools', () => {
         name: 'record_body_weight',
         arguments: { date: '2026-05-06', weight_kg: 73.25 },
       })
-      expect(calls).toEqual([{ date: '2026-05-06', weightKg: 73.25 }])
-      expect(result).toEqual({
-        content: [{ type: 'text', text: '体重を記録しました。' }],
-        structuredContent: {
-          body_weight_id: 'body_weight_fixture_alpha',
-          date: '2026-05-06',
-          measured_at: '2026-05-06T00:30:00.000Z',
-          weight_kg: 73.25,
-          created_at: '2026-05-06T00:31:00.000Z',
-          updated_at: '2026-05-06T00:32:00.000Z',
+      expect(observation({ calls, result })).toEqual({
+        calls: [{ date: '2026-05-06', weightKg: 73.25 }],
+        result: {
+          content: [{ type: 'text', text: '体重を記録しました。' }],
+          structuredContent: {
+            body_weight_id: 'body_weight_fixture_alpha',
+            date: '2026-05-06',
+            measured_at: '2026-05-06T00:30:00.000Z',
+            weight_kg: 73.25,
+            created_at: '2026-05-06T00:31:00.000Z',
+            updated_at: '2026-05-06T00:32:00.000Z',
+          },
         },
       })
     } finally {
@@ -130,20 +155,22 @@ describe('body weight MCP tools', () => {
         name: 'list_body_weights',
         arguments: { from: '2026-05-01', to: '2026-05-06' },
       })
-      expect(calls).toEqual([['2026-05-01', '2026-05-06']])
-      expect(result).toEqual({
-        content: [{ type: 'text', text: '1 件の体重記録を取得しました。' }],
-        structuredContent: {
-          body_weights: [
-            {
-              body_weight_id: 'body_weight_fixture_alpha',
-              date: '2026-05-06',
-              measured_at: '2026-05-06T00:30:00.000Z',
-              weight_kg: 73.25,
-              created_at: '2026-05-06T00:31:00.000Z',
-              updated_at: '2026-05-06T00:32:00.000Z',
-            },
-          ],
+      expect(observation({ calls, result })).toEqual({
+        calls: [['2026-05-01', '2026-05-06']],
+        result: {
+          content: [{ type: 'text', text: '1 件の体重記録を取得しました。' }],
+          structuredContent: {
+            body_weights: [
+              {
+                body_weight_id: 'body_weight_fixture_alpha',
+                date: '2026-05-06',
+                measured_at: '2026-05-06T00:30:00.000Z',
+                weight_kg: 73.25,
+                created_at: '2026-05-06T00:31:00.000Z',
+                updated_at: '2026-05-06T00:32:00.000Z',
+              },
+            ],
+          },
         },
       })
     } finally {
@@ -194,18 +221,18 @@ describe('body weight MCP tools', () => {
           weight_kg: 69,
         },
       })
-      expect(calls).toEqual([
-        { id: bodyWeight.id, measuredAt: null, weightKg: 69 },
-      ])
-      expect(result).toEqual({
-        content: [{ type: 'text', text: '体重記録を更新しました。' }],
-        structuredContent: {
-          body_weight_id: 'body_weight_fixture_alpha',
-          date: '2026-05-06',
-          measured_at: null,
-          weight_kg: 69,
-          created_at: '2026-05-06T00:31:00.000Z',
-          updated_at: '2026-05-06T00:32:00.000Z',
+      expect(observation({ calls, result })).toEqual({
+        calls: [{ id: bodyWeight.id, measuredAt: null, weightKg: 69 }],
+        result: {
+          content: [{ type: 'text', text: '体重記録を更新しました。' }],
+          structuredContent: {
+            body_weight_id: 'body_weight_fixture_alpha',
+            date: '2026-05-06',
+            measured_at: null,
+            weight_kg: 69,
+            created_at: '2026-05-06T00:31:00.000Z',
+            updated_at: '2026-05-06T00:32:00.000Z',
+          },
         },
       })
     } finally {
@@ -252,10 +279,12 @@ describe('body weight MCP tools', () => {
         name: 'delete_body_weight',
         arguments: { body_weight_id: bodyWeight.id },
       })
-      expect(calls).toEqual([bodyWeight.id])
-      expect(result).toEqual({
-        content: [{ type: 'text', text: '体重記録を削除しました。' }],
-        structuredContent: { body_weight_id: bodyWeight.id },
+      expect(observation({ calls, result })).toEqual({
+        calls: [bodyWeight.id],
+        result: {
+          content: [{ type: 'text', text: '体重記録を削除しました。' }],
+          structuredContent: { body_weight_id: bodyWeight.id },
+        },
       })
     } finally {
       await h.close()
@@ -276,6 +305,64 @@ describe('body weight MCP tools', () => {
         isError: true,
         structuredContent: {
           error: { code: 'body_weight/not_found', message: error.message },
+        },
+      })
+    } finally {
+      await h.close()
+    }
+  })
+
+  it('rejects reversed list ranges before calling the service', async () => {
+    const calls: [string, string][] = []
+    const h = await start(
+      serviceWith({
+        list(from, to) {
+          calls.push([from, to])
+          return okAsync([])
+        },
+      }),
+    )
+    try {
+      const result = await h.client.callTool({
+        name: 'list_body_weights',
+        arguments: { from: '2026-05-06', to: '2026-05-01' },
+      })
+      expect(
+        observation({ calls, result: normalizeValidationError(result) }),
+      ).toEqual({
+        calls: [],
+        result: {
+          content: [{ type: 'text', text: VALIDATION_ERROR_TEXT }],
+          isError: true,
+        },
+      })
+    } finally {
+      await h.close()
+    }
+  })
+
+  it('rejects updates with no fields before calling the service', async () => {
+    const calls: Parameters<BodyWeightService['update']>[0][] = []
+    const h = await start(
+      serviceWith({
+        update(input) {
+          calls.push(input)
+          return okAsync(bodyWeight)
+        },
+      }),
+    )
+    try {
+      const result = await h.client.callTool({
+        name: 'update_body_weight',
+        arguments: { body_weight_id: bodyWeight.id },
+      })
+      expect(
+        observation({ calls, result: normalizeValidationError(result) }),
+      ).toEqual({
+        calls: [],
+        result: {
+          content: [{ type: 'text', text: VALIDATION_ERROR_TEXT }],
+          isError: true,
         },
       })
     } finally {
