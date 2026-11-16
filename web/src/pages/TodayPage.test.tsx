@@ -61,18 +61,20 @@ const todayPageErrorOutput = (
 })
 
 let root: Root | undefined
+let queryClient: QueryClient | undefined
 let container = document.createElement('div')
 
 const renderTodayPage = (): void => {
   container = document.createElement('div')
   root = createRoot(container)
   vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true)
-  const queryClient = new QueryClient({
+  const newQueryClient = new QueryClient({
     defaultOptions: { queries: { retry: false } },
   })
+  queryClient = newQueryClient
   act(() => {
     root?.render(
-      <QueryClientProvider client={queryClient}>
+      <QueryClientProvider client={newQueryClient}>
         <TodayPage />
       </QueryClientProvider>,
     )
@@ -84,6 +86,8 @@ afterEach(() => {
     root?.unmount()
   })
   root = undefined
+  queryClient?.clear()
+  queryClient = undefined
   container = document.createElement('div')
   vi.unstubAllGlobals()
 })

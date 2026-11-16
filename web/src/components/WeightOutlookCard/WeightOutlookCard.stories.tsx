@@ -12,18 +12,21 @@ const makeOutlook = (
   points: [{ date: '2093-04-12', weightKg: 63.4 }],
   latestWeightKg: 63.4,
   goalWeightKg: 60,
-  trend: {
-    slopeKgPerDay: -0.02,
-    slopeKgPerWeek: -0.14,
-    points: [
-      {
-        date: '2093-04-12',
-        weightKg: 63.4,
-        lowerKg: 63.1,
-        upperKg: 63.7,
-      },
-    ],
-  },
+  trend:
+    status === 'insufficient_data'
+      ? null
+      : {
+          slopeKgPerDay: -0.02,
+          slopeKgPerWeek: -0.14,
+          points: [
+            {
+              date: '2093-04-12',
+              weightKg: 63.4,
+              lowerKg: 63.1,
+              upperKg: 63.7,
+            },
+          ],
+        },
   status,
   reason,
   arrivalDateRange,
