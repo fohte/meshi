@@ -33,6 +33,8 @@ const meta = {
     compositionRecords: [],
     loadState: 'loaded',
     onRetry: () => undefined,
+    compositionLoadState: 'loaded',
+    onRetryComposition: () => undefined,
     period: 'week',
     rangeLabel: '2031-04-06 – 2031-04-12',
     canGoForward: false,
@@ -191,5 +193,14 @@ export const LoadError = {
   args: {
     loadState: 'error',
     loadError: '記録を読み込めませんでした',
+  },
+} satisfies Story
+
+export const CompositionLoadError = {
+  name: 'the body composition records could not be loaded',
+  args: {
+    records: [record],
+    compositionLoadState: 'error',
+    compositionLoadError: '体組成記録を読み込めませんでした',
   },
 } satisfies Story

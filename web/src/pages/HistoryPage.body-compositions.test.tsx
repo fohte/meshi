@@ -71,6 +71,8 @@ const savedComposition = (
 const setupPage = (
   weights: Array<BodyWeight>,
   compositions: Array<BodyComposition>,
+  compositionPostError?: string,
+  compositionLoadError?: string,
 ): {
   readonly container: HTMLDivElement
   readonly root: Root
@@ -123,9 +125,19 @@ const setupPage = (
         return Promise.resolve(jsonResponse(weights))
       }
       if (path === '/api/body-compositions?from=2026-06-29&to=2026-07-05') {
+        if (compositionLoadError !== undefined) {
+          return Promise.resolve(
+            jsonResponse({ error: compositionLoadError }, 500),
+          )
+        }
         return Promise.resolve(jsonResponse(compositions))
       }
       if (path === '/api/body-compositions' && method === 'POST') {
+        if (compositionPostError !== undefined) {
+          return Promise.resolve(
+            jsonResponse({ error: compositionPostError }, 400),
+          )
+        }
         const inputValue = bodyCompositionInputSchema.parse(body)
         const record = savedComposition({
           id: 'composition_demo_created',
@@ -304,38 +316,75 @@ const emptyPageOutput = (container: HTMLElement) => ({
   )?.textContent,
 })
 
-const lifecycleOutput = (
+const mutationsOutput = (
+  requests: ReadonlyArray<RequestRecord>,
+  method: string,
+) =>
+  requests
+    .filter((request) => request.method === method)
+    .map((request) => ({ path: request.path, body: request.body }))
+
+const compositionDraftOutput = (container: HTMLElement) => {
+  const form = compositionForm(container)
+  return {
+    title: form.querySelector('h2')?.textContent,
+    date: findInput(form, '日付')?.value,
+    time: findInput(form, '測定時刻 (任意)')?.value,
+    device: findInput(form, '機器名')?.value,
+    bodyFatPercent: findInput(form, '体脂肪率 (%)')?.value,
+    muscleMassKg: findInput(form, '筋肉量 (kg)')?.value,
+  }
+}
+
+const createdCompositionOutput = (
   container: HTMLElement,
   requests: ReadonlyArray<RequestRecord>,
-  formBeforeSave: {
-    readonly title: string | undefined
-    readonly date: string | undefined
-    readonly time: string | undefined
-    readonly device: string | undefined
-  },
-  deleteDialogVisible: boolean,
-  deleteCountBeforeConfirm: number,
 ) => ({
-  formBeforeSave,
-  deleteDialogVisible,
+  posts: mutationsOutput(requests, 'POST'),
+  records: compositionRecordsOutput(container),
+  draft: compositionDraftOutput(container),
+})
+
+const correctedCompositionOutput = (
+  container: HTMLElement,
+  requests: ReadonlyArray<RequestRecord>,
+) => ({
+  patches: mutationsOutput(requests, 'PATCH'),
+  records: compositionRecordsOutput(container),
+  draft: compositionDraftOutput(container),
+})
+
+const deletedCompositionOutput = (
+  container: HTMLElement,
+  requests: ReadonlyArray<RequestRecord>,
+  deleteCountBeforeConfirm: number,
+  dialogVisibleBeforeConfirm: boolean,
+) => ({
   deleteCountBeforeConfirm,
-  queries: requests
-    .filter((request) => request.path.startsWith('/api/body-compositions?'))
-    .map((request) => request.path),
-  mutations: requests
-    .filter((request) => request.method !== 'GET')
-    .map((request) => ({
-      method: request.method,
-      path: request.path,
-      body: request.body,
-    })),
-  remainingIds: Array.from(
-    container.querySelectorAll<HTMLElement>('[data-composition-id]'),
-  ).map((record) => record.dataset.compositionId),
-  formAfterDelete: {
-    title: compositionForm(container).querySelector('h2')?.textContent,
-    device: findInput(compositionForm(container), '機器名')?.value,
-  },
+  dialogVisibleBeforeConfirm,
+  deletes: mutationsOutput(requests, 'DELETE'),
+  records: compositionRecordsOutput(container),
+  emptyMessage: Array.from(container.querySelectorAll('p')).find(
+    (paragraph) => paragraph.textContent === 'この期間の記録はありません',
+  )?.textContent,
+})
+
+const compositionSaveErrorOutput = (
+  container: HTMLElement,
+  requests: ReadonlyArray<RequestRecord>,
+) => ({
+  posts: mutationsOutput(requests, 'POST'),
+  error: Array.from(container.querySelectorAll('[role="alert"]')).map(
+    (alert) => alert.textContent,
+  ),
+  draft: compositionDraftOutput(container),
+})
+
+const partialLoadOutput = (container: HTMLElement) => ({
+  weightRecords: compositionRecordsOutput(container),
+  compositionErrorVisible: container.textContent.includes(
+    'composition service unavailable',
+  ),
 })
 
 const cleanupPage = async (
@@ -469,7 +518,7 @@ describe('HistoryPage body-composition tab content', () => {
     }
   })
 
-  it('creates, corrects with null fields, and deletes after confirmation', async () => {
+  it('creates a measurement with the most recent device as the default', async () => {
     vi.spyOn(Temporal.Now, 'plainDateISO').mockReturnValue(
       Temporal.PlainDate.from('2026-07-05'),
     )
@@ -491,23 +540,14 @@ describe('HistoryPage body-composition tab content', () => {
         renderPage(root, queryClient)
       })
       await openBodyWeightTab(container)
-      const formBeforeCompositionSave = compositionForm(container)
-      const formBeforeSave = {
-        title: formBeforeCompositionSave.querySelector('h2')?.textContent,
-        date: findInput(formBeforeCompositionSave, '日付')?.value,
-        time: findInput(formBeforeCompositionSave, '測定時刻 (任意)')?.value,
-        device: findInput(formBeforeCompositionSave, '機器名')?.value,
-      }
-      const timeInput = findInput(formBeforeCompositionSave, '測定時刻 (任意)')
-      const bodyFatInput = findInput(formBeforeCompositionSave, '体脂肪率 (%)')
-      const muscleMassInput = findInput(
-        formBeforeCompositionSave,
-        '筋肉量 (kg)',
-      )
+      const form = compositionForm(container)
+      const timeInput = findInput(form, '測定時刻 (任意)')
+      const bodyFatInput = findInput(form, '体脂肪率 (%)')
+      const muscleMassInput = findInput(form, '筋肉量 (kg)')
       if (timeInput !== null) await setInputValue(timeInput, '08:15')
       if (bodyFatInput !== null) await setInputValue(bodyFatInput, '25.1')
       if (muscleMassInput !== null) await setInputValue(muscleMassInput, '50.2')
-      await clickButton(formBeforeCompositionSave, 'button[type="submit"]')
+      await clickButton(form, 'button[type="submit"]')
       await waitFor(
         () =>
           container.querySelector(
@@ -515,64 +555,13 @@ describe('HistoryPage body-composition tab content', () => {
           ) !== null,
       )
 
-      await clickButton(
-        container,
-        'button[aria-label="体組成を訂正 Example Scale Z 2026年7月5日"]',
-      )
-      const editingForm = compositionForm(container)
-      const editBodyFat = findInput(editingForm, '体脂肪率 (%)')
-      if (editBodyFat !== null) await setInputValue(editBodyFat, '')
-      await clickButton(editingForm, 'button[type="submit"]')
-      await waitFor(() => {
-        const row = container.querySelector(
-          '[data-composition-id="composition_demo_created"]',
-        )
-        return row !== null && row.textContent.includes('体脂肪率 —')
-      })
-
-      await clickButton(
-        container,
-        'button[aria-label="体組成を削除 Example Scale Z 2026年7月5日"]',
-      )
-      const deleteDialogVisible =
-        container.querySelector('[role="alertdialog"]') !== null
-      const deleteCountBeforeConfirm = requests.filter(
-        (request) => request.method === 'DELETE',
-      ).length
-      await clickButton(container, 'button[aria-label="体組成の記録を削除"]')
       await waitFor(
-        () =>
-          container.querySelector(
-            '[data-composition-id="composition_demo_created"]',
-          ) === null,
+        () => compositionDraftOutput(container).bodyFatPercent === '',
       )
 
-      expect(
-        lifecycleOutput(
-          container,
-          requests,
-          formBeforeSave,
-          deleteDialogVisible,
-          deleteCountBeforeConfirm,
-        ),
-      ).toEqual({
-        formBeforeSave: {
-          title: '体組成を記録',
-          date: '2026-07-05',
-          time: '',
-          device: 'Example Scale Z',
-        },
-        deleteDialogVisible: true,
-        deleteCountBeforeConfirm: 0,
-        queries: [
-          '/api/body-compositions?from=2026-06-29&to=2026-07-05',
-          '/api/body-compositions?from=2026-06-29&to=2026-07-05',
-          '/api/body-compositions?from=2026-06-29&to=2026-07-05',
-          '/api/body-compositions?from=2026-06-29&to=2026-07-05',
-        ],
-        mutations: [
+      expect(createdCompositionOutput(container, requests)).toEqual({
+        posts: [
           {
-            method: 'POST',
             path: '/api/body-compositions',
             body: {
               date: '2026-07-05',
@@ -582,28 +571,281 @@ describe('HistoryPage body-composition tab content', () => {
               muscleMassKg: 50.2,
             },
           },
+        ],
+        records: [
           {
-            method: 'PATCH',
+            date: '2026年7月5日',
+            weights: [],
+            compositions: [
+              {
+                device: 'Example Scale Z',
+                values: ['体脂肪率 25.1 %', '筋肉量 50.2 kg', '骨格筋率 —'],
+              },
+            ],
+          },
+          {
+            date: '2026年7月4日',
+            weights: [],
+            compositions: [
+              {
+                device: 'Example Scale Z',
+                values: ['体脂肪率 23.4 %', '筋肉量 —', '骨格筋率 —'],
+              },
+            ],
+          },
+        ],
+        draft: {
+          title: '体組成を記録',
+          date: '2026-07-05',
+          time: '',
+          device: 'Example Scale Z',
+          bodyFatPercent: '',
+          muscleMassKg: '',
+        },
+      })
+    } finally {
+      await cleanupPage(container, root, queryClient)
+    }
+  })
+
+  it('corrects fields with null and defaults the next entry to the updated device', async () => {
+    vi.spyOn(Temporal.Now, 'plainDateISO').mockReturnValue(
+      Temporal.PlainDate.from('2026-07-05'),
+    )
+    const compositions = [
+      savedComposition({
+        id: 'composition_demo_created',
+        date: '2026-07-05',
+        measuredAt: '2026-07-05T00:20:00.000Z',
+        device: 'Example Scale Z',
+        bodyFatPercent: 25.1,
+        muscleMassKg: 50.2,
+      }),
+    ]
+    const { container, root, queryClient, requests } = setupPage(
+      [],
+      compositions,
+    )
+
+    try {
+      await performAct(() => {
+        renderPage(root, queryClient)
+      })
+      await openBodyWeightTab(container)
+      await clickButton(
+        container,
+        'button[aria-label="体組成を訂正 Example Scale Z 2026年7月5日"]',
+      )
+      const form = compositionForm(container)
+      const deviceInput = findInput(form, '機器名')
+      const bodyFatInput = findInput(form, '体脂肪率 (%)')
+      if (deviceInput !== null)
+        await setInputValue(deviceInput, 'Example Scale Y')
+      if (bodyFatInput !== null) await setInputValue(bodyFatInput, '')
+      await clickButton(form, 'button[type="submit"]')
+      await waitFor(
+        () =>
+          compositionDraftOutput(container).title === '体組成を記録' &&
+          compositionDraftOutput(container).device === 'Example Scale Y',
+      )
+
+      expect(correctedCompositionOutput(container, requests)).toEqual({
+        patches: [
+          {
             path: '/api/body-compositions/composition_demo_created',
             body: {
               date: '2026-07-05',
-              device: 'Example Scale Z',
+              device: 'Example Scale Y',
               bodyFatPercent: null,
               muscleMassKg: 50.2,
               skeletalMusclePercent: null,
             },
           },
+        ],
+        records: [
           {
-            method: 'DELETE',
+            date: '2026年7月5日',
+            weights: [],
+            compositions: [
+              {
+                device: 'Example Scale Y',
+                values: ['体脂肪率 —', '筋肉量 50.2 kg', '骨格筋率 —'],
+              },
+            ],
+          },
+        ],
+        draft: {
+          title: '体組成を記録',
+          date: '2026-07-05',
+          time: '',
+          device: 'Example Scale Y',
+          bodyFatPercent: '',
+          muscleMassKg: '',
+        },
+      })
+    } finally {
+      await cleanupPage(container, root, queryClient)
+    }
+  })
+
+  it('deletes a composition record only after confirmation', async () => {
+    vi.spyOn(Temporal.Now, 'plainDateISO').mockReturnValue(
+      Temporal.PlainDate.from('2026-07-05'),
+    )
+    const compositions = [
+      savedComposition({
+        id: 'composition_demo_created',
+        date: '2026-07-05',
+        device: 'Example Scale Z',
+        bodyFatPercent: 24.5,
+      }),
+    ]
+    const { container, root, queryClient, requests } = setupPage(
+      [],
+      compositions,
+    )
+
+    try {
+      await performAct(() => {
+        renderPage(root, queryClient)
+      })
+      await openBodyWeightTab(container)
+      await clickButton(
+        container,
+        'button[aria-label="体組成を削除 Example Scale Z 2026年7月5日"]',
+      )
+      const dialogVisibleBeforeConfirm =
+        container.querySelector('[role="alertdialog"]') !== null
+      const deleteCountBeforeConfirm = mutationsOutput(
+        requests,
+        'DELETE',
+      ).length
+      await clickButton(container, 'button[aria-label="体組成の記録を削除"]')
+      await waitFor(() =>
+        Array.from(container.querySelectorAll('p')).some(
+          (paragraph) => paragraph.textContent === 'この期間の記録はありません',
+        ),
+      )
+
+      expect(
+        deletedCompositionOutput(
+          container,
+          requests,
+          deleteCountBeforeConfirm,
+          dialogVisibleBeforeConfirm,
+        ),
+      ).toEqual({
+        deleteCountBeforeConfirm: 0,
+        dialogVisibleBeforeConfirm: true,
+        deletes: [
+          {
             path: '/api/body-compositions/composition_demo_created',
             body: null,
           },
         ],
-        remainingIds: ['composition_demo_latest'],
-        formAfterDelete: {
+        records: [],
+        emptyMessage: 'この期間の記録はありません',
+      })
+    } finally {
+      await cleanupPage(container, root, queryClient)
+    }
+  })
+
+  it('shows the API error and keeps input values after a rejected create', async () => {
+    vi.spyOn(Temporal.Now, 'plainDateISO').mockReturnValue(
+      Temporal.PlainDate.from('2026-07-05'),
+    )
+    const { container, root, queryClient, requests } = setupPage(
+      [],
+      [],
+      'invalid composition measurement',
+    )
+
+    try {
+      await performAct(() => {
+        renderPage(root, queryClient)
+      })
+      await openBodyWeightTab(container)
+      const form = compositionForm(container)
+      const deviceInput = findInput(form, '機器名')
+      const bodyFatInput = findInput(form, '体脂肪率 (%)')
+      if (deviceInput !== null)
+        await setInputValue(deviceInput, 'Example Scale Z')
+      if (bodyFatInput !== null) await setInputValue(bodyFatInput, '25.1')
+      await clickButton(form, 'button[type="submit"]')
+      await waitFor(() =>
+        Array.from(container.querySelectorAll('[role="alert"]')).some(
+          (alert) => alert.textContent === 'invalid composition measurement',
+        ),
+      )
+
+      expect(compositionSaveErrorOutput(container, requests)).toEqual({
+        posts: [
+          {
+            path: '/api/body-compositions',
+            body: {
+              date: '2026-07-05',
+              device: 'Example Scale Z',
+              bodyFatPercent: 25.1,
+            },
+          },
+        ],
+        error: ['invalid composition measurement'],
+        draft: {
           title: '体組成を記録',
+          date: '2026-07-05',
+          time: '',
           device: 'Example Scale Z',
+          bodyFatPercent: '25.1',
+          muscleMassKg: '',
         },
+      })
+    } finally {
+      await cleanupPage(container, root, queryClient)
+    }
+  })
+
+  it('keeps weight history visible when the composition API fails', async () => {
+    vi.spyOn(Temporal.Now, 'plainDateISO').mockReturnValue(
+      Temporal.PlainDate.from('2026-07-05'),
+    )
+    const weights: BodyWeight[] = [
+      {
+        id: 'weight_demo_visible',
+        date: '2026-07-05',
+        measuredAt: null,
+        weightKg: 63.4,
+        createdAt: '2026-07-05T00:00:00.000Z',
+        updatedAt: '2026-07-05T00:00:00.000Z',
+      },
+    ]
+    const { container, root, queryClient } = setupPage(
+      weights,
+      [],
+      undefined,
+      'composition service unavailable',
+    )
+
+    try {
+      await performAct(() => {
+        renderPage(root, queryClient)
+      })
+      await openBodyWeightTab(container)
+      await waitFor(
+        () =>
+          compositionRecordsOutput(container)[0]?.weights.length === 1 &&
+          container.textContent.includes('composition service unavailable'),
+      )
+
+      expect(partialLoadOutput(container)).toEqual({
+        weightRecords: [
+          {
+            date: '2026年7月5日',
+            weights: ['63.4 kg'],
+            compositions: [],
+          },
+        ],
+        compositionErrorVisible: true,
       })
     } finally {
       await cleanupPage(container, root, queryClient)

@@ -6,6 +6,7 @@ import {
 } from '#components/BodyCompositionForm/BodyCompositionForm'
 import styles from '#components/BodyWeightPanel/BodyWeightPanel.module.css'
 import { ErrorRetry } from '#components/ErrorRetry/ErrorRetry'
+import { RecordDeleteDialog } from '#components/RecordDeleteDialog/RecordDeleteDialog'
 import { Skeleton } from '#components/Skeleton/Skeleton'
 
 export type BodyWeightPeriod = 'week' | 'month'
@@ -22,6 +23,9 @@ export interface BodyWeightPanelProps {
   readonly loadState: 'loading' | 'error' | 'loaded'
   readonly loadError?: string | undefined
   readonly onRetry: () => void
+  readonly compositionLoadState: 'loading' | 'error' | 'loaded'
+  readonly compositionLoadError?: string | undefined
+  readonly onRetryComposition: () => void
   readonly period: BodyWeightPeriod
   readonly rangeLabel: string
   readonly canGoForward: boolean
@@ -87,6 +91,9 @@ export const BodyWeightPanel = ({
   loadState,
   loadError,
   onRetry,
+  compositionLoadState,
+  compositionLoadError,
+  onRetryComposition,
   period,
   rangeLabel,
   canGoForward,
@@ -297,192 +304,146 @@ export const BodyWeightPanel = ({
             onRetry={onRetry}
           />
         )}
-        {loadState === 'loading' && <Skeleton height={180} />}
+        {compositionLoadState === 'error' && (
+          <ErrorRetry
+            message={compositionLoadError ?? '体組成記録を読み込めませんでした'}
+            onRetry={onRetryComposition}
+          />
+        )}
+        {(loadState === 'loading' || compositionLoadState === 'loading') &&
+          dates.length === 0 && <Skeleton height={180} />}
         {loadState === 'loaded' &&
-          (dates.length === 0 ? (
+          compositionLoadState === 'loaded' &&
+          dates.length === 0 && (
             <p className={styles.empty}>この期間の記録はありません</p>
-          ) : (
-            <div className={styles.records}>
-              {dates.map((date) => {
-                const group = groupedRecords.get(date)
-                if (group === undefined) return null
-                return (
-                  <section
-                    className={styles.dayGroup}
-                    data-day={date}
-                    key={date}
-                  >
-                    <h3>{formatDate(date)}</h3>
-                    {group.weights.map((record) => (
-                      <article
-                        key={record.id}
-                        className={styles.record}
-                        data-record-id={record.id}
-                      >
-                        <div className={styles.recordText}>
-                          <h4>体重</h4>
-                          {record.measuredAt !== null && (
-                            <p>{formatTime(record.measuredAt)}</p>
-                          )}
+          )}
+        {dates.length > 0 && (
+          <div className={styles.records}>
+            {dates.map((date) => {
+              const group = groupedRecords.get(date)
+              if (group === undefined) return null
+              return (
+                <section className={styles.dayGroup} data-day={date} key={date}>
+                  <h3>{formatDate(date)}</h3>
+                  {group.weights.map((record) => (
+                    <article
+                      key={record.id}
+                      className={styles.record}
+                      data-record-id={record.id}
+                    >
+                      <div className={styles.recordText}>
+                        <h4>体重</h4>
+                        {record.measuredAt !== null && (
+                          <p>{formatTime(record.measuredAt)}</p>
+                        )}
+                      </div>
+                      <strong>{formatWeight(record.weightKg)}</strong>
+                      <div className={styles.recordActions}>
+                        <button
+                          type="button"
+                          aria-label={`訂正 ${formatDate(record.date)}`}
+                          onClick={() => {
+                            onEdit(record)
+                          }}
+                        >
+                          訂正
+                        </button>
+                        <button
+                          type="button"
+                          aria-label={`削除 ${formatDate(record.date)}`}
+                          onClick={() => {
+                            onRequestDelete(record)
+                          }}
+                        >
+                          削除
+                        </button>
+                      </div>
+                    </article>
+                  ))}
+                  {group.compositions.map((record) => (
+                    <article
+                      key={record.id}
+                      className={styles.compositionRecord}
+                      data-composition-id={record.id}
+                    >
+                      <div className={styles.compositionText}>
+                        <h4>{record.device}</h4>
+                        {record.measuredAt !== null && (
+                          <p>{formatTime(record.measuredAt)}</p>
+                        )}
+                        <div className={styles.compositionValues}>
+                          <span>
+                            体脂肪率 {formatValue(record.bodyFatPercent, '%')}
+                          </span>
+                          <span>
+                            筋肉量 {formatValue(record.muscleMassKg, 'kg')}
+                          </span>
+                          <span>
+                            骨格筋率{' '}
+                            {formatValue(record.skeletalMusclePercent, '%')}
+                          </span>
                         </div>
-                        <strong>{formatWeight(record.weightKg)}</strong>
-                        <div className={styles.recordActions}>
-                          <button
-                            type="button"
-                            aria-label={`訂正 ${formatDate(record.date)}`}
-                            onClick={() => {
-                              onEdit(record)
-                            }}
-                          >
-                            訂正
-                          </button>
-                          <button
-                            type="button"
-                            aria-label={`削除 ${formatDate(record.date)}`}
-                            onClick={() => {
-                              onRequestDelete(record)
-                            }}
-                          >
-                            削除
-                          </button>
-                        </div>
-                      </article>
-                    ))}
-                    {group.compositions.map((record) => (
-                      <article
-                        key={record.id}
-                        className={styles.compositionRecord}
-                        data-composition-id={record.id}
-                      >
-                        <div className={styles.compositionText}>
-                          <h4>{record.device}</h4>
-                          {record.measuredAt !== null && (
-                            <p>{formatTime(record.measuredAt)}</p>
-                          )}
-                          <div className={styles.compositionValues}>
-                            <span>
-                              体脂肪率 {formatValue(record.bodyFatPercent, '%')}
-                            </span>
-                            <span>
-                              筋肉量 {formatValue(record.muscleMassKg, 'kg')}
-                            </span>
-                            <span>
-                              骨格筋率{' '}
-                              {formatValue(record.skeletalMusclePercent, '%')}
-                            </span>
-                          </div>
-                        </div>
-                        <div className={styles.recordActions}>
-                          <button
-                            type="button"
-                            aria-label={`体組成を訂正 ${record.device} ${formatDate(record.date)}`}
-                            onClick={() => {
-                              onEditComposition(record)
-                            }}
-                          >
-                            訂正
-                          </button>
-                          <button
-                            type="button"
-                            aria-label={`体組成を削除 ${record.device} ${formatDate(record.date)}`}
-                            onClick={() => {
-                              onRequestCompositionDelete(record)
-                            }}
-                          >
-                            削除
-                          </button>
-                        </div>
-                      </article>
-                    ))}
-                  </section>
-                )
-              })}
-            </div>
-          ))}
+                      </div>
+                      <div className={styles.recordActions}>
+                        <button
+                          type="button"
+                          aria-label={`体組成を訂正 ${record.device} ${formatDate(record.date)}`}
+                          disabled={
+                            isSavingComposition || isDeletingComposition
+                          }
+                          onClick={() => {
+                            onEditComposition(record)
+                          }}
+                        >
+                          訂正
+                        </button>
+                        <button
+                          type="button"
+                          aria-label={`体組成を削除 ${record.device} ${formatDate(record.date)}`}
+                          disabled={
+                            isSavingComposition || isDeletingComposition
+                          }
+                          onClick={() => {
+                            onRequestCompositionDelete(record)
+                          }}
+                        >
+                          削除
+                        </button>
+                      </div>
+                    </article>
+                  ))}
+                </section>
+              )
+            })}
+          </div>
+        )}
       </section>
 
       {deleteTarget !== null && (
-        <div className={styles.dialogBackdrop}>
-          <div
-            className={styles.dialog}
-            role="alertdialog"
-            aria-modal="true"
-            aria-labelledby="body-weight-delete-title"
-          >
-            <h2 id="body-weight-delete-title">記録を削除しますか?</h2>
-            <p>
-              {formatDate(deleteTarget.date)} の{' '}
-              {formatWeight(deleteTarget.weightKg)}
-              を削除します。
-            </p>
-            {deleteError !== undefined && (
-              <p className={styles.error} role="alert">
-                {deleteError}
-              </p>
-            )}
-            <div className={styles.dialogActions}>
-              <button
-                type="button"
-                className={styles.secondaryButton}
-                onClick={onCancelDelete}
-                disabled={isDeleting}
-              >
-                キャンセル
-              </button>
-              <button
-                type="button"
-                aria-label="記録を削除"
-                className={styles.dangerButton}
-                onClick={onConfirmDelete}
-                disabled={isDeleting}
-              >
-                {isDeleting ? '削除中...' : '削除する'}
-              </button>
-            </div>
-          </div>
-        </div>
+        <RecordDeleteDialog
+          title="記録を削除しますか?"
+          message={`${formatDate(deleteTarget.date)} の ${formatWeight(deleteTarget.weightKg)} を削除します。`}
+          confirmLabel="削除する"
+          pendingLabel="削除中..."
+          confirmAriaLabel="記録を削除"
+          error={deleteError}
+          isPending={isDeleting}
+          onCancel={onCancelDelete}
+          onConfirm={onConfirmDelete}
+        />
       )}
       {compositionDeleteTarget !== null && (
-        <div className={styles.dialogBackdrop}>
-          <div
-            className={styles.dialog}
-            role="alertdialog"
-            aria-modal="true"
-            aria-labelledby="body-composition-delete-title"
-          >
-            <h2 id="body-composition-delete-title">
-              体組成の記録を削除しますか?
-            </h2>
-            <p>
-              {formatDate(compositionDeleteTarget.date)} の{' '}
-              {compositionDeleteTarget.device} の記録を削除します。
-            </p>
-            {compositionDeleteError !== undefined && (
-              <p className={styles.error} role="alert">
-                {compositionDeleteError}
-              </p>
-            )}
-            <div className={styles.dialogActions}>
-              <button
-                type="button"
-                className={styles.secondaryButton}
-                onClick={onCancelCompositionDelete}
-                disabled={isDeletingComposition}
-              >
-                キャンセル
-              </button>
-              <button
-                type="button"
-                aria-label="体組成の記録を削除"
-                className={styles.dangerButton}
-                onClick={onConfirmCompositionDelete}
-                disabled={isDeletingComposition}
-              >
-                {isDeletingComposition ? '削除中...' : '削除する'}
-              </button>
-            </div>
-          </div>
-        </div>
+        <RecordDeleteDialog
+          title="体組成の記録を削除しますか?"
+          message={`${formatDate(compositionDeleteTarget.date)} の ${compositionDeleteTarget.device} の記録を削除します。`}
+          confirmLabel="削除する"
+          pendingLabel="削除中..."
+          confirmAriaLabel="体組成の記録を削除"
+          error={compositionDeleteError}
+          isPending={isDeletingComposition}
+          onCancel={onCancelCompositionDelete}
+          onConfirm={onConfirmCompositionDelete}
+        />
       )}
     </div>
   )

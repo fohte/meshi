@@ -141,9 +141,24 @@ export const HistoryBodyWeightView = (): React.JSX.Element => {
     compositionQuery.data ?? [],
   )
   const latestDevice = compositionRecords[0]?.device
+  const latestDeviceFromCache = (): string => {
+    const cachedRecords =
+      queryClient.getQueryData<ReadonlyArray<BodyComposition>>([
+        ...BODY_COMPOSITIONS_QUERY_KEY,
+        start,
+        end,
+      ]) ?? []
+    return newestCompositionsFirst(cachedRecords)[0]?.device ?? ''
+  }
 
   useEffect(() => {
-    if (compositionQuery.isPending || hasInitializedCompositionDevice) return
+    if (
+      compositionQuery.isPending ||
+      compositionQuery.isError ||
+      hasInitializedCompositionDevice
+    ) {
+      return
+    }
     if (latestDevice !== undefined) {
       setCompositionDraft((current) =>
         current.device === '' ? { ...current, device: latestDevice } : current,
@@ -169,7 +184,7 @@ export const HistoryBodyWeightView = (): React.JSX.Element => {
     setCompositionInitialDate(null)
     setCompositionInitialMeasuredTime(null)
     setCompositionInitialMeasuredAt(null)
-    setCompositionDraft(emptyCompositionDraft(latestDevice ?? ''))
+    setCompositionDraft(emptyCompositionDraft(latestDeviceFromCache()))
   }
 
   const saveMutation = useMutation({
@@ -280,7 +295,10 @@ export const HistoryBodyWeightView = (): React.JSX.Element => {
         queryKey: BODY_COMPOSITIONS_QUERY_KEY,
       })
       setCompositionDeleteTarget(null)
-      if (compositionEditingId === id) resetCompositionDraft()
+      if (compositionEditingId === id) {
+        compositionSaveMutation.reset()
+        resetCompositionDraft()
+      }
     },
   })
 
@@ -325,21 +343,29 @@ export const HistoryBodyWeightView = (): React.JSX.Element => {
     })
   }
 
-  const loadState =
-    query.isPending || compositionQuery.isPending
-      ? 'loading'
-      : query.isError || compositionQuery.isError
-        ? 'error'
-        : 'loaded'
+  const loadState = query.isPending
+    ? 'loading'
+    : query.isError
+      ? 'error'
+      : 'loaded'
+  const compositionLoadState = compositionQuery.isPending
+    ? 'loading'
+    : compositionQuery.isError
+      ? 'error'
+      : 'loaded'
 
   return (
     <BodyWeightPanel
       records={newestFirst(query.data ?? [])}
       compositionRecords={compositionRecords}
       loadState={loadState}
-      loadError={query.error?.message ?? compositionQuery.error?.message}
+      loadError={query.error?.message}
       onRetry={() => {
         void query.refetch()
+      }}
+      compositionLoadState={compositionLoadState}
+      compositionLoadError={compositionQuery.error?.message}
+      onRetryComposition={() => {
         void compositionQuery.refetch()
       }}
       period={period}

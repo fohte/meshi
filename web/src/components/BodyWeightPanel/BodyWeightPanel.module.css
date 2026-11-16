@@ -62,7 +62,6 @@
 
 .primaryButton,
 .secondaryButton,
-.dangerButton,
 .recordActions button,
 .periodTabs button,
 .navButton {
@@ -82,14 +81,7 @@
   color: var(--color-background);
 }
 
-.dangerButton {
-  border-color: var(--color-accent);
-  background: var(--color-accent);
-  color: var(--color-background);
-}
-
 .primaryButton:disabled,
-.dangerButton:disabled,
 .secondaryButton:disabled,
 .navButton:disabled {
   cursor: default;
@@ -239,41 +231,6 @@
   color: var(--color-muted);
   text-align: center;
   font-size: 13px;
-}
-
-.dialogBackdrop {
-  position: fixed;
-  z-index: 50;
-  inset: 0;
-  display: grid;
-  place-items: center;
-  background: rgb(0 0 0 / 45%);
-  padding: 20px;
-}
-
-.dialog {
-  width: min(100%, 380px);
-  border: var(--border-width) solid var(--color-border);
-  background: var(--color-background);
-  padding: 22px;
-}
-
-.dialog h2 {
-  margin: 0;
-  font-size: 16px;
-}
-
-.dialog > p {
-  margin: 12px 0 0;
-  color: var(--color-muted);
-  font-size: 13px;
-}
-
-.dialogActions {
-  display: flex;
-  justify-content: flex-end;
-  gap: 8px;
-  margin-top: 22px;
 }
 
 @media (max-width: 640px) {
