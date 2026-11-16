@@ -298,6 +298,12 @@ export const BodyWeightPanel = ({
           </button>
         </div>
 
+        {compositionRecords.length > 0 && (
+          <p className={styles.compositionEstimateNote}>
+            体組成計による推定値です。機器が違う値は比べられません。
+          </p>
+        )}
+
         {loadState === 'error' && (
           <ErrorRetry
             message={loadError ?? '体重記録を読み込めませんでした'}

@@ -27,6 +27,9 @@ import {
 import { shiftDateString, todayJstDate } from '#lib/jst-date'
 
 const PERIOD_DAYS: Record<BodyWeightPeriod, number> = { week: 7, month: 30 }
+const ALL_BODY_COMPOSITIONS_FROM = '0001-01-01'
+const ALL_BODY_COMPOSITIONS_TO = '9999-12-31'
+const ALL_BODY_COMPOSITIONS_QUERY_KEY = [...BODY_COMPOSITIONS_QUERY_KEY, 'all']
 
 const emptyDraft = (): BodyWeightDraft => ({
   date: todayJstDate(),
@@ -137,24 +140,34 @@ export const HistoryBodyWeightView = (): React.JSX.Element => {
     queryKey: [...BODY_COMPOSITIONS_QUERY_KEY, start, end],
     queryFn: () => toPromise(fetchBodyCompositions(start, end)),
   })
+  const latestCompositionQuery = useQuery({
+    queryKey: ALL_BODY_COMPOSITIONS_QUERY_KEY,
+    queryFn: () =>
+      toPromise(
+        fetchBodyCompositions(
+          ALL_BODY_COMPOSITIONS_FROM,
+          ALL_BODY_COMPOSITIONS_TO,
+        ),
+      ),
+  })
   const compositionRecords = newestCompositionsFirst(
     compositionQuery.data ?? [],
   )
-  const latestDevice = compositionRecords[0]?.device
+  const latestDevice = newestCompositionsFirst(
+    latestCompositionQuery.data ?? [],
+  )[0]?.device
   const latestDeviceFromCache = (): string => {
     const cachedRecords =
-      queryClient.getQueryData<ReadonlyArray<BodyComposition>>([
-        ...BODY_COMPOSITIONS_QUERY_KEY,
-        start,
-        end,
-      ]) ?? []
+      queryClient.getQueryData<ReadonlyArray<BodyComposition>>(
+        ALL_BODY_COMPOSITIONS_QUERY_KEY,
+      ) ?? []
     return newestCompositionsFirst(cachedRecords)[0]?.device ?? ''
   }
 
   useEffect(() => {
     if (
-      compositionQuery.isPending ||
-      compositionQuery.isError ||
+      latestCompositionQuery.isPending ||
+      latestCompositionQuery.isError ||
       hasInitializedCompositionDevice
     ) {
       return
@@ -166,7 +179,8 @@ export const HistoryBodyWeightView = (): React.JSX.Element => {
     }
     setHasInitializedCompositionDevice(true)
   }, [
-    compositionQuery.isPending,
+    latestCompositionQuery.isError,
+    latestCompositionQuery.isPending,
     hasInitializedCompositionDevice,
     latestDevice,
   ])

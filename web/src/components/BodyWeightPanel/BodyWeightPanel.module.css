@@ -129,6 +129,12 @@
   padding: 5px 10px;
 }
 
+.compositionEstimateNote {
+  margin: 0 0 12px;
+  color: var(--color-muted);
+  font-size: 12px;
+}
+
 .records {
   display: flex;
   flex-direction: column;

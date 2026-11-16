@@ -16,6 +16,11 @@ interface RequestRecord {
   readonly body: unknown
 }
 
+const ALL_BODY_COMPOSITIONS_RANGE =
+  '/api/body-compositions?from=0001-01-01&to=9999-12-31'
+const COMPOSITION_ESTIMATE_NOTE =
+  '体組成計による推定値です。機器が違う値は比べられません。'
+
 const bodyCompositionInputSchema = z.object({
   date: z.string(),
   measuredAt: z.string().optional(),
@@ -124,13 +129,25 @@ const setupPage = (
       if (path.startsWith('/api/body-weights?')) {
         return Promise.resolve(jsonResponse(weights))
       }
-      if (path === '/api/body-compositions?from=2026-06-29&to=2026-07-05') {
-        if (compositionLoadError !== undefined) {
+      if (path.startsWith('/api/body-compositions?')) {
+        const { searchParams } = new URL(path, 'http://meshi.test')
+        const from = searchParams.get('from') ?? ''
+        const to = searchParams.get('to') ?? ''
+        if (
+          compositionLoadError !== undefined &&
+          path !== ALL_BODY_COMPOSITIONS_RANGE
+        ) {
           return Promise.resolve(
             jsonResponse({ error: compositionLoadError }, 500),
           )
         }
-        return Promise.resolve(jsonResponse(compositions))
+        return Promise.resolve(
+          jsonResponse(
+            compositions.filter(
+              (record) => record.date >= from && record.date <= to,
+            ),
+          ),
+        )
       }
       if (path === '/api/body-compositions' && method === 'POST') {
         if (compositionPostError !== undefined) {
@@ -296,18 +313,28 @@ const compositionRecordsOutput = (container: HTMLElement) =>
 const groupedPageOutput = (
   container: HTMLElement,
   requests: ReadonlyArray<RequestRecord>,
-) => ({
-  records: compositionRecordsOutput(container),
-  ranges: requests
-    .filter((request) => request.method === 'GET')
-    .filter(
-      (request) =>
-        request.path.startsWith('/api/body-weights?') ||
-        request.path.startsWith('/api/body-compositions?'),
-    )
-    .map((request) => request.path),
-  estimateNote: compositionForm(container).querySelector('p')?.textContent,
-})
+) => {
+  const history = container.querySelector(
+    '[aria-labelledby="body-weight-history-title"]',
+  )
+
+  return {
+    records: compositionRecordsOutput(container),
+    ranges: requests
+      .filter((request) => request.method === 'GET')
+      .filter(
+        (request) =>
+          request.path.startsWith('/api/body-weights?') ||
+          (request.path.startsWith('/api/body-compositions?') &&
+            request.path !== ALL_BODY_COMPOSITIONS_RANGE),
+      )
+      .map((request) => request.path),
+    estimateNote: compositionForm(container).querySelector('p')?.textContent,
+    listEstimateNote: Array.from(history?.querySelectorAll('p') ?? []).find(
+      (paragraph) => paragraph.textContent === COMPOSITION_ESTIMATE_NOTE,
+    )?.textContent,
+  }
+}
 
 const emptyPageOutput = (container: HTMLElement) => ({
   days: compositionRecordsOutput(container),
@@ -333,6 +360,7 @@ const compositionDraftOutput = (container: HTMLElement) => {
     device: findInput(form, '機器名')?.value,
     bodyFatPercent: findInput(form, '体脂肪率 (%)')?.value,
     muscleMassKg: findInput(form, '筋肉量 (kg)')?.value,
+    skeletalMusclePercent: findInput(form, '骨格筋率 (%)')?.value,
   }
 }
 
@@ -491,6 +519,8 @@ describe('HistoryPage body-composition tab content', () => {
         ],
         estimateNote:
           '体組成計による推定値です。機器が違う値は比べられません。',
+        listEstimateNote:
+          '体組成計による推定値です。機器が違う値は比べられません。',
       })
     } finally {
       await cleanupPage(container, root, queryClient)
@@ -601,6 +631,94 @@ describe('HistoryPage body-composition tab content', () => {
           device: 'Example Scale Z',
           bodyFatPercent: '',
           muscleMassKg: '',
+          skeletalMusclePercent: '',
+        },
+      })
+    } finally {
+      await cleanupPage(container, root, queryClient)
+    }
+  })
+
+  it('keeps the latest device when saving from an older history period', async () => {
+    vi.spyOn(Temporal.Now, 'plainDateISO').mockReturnValue(
+      Temporal.PlainDate.from('2026-07-05'),
+    )
+    const compositions = [
+      savedComposition({
+        id: 'composition_demo_latest',
+        date: '2026-06-20',
+        device: 'Example Scale Z',
+        bodyFatPercent: 23.4,
+      }),
+      savedComposition({
+        id: 'composition_demo_older',
+        date: '2026-06-10',
+        device: 'Example Scale Q',
+        bodyFatPercent: 24.2,
+      }),
+    ]
+    const { container, root, queryClient, requests } = setupPage(
+      [],
+      compositions,
+    )
+
+    try {
+      await performAct(() => {
+        renderPage(root, queryClient)
+      })
+      await openBodyWeightTab(container)
+      const form = compositionForm(container)
+      const deviceInput = findInput(form, '機器名')
+      await waitFor(() => deviceInput?.value === 'Example Scale Z')
+
+      for (let period = 0; period < 3; period += 1) {
+        await clickButton(container, 'button[aria-label="前の期間"]')
+      }
+      await waitFor(
+        () =>
+          container.querySelector(
+            '[data-composition-id="composition_demo_older"]',
+          ) !== null,
+      )
+
+      const bodyFatInput = findInput(form, '体脂肪率 (%)')
+      if (bodyFatInput !== null) await setInputValue(bodyFatInput, '25.1')
+      await clickButton(form, 'button[type="submit"]')
+      await waitFor(
+        () => compositionDraftOutput(container).bodyFatPercent === '',
+      )
+
+      expect(createdCompositionOutput(container, requests)).toEqual({
+        posts: [
+          {
+            path: '/api/body-compositions',
+            body: {
+              date: '2026-07-05',
+              device: 'Example Scale Z',
+              bodyFatPercent: 25.1,
+            },
+          },
+        ],
+        records: [
+          {
+            date: '2026年6月10日',
+            weights: [],
+            compositions: [
+              {
+                device: 'Example Scale Q',
+                values: ['体脂肪率 24.2 %', '筋肉量 —', '骨格筋率 —'],
+              },
+            ],
+          },
+        ],
+        draft: {
+          title: '体組成を記録',
+          date: '2026-07-05',
+          time: '',
+          device: 'Example Scale Z',
+          bodyFatPercent: '',
+          muscleMassKg: '',
+          skeletalMusclePercent: '',
         },
       })
     } finally {
@@ -681,6 +799,7 @@ describe('HistoryPage body-composition tab content', () => {
           device: 'Example Scale Y',
           bodyFatPercent: '',
           muscleMassKg: '',
+          skeletalMusclePercent: '',
         },
       })
     } finally {
@@ -798,6 +917,7 @@ describe('HistoryPage body-composition tab content', () => {
           device: 'Example Scale Z',
           bodyFatPercent: '25.1',
           muscleMassKg: '',
+          skeletalMusclePercent: '',
         },
       })
     } finally {
