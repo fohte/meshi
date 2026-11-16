@@ -7,6 +7,10 @@ import { z } from 'zod'
 import { createDrizzleUserProfileRepository } from '#adapters/db/drizzle-user-profile-repository'
 import type { Sql } from '#db/index'
 import { upsertNutrientDefinitions } from '#db/seed/nutrient-definitions'
+import {
+  createBodyWeightService,
+  createDrizzleBodyWeightRepository,
+} from '#domain/body-weight/index'
 import { createFoodSearchService } from '#domain/food-browse/index'
 import type { IdGenerator } from '#domain/food-master/id'
 import {
@@ -32,6 +36,7 @@ import { createMealSkipService } from '#domain/meal-skip/meal-skip-service'
 import { createDrizzleStockRepository } from '#domain/stock/drizzle-stock-repository'
 import { createStockService } from '#domain/stock/stock-service'
 import { createUserProfileService } from '#domain/user-profile/user-profile-service'
+import { jstDateSchema } from '#lib/jst-date'
 import { createMcpServer } from '#mcp'
 import {
   deliveryStructuredOutput,
@@ -154,6 +159,11 @@ const startHarness = async (opts: HarnessOptions): Promise<Harness> => {
     idGenerator: () => randomUUID(),
     now: () => new Date('2026-06-12T22:00:00+09:00'),
   })
+  const bodyWeightService = createBodyWeightService({
+    repository: createDrizzleBodyWeightRepository(tx),
+    idGenerator: () => randomUUID(),
+    now: () => new Date('2026-06-12T22:00:00+09:00'),
+  })
   const mealPlanService = createMealPlanService({
     repository: createDrizzleMealPlanRepository(tx, {
       wrapInTransaction: false,
@@ -185,6 +195,7 @@ const startHarness = async (opts: HarnessOptions): Promise<Harness> => {
   // so restore them.
   restoreTimestampHandlers(tx, timestampSnapshot)
   const server = createMcpServer({
+    bodyWeightService,
     mealHistoryService,
     profileService: userProfileService,
     foodSearchService,
@@ -320,8 +331,61 @@ const toolResultSchema = z.object({
 
 type NormalizedToolResult = z.infer<typeof toolResultSchema>
 
+const NORMALIZED_HISTORY_TIMESTAMP = '2001-01-01T00:00:00.000Z'
+
 const normalizeResult = (raw: unknown): NormalizedToolResult =>
   toolResultSchema.parse(raw)
+
+const bodyWeightPayloadSchema = z.object({
+  body_weight_id: z.string(),
+  date: jstDateSchema,
+  measured_at: z.iso.datetime({ offset: true }).nullable(),
+  weight_kg: z.number(),
+  created_at: z.iso.datetime({ offset: true }),
+  updated_at: z.iso.datetime({ offset: true }),
+})
+
+const normalizeBodyWeightPayload = (raw: unknown) => {
+  const payload = bodyWeightPayloadSchema.parse(raw)
+  return {
+    ...payload,
+    body_weight_id: '<body_weight_id>',
+    created_at: NORMALIZED_HISTORY_TIMESTAMP,
+    updated_at: NORMALIZED_HISTORY_TIMESTAMP,
+  }
+}
+
+const normalizeBodyWeightResult = (raw: unknown): NormalizedToolResult => {
+  const result = normalizeResult(raw)
+  return {
+    ...result,
+    structuredContent: normalizeBodyWeightPayload(result.structuredContent),
+  }
+}
+
+const normalizeBodyWeightListResult = (raw: unknown): NormalizedToolResult => {
+  const result = normalizeResult(raw)
+  const payload = z
+    .object({ body_weights: z.array(bodyWeightPayloadSchema) })
+    .parse(result.structuredContent)
+  return {
+    ...result,
+    structuredContent: {
+      body_weights: payload.body_weights.map(normalizeBodyWeightPayload),
+    },
+  }
+}
+
+const normalizeBodyWeightDeleteResult = (
+  raw: unknown,
+): NormalizedToolResult => {
+  const result = normalizeResult(raw)
+  z.object({ body_weight_id: z.string() }).parse(result.structuredContent)
+  return {
+    ...result,
+    structuredContent: { body_weight_id: '<body_weight_id>' },
+  }
+}
 
 const normalizeValidationErrorResult = (raw: unknown): NormalizedToolResult => {
   const result = normalizeResult(raw)
@@ -334,8 +398,6 @@ const normalizeValidationErrorResult = (raw: unknown): NormalizedToolResult => {
     ),
   }
 }
-
-const NORMALIZED_HISTORY_TIMESTAMP = '2001-01-01T00:00:00.000Z'
 
 type ListedDeliveryPayload = z.infer<
   typeof updateDeliverySourceRefStructuredOutput
@@ -1468,6 +1530,103 @@ describeIfDb('meshi integration', () => {
           daily_targets: { energy_kcal: 2200 },
         },
       ])
+    } finally {
+      await harness.close()
+    }
+  })
+
+  it('records, lists, updates, and deletes body weights through MCP', async () => {
+    const harness = await startHarness({ tx: getTx() })
+
+    try {
+      const recorded = await harness.client.callTool({
+        name: 'record_body_weight',
+        arguments: {
+          date: '2026-06-10',
+          measured_at: '2026-06-10T07:30:00+09:00',
+          weight_kg: 73.25,
+        },
+      })
+      const recordedPayload = bodyWeightPayloadSchema.parse(
+        normalizeResult(recorded).structuredContent,
+      )
+      expect(normalizeBodyWeightResult(recorded)).toEqual({
+        content: [{ type: 'text', text: '体重を記録しました。' }],
+        structuredContent: {
+          body_weight_id: '<body_weight_id>',
+          date: '2026-06-10',
+          measured_at: '2026-06-09T22:30:00.000Z',
+          weight_kg: 73.25,
+          created_at: NORMALIZED_HISTORY_TIMESTAMP,
+          updated_at: NORMALIZED_HISTORY_TIMESTAMP,
+        },
+      })
+
+      const listed = await harness.client.callTool({
+        name: 'list_body_weights',
+        arguments: { from: '2026-06-10', to: '2026-06-10' },
+      })
+      expect(normalizeBodyWeightListResult(listed)).toEqual({
+        content: [{ type: 'text', text: '1 件の体重記録を取得しました。' }],
+        structuredContent: {
+          body_weights: [
+            {
+              body_weight_id: '<body_weight_id>',
+              date: '2026-06-10',
+              measured_at: '2026-06-09T22:30:00.000Z',
+              weight_kg: 73.25,
+              created_at: NORMALIZED_HISTORY_TIMESTAMP,
+              updated_at: NORMALIZED_HISTORY_TIMESTAMP,
+            },
+          ],
+        },
+      })
+
+      const updated = await harness.client.callTool({
+        name: 'update_body_weight',
+        arguments: {
+          body_weight_id: recordedPayload.body_weight_id,
+          measured_at: null,
+          weight_kg: 74.25,
+        },
+      })
+      expect(normalizeBodyWeightResult(updated)).toEqual({
+        content: [{ type: 'text', text: '体重記録を更新しました。' }],
+        structuredContent: {
+          body_weight_id: '<body_weight_id>',
+          date: '2026-06-10',
+          measured_at: null,
+          weight_kg: 74.25,
+          created_at: NORMALIZED_HISTORY_TIMESTAMP,
+          updated_at: NORMALIZED_HISTORY_TIMESTAMP,
+        },
+      })
+
+      expect(
+        normalizeBodyWeightDeleteResult(
+          await harness.client.callTool({
+            name: 'delete_body_weight',
+            arguments: { body_weight_id: recordedPayload.body_weight_id },
+          }),
+        ),
+      ).toEqual({
+        content: [{ type: 'text', text: '体重記録を削除しました。' }],
+        structuredContent: {
+          body_weight_id: '<body_weight_id>',
+        },
+      })
+
+      expect(
+        normalizeBodyWeightListResult(
+          await harness.client.callTool({
+            name: 'list_body_weights',
+            arguments: { from: '2026-06-10', to: '2026-06-10' },
+          }),
+        ),
+      ).toEqual({
+        content: [{ type: 'text', text: '0 件の体重記録を取得しました。' }],
+        structuredContent: { body_weights: [] },
+      })
     } finally {
       await harness.close()
     }

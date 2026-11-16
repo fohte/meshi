@@ -1,5 +1,7 @@
 import { errAsync, okAsync } from 'neverthrow'
 
+import type { BodyWeightService } from '#domain/body-weight/body-weight-service'
+import { BodyWeightPersistenceError } from '#domain/body-weight/errors'
 import type { FoodSearchService } from '#domain/food-browse/food-search-service'
 import { FoodMasterDomainError } from '#domain/food-master/errors'
 import type { FoodMasterService } from '#domain/food-master/service'
@@ -26,6 +28,13 @@ import { createNullLogger } from '#test/logger'
 
 const rejectingMealHistoryService: MealHistoryService = {
   query: () => errAsync(new MealHistoryQueryError('stub')),
+}
+
+const rejectingBodyWeightService: BodyWeightService = {
+  record: () => errAsync(new BodyWeightPersistenceError('stub')),
+  list: () => errAsync(new BodyWeightPersistenceError('stub')),
+  update: () => errAsync(new BodyWeightPersistenceError('stub')),
+  delete: () => errAsync(new BodyWeightPersistenceError('stub')),
 }
 
 const rejectingProfileService: UserProfileService = {
@@ -118,6 +127,7 @@ const rejectingStockService: StockService = {
 }
 
 export const createStubMcpDeps = (): MeshiToolDeps => ({
+  bodyWeightService: rejectingBodyWeightService,
   mealHistoryService: rejectingMealHistoryService,
   profileService: rejectingProfileService,
   mealLogService: rejectingMealLogService,
