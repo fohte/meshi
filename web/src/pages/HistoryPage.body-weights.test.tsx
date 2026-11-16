@@ -531,7 +531,7 @@ describe('HistoryPage body-weight tab', () => {
       id: 'weight_demo_date_change',
       date: '2026-07-04',
       weightKg: 63.4,
-      measuredAt: '2026-07-04T00:30:45.678Z',
+      measuredAt: '2026-07-04T00:30:45.007Z',
     })
     const records: BodyWeight[] = [record]
     const { container, root, queryClient, requests } = setupPage(
@@ -587,7 +587,7 @@ describe('HistoryPage body-weight tab', () => {
             body: {
               date: '2026-07-03',
               weightKg: 63.4,
-              measuredAt: '2026-07-03T09:30:45.678+09:00',
+              measuredAt: '2026-07-03T09:30:45.007+09:00',
             },
           },
           {
