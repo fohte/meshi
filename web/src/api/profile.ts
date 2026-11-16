@@ -12,14 +12,15 @@ const userProfileSchema = z.object({
   allergies: z.array(z.string()),
   constraints: z.array(z.string()),
   dailyTargets: nutritionTargetsSchema.nullable(),
+  goalWeightKg: z.number().nullable(),
 })
 
 export type UserProfile = z.infer<typeof userProfileSchema>
 
 export const PROFILE_QUERY_KEY = ['profile']
 
-// Mirrors the server's UserProfilePatch semantics: an omitted key keeps the
-// current value, and dailyTargets: null clears it (see
+// Mirrors the server's UserProfilePatch semantics: omitted keys keep their
+// current values, and nullable values clear them (see
 // src/domain/user-profile/user-profile.ts).
 export interface UserProfilePatch {
   likes?: ReadonlyArray<string>
@@ -27,6 +28,7 @@ export interface UserProfilePatch {
   allergies?: ReadonlyArray<string>
   constraints?: ReadonlyArray<string>
   dailyTargets?: Record<string, number> | null
+  goalWeightKg?: number | null
 }
 
 export const fetchUserProfile = (): ResultAsync<UserProfile, ApiRequestError> =>
