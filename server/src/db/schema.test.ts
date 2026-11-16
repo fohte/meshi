@@ -26,6 +26,7 @@ describeIfDb('schema migrations', () => {
       ORDER BY table_name
     `
     expect(rows.map((r) => r.table_name)).toEqual([
+      'body_weights',
       'deliveries',
       'delivery_source_refs',
       'food_composition_nutrients',
@@ -616,6 +617,11 @@ describeIfDb('schema migrations', () => {
       ORDER BY c.conname
     `
     expect(rows).toEqual([
+      {
+        conname: 'body_weights_weight_kg_positive',
+        table_name: 'body_weights',
+        validated: true,
+      },
       {
         conname: 'deliveries_received_date_matches_status',
         table_name: 'deliveries',

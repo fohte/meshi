@@ -12,6 +12,10 @@ import { observability } from '#bootstrap'
 import { createSql, pingDb } from '#db/index'
 import { runMigrations } from '#db/migrations'
 import { seedNutrientDefinitions } from '#db/seed/index'
+import {
+  createBodyWeightService,
+  createDrizzleBodyWeightRepository,
+} from '#domain/body-weight/index'
 import { createDayDetailService } from '#domain/day-detail/index'
 import {
   createFoodBrowseService,
@@ -97,6 +101,11 @@ export const main = async (): Promise<void> => {
     idGenerator: () => randomUUID(),
     now: () => new Date(),
   })
+  const bodyWeightService = createBodyWeightService({
+    repository: createDrizzleBodyWeightRepository(sql),
+    idGenerator: () => randomUUID(),
+    now: () => new Date(),
+  })
   const mealPlanService = createMealPlanService({
     repository: createDrizzleMealPlanRepository(sql),
     now: () => new Date(),
@@ -146,6 +155,7 @@ export const main = async (): Promise<void> => {
   const app = createApp({
     sql,
     mealHistoryService,
+    bodyWeightService,
     dayDetailService,
     nutrientDefinitionRepository,
     userProfileService,

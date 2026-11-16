@@ -2,6 +2,7 @@ import { z } from 'zod'
 
 import type { Sql } from '#db/index'
 import type {
+  bodyWeights,
   deliveries,
   deliverySourceRefs,
   foodCompositionNutrients,
@@ -270,6 +271,26 @@ export const seedMealSet = async (
       ${values.id},
       ${values.name},
       COALESCE(${values.createdAt?.toISOString() ?? null}::timestamptz, now())
+    )
+  `
+}
+
+export const seedBodyWeight = async (
+  sql: Sql,
+  values: Omit<
+    typeof bodyWeights.$inferInsert,
+    'createdAt' | 'updatedAt' | 'weightKg'
+  > & {
+    weightKg: number
+  },
+): Promise<void> => {
+  await sql`
+    INSERT INTO body_weights (
+      id, measured_date, measured_at, weight_kg
+    ) VALUES (
+      ${values.id}, ${values.measuredDate},
+      ${values.measuredAt?.toISOString() ?? null}::timestamptz,
+      ${values.weightKg}
     )
   `
 }
