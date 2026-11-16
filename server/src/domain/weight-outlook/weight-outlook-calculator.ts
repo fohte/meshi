@@ -1,4 +1,8 @@
 import type { BodyWeight } from '#domain/body-weight/types'
+import {
+  averageWeightOutlookMeasurementsByDate,
+  type WeightOutlookDailyPoint,
+} from '#domain/weight-outlook/weight-outlook-daily-points'
 import { type JstDate, jstDateSchema } from '#lib/jst-date'
 
 export const WEIGHT_OUTLOOK_POLICY = {
@@ -37,11 +41,6 @@ type WeightOutlookReason =
   | 'too_few_measurement_days'
   | 'measurement_gap'
 
-interface WeightOutlookPoint {
-  readonly date: JstDate
-  readonly weightKg: number
-}
-
 interface WeightOutlookTrendPoint {
   readonly date: JstDate
   readonly weightKg: number
@@ -51,7 +50,7 @@ interface WeightOutlookTrendPoint {
 
 export interface WeightOutlook {
   readonly asOf: JstDate
-  readonly points: ReadonlyArray<WeightOutlookPoint>
+  readonly points: ReadonlyArray<WeightOutlookDailyPoint>
   readonly latestWeightKg: number | null
   readonly goalWeightKg: number | null
   readonly trend: {
@@ -65,11 +64,6 @@ export interface WeightOutlook {
     readonly from: JstDate
     readonly to: JstDate
   } | null
-}
-
-interface DailyPoint {
-  readonly date: JstDate
-  readonly weightKg: number
 }
 
 interface Regression {
@@ -92,25 +86,9 @@ const daysBetween = (from: JstDate, to: JstDate): number =>
     largestUnit: 'day',
   }).days
 
-const averageByDate = (weights: ReadonlyArray<BodyWeight>): DailyPoint[] => {
-  const byDate = new Map<string, { total: number; count: number }>()
-  for (const { date, weightKg } of weights) {
-    const current = byDate.get(date) ?? { total: 0, count: 0 }
-    current.total += weightKg
-    current.count += 1
-    byDate.set(date, current)
-  }
-  return [...byDate]
-    .sort(([left], [right]) => left.localeCompare(right))
-    .map(([date, value]) => ({
-      date: jstDateSchema.parse(date),
-      weightKg: value.total / value.count,
-    }))
-}
-
 const findInsufficientReason = (
   firstMeasurementDate: JstDate | null,
-  recentPoints: ReadonlyArray<DailyPoint>,
+  recentPoints: ReadonlyArray<WeightOutlookDailyPoint>,
   startDate: JstDate,
 ): WeightOutlookReason | null => {
   if (firstMeasurementDate === null || firstMeasurementDate > startDate) {
@@ -141,7 +119,7 @@ const findInsufficientReason = (
 }
 
 const regress = (
-  points: ReadonlyArray<DailyPoint>,
+  points: ReadonlyArray<WeightOutlookDailyPoint>,
   startDate: JstDate,
 ): Regression => {
   const pairs = points.map((point) => ({
@@ -204,7 +182,7 @@ export const calculateWeightOutlook = (
   goalWeightKg: number | null,
 ): WeightOutlook => {
   const startDate = getWeightOutlookStartDate(asOf)
-  const points = averageByDate(weights).filter(
+  const points = averageWeightOutlookMeasurementsByDate(weights).filter(
     ({ date }) => date >= startDate && date <= asOf,
   )
   const shared = {

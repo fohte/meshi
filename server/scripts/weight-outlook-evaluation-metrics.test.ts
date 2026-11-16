@@ -1,0 +1,49 @@
+import { describe, expect, it } from 'vitest'
+
+import { jstDateSchema } from '#lib/jst-date'
+import {
+  countSpacedForecastOrigins,
+  summarizeWeightOutlookForecasts,
+} from '#scripts/weight-outlook-evaluation-metrics'
+
+describe('summarizeWeightOutlookForecasts', () => {
+  it('computes error, coverage, interval width, and missed intervals', () => {
+    expect(
+      summarizeWeightOutlookForecasts([
+        { actualKg: 72, predictedKg: 70, lowerKg: 69, upperKg: 71 },
+        { actualKg: 70, predictedKg: 70, lowerKg: 69, upperKg: 71 },
+        { actualKg: 71, predictedKg: 70, lowerKg: 70, upperKg: 72 },
+      ]),
+    ).toEqual({
+      sampleCount: 3,
+      maeKg: 1,
+      coverage: 0.667,
+      meanIntervalWidthKg: 2,
+      misses: 1,
+    })
+  })
+
+  it('returns empty metrics when there are no observed targets', () => {
+    expect(summarizeWeightOutlookForecasts([])).toEqual({
+      sampleCount: 0,
+      maeKg: null,
+      coverage: null,
+      meanIntervalWidthKg: null,
+      misses: 0,
+    })
+  })
+})
+
+describe('countSpacedForecastOrigins', () => {
+  const origins = ['2025-01-01', '2025-01-15', '2025-01-29', '2025-02-01'].map(
+    (date) => jstDateSchema.parse(date),
+  )
+
+  it('counts more origins when the minimum separation is shorter', () => {
+    expect(countSpacedForecastOrigins(origins, 7)).toBe(3)
+  })
+
+  it('excludes overlapping fitting windows when the gap is 28 days', () => {
+    expect(countSpacedForecastOrigins(origins, 28)).toBe(2)
+  })
+})

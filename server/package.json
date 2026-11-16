@@ -15,6 +15,7 @@
     "db:migrate": "drizzle-kit migrate",
     "seed": "tsx scripts/seed.ts",
     "convert-food-composition": "tsx scripts/convert-food-composition.ts",
+    "evaluate-weight-outlook": "tsx scripts/evaluate-weight-outlook.ts",
     "test": "conc pnpm:test:type pnpm:test:unit",
     "test:type": "tsc --noEmit",
     "test:unit": "vitest run",
