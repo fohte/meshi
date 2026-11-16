@@ -38,13 +38,20 @@ const toJstTime = (measuredAt: string | null): string => {
   return `${hour}:${minute}`
 }
 
-const toJstSecond = (measuredAt: string): string =>
-  new Intl.DateTimeFormat('en-GB', {
-    timeZone: 'Asia/Tokyo',
-    second: '2-digit',
-  })
-    .formatToParts(new Date(measuredAt))
-    .find((part) => part.type === 'second')?.value ?? '00'
+const toJstSecondAndMillisecond = (measuredAt: string): string => {
+  const instant = new Date(measuredAt)
+  const second =
+    new Intl.DateTimeFormat('en-GB', {
+      timeZone: 'Asia/Tokyo',
+      second: '2-digit',
+    })
+      .formatToParts(instant)
+      .find((part) => part.type === 'second')?.value ?? '00'
+  const millisecond = instant.getUTCMilliseconds()
+  return millisecond === 0
+    ? second
+    : `${second}.${String(millisecond).padStart(3, '0')}`
+}
 
 const newestFirst = (records: ReadonlyArray<BodyWeight>): BodyWeight[] =>
   [...records].sort((left, right) => {
@@ -94,7 +101,7 @@ export const HistoryBodyWeightView = (): React.JSX.Element => {
         editingId !== null &&
         draft.measuredTime === initialMeasuredTime &&
         initialMeasuredAt !== null
-          ? toJstSecond(initialMeasuredAt)
+          ? toJstSecondAndMillisecond(initialMeasuredAt)
           : '00'
       const measuredAt =
         draft.measuredTime === ''
