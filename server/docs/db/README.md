@@ -27,6 +27,7 @@
 | [public.meal_plan_items](public.meal_plan_items.md)                       | 3       | Foods and quantities included in a meal plan.                               | BASE TABLE |
 | [public.meal_plans](public.meal_plans.md)                                 | 6       | Dated meal plans kept separate from recorded consumption.                   | BASE TABLE |
 | [public.body_weights](public.body_weights.md)                             | 6       | Measured body weight records.                                               | BASE TABLE |
+| [public.body_compositions](public.body_compositions.md)                   | 9       | Measured body composition records.                                          | BASE TABLE |
 
 ## Stored procedures and functions
 
@@ -270,6 +271,17 @@ erDiagram
   date measured_date
   timestamp_with_time_zone measured_at
   numeric_5_2_ weight_kg
+  timestamp_with_time_zone created_at
+  timestamp_with_time_zone updated_at
+}
+"public.body_compositions" {
+  text id
+  date measured_date
+  timestamp_with_time_zone measured_at
+  text device
+  numeric_4_2_ body_fat_percent
+  numeric_5_2_ muscle_mass_kg
+  numeric_4_2_ skeletal_muscle_percent
   timestamp_with_time_zone created_at
   timestamp_with_time_zone updated_at
 }

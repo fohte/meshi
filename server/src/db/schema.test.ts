@@ -26,6 +26,7 @@ describeIfDb('schema migrations', () => {
       ORDER BY table_name
     `
     expect(rows.map((r) => r.table_name)).toEqual([
+      'body_compositions',
       'body_weights',
       'deliveries',
       'delivery_source_refs',
@@ -617,6 +618,26 @@ describeIfDb('schema migrations', () => {
       ORDER BY c.conname
     `
     expect(rows).toEqual([
+      {
+        conname: 'body_compositions_body_fat_percent_range',
+        table_name: 'body_compositions',
+        validated: true,
+      },
+      {
+        conname: 'body_compositions_has_value',
+        table_name: 'body_compositions',
+        validated: true,
+      },
+      {
+        conname: 'body_compositions_muscle_mass_kg_range',
+        table_name: 'body_compositions',
+        validated: true,
+      },
+      {
+        conname: 'body_compositions_skeletal_muscle_percent_range',
+        table_name: 'body_compositions',
+        validated: true,
+      },
       {
         conname: 'body_weights_weight_kg_positive',
         table_name: 'body_weights',

@@ -1,5 +1,6 @@
 import type { Hono } from 'hono'
 
+import { mountBodyCompositionRoutes } from '#api/body-composition-routes'
 import { mountBodyWeightRoutes } from '#api/body-weight-routes'
 import { mountDayDetailRoutes } from '#api/day-detail-routes'
 import { mountFoodMasterRoutes } from '#api/food-master-routes'
@@ -14,6 +15,7 @@ import { mountNutrientDefinitionRoutes } from '#api/nutrient-definition-routes'
 import { mountProfileRoutes } from '#api/profile-routes'
 import { mountStockDeliveryRoutes } from '#api/stock-delivery-routes'
 import { mountStockRoutes } from '#api/stock-routes'
+import type { BodyCompositionService } from '#domain/body-composition/body-composition-service'
 import type { BodyWeightService } from '#domain/body-weight/body-weight-service'
 import type { DayDetailService } from '#domain/day-detail/types'
 import type { FoodBrowseService } from '#domain/food-browse/types'
@@ -32,6 +34,7 @@ import type { UserProfileService } from '#domain/user-profile/user-profile-servi
 export interface ApiDeps {
   mealHistoryService: MealHistoryService
   bodyWeightService: BodyWeightService
+  bodyCompositionService: BodyCompositionService
   dayDetailService: DayDetailService
   nutrientDefinitionRepository: NutrientDefinitionRepository
   userProfileService: UserProfileService
@@ -49,6 +52,7 @@ export interface ApiDeps {
 export const mountApiRoutes = (app: Hono, deps: ApiDeps): void => {
   mountMealHistoryRoutes(app, deps.mealHistoryService)
   mountBodyWeightRoutes(app, deps.bodyWeightService)
+  mountBodyCompositionRoutes(app, deps.bodyCompositionService)
   mountDayDetailRoutes(app, deps.dayDetailService)
   mountNutrientDefinitionRoutes(app, deps.nutrientDefinitionRepository)
   mountProfileRoutes(app, deps.userProfileService)
