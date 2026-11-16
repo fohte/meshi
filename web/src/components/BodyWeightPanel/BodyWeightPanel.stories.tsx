@@ -1,5 +1,6 @@
 import type { Meta, StoryObj } from '@storybook/react-vite'
 
+import type { BodyComposition } from '#api/body-compositions'
 import type { BodyWeight } from '#api/body-weights'
 import { BodyWeightPanel } from '#components/BodyWeightPanel/BodyWeightPanel'
 
@@ -12,13 +13,28 @@ const record: BodyWeight = {
   updatedAt: '2031-04-12T00:20:00.000Z',
 }
 
+const composition: BodyComposition = {
+  id: 'composition_demo_one',
+  date: '2031-04-12',
+  measuredAt: '2031-04-12T00:20:00.000Z',
+  device: 'Example Scale Z',
+  bodyFatPercent: 24.5,
+  muscleMassKg: null,
+  skeletalMusclePercent: 31.2,
+  createdAt: '2031-04-12T00:20:00.000Z',
+  updatedAt: '2031-04-12T00:20:00.000Z',
+}
+
 const meta = {
   title: 'Components/BodyWeightPanel',
   component: BodyWeightPanel,
   args: {
     records: [],
+    compositionRecords: [],
     loadState: 'loaded',
     onRetry: () => undefined,
+    compositionLoadState: 'loaded',
+    onRetryComposition: () => undefined,
     period: 'week',
     rangeLabel: '2031-04-06 – 2031-04-12',
     canGoForward: false,
@@ -37,6 +53,25 @@ const meta = {
     onConfirmDelete: () => undefined,
     isDeleting: false,
     onEdit: () => undefined,
+    compositionDraft: {
+      date: '2031-04-12',
+      measuredTime: '',
+      device: 'Example Scale Z',
+      bodyFatPercent: '',
+      muscleMassKg: '',
+      skeletalMusclePercent: '',
+    },
+    compositionEditingId: null,
+    onCompositionDraftChange: () => undefined,
+    onCompositionSave: () => undefined,
+    onCancelCompositionEdit: () => undefined,
+    isSavingComposition: false,
+    compositionDeleteTarget: null,
+    onRequestCompositionDelete: () => undefined,
+    onCancelCompositionDelete: () => undefined,
+    onConfirmCompositionDelete: () => undefined,
+    isDeletingComposition: false,
+    onEditComposition: () => undefined,
   },
 } satisfies Meta<typeof BodyWeightPanel>
 
@@ -80,6 +115,47 @@ export const DeleteError = {
   },
 } satisfies Story
 
+export const CompositionOnly = {
+  name: 'the list shows body composition without body weight',
+  args: {
+    compositionRecords: [composition],
+  },
+} satisfies Story
+
+export const CombinedRecords = {
+  name: 'the list groups weight and composition on the same day',
+  args: {
+    records: [record],
+    compositionRecords: [composition],
+  },
+} satisfies Story
+
+export const ConfirmingCompositionDelete = {
+  name: 'the user is confirming body composition deletion',
+  args: {
+    compositionRecords: [composition],
+    compositionDeleteTarget: composition,
+  },
+} satisfies Story
+
+export const CompositionDeleteError = {
+  name: 'the server rejected body composition deletion',
+  args: {
+    compositionRecords: [composition],
+    compositionDeleteTarget: composition,
+    compositionDeleteError: '記録を削除できませんでした',
+  },
+} satisfies Story
+
+export const DeletingComposition = {
+  name: 'the body composition measurement is being deleted',
+  args: {
+    compositionRecords: [composition],
+    compositionDeleteTarget: composition,
+    isDeletingComposition: true,
+  },
+} satisfies Story
+
 export const Deleting = {
   name: 'the measurement is being deleted',
   args: {
@@ -117,5 +193,14 @@ export const LoadError = {
   args: {
     loadState: 'error',
     loadError: '記録を読み込めませんでした',
+  },
+} satisfies Story
+
+export const CompositionLoadError = {
+  name: 'the body composition records could not be loaded',
+  args: {
+    records: [record],
+    compositionLoadState: 'error',
+    compositionLoadError: '体組成記録を読み込めませんでした',
   },
 } satisfies Story

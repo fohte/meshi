@@ -1,0 +1,62 @@
+.backdrop {
+  position: fixed;
+  z-index: 50;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  background: rgb(0 0 0 / 45%);
+  padding: 20px;
+}
+
+.dialog {
+  width: min(100%, 380px);
+  border: var(--border-width) solid var(--color-border);
+  background: var(--color-background);
+  padding: 22px;
+}
+
+.dialog h2 {
+  margin: 0;
+  font-size: 16px;
+}
+
+.dialog > p {
+  margin: 12px 0 0;
+  color: var(--color-muted);
+  font-size: 13px;
+}
+
+.dialog > .error {
+  color: var(--color-accent);
+}
+
+.actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 22px;
+}
+
+.secondaryButton,
+.dangerButton {
+  cursor: pointer;
+  border: var(--border-width) solid var(--color-border);
+  border-radius: 0;
+  background: transparent;
+  color: var(--color-text);
+  padding: 8px 12px;
+  font: inherit;
+  font-size: 12px;
+}
+
+.dangerButton {
+  border-color: var(--color-accent);
+  background: var(--color-accent);
+  color: var(--color-background);
+}
+
+.dangerButton:disabled,
+.secondaryButton:disabled {
+  cursor: default;
+  opacity: 0.45;
+}
