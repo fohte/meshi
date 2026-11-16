@@ -4,6 +4,7 @@ import { z } from 'zod'
 
 import { jsonBadRequest, jsonServerError } from '#api/errors'
 import { NUTRIENT_CODES } from '#db/seed/nutrient-definitions'
+import { bodyWeightKgSchema } from '#domain/body-weight/value-schema'
 import type {
   UserProfile,
   UserProfilePatch,
@@ -20,6 +21,7 @@ const userProfilePatchSchema = z.object({
     .partialRecord(z.enum(NUTRIENT_CODES), z.number())
     .nullable()
     .optional(),
+  goalWeightKg: bodyWeightKgSchema.nullable().optional(),
 })
 
 const toProfileResponse = (profile: UserProfile) => ({
@@ -28,6 +30,7 @@ const toProfileResponse = (profile: UserProfile) => ({
   allergies: profile.allergies,
   constraints: profile.constraints,
   dailyTargets: profile.dailyTargets ?? null,
+  goalWeightKg: profile.goalWeightKg ?? null,
 })
 
 export const mountProfileRoutes = (
@@ -74,6 +77,9 @@ export const mountProfileRoutes = (
       ...(parsed.data.dailyTargets === undefined
         ? {}
         : { dailyTargets: parsed.data.dailyTargets }),
+      ...(parsed.data.goalWeightKg === undefined
+        ? {}
+        : { goalWeightKg: parsed.data.goalWeightKg }),
     }
 
     const result = await userProfileService.update(patch)

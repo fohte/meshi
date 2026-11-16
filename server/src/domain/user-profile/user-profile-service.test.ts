@@ -8,6 +8,8 @@ import {
 import type { UserProfileRepository } from '#domain/user-profile/user-profile-repository'
 import { createUserProfileService } from '#domain/user-profile/user-profile-service'
 
+const captureOutput = <Output>(output: Output): Output => output
+
 const createInMemoryRepository = (
   initial: UserProfile | null = null,
 ): UserProfileRepository & {
@@ -72,6 +74,7 @@ describe('createUserProfileService', () => {
       allergies: ['peanuts'],
       constraints: ['halal'],
       dailyTargets: { protein_g: 80, energy_kcal: 2000 },
+      goalWeightKg: 61.8,
     })
     const service = createUserProfileService(repo)
 
@@ -83,6 +86,7 @@ describe('createUserProfileService', () => {
       allergies: ['peanuts'],
       constraints: ['halal'],
       dailyTargets: { protein_g: 80, energy_kcal: 2000 },
+      goalWeightKg: 61.8,
     } satisfies UserProfile)
   })
 
@@ -155,6 +159,41 @@ describe('createUserProfileService', () => {
       allergies: ['shrimp'],
       constraints: [],
     } satisfies UserProfile)
+  })
+
+  it('sets goalWeightKg in a partial update', async () => {
+    const repo = createInMemoryRepository()
+    const service = createUserProfileService(repo)
+
+    const set = await service.update({ goalWeightKg: 64.25 })
+
+    expect(captureOutput(set._unsafeUnwrap())).toEqual({
+      likes: [],
+      dislikes: [],
+      allergies: [],
+      constraints: [],
+      goalWeightKg: 64.25,
+    })
+  })
+
+  it('clears goalWeightKg when the patch sets it to null', async () => {
+    const repo = createInMemoryRepository({
+      likes: [],
+      dislikes: [],
+      allergies: [],
+      constraints: [],
+      goalWeightKg: 64.25,
+    })
+    const service = createUserProfileService(repo)
+
+    const cleared = await service.update({ goalWeightKg: null })
+
+    expect(captureOutput(cleared._unsafeUnwrap())).toEqual({
+      likes: [],
+      dislikes: [],
+      allergies: [],
+      constraints: [],
+    })
   })
 
   it('exposes the same schema defaults as DEFAULT_USER_PROFILE for downstream callers', () => {

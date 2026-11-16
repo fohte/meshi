@@ -5,6 +5,7 @@ import { z } from 'zod'
 
 import type { Sql } from '#db/index'
 import { userProfiles } from '#db/schema'
+import { bodyWeightKgSchema } from '#domain/body-weight/value-schema'
 import { UserProfileRepositoryError } from '#domain/user-profile/errors'
 import type { UserProfile } from '#domain/user-profile/user-profile'
 import type { UserProfileRepository } from '#domain/user-profile/user-profile-repository'
@@ -34,7 +35,21 @@ const toDomain = (
     allergies: row.allergies,
     constraints: row.constraints,
   }
-  if (row.dailyTargets === null) return ok(base)
+  const goalWeightKg =
+    row.goalWeightKg === null
+      ? undefined
+      : bodyWeightKgSchema.safeParse(Number(row.goalWeightKg))
+  if (goalWeightKg !== undefined && !goalWeightKg.success) {
+    return err(
+      new UserProfileRowInvalidError(
+        'user_profiles.goal_weight_kg is not a valid body weight',
+        goalWeightKg.error.issues,
+      ),
+    )
+  }
+  const goalWeight =
+    goalWeightKg === undefined ? {} : { goalWeightKg: goalWeightKg.data }
+  if (row.dailyTargets === null) return ok({ ...base, ...goalWeight })
   const parsed = nutritionTargetsSchema.safeParse(row.dailyTargets)
   if (!parsed.success) {
     return err(
@@ -44,7 +59,7 @@ const toDomain = (
       ),
     )
   }
-  return ok({ ...base, dailyTargets: parsed.data })
+  return ok({ ...base, ...goalWeight, dailyTargets: parsed.data })
 }
 
 export const createDrizzleUserProfileRepository = (
@@ -70,7 +85,7 @@ export const createDrizzleUserProfileRepository = (
         return row === undefined ? ok(null) : toDomain(row)
       }),
 
-    save: (profile) => {
+    save: (profile, patch) => {
       const values = {
         id: SINGLETON_ID,
         likes: [...profile.likes],
@@ -78,8 +93,37 @@ export const createDrizzleUserProfileRepository = (
         allergies: [...profile.allergies],
         constraints: [...profile.constraints],
         dailyTargets: profile.dailyTargets ?? null,
+        goalWeightKg: profile.goalWeightKg?.toFixed(2) ?? null,
         updatedAt: new Date(),
       }
+      const fieldsToUpdate =
+        patch === undefined
+          ? {
+              likes: values.likes,
+              dislikes: values.dislikes,
+              allergies: values.allergies,
+              constraints: values.constraints,
+              dailyTargets: values.dailyTargets,
+              goalWeightKg: values.goalWeightKg,
+            }
+          : {
+              ...(patch.likes === undefined ? {} : { likes: values.likes }),
+              ...(patch.dislikes === undefined
+                ? {}
+                : { dislikes: values.dislikes }),
+              ...(patch.allergies === undefined
+                ? {}
+                : { allergies: values.allergies }),
+              ...(patch.constraints === undefined
+                ? {}
+                : { constraints: values.constraints }),
+              ...(patch.dailyTargets === undefined
+                ? {}
+                : { dailyTargets: values.dailyTargets }),
+              ...(patch.goalWeightKg === undefined
+                ? {}
+                : { goalWeightKg: values.goalWeightKg }),
+            }
       return ResultAsync.fromPromise(
         db
           .insert(userProfiles)
@@ -87,11 +131,7 @@ export const createDrizzleUserProfileRepository = (
           .onConflictDoUpdate({
             target: userProfiles.id,
             set: {
-              likes: values.likes,
-              dislikes: values.dislikes,
-              allergies: values.allergies,
-              constraints: values.constraints,
-              dailyTargets: values.dailyTargets,
+              ...fieldsToUpdate,
               updatedAt: values.updatedAt,
             },
           })

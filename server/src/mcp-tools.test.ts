@@ -55,9 +55,10 @@ import {
 import type { MealSkipService } from '#domain/meal-skip/meal-skip-service'
 import type { MealSkipRow } from '#domain/meal-skip/types'
 import { UserProfileRepositoryError } from '#domain/user-profile/errors'
-import type {
-  UserProfile,
-  UserProfilePatch,
+import {
+  mergeUserProfile,
+  type UserProfile,
+  type UserProfilePatch,
 } from '#domain/user-profile/user-profile'
 import type { UserProfileService } from '#domain/user-profile/user-profile-service'
 import type { Logger } from '#logger'
@@ -340,19 +341,7 @@ const makeProfileService = (
     update(patch) {
       calls.update.push(patch)
       if (overrides.update) return errAsync(overrides.update)
-      const { dailyTargets, ...rest } = patch
-      // exhaustively cover the three cases — clear / set / keep — so the
-      // resulting object never carries a stray null in dailyTargets.
-      const base = { ...current, ...rest }
-      if (dailyTargets === null) {
-        // eslint-disable-next-line @typescript-eslint/no-unused-vars -- destructure to drop the field from the rest spread.
-        const { dailyTargets: _drop, ...cleared } = base
-        current = cleared
-      } else if (dailyTargets !== undefined) {
-        current = { ...base, dailyTargets }
-      } else {
-        current = base
-      }
+      current = mergeUserProfile(current, patch)
       return okAsync(current)
     },
   }

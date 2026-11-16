@@ -53,6 +53,33 @@ describeIfDb('schema migrations', () => {
     ])
   })
 
+  it('adds a nullable goal weight with two decimal places', async () => {
+    const sql = getTestSql()
+    const rows = await sql<
+      {
+        data_type: string
+        is_nullable: string
+        numeric_precision: number
+        numeric_scale: number
+      }[]
+    >`
+      SELECT data_type, is_nullable, numeric_precision, numeric_scale
+      FROM information_schema.columns
+      WHERE table_schema = 'public'
+        AND table_name = 'user_profiles'
+        AND column_name = 'goal_weight_kg'
+    `
+
+    expect(rows).toEqual([
+      {
+        data_type: 'numeric',
+        is_nullable: 'YES',
+        numeric_precision: 5,
+        numeric_scale: 2,
+      },
+    ])
+  })
+
   it('creates the expected enums with their values', async () => {
     const sql = getTestSql()
     const rows = await sql<{ typname: string; labels: string[] }[]>`
@@ -769,6 +796,11 @@ describeIfDb('schema migrations', () => {
         validated: true,
       },
       {
+        conname: 'user_profiles_goal_weight_kg_positive',
+        table_name: 'user_profiles',
+        validated: true,
+      },
+      {
         conname: 'user_profiles_singleton',
         table_name: 'user_profiles',
         validated: true,
@@ -1194,6 +1226,15 @@ describeIfDb('schema runtime constraints', () => {
         INSERT INTO user_profiles (id, daily_targets)
         VALUES (1, '[]'::jsonb)
       `),
+    ).toEqual({ status: 'error', code: '23514' })
+  })
+
+  it('rejects nonpositive user_profiles.goal_weight_kg values', async () => {
+    const tx = getTx()
+    expect(
+      await runOutcome(
+        tx`INSERT INTO user_profiles (goal_weight_kg) VALUES (0)`,
+      ),
     ).toEqual({ status: 'error', code: '23514' })
   })
 
