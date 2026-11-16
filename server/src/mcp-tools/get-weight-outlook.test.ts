@@ -1,7 +1,8 @@
 import { Client, InMemoryTransport } from '@modelcontextprotocol/client'
-import { okAsync } from 'neverthrow'
+import { errAsync, okAsync } from 'neverthrow'
 import { describe, expect, it } from 'vitest'
 
+import { BodyWeightPersistenceError } from '#domain/body-weight/errors'
 import type { WeightOutlook } from '#domain/weight-outlook/weight-outlook-calculator'
 import type { WeightOutlookService } from '#domain/weight-outlook/weight-outlook-service'
 import { createMcpServer } from '#mcp'
@@ -197,6 +198,25 @@ describe('get_weight_outlook annotations', () => {
         ({ name }) => name === 'get_weight_outlook',
       )
       expect(tool?.annotations).toEqual({ readOnlyHint: true })
+    } finally {
+      await h.close()
+    }
+  })
+})
+
+describe('get_weight_outlook service errors', () => {
+  it('returns the standard MCP error result when the service fails', async () => {
+    const error = new BodyWeightPersistenceError('weight history unavailable')
+    const h = await start({ get: () => errAsync(error) })
+    try {
+      const result = await h.client.callTool({
+        name: 'get_weight_outlook',
+        arguments: {},
+      })
+      expect(result).toEqual({
+        content: [{ type: 'text', text: error.message }],
+        isError: true,
+      })
     } finally {
       await h.close()
     }
