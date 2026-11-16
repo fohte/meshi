@@ -15,6 +15,7 @@ type BodyWeightUpdate = Omit<BodyWeightWrite, 'id'>
 
 export interface BodyWeightRepository {
   create(input: BodyWeightWrite): ResultAsync<BodyWeight, BodyWeightDomainError>
+  firstMeasurementDate(): ResultAsync<JstDate | null, BodyWeightDomainError>
   list(
     from: JstDate,
     to: JstDate,

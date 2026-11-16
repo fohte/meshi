@@ -5,9 +5,14 @@ import { calculateWeightOutlook } from '#domain/weight-outlook/weight-outlook-ca
 import { type JstDate, jstDateSchema } from '#lib/jst-date'
 
 const AS_OF = jstDateSchema.parse('2026-11-17')
+const START_DATE = jstDateSchema.parse('2026-10-21')
+const RECENT_OFFSETS = Array.from({ length: 28 }, (_, index) => index)
 
 const shiftDate = (date: JstDate, days: number): JstDate =>
   jstDateSchema.parse(Temporal.PlainDate.from(date).add({ days }).toString())
+
+const rounded = (value: number): number =>
+  Math.round(value * 1_000_000) / 1_000_000
 
 const weight = (date: JstDate, weightKg: number, id: string): BodyWeight => ({
   id,
@@ -21,7 +26,7 @@ const weight = (date: JstDate, weightKg: number, id: string): BodyWeight => ({
 const linearWeights = (
   firstWeightKg: number,
   slopeKgPerDay: number,
-  offsets: ReadonlyArray<number> = Array.from({ length: 28 }, (_, i) => i),
+  offsets: ReadonlyArray<number> = RECENT_OFFSETS,
 ): BodyWeight[] =>
   offsets.map((offset) =>
     weight(
@@ -31,342 +36,307 @@ const linearWeights = (
     ),
   )
 
-const round = (value: number | null): number | null =>
-  value === null ? null : Math.round(value * 1_000_000) / 1_000_000
+interface ExpectedOutlookInput {
+  readonly weights: ReadonlyArray<BodyWeight>
+  readonly firstMeasurementDate: JstDate | null
+  readonly goalWeightKg: number | null
+  readonly status:
+    | 'insufficient_data'
+    | 'no_goal'
+    | 'reached'
+    | 'not_approaching'
+    | 'no_arrival_estimate'
+    | 'arrival_estimate'
+  readonly reason:
+    | 'first_measurement_too_recent'
+    | 'too_few_measurement_days'
+    | 'measurement_gap'
+    | null
+  readonly linearTrend?: {
+    readonly firstWeightKg: number
+    readonly slopeKgPerDay: number
+  }
+  readonly arrivalDateRange?: {
+    readonly from: JstDate
+    readonly to: JstDate
+  } | null
+}
 
-const decisionSnapshot = (
+const normalizeOutlook = (
   outlook: ReturnType<typeof calculateWeightOutlook>,
-) => {
-  const asOfTrendPoint = outlook.trend?.points.find(
-    ({ date }) => date === AS_OF,
-  )
-  const finalTrendPoint = outlook.trend?.points.at(-1)
+) => ({
+  ...outlook,
+  points: outlook.points.map((point) => ({
+    ...point,
+    weightKg: rounded(point.weightKg),
+  })),
+  latestWeightKg:
+    outlook.latestWeightKg === null ? null : rounded(outlook.latestWeightKg),
+  trend:
+    outlook.trend === null
+      ? null
+      : {
+          ...outlook.trend,
+          slopeKgPerDay: rounded(outlook.trend.slopeKgPerDay),
+          slopeKgPerWeek: rounded(outlook.trend.slopeKgPerWeek),
+          points: outlook.trend.points.map((point) => ({
+            date: point.date,
+            weightKg: rounded(point.weightKg),
+            lowerKg: rounded(point.lowerKg),
+            upperKg: rounded(point.upperKg),
+          })),
+        },
+})
+
+const expectedOutlook = (input: ExpectedOutlookInput) => {
+  const {
+    weights,
+    goalWeightKg,
+    status,
+    reason,
+    linearTrend,
+    arrivalDateRange = null,
+  } = input
+  const byDate = new Map<string, number[]>()
+  for (const { date, weightKg } of weights) {
+    const values = byDate.get(date) ?? []
+    values.push(weightKg)
+    byDate.set(date, values)
+  }
+  const points = [...byDate]
+    .filter(([date]) => date >= START_DATE && date <= AS_OF)
+    .sort(([left], [right]) => left.localeCompare(right))
+    .map(([date, values]) => ({
+      date: jstDateSchema.parse(date),
+      weightKg: rounded(
+        values.reduce((sum, value) => sum + value, 0) / values.length,
+      ),
+    }))
+  const trendPoints =
+    linearTrend === undefined
+      ? null
+      : Array.from({ length: 112 }, (_, index) => {
+          const value = rounded(
+            linearTrend.firstWeightKg + linearTrend.slopeKgPerDay * index,
+          )
+          return {
+            date: shiftDate(START_DATE, index),
+            weightKg: value,
+            lowerKg: value,
+            upperKg: value,
+          }
+        })
   return {
-    asOf: outlook.asOf,
-    points: {
-      count: outlook.points.length,
-      first: outlook.points[0] ?? null,
-      last: outlook.points.at(-1) ?? null,
-    },
-    latestWeightKg: round(outlook.latestWeightKg),
-    trendPointCount: outlook.trend?.points.length ?? null,
-    goalWeightKg: outlook.goalWeightKg,
+    asOf: AS_OF,
+    points,
+    latestWeightKg: points.at(-1)?.weightKg ?? null,
+    goalWeightKg,
     trend:
-      outlook.trend === null
+      trendPoints === null || linearTrend === undefined
         ? null
         : {
-            slopeKgPerDay: round(outlook.trend.slopeKgPerDay),
-            slopeKgPerWeek: round(outlook.trend.slopeKgPerWeek),
-            asOf:
-              asOfTrendPoint === undefined
-                ? null
-                : {
-                    weightKg: round(asOfTrendPoint.weightKg),
-                    lowerKg: round(asOfTrendPoint.lowerKg),
-                    upperKg: round(asOfTrendPoint.upperKg),
-                  },
-            forecastEnd:
-              finalTrendPoint === undefined
-                ? null
-                : {
-                    date: finalTrendPoint.date,
-                    weightKg: round(finalTrendPoint.weightKg),
-                    lowerKg: round(finalTrendPoint.lowerKg),
-                    upperKg: round(finalTrendPoint.upperKg),
-                  },
+            slopeKgPerDay: rounded(linearTrend.slopeKgPerDay),
+            slopeKgPerWeek: rounded(linearTrend.slopeKgPerDay * 7),
+            points: trendPoints,
           },
-    status: outlook.status,
-    reason: outlook.reason,
-    arrivalDateRange: outlook.arrivalDateRange,
+    status,
+    reason,
+    arrivalDateRange,
   }
 }
 
-it('reports when the first measurement is less than 28 days old', () => {
-  const outlook = calculateWeightOutlook(
-    linearWeights(70, -0.1).filter(
-      (point) => point.date !== shiftDate(AS_OF, -27),
-    ),
-    AS_OF,
-    65,
+const calculate = (
+  weights: ReadonlyArray<BodyWeight>,
+  firstMeasurementDate: JstDate | null,
+  goalWeightKg: number | null,
+) =>
+  normalizeOutlook(
+    calculateWeightOutlook(weights, firstMeasurementDate, AS_OF, goalWeightKg),
   )
-  expect(decisionSnapshot(outlook)).toEqual({
-    asOf: AS_OF,
-    points: {
-      count: 27,
-      first: { date: shiftDate(AS_OF, -26), weightKg: 69.9 },
-      last: { date: AS_OF, weightKg: 67.3 },
-    },
-    latestWeightKg: 67.3,
-    trendPointCount: null,
-    goalWeightKg: 65,
-    trend: null,
-    status: 'insufficient_data',
-    reason: 'first_measurement_too_recent',
-    arrivalDateRange: null,
-  })
+
+it('reports when the first measurement is less than 28 days old', () => {
+  const weights = linearWeights(70, -0.1).filter(
+    ({ date }) => date !== START_DATE,
+  )
+  expect(calculate(weights, shiftDate(AS_OF, -26), 65)).toEqual(
+    expectedOutlook({
+      weights,
+      firstMeasurementDate: shiftDate(AS_OF, -26),
+      goalWeightKg: 65,
+      status: 'insufficient_data',
+      reason: 'first_measurement_too_recent',
+    }),
+  )
 })
 
 it('reports when fewer than 16 calendar days have measurements', () => {
-  const weights = [
-    weight(shiftDate(AS_OF, -40), 72, 'old'),
-    ...linearWeights(70, -0.1, [
-      ...Array.from({ length: 14 }, (_, i) => i * 2),
-      27,
-    ]),
-  ]
-  const outlook = calculateWeightOutlook(weights, AS_OF, 65)
-  expect(decisionSnapshot(outlook)).toEqual({
-    asOf: AS_OF,
-    points: {
-      count: 15,
-      first: { date: shiftDate(AS_OF, -27), weightKg: 70 },
-      last: { date: AS_OF, weightKg: 67.3 },
-    },
-    latestWeightKg: 67.3,
-    trendPointCount: null,
-    goalWeightKg: 65,
-    trend: null,
-    status: 'insufficient_data',
-    reason: 'too_few_measurement_days',
-    arrivalDateRange: null,
-  })
+  const weights = linearWeights(70, -0.1, [
+    ...Array.from({ length: 14 }, (_, index) => index * 2),
+    27,
+  ])
+  expect(calculate(weights, shiftDate(AS_OF, -40), 65)).toEqual(
+    expectedOutlook({
+      weights,
+      firstMeasurementDate: shiftDate(AS_OF, -40),
+      goalWeightKg: 65,
+      status: 'insufficient_data',
+      reason: 'too_few_measurement_days',
+    }),
+  )
 })
 
-it('reports when any seven day interval has fewer than two measurements', () => {
+it('reports when one of the four fixed seven-day intervals has fewer than two measurements', () => {
   const weights = linearWeights(70, -0.1, [
     0,
-    ...Array.from({ length: 5 }, (_, i) => i + 7),
-    ...Array.from({ length: 5 }, (_, i) => i + 14),
-    ...Array.from({ length: 5 }, (_, i) => i + 22),
+    ...Array.from({ length: 5 }, (_, index) => index + 7),
+    ...Array.from({ length: 5 }, (_, index) => index + 14),
+    ...Array.from({ length: 5 }, (_, index) => index + 22),
   ])
-  const outlook = calculateWeightOutlook(weights, AS_OF, 65)
-  expect(decisionSnapshot(outlook)).toEqual({
-    asOf: AS_OF,
-    points: {
-      count: 16,
-      first: { date: shiftDate(AS_OF, -27), weightKg: 70 },
-      last: { date: shiftDate(AS_OF, -1), weightKg: 67.4 },
-    },
-    latestWeightKg: 67.4,
-    trendPointCount: null,
-    goalWeightKg: 65,
-    trend: null,
-    status: 'insufficient_data',
-    reason: 'measurement_gap',
-    arrivalDateRange: null,
-  })
+  expect(calculate(weights, START_DATE, 65)).toEqual(
+    expectedOutlook({
+      weights,
+      firstMeasurementDate: START_DATE,
+      goalWeightKg: 65,
+      status: 'insufficient_data',
+      reason: 'measurement_gap',
+    }),
+  )
 })
 
-it('returns a trend without a target when the profile has no goal', () => {
-  const outlook = calculateWeightOutlook(linearWeights(70, -0.1), AS_OF, null)
-  expect(decisionSnapshot(outlook)).toEqual({
-    asOf: AS_OF,
-    points: {
-      count: 28,
-      first: { date: shiftDate(AS_OF, -27), weightKg: 70 },
-      last: { date: AS_OF, weightKg: 67.3 },
-    },
-    latestWeightKg: 67.3,
-    trendPointCount: 112,
-    goalWeightKg: null,
-    trend: {
-      slopeKgPerDay: -0.1,
-      slopeKgPerWeek: -0.7,
-      asOf: { weightKg: 67.3, lowerKg: 67.3, upperKg: 67.3 },
-      forecastEnd: {
-        date: shiftDate(AS_OF, 84),
-        weightKg: 58.9,
-        lowerKg: 58.9,
-        upperKg: 58.9,
-      },
-    },
-    status: 'no_goal',
-    reason: null,
-    arrivalDateRange: null,
-  })
+it('returns a complete trend when the profile has no goal', () => {
+  const weights = linearWeights(70, -0.1)
+  expect(calculate(weights, START_DATE, null)).toEqual(
+    expectedOutlook({
+      weights,
+      firstMeasurementDate: START_DATE,
+      goalWeightKg: null,
+      status: 'no_goal',
+      reason: null,
+      linearTrend: { firstWeightKg: 70, slopeKgPerDay: -0.1 },
+    }),
+  )
 })
 
 it('reports a goal reached after the trend has stayed past it for seven days', () => {
-  const outlook = calculateWeightOutlook(linearWeights(66.5, -0.1), AS_OF, 65)
-  expect(decisionSnapshot(outlook)).toEqual({
-    asOf: AS_OF,
-    points: {
-      count: 28,
-      first: { date: shiftDate(AS_OF, -27), weightKg: 66.5 },
-      last: { date: AS_OF, weightKg: 63.8 },
-    },
-    latestWeightKg: 63.8,
-    trendPointCount: 112,
-    goalWeightKg: 65,
-    trend: {
-      slopeKgPerDay: -0.1,
-      slopeKgPerWeek: -0.7,
-      asOf: { weightKg: 63.8, lowerKg: 63.8, upperKg: 63.8 },
-      forecastEnd: {
-        date: shiftDate(AS_OF, 84),
-        weightKg: 55.4,
-        lowerKg: 55.4,
-        upperKg: 55.4,
-      },
-    },
-    status: 'reached',
-    reason: null,
-    arrivalDateRange: null,
-  })
+  const weights = linearWeights(66.5, -0.1)
+  expect(calculate(weights, START_DATE, 65)).toEqual(
+    expectedOutlook({
+      weights,
+      firstMeasurementDate: START_DATE,
+      goalWeightKg: 65,
+      status: 'reached',
+      reason: null,
+      linearTrend: { firstWeightKg: 66.5, slopeKgPerDay: -0.1 },
+    }),
+  )
 })
 
 it('reports when the slope interval is not exclusively toward the goal', () => {
-  const outlook = calculateWeightOutlook(linearWeights(70, 0.1), AS_OF, 60)
-  expect(decisionSnapshot(outlook)).toEqual({
-    asOf: AS_OF,
-    points: {
-      count: 28,
-      first: { date: shiftDate(AS_OF, -27), weightKg: 70 },
-      last: { date: AS_OF, weightKg: 72.7 },
-    },
-    latestWeightKg: 72.7,
-    trendPointCount: 112,
-    goalWeightKg: 60,
-    trend: {
-      slopeKgPerDay: 0.1,
-      slopeKgPerWeek: 0.7,
-      asOf: { weightKg: 72.7, lowerKg: 72.7, upperKg: 72.7 },
-      forecastEnd: {
-        date: shiftDate(AS_OF, 84),
-        weightKg: 81.1,
-        lowerKg: 81.1,
-        upperKg: 81.1,
-      },
-    },
-    status: 'not_approaching',
-    reason: null,
-    arrivalDateRange: null,
-  })
+  const weights = linearWeights(70, 0.1)
+  expect(calculate(weights, START_DATE, 60)).toEqual(
+    expectedOutlook({
+      weights,
+      firstMeasurementDate: START_DATE,
+      goalWeightKg: 60,
+      status: 'not_approaching',
+      reason: null,
+      linearTrend: { firstWeightKg: 70, slopeKgPerDay: 0.1 },
+    }),
+  )
 })
 
 it('reports when the confidence band does not reach the goal within 12 weeks', () => {
-  const outlook = calculateWeightOutlook(linearWeights(70, -0.001), AS_OF, 60)
-  expect(decisionSnapshot(outlook)).toEqual({
-    asOf: AS_OF,
-    points: {
-      count: 28,
-      first: { date: shiftDate(AS_OF, -27), weightKg: 70 },
-      last: { date: AS_OF, weightKg: 69.973 },
-    },
-    latestWeightKg: 69.973,
-    trendPointCount: 112,
-    goalWeightKg: 60,
-    trend: {
-      slopeKgPerDay: -0.001,
-      slopeKgPerWeek: -0.007,
-      asOf: { weightKg: 69.973, lowerKg: 69.973, upperKg: 69.973 },
-      forecastEnd: {
-        date: shiftDate(AS_OF, 84),
-        weightKg: 69.889,
-        lowerKg: 69.889,
-        upperKg: 69.889,
-      },
-    },
-    status: 'no_arrival_estimate',
-    reason: null,
-    arrivalDateRange: null,
-  })
+  const weights = linearWeights(70, -0.001)
+  expect(calculate(weights, START_DATE, 60)).toEqual(
+    expectedOutlook({
+      weights,
+      firstMeasurementDate: START_DATE,
+      goalWeightKg: 60,
+      status: 'no_arrival_estimate',
+      reason: null,
+      linearTrend: { firstWeightKg: 70, slopeKgPerDay: -0.001 },
+    }),
+  )
 })
 
 it('returns the earliest and latest goal arrival dates for a weight loss trend', () => {
-  const outlook = calculateWeightOutlook(linearWeights(70, -0.1), AS_OF, 65)
-  expect(decisionSnapshot(outlook)).toEqual({
-    asOf: AS_OF,
-    points: {
-      count: 28,
-      first: { date: shiftDate(AS_OF, -27), weightKg: 70 },
-      last: { date: AS_OF, weightKg: 67.3 },
-    },
-    latestWeightKg: 67.3,
-    trendPointCount: 112,
-    goalWeightKg: 65,
-    trend: {
-      slopeKgPerDay: -0.1,
-      slopeKgPerWeek: -0.7,
-      asOf: { weightKg: 67.3, lowerKg: 67.3, upperKg: 67.3 },
-      forecastEnd: {
-        date: shiftDate(AS_OF, 84),
-        weightKg: 58.9,
-        lowerKg: 58.9,
-        upperKg: 58.9,
+  const weights = linearWeights(70, -0.1)
+  expect(calculate(weights, START_DATE, 65)).toEqual(
+    expectedOutlook({
+      weights,
+      firstMeasurementDate: START_DATE,
+      goalWeightKg: 65,
+      status: 'arrival_estimate',
+      reason: null,
+      linearTrend: { firstWeightKg: 70, slopeKgPerDay: -0.1 },
+      arrivalDateRange: {
+        from: shiftDate(AS_OF, 23),
+        to: shiftDate(AS_OF, 23),
       },
-    },
-    status: 'arrival_estimate',
-    reason: null,
-    arrivalDateRange: {
-      from: shiftDate(AS_OF, 23),
-      to: shiftDate(AS_OF, 23),
-    },
-  })
+    }),
+  )
 })
 
 it('uses the upward goal direction when the target is heavier than the trend', () => {
-  const outlook = calculateWeightOutlook(linearWeights(70, 0.1), AS_OF, 75)
-  expect(decisionSnapshot(outlook)).toEqual({
-    asOf: AS_OF,
-    points: {
-      count: 28,
-      first: { date: shiftDate(AS_OF, -27), weightKg: 70 },
-      last: { date: AS_OF, weightKg: 72.7 },
-    },
-    latestWeightKg: 72.7,
-    trendPointCount: 112,
-    goalWeightKg: 75,
-    trend: {
-      slopeKgPerDay: 0.1,
-      slopeKgPerWeek: 0.7,
-      asOf: { weightKg: 72.7, lowerKg: 72.7, upperKg: 72.7 },
-      forecastEnd: {
-        date: shiftDate(AS_OF, 84),
-        weightKg: 81.1,
-        lowerKg: 81.1,
-        upperKg: 81.1,
+  const weights = linearWeights(70, 0.1)
+  expect(calculate(weights, START_DATE, 75)).toEqual(
+    expectedOutlook({
+      weights,
+      firstMeasurementDate: START_DATE,
+      goalWeightKg: 75,
+      status: 'arrival_estimate',
+      reason: null,
+      linearTrend: { firstWeightKg: 70, slopeKgPerDay: 0.1 },
+      arrivalDateRange: {
+        from: shiftDate(AS_OF, 23),
+        to: shiftDate(AS_OF, 23),
       },
-    },
-    status: 'arrival_estimate',
-    reason: null,
-    arrivalDateRange: {
-      from: shiftDate(AS_OF, 23),
-      to: shiftDate(AS_OF, 23),
-    },
-  })
+    }),
+  )
 })
 
-it('averages multiple measurements from the same calendar day into one point', () => {
+it('averages same-day measurements and returns the complete 80% confidence band', () => {
   const weights = [
-    ...linearWeights(70, -0.1).filter((point) => point.date !== AS_OF),
+    ...linearWeights(70, -0.1).filter(({ date }) => date !== AS_OF),
     weight(AS_OF, 68, 'same_day_first'),
     weight(AS_OF, 70, 'same_day_second'),
   ]
-  const outlook = calculateWeightOutlook(weights, AS_OF, null)
-  expect(decisionSnapshot(outlook)).toEqual({
-    asOf: AS_OF,
-    points: {
-      count: 28,
-      first: { date: shiftDate(AS_OF, -27), weightKg: 70 },
-      last: { date: AS_OF, weightKg: 69 },
-    },
-    latestWeightKg: 69,
-    trendPointCount: 112,
+  const delta = 1.7
+  const meanX = 13.5
+  const sumSquaredX = 1827
+  const slopeKgPerDay = -0.1 + (delta * (27 - meanX)) / sumSquaredX
+  const intercept = 68.65 + delta / 28 - slopeKgPerDay * meanX
+  const leverageAtLastDay = 1 / 28 + (27 - meanX) ** 2 / sumSquaredX
+  const residualStandardError = Math.sqrt(
+    (delta ** 2 * (1 - leverageAtLastDay)) / 26,
+  )
+  const marginAt = (x: number): number =>
+    1.315 *
+    residualStandardError *
+    Math.sqrt(1 / 28 + (x - meanX) ** 2 / sumSquaredX)
+  const expectedTrendPoints = Array.from({ length: 112 }, (_, index) => {
+    const weightKg = intercept + slopeKgPerDay * index
+    const margin = marginAt(index)
+    return {
+      date: shiftDate(START_DATE, index),
+      weightKg: rounded(weightKg),
+      lowerKg: rounded(weightKg - margin),
+      upperKg: rounded(weightKg + margin),
+    }
+  })
+  const expected = expectedOutlook({
+    weights,
+    firstMeasurementDate: START_DATE,
     goalWeightKg: null,
-    trend: {
-      slopeKgPerDay: -0.087438,
-      slopeKgPerWeek: -0.612069,
-      asOf: { weightKg: 67.530296, lowerKg: 67.380259, upperKg: 67.680332 },
-      forecastEnd: {
-        date: shiftDate(AS_OF, 84),
-        weightKg: 60.185468,
-        lowerKg: 59.25243,
-        upperKg: 61.118506,
-      },
-    },
     status: 'no_goal',
     reason: null,
-    arrivalDateRange: null,
+  })
+  expect(calculate(weights, START_DATE, null)).toEqual({
+    ...expected,
+    trend: {
+      slopeKgPerDay: rounded(slopeKgPerDay),
+      slopeKgPerWeek: rounded(slopeKgPerDay * 7),
+      points: expectedTrendPoints,
+    },
   })
 })

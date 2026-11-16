@@ -1,9 +1,10 @@
 import { Hono } from 'hono'
-import { okAsync } from 'neverthrow'
+import { errAsync, okAsync } from 'neverthrow'
 import { expect, it } from 'vitest'
 import { z } from 'zod'
 
 import { mountWeightOutlookRoutes } from '#api/weight-outlook-routes'
+import { BodyWeightPersistenceError } from '#domain/body-weight/errors'
 import type { WeightOutlook } from '#domain/weight-outlook/weight-outlook-calculator'
 import type { WeightOutlookService } from '#domain/weight-outlook/weight-outlook-service'
 import { jstDateSchema } from '#lib/jst-date'
@@ -49,10 +50,12 @@ const responseSchema = z.strictObject({
     .nullable(),
 })
 
-const responseSnapshot = async (response: Response) => [
-  response.status,
-  responseSchema.parse(await response.json()),
-]
+const errorSchema = z.strictObject({ error: z.string() })
+
+const responseSnapshot = async (response: Response) => ({
+  status: response.status,
+  body: z.union([responseSchema, errorSchema]).parse(await response.json()),
+})
 
 it('returns the weight outlook response from the service', async () => {
   const outlook: WeightOutlook = {
@@ -70,5 +73,22 @@ it('returns the weight outlook response from the service', async () => {
   mountWeightOutlookRoutes(app, service)
 
   const response = await app.request('/api/weight-outlook')
-  expect(await responseSnapshot(response)).toEqual([200, outlook])
+  expect(await responseSnapshot(response)).toEqual({
+    status: 200,
+    body: outlook,
+  })
+})
+
+it('returns a server error when the service fails', async () => {
+  const service: WeightOutlookService = {
+    get: () => errAsync(new BodyWeightPersistenceError('outlook unavailable')),
+  }
+  const app = new Hono()
+  mountWeightOutlookRoutes(app, service)
+
+  const response = await app.request('/api/weight-outlook')
+  expect(await responseSnapshot(response)).toEqual({
+    status: 500,
+    body: { error: 'outlook unavailable' },
+  })
 })

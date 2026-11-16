@@ -84,6 +84,9 @@ interface Regression {
 const shiftDate = (date: JstDate, days: number): JstDate =>
   jstDateSchema.parse(Temporal.PlainDate.from(date).add({ days }).toString())
 
+export const getWeightOutlookStartDate = (asOf: JstDate): JstDate =>
+  shiftDate(asOf, -(WEIGHT_OUTLOOK_POLICY.windowDays - 1))
+
 const daysBetween = (from: JstDate, to: JstDate): number =>
   Temporal.PlainDate.from(from).until(Temporal.PlainDate.from(to), {
     largestUnit: 'day',
@@ -106,12 +109,11 @@ const averageByDate = (weights: ReadonlyArray<BodyWeight>): DailyPoint[] => {
 }
 
 const findInsufficientReason = (
-  allPoints: ReadonlyArray<DailyPoint>,
+  firstMeasurementDate: JstDate | null,
   recentPoints: ReadonlyArray<DailyPoint>,
   startDate: JstDate,
 ): WeightOutlookReason | null => {
-  const firstPoint = allPoints[0]
-  if (firstPoint === undefined || firstPoint.date > startDate) {
+  if (firstMeasurementDate === null || firstMeasurementDate > startDate) {
     return 'first_measurement_too_recent'
   }
   if (recentPoints.length < WEIGHT_OUTLOOK_POLICY.minimumMeasurementDays) {
@@ -184,12 +186,12 @@ const getSlopeInterval = (
 
 export const calculateWeightOutlook = (
   weights: ReadonlyArray<BodyWeight>,
+  firstMeasurementDate: JstDate | null,
   asOf: JstDate,
   goalWeightKg: number | null,
 ): WeightOutlook => {
-  const startDate = shiftDate(asOf, -(WEIGHT_OUTLOOK_POLICY.windowDays - 1))
-  const allPoints = averageByDate(weights)
-  const points = allPoints.filter(
+  const startDate = getWeightOutlookStartDate(asOf)
+  const points = averageByDate(weights).filter(
     ({ date }) => date >= startDate && date <= asOf,
   )
   const shared = {
@@ -198,7 +200,7 @@ export const calculateWeightOutlook = (
     latestWeightKg: points.at(-1)?.weightKg ?? null,
     goalWeightKg,
   }
-  const reason = findInsufficientReason(allPoints, points, startDate)
+  const reason = findInsufficientReason(firstMeasurementDate, points, startDate)
   if (reason !== null) {
     return {
       ...shared,

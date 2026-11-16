@@ -44,6 +44,12 @@ const createHarness = () => {
       rows.set(row.id, row)
       return okAsync(row)
     },
+    firstMeasurementDate: () =>
+      okAsync(
+        [...rows.values()]
+          .map(({ date }) => date)
+          .sort((left, right) => left.localeCompare(right))[0] ?? null,
+      ),
     list: (from, to) =>
       okAsync(
         [...rows.values()].filter((row) => row.date >= from && row.date <= to),

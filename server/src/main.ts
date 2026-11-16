@@ -106,8 +106,9 @@ export const main = async (): Promise<void> => {
     idGenerator: () => randomUUID(),
     now: () => new Date(),
   })
+  const bodyWeightRepository = createDrizzleBodyWeightRepository(sql)
   const bodyWeightService = createBodyWeightService({
-    repository: createDrizzleBodyWeightRepository(sql),
+    repository: bodyWeightRepository,
     idGenerator: () => randomUUID(),
     now: () => new Date(),
   })
@@ -149,6 +150,7 @@ export const main = async (): Promise<void> => {
   )
   const weightOutlookService = createWeightOutlookService({
     bodyWeightService,
+    bodyWeightHistoryRepository: bodyWeightRepository,
     userProfileService,
   })
   const logger = createJsonStdoutLogger()

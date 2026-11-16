@@ -1,4 +1,4 @@
-import { and, desc, eq, gte, lte, sql } from 'drizzle-orm'
+import { and, asc, desc, eq, gte, lte, sql } from 'drizzle-orm'
 import { drizzle } from 'drizzle-orm/postgres-js'
 import { err, ok, type Result, ResultAsync } from 'neverthrow'
 
@@ -69,6 +69,20 @@ export const createDrizzleBodyWeightRepository = (
         (caughtError) =>
           persistenceError('failed to record body_weight', caughtError),
       ).andThen((result) => result)
+    },
+    firstMeasurementDate() {
+      return ResultAsync.fromPromise(
+        db
+          .select({ date: bodyWeights.measuredDate })
+          .from(bodyWeights)
+          .orderBy(asc(bodyWeights.measuredDate))
+          .limit(1),
+        (caughtError) =>
+          persistenceError(
+            'failed to read first body_weight date',
+            caughtError,
+          ),
+      ).map((rows) => rows[0]?.date ?? null)
     },
     list(from, to) {
       return ResultAsync.fromPromise(
