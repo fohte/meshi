@@ -38,6 +38,14 @@ const toJstTime = (measuredAt: string | null): string => {
   return `${hour}:${minute}`
 }
 
+const toJstSecond = (measuredAt: string): string =>
+  new Intl.DateTimeFormat('en-GB', {
+    timeZone: 'Asia/Tokyo',
+    second: '2-digit',
+  })
+    .formatToParts(new Date(measuredAt))
+    .find((part) => part.type === 'second')?.value ?? '00'
+
 const newestFirst = (records: ReadonlyArray<BodyWeight>): BodyWeight[] =>
   [...records].sort((left, right) => {
     const dateOrder = right.date.localeCompare(left.date)
@@ -54,7 +62,11 @@ export const HistoryBodyWeightView = (): React.JSX.Element => {
   const [periodOffset, setPeriodOffset] = useState(0)
   const [draft, setDraft] = useState<BodyWeightDraft>(emptyDraft)
   const [editingId, setEditingId] = useState<string | null>(null)
+  const [initialDate, setInitialDate] = useState<string | null>(null)
   const [initialMeasuredTime, setInitialMeasuredTime] = useState<string | null>(
+    null,
+  )
+  const [initialMeasuredAt, setInitialMeasuredAt] = useState<string | null>(
     null,
   )
   const [deleteTarget, setDeleteTarget] = useState<BodyWeight | null>(null)
@@ -69,25 +81,34 @@ export const HistoryBodyWeightView = (): React.JSX.Element => {
 
   const resetDraft = (): void => {
     setEditingId(null)
+    setInitialDate(null)
     setInitialMeasuredTime(null)
+    setInitialMeasuredAt(null)
     setDraft(emptyDraft())
   }
 
   const saveMutation = useMutation({
     mutationFn: () => {
       const weightKg = Number(draft.weightKg)
+      const seconds =
+        editingId !== null &&
+        draft.measuredTime === initialMeasuredTime &&
+        initialMeasuredAt !== null
+          ? toJstSecond(initialMeasuredAt)
+          : '00'
       const measuredAt =
         draft.measuredTime === ''
           ? null
-          : `${draft.date}T${draft.measuredTime}:00+09:00`
+          : `${draft.date}T${draft.measuredTime}:${seconds}+09:00`
       if (editingId !== null) {
+        const shouldUpdateMeasuredAt =
+          draft.date !== initialDate ||
+          draft.measuredTime !== initialMeasuredTime
         return toPromise(
           patchBodyWeight(editingId, {
             date: draft.date,
             weightKg,
-            ...(draft.measuredTime === initialMeasuredTime
-              ? {}
-              : { measuredAt }),
+            ...(shouldUpdateMeasuredAt ? { measuredAt } : {}),
           }),
         )
       }
@@ -123,7 +144,9 @@ export const HistoryBodyWeightView = (): React.JSX.Element => {
     saveMutation.reset()
     const measuredTime = toJstTime(record.measuredAt)
     setEditingId(record.id)
+    setInitialDate(record.date)
     setInitialMeasuredTime(measuredTime)
+    setInitialMeasuredAt(record.measuredAt)
     setDraft({
       date: record.date,
       weightKg: String(record.weightKg),

@@ -523,6 +523,94 @@ describe('HistoryPage body-weight tab', () => {
     }
   })
 
+  it('updates the timestamp when a measurement date changes', async () => {
+    vi.spyOn(Temporal.Now, 'plainDateISO').mockReturnValue(
+      Temporal.PlainDate.from('2026-07-05'),
+    )
+    const record = savedRecord({
+      id: 'weight_demo_date_change',
+      date: '2026-07-04',
+      weightKg: 63.4,
+      measuredAt: '2026-07-04T00:30:45.000Z',
+    })
+    const records: BodyWeight[] = [record]
+    const { container, root, queryClient, requests } = setupPage(
+      (path, method, body) => {
+        if (path === '/api/body-weights?from=2026-06-29&to=2026-07-05') {
+          return jsonResponse(records)
+        }
+        if (
+          path === '/api/body-weights/weight_demo_date_change' &&
+          method === 'PATCH'
+        ) {
+          const input = updateInputSchema.parse(body)
+          const saved = savedRecord({
+            ...record,
+            date: input.date,
+            weightKg: input.weightKg,
+            measuredAt:
+              input.measuredAt === undefined
+                ? record.measuredAt
+                : input.measuredAt === null
+                  ? null
+                  : new Date(input.measuredAt).toISOString(),
+          })
+          records[0] = saved
+          return jsonResponse(saved)
+        }
+        return jsonResponse({ error: 'unexpected request' }, 500)
+      },
+    )
+
+    try {
+      await performAct(() => {
+        renderPage(root, queryClient)
+      })
+      await openBodyWeightTab(container)
+      await clickButton(container, 'button[aria-label="訂正 2026年7月4日"]')
+      const dateInput =
+        container.querySelector<HTMLInputElement>('input[type="date"]')
+      if (dateInput !== null) await setInputValue(dateInput, '2026-07-03')
+      await clickButton(container, 'button[type="submit"]')
+      await waitFor(() => visibleRecords(container)[0]?.date === '2026年7月3日')
+
+      expect(correctedMeasurementOutput(requests, container)).toEqual({
+        requests: [
+          {
+            method: 'GET',
+            path: '/api/body-weights?from=2026-06-29&to=2026-07-05',
+            body: null,
+          },
+          {
+            method: 'PATCH',
+            path: '/api/body-weights/weight_demo_date_change',
+            body: {
+              date: '2026-07-03',
+              weightKg: 63.4,
+              measuredAt: '2026-07-03T09:30:45+09:00',
+            },
+          },
+          {
+            method: 'GET',
+            path: '/api/body-weights?from=2026-06-29&to=2026-07-05',
+            body: null,
+          },
+        ],
+        records: [
+          {
+            id: 'weight_demo_date_change',
+            date: '2026年7月3日',
+            time: '09:30',
+            weight: '63.4 kg',
+          },
+        ],
+        formTitle: '体重を記録',
+      })
+    } finally {
+      await cleanupPage(container, root, queryClient)
+    }
+  })
+
   it('deletes a measurement after confirmation and exits its edit form', async () => {
     vi.spyOn(Temporal.Now, 'plainDateISO').mockReturnValue(
       Temporal.PlainDate.from('2026-07-05'),
