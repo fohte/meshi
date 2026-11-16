@@ -157,6 +157,7 @@ export const main = async (): Promise<void> => {
   const toolDeps: MeshiToolDeps = {
     bodyCompositionService,
     bodyWeightService,
+    weightOutlookService,
     mealHistoryService,
     profileService: userProfileService,
     foodSearchService,

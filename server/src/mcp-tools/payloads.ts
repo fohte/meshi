@@ -12,6 +12,7 @@ import type {
   ListedDelivery,
 } from '#domain/stock/types'
 import type { UserProfile } from '#domain/user-profile/user-profile'
+import type { WeightOutlook } from '#domain/weight-outlook/weight-outlook-calculator'
 import type { Logger } from '#logger'
 
 export const TOOL_CALLED = 'meshi.tool_called'
@@ -87,6 +88,38 @@ export const buildBodyCompositionPayload = (
   skeletal_muscle_percent: bodyComposition.skeletalMusclePercent,
   created_at: bodyComposition.createdAt.toISOString(),
   updated_at: bodyComposition.updatedAt.toISOString(),
+})
+
+export const buildWeightOutlookPayload = (outlook: WeightOutlook) => ({
+  as_of: outlook.asOf,
+  points: outlook.points.map((point) => ({
+    date: point.date,
+    weight_kg: point.weightKg,
+  })),
+  latest_weight_kg: outlook.latestWeightKg,
+  goal_weight_kg: outlook.goalWeightKg,
+  trend:
+    outlook.trend === null
+      ? null
+      : {
+          slope_kg_per_day: outlook.trend.slopeKgPerDay,
+          slope_kg_per_week: outlook.trend.slopeKgPerWeek,
+          points: outlook.trend.points.map((point) => ({
+            date: point.date,
+            weight_kg: point.weightKg,
+            lower_kg: point.lowerKg,
+            upper_kg: point.upperKg,
+          })),
+        },
+  status: outlook.status,
+  reason: outlook.reason,
+  arrival_date_range:
+    outlook.arrivalDateRange === null
+      ? null
+      : {
+          from: outlook.arrivalDateRange.from,
+          to: outlook.arrivalDateRange.to,
+        },
 })
 
 export const buildMealLogMutationPayload = (

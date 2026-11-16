@@ -1,7 +1,7 @@
 import type { BodyWeight } from '#domain/body-weight/types'
 import { type JstDate, jstDateSchema } from '#lib/jst-date'
 
-const WEIGHT_OUTLOOK_POLICY = {
+export const WEIGHT_OUTLOOK_POLICY = {
   windowDays: 28,
   minimumMeasurementDays: 16,
   daysPerWeek: 7,

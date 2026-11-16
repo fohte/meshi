@@ -13,6 +13,7 @@ import type { MealSetService } from '#domain/meal-set/meal-set-service'
 import type { MealSkipService } from '#domain/meal-skip/meal-skip-service'
 import type { StockService } from '#domain/stock/types'
 import type { UserProfileService } from '#domain/user-profile/user-profile-service'
+import type { WeightOutlookService } from '#domain/weight-outlook/weight-outlook-service'
 import type { Logger } from '#logger'
 import { registerAddFoodNutritionVersionTool } from '#mcp-tools/add-food-nutrition-version'
 import { registerBodyCompositionTools } from '#mcp-tools/body-composition'
@@ -22,6 +23,7 @@ import { registerDeleteMealLogTool } from '#mcp-tools/delete-meal-log'
 import { registerFillFoodNutritionTool } from '#mcp-tools/fill-food-nutrition'
 import { registerFoodFromCompositionTool } from '#mcp-tools/food-composition'
 import { registerGetStockStatusTool } from '#mcp-tools/get-stock-status'
+import { registerGetWeightOutlookTool } from '#mcp-tools/get-weight-outlook'
 import { registerListDeliveriesTool } from '#mcp-tools/list-deliveries'
 import { registerListFoodNutritionVersionsTool } from '#mcp-tools/list-food-nutrition-versions'
 import { registerMealLoggingTools } from '#mcp-tools/meal-logging'
@@ -51,6 +53,7 @@ import { registerUpdateStockLotTool } from '#mcp-tools/update-stock-lot'
 export interface MeshiToolDeps {
   readonly bodyCompositionService: BodyCompositionService
   readonly bodyWeightService: BodyWeightService
+  readonly weightOutlookService: WeightOutlookService
   readonly mealHistoryService: MealHistoryService
   readonly profileService: UserProfileService
   readonly foodSearchService: FoodSearchService
@@ -71,6 +74,7 @@ export const registerMeshiTools = (
   const {
     bodyCompositionService,
     bodyWeightService,
+    weightOutlookService,
     mealHistoryService,
     profileService,
     foodSearchService,
@@ -92,6 +96,7 @@ export const registerMeshiTools = (
   })
   registerBodyCompositionTools(server, { bodyCompositionService, logger })
   registerBodyWeightTools(server, { bodyWeightService, logger })
+  registerGetWeightOutlookTool(server, { weightOutlookService, logger })
   registerMealSetTool(server, { mealSetService, logger })
   registerMealSkipTools(server, { mealSkipService, logger })
   registerMealPlanTools(server, { mealPlanService, logger })
