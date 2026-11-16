@@ -91,6 +91,10 @@ const createdMeasurementOutput = (
   container: HTMLElement,
 ) => ({
   requests: bodyWeightRequests(requests),
+  outlookRequests: weightOutlookRequests(requests),
+  outlookMessage: container.querySelector(
+    '[aria-labelledby="body-weight-outlook-title"] p',
+  )?.textContent,
   records: visibleRecords(container),
   editor: {
     date: container.querySelector<HTMLInputElement>('input[type="date"]')
@@ -127,6 +131,10 @@ const deletedMeasurementOutput = (
   requestCountBeforeConfirm,
   dialogVisible,
   requests: bodyWeightRequests(requests),
+  outlookRequests: weightOutlookRequests(requests),
+  outlookMessage: container.querySelector(
+    '[aria-labelledby="body-weight-outlook-title"] p',
+  )?.textContent,
   records: visibleRecords(container),
   dialogAfterDelete: container.querySelector('[role="alertdialog"]'),
   form: {
@@ -191,6 +199,7 @@ const setupPage = (
     method: string,
     body: unknown,
   ) => Response,
+  outlookHandler?: (path: string, method: string, body: unknown) => Response,
 ): {
   readonly container: HTMLDivElement
   readonly root: Root
@@ -228,7 +237,10 @@ const setupPage = (
         return Promise.resolve(jsonResponse([]))
       }
       if (path === '/api/weight-outlook') {
-        return Promise.resolve(jsonResponse(weightOutlookResponse))
+        return Promise.resolve(
+          outlookHandler?.(path, method, body) ??
+            jsonResponse(weightOutlookResponse),
+        )
       }
       if (path.startsWith('/api/meal-history?')) {
         return Promise.resolve(
@@ -372,6 +384,7 @@ describe('HistoryPage body-weight tab', () => {
       Temporal.PlainDate.from('2026-07-05'),
     )
     const records: BodyWeight[] = []
+    let currentOutlook = weightOutlookResponse
     const { container, root, queryClient, requests } = setupPage(
       (path, method, body) => {
         if (path === '/api/body-weights?from=2026-06-29&to=2026-07-05') {
@@ -386,10 +399,16 @@ describe('HistoryPage body-weight tab', () => {
             measuredAt: new Date(input.measuredAt).toISOString(),
           })
           records.push(saved)
+          currentOutlook = {
+            ...weightOutlookResponse,
+            arrivalDateRange: { from: '2093-06-01', to: '2093-06-08' },
+          }
           return jsonResponse(saved, 201)
         }
         return jsonResponse({ error: 'unexpected request' }, 500)
       },
+      undefined,
+      () => jsonResponse(currentOutlook),
     )
 
     try {
@@ -405,7 +424,15 @@ describe('HistoryPage body-weight tab', () => {
       if (weightInput !== null) await setInputValue(weightInput, '68.5')
       if (timeInput !== null) await setInputValue(timeInput, '07:40')
       await clickButton(container, 'button[type="submit"]')
-      await waitFor(() => visibleRecords(container).length === 1)
+      await waitFor(
+        () =>
+          visibleRecords(container).length === 1 &&
+          (
+            container.querySelector(
+              '[aria-labelledby="body-weight-outlook-title"] p',
+            )?.textContent ?? ''
+          ).includes('2093年6月1日'),
+      )
 
       expect(createdMeasurementOutput(requests, container)).toEqual({
         requests: [
@@ -429,6 +456,20 @@ describe('HistoryPage body-weight tab', () => {
             body: null,
           },
         ],
+        outlookRequests: [
+          {
+            method: 'GET',
+            path: '/api/weight-outlook',
+            body: null,
+          },
+          {
+            method: 'GET',
+            path: '/api/weight-outlook',
+            body: null,
+          },
+        ],
+        outlookMessage:
+          '今のペースが続けば、目標体重への到達時期は 2093年6月1日〜2093年6月8日 ごろです。未検証の目安です。',
         records: [
           {
             id: 'weight_demo_alpha',
@@ -717,6 +758,7 @@ describe('HistoryPage body-weight tab', () => {
         measuredAt: null,
       }),
     ]
+    let currentOutlook = weightOutlookResponse
     const { container, root, queryClient, requests } = setupPage(
       (path, method) => {
         if (path === '/api/body-weights?from=2026-06-29&to=2026-07-05') {
@@ -727,10 +769,16 @@ describe('HistoryPage body-weight tab', () => {
           method === 'DELETE'
         ) {
           records.splice(0, 1)
+          currentOutlook = {
+            ...weightOutlookResponse,
+            arrivalDateRange: { from: '2093-07-01', to: '2093-07-10' },
+          }
           return new Response(null, { status: 204 })
         }
         return jsonResponse({ error: 'unexpected request' }, 500)
       },
+      undefined,
+      () => jsonResponse(currentOutlook),
     )
 
     try {
@@ -750,7 +798,12 @@ describe('HistoryPage body-weight tab', () => {
       await waitFor(
         () =>
           visibleRecords(container).length === 0 &&
-          container.querySelector('form h2')?.textContent === '体重を記録',
+          container.querySelector('form h2')?.textContent === '体重を記録' &&
+          (
+            container.querySelector(
+              '[aria-labelledby="body-weight-outlook-title"] p',
+            )?.textContent ?? ''
+          ).includes('2093年7月1日'),
       )
 
       expect(
@@ -780,6 +833,20 @@ describe('HistoryPage body-weight tab', () => {
             body: null,
           },
         ],
+        outlookRequests: [
+          {
+            method: 'GET',
+            path: '/api/weight-outlook',
+            body: null,
+          },
+          {
+            method: 'GET',
+            path: '/api/weight-outlook',
+            body: null,
+          },
+        ],
+        outlookMessage:
+          '今のペースが続けば、目標体重への到達時期は 2093年7月1日〜2093年7月10日 ごろです。未検証の目安です。',
         records: [],
         dialogAfterDelete: null,
         form: {
