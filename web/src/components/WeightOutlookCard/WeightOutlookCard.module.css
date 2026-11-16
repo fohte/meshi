@@ -1,0 +1,102 @@
+.card {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: 20px;
+  border: 1px solid var(--color-border, #d8d8d8);
+  border-radius: 16px;
+  background: var(--color-surface, #fff);
+}
+
+.header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.header h2 {
+  margin: 0;
+  font-size: 1.05rem;
+}
+
+.eyebrow {
+  color: var(--color-text-muted, #737373);
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+}
+
+.metrics {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+}
+
+.metric {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  min-width: 0;
+}
+
+.metricLabel {
+  color: var(--color-text-muted, #737373);
+  font-size: 0.8rem;
+}
+
+.weightValue {
+  font-size: 1.55rem;
+  font-weight: 700;
+  line-height: 1.15;
+}
+
+.unit {
+  margin-left: 4px;
+  font-size: 0.9rem;
+  font-weight: 500;
+}
+
+.metricValue {
+  font-weight: 650;
+}
+
+.pace {
+  color: var(--color-text-muted, #737373);
+  font-size: 0.82rem;
+}
+
+.message {
+  margin: 0;
+  padding-top: 12px;
+  border-top: 1px solid var(--color-border, #e5e5e5);
+  line-height: 1.55;
+}
+
+.status {
+  margin: 0;
+  color: var(--color-text-muted, #737373);
+  line-height: 1.5;
+}
+
+.retry {
+  margin-top: 8px;
+  padding: 7px 12px;
+  border: 1px solid var(--color-border, #d8d8d8);
+  border-radius: 8px;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+}
+
+@media (max-width: 480px) {
+  .card {
+    padding: 16px;
+  }
+
+  .header {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 4px;
+  }
+}
