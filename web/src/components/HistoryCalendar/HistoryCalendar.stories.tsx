@@ -61,6 +61,7 @@ export const UnknownOnlyDay: Story = {
 
 export const PartiallyKnownDay: Story = {
   name: '栄養値が一部不明な日の既知分を表示しています',
+  tags: ['desktop-only'],
   args: {
     cells: buildCalendarCells(
       monthStart,

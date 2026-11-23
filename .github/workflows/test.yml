@@ -9,6 +9,9 @@ permissions:
 
 jobs:
   test:
+    # The commit that adds bootstrap.yml has no lockfiles yet; the Bootstrap
+    # workflow commits them, and that push runs these jobs instead.
+    if: "!contains(github.event.head_commit.added, '.github/workflows/bootstrap.yml')"
     runs-on: ubuntu-latest
     timeout-minutes: 30
 
@@ -53,7 +56,9 @@ jobs:
 
       - name: Get pnpm store directory
         id: pnpm-store
-        run: echo "path=$(pnpm store path)" >> "$GITHUB_OUTPUT"
+        run: |
+          store_path=$(pnpm store path)
+          echo "path=$store_path" >> "$GITHUB_OUTPUT"
 
       - name: Cache pnpm store
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
@@ -97,11 +102,9 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: lefthook run pre-commit --all-files
 
-      # Formatters configured with `stage_fixed: true` run `git add` after formatting,
-      # which stages the changes.
-      # commit-action uses `git ls-files --modified` which only detects unstaged changes.
-      # https://github.com/suzuki-shunsuke/commit-action/blob/87b297f0ce551411b43d1880f4fb3cbc60381055/action.yaml#L57
-      # We need to unstage the changes so commit-action can detect them.
+      # commit-action lists only unstaged files (`git ls-files --modified --others`),
+      # so unstage everything earlier steps staged, including new files.
+      # https://github.com/suzuki-shunsuke/commit-action/blob/06e3b49d4706498d325d29bd85adc82ecf2f5d8f/src/run.ts#L186-L188
       - name: Unstage changes for commit-action
         run: git restore --staged .
 
@@ -120,6 +123,7 @@ jobs:
   # Build the unit-test matrix at runtime: branch protection pins the fixed-name
   # `unit-test` gate below, so the per-package legs are enumerated here instead.
   setup:
+    if: "!contains(github.event.head_commit.added, '.github/workflows/bootstrap.yml')"
     runs-on: ubuntu-slim
     timeout-minutes: 30
     outputs:
@@ -146,8 +150,8 @@ jobs:
         run: |
           # Workspace packages are the directories holding a non-root package.json
           # that declares a `test` script. Packages without one (e.g. node
-          # subpackages opted out with `tests: false`) would otherwise be picked up
-          # here and then crash `pnpm run test` in unit-test-run.
+          # subpackages opted out with `tests: false`) would otherwise be picked
+          # up here and then crash `pnpm run test` in unit-test-run.
           mapfile -t all_pkgs < <(git ls-files '*/package.json' | grep -v node_modules | sed 's#/package.json$##' | sort -u)
           pkgs=()
           for dir in "${all_pkgs[@]}"; do
@@ -162,7 +166,7 @@ jobs:
             selected=()
             for dir in "${pkgs[@]}"; do
               if echo "$CHANGED_FILES" | jq -e --arg d "${dir}/" 'any(.[]; startswith($d))' >/dev/null; then
-                selected+=("${dir}")
+                selected+=("$dir")
               fi
             done
           fi
@@ -192,25 +196,15 @@ jobs:
         with:
           version: 2026.9.14
 
+      - name: Start PostgreSQL
+        if: ${{ contains(fromJSON('["server"]'), matrix.package) }}
+        run: mise run db:up
+
       # corepack creates the pnpm executable inside mise's node install bin
       # directory; reshim so the mise shims dir (which is on PATH) picks it up.
       - run: |
           corepack enable
           mise reshim
-
-      - name: Start test databases
-        if: matrix.package == 'server'
-        run: mise run db:up
-
-      # mise-action resolves these URLs before the database has a published port.
-      - name: Refresh database URLs
-        if: matrix.package == 'server'
-        run: |
-          {
-            echo "DATABASE_URL=$(scripts/db-url server dev)"
-            echo "TEST_DATABASE_URL=$(scripts/db-url server test)"
-            echo "MIGRATION_TEST_DATABASE_URL=$(scripts/db-url server migration-test)"
-          } >> "$GITHUB_ENV"
 
       - name: Get pnpm store directory
         id: pnpm-store
@@ -231,7 +225,7 @@ jobs:
       - run: pnpm install --filter "{./${{ matrix.package }}}..." --frozen-lockfile
 
       - name: Build web
-        if: matrix.package == 'web'
+        if: ${{ contains(fromJSON('["web"]'), matrix.package) }}
         run: pnpm --filter web run build
 
       # Story tests run through @storybook/addon-vitest's browser project, which
@@ -260,23 +254,32 @@ jobs:
 
       - name: Install Playwright chromium
         if: steps.needs-playwright.outputs.needed == 'true' && steps.playwright-cache.outputs.cache-hit != 'true'
-        run: pnpm --filter '${{ matrix.package }}' exec playwright install --with-deps chromium
+        run: pnpm --filter '${{ matrix.package }}' exec playwright install chromium
 
       - name: Install Playwright system dependencies
-        if: steps.needs-playwright.outputs.needed == 'true' && steps.playwright-cache.outputs.cache-hit == 'true'
-        run: pnpm --filter '${{ matrix.package }}' exec playwright install-deps chromium
+        if: steps.needs-playwright.outputs.needed == 'true'
+        # A throttled apt mirror keeps sending bytes, so apt's own timeouts never
+        # fire. Each attempt reconnects and keeps the packages already downloaded.
+        run: |
+          for attempt in 1 2 3; do
+            timeout --kill-after=30s 3m pnpm --filter '${{ matrix.package }}' exec playwright install-deps chromium && exit 0
+            echo "::warning::playwright install-deps attempt $attempt failed with status $?"
+            # `timeout` cannot signal the root-owned apt-get, which would keep the apt locks.
+            sudo pkill -x apt-get || true
+          done
+          exit 1
 
       - name: Run tests
         working-directory: ${{ matrix.package }}
-        run: pnpm run test
+        run: ${{ contains(fromJSON('["server"]'), matrix.package) && 'mise exec -- ' || '' }}pnpm run test # Re-evaluate DB URLs after db:up assigns the host port.
 
       - name: Run migration tests
-        if: matrix.package == 'server'
+        if: ${{ contains(fromJSON('["server"]'), matrix.package) }}
         working-directory: server
-        run: pnpm run test:migrations
+        run: mise exec -- pnpm run test:migrations
 
-  # Fixed name for branch protection: knip has no `needs` of its own, so
-  # this gate (skip == success) folds its result into unit-test.
+  # Fixed name for branch protection: matrix leg names are dynamic, and knip
+  # has no `needs`, so this gate (skip == success) stands in for both.
   unit-test:
     runs-on: ubuntu-slim
     timeout-minutes: 30
@@ -289,6 +292,7 @@ jobs:
       - run: exit 1
 
   knip:
+    if: "!contains(github.event.head_commit.added, '.github/workflows/bootstrap.yml')"
     runs-on: ubuntu-latest
     timeout-minutes: 30
 
@@ -313,7 +317,9 @@ jobs:
 
       - name: Get pnpm store directory
         id: pnpm-store
-        run: echo "path=$(pnpm store path)" >> "$GITHUB_OUTPUT"
+        run: |
+          store_path=$(pnpm store path)
+          echo "path=$store_path" >> "$GITHUB_OUTPUT"
 
       - name: Cache pnpm store
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0

@@ -8,7 +8,7 @@ Every env var the code reads — via `server/src/env.ts`'s `Env` interface or a 
 
 ### Split files before they grow past ~500 lines of production code
 
-When a change would push a file's non-test code past ~500 lines, split it along responsibility seams before adding more. Splits must be move-only commits: no logic changes, renames, or reformatting mixed in. Keep external import paths unchanged by keeping the entrypoint file in place and re-exporting the pieces you split out into new files (e.g. `index.ts` re-exports from the new files). Tests move together with the code they verify.
+When a change would push a file's non-test code past ~500 lines, split it along responsibility seams before adding more. Keep external import paths unchanged by keeping the entrypoint file in place and re-exporting the pieces you split out into new files (e.g. `index.ts` re-exports from the new files). Tests move together with the code they verify.
 
 Prefer creating a new focused file over appending to the largest existing one.
 
@@ -86,6 +86,8 @@ When you need to check how a component looks in a given state, write or update i
 ### Understand why the `vrt` check fails
 
 The `vrt` CI check renders Storybook stories to screenshots and compares them against the `main` baseline with reg-suit. A failure (`Visual differences detected`) means the pixel diff exceeded reg-suit's `matchingThreshold`, not that something is broken. Open the custom VRT report linked from the PR and compare the actual, expected, and diff images to judge whether the change is intentional.
+
+The `vrt` check captures each story at desktop (1280x800) and mobile (375x667) widths. Add the `mobile-only` tag to a story that should not be captured at desktop width, or `desktop-only` to one that should not be captured at mobile width.
 
 ### Never add the `vrt-approved` label yourself
 

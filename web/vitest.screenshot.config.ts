@@ -4,24 +4,42 @@ import { fileURLToPath } from 'node:url'
 import { createStorybookProject } from '@fohte/storybook-addon/vitest-plugin'
 import { defineConfig, mergeConfig } from 'vitest/config'
 
-import { SCREENSHOT_VIEWPORT } from './.storybook/screenshot-viewport'
+import {
+  DESKTOP_VIEWPORT,
+  MOBILE_VIEWPORT,
+} from './.storybook/screenshot-viewport'
 import viteConfig from './vite.config'
 
 const dirname = path.dirname(fileURLToPath(import.meta.url))
 
-// A separate config file rather than a project entry in vitest.config.ts:
-// the `storybook` project (check runs) and this one both point at
-// .storybook/, and driving that configDir from two projects in the same
-// process causes Storybook's dev-server cache to collide.
 export default mergeConfig(
   viteConfig,
-  defineConfig(
-    createStorybookProject({
-      name: 'storybook-screenshot-web',
-      rootDir: dirname,
-      viewport: SCREENSHOT_VIEWPORT,
-      screenshotsSubdir: 'desktop',
-      setupFiles: ['./.storybook/vitest.setup.screenshot.ts'],
-    }),
-  ),
+  defineConfig({
+    test: {
+      projects: [
+        {
+          extends: true,
+          ...createStorybookProject({
+            name: 'storybook-screenshot-web',
+            rootDir: dirname,
+            viewport: DESKTOP_VIEWPORT,
+            screenshotsSubdir: 'desktop',
+            setupFiles: ['./.storybook/vitest.setup.screenshot.ts'],
+            excludeTags: ['mobile-only'],
+          }),
+        },
+        {
+          extends: true,
+          ...createStorybookProject({
+            name: 'storybook-screenshot-web-mobile',
+            rootDir: dirname,
+            viewport: MOBILE_VIEWPORT,
+            screenshotsSubdir: 'mobile',
+            setupFiles: ['./.storybook/vitest.setup.screenshot.ts'],
+            excludeTags: ['desktop-only'],
+          }),
+        },
+      ],
+    },
+  }),
 )

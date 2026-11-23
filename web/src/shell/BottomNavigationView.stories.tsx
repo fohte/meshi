@@ -26,7 +26,15 @@ const meta: Meta<typeof BottomNavigationView> = {
   decorators: [
     (Story) => (
       <MemoryRouter initialEntries={[SELECTED_PATH]}>
-        <div style={{ width: '320px' }}>
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'flex-end',
+            width: '320px',
+            marginInline: 'auto',
+            minHeight: '100vh',
+          }}
+        >
           <Story />
         </div>
       </MemoryRouter>
@@ -39,10 +47,10 @@ export default meta
 type Story = StoryObj<typeof BottomNavigationView>
 
 export const FiveItems: Story = {
-  name: 'Five fictional destinations fit in one row at 320 px.',
+  name: 'Five destinations span the bottom bar with the first selected.',
 }
 
 export const SixItems: Story = {
-  name: 'Six fictional destinations fit in one row at 320 px.',
+  name: 'Six destinations span the bottom bar with the first selected.',
   args: { items: DESTINATIONS },
 }
