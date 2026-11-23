@@ -1,5 +1,6 @@
 .header {
   display: flex;
+  flex-wrap: wrap;
   align-items: flex-end;
   justify-content: space-between;
   gap: 16px;
@@ -36,6 +37,7 @@
   display: flex;
   gap: 6px;
   flex: none;
+  margin-left: auto;
 }
 
 .navButton {
