@@ -30,7 +30,8 @@ const meta: Meta<typeof BottomNavigationView> = {
           style={{
             display: 'flex',
             alignItems: 'flex-end',
-            width: '100%',
+            width: '320px',
+            marginInline: 'auto',
             minHeight: '100vh',
           }}
         >
