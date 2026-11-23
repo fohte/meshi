@@ -6,7 +6,7 @@ import { Sidebar } from '#shell/Sidebar'
 import { TabBar } from '#shell/TabBar'
 
 export const AppShell = (): React.JSX.Element => (
-  <>
+  <div className={styles.root}>
     <Sidebar />
     <main className={styles.main}>
       <MobileHeader />
@@ -15,5 +15,5 @@ export const AppShell = (): React.JSX.Element => (
       </div>
     </main>
     <TabBar />
-  </>
+  </div>
 )
