@@ -9,6 +9,9 @@ permissions:
 
 jobs:
   test:
+    # The commit that adds bootstrap.yml has no lockfiles yet; the Bootstrap
+    # workflow commits them, and that push runs these jobs instead.
+    if: "!contains(github.event.head_commit.added, '.github/workflows/bootstrap.yml')"
     runs-on: ubuntu-latest
     timeout-minutes: 30
 
@@ -97,11 +100,9 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: lefthook run pre-commit --all-files
 
-      # Formatters configured with `stage_fixed: true` run `git add` after formatting,
-      # which stages the changes.
-      # commit-action uses `git ls-files --modified` which only detects unstaged changes.
-      # https://github.com/suzuki-shunsuke/commit-action/blob/87b297f0ce551411b43d1880f4fb3cbc60381055/action.yaml#L57
-      # We need to unstage the changes so commit-action can detect them.
+      # commit-action lists only unstaged files (`git ls-files --modified --others`),
+      # so unstage everything earlier steps staged, including new files.
+      # https://github.com/suzuki-shunsuke/commit-action/blob/06e3b49d4706498d325d29bd85adc82ecf2f5d8f/src/run.ts#L186-L188
       - name: Unstage changes for commit-action
         run: git restore --staged .
 
@@ -120,6 +121,7 @@ jobs:
   # Build the unit-test matrix at runtime: branch protection pins the fixed-name
   # `unit-test` gate below, so the per-package legs are enumerated here instead.
   setup:
+    if: "!contains(github.event.head_commit.added, '.github/workflows/bootstrap.yml')"
     runs-on: ubuntu-slim
     timeout-minutes: 30
     outputs:
@@ -192,6 +194,10 @@ jobs:
         with:
           version: 2026.9.14
 
+      - name: Start PostgreSQL
+        if: ${{ contains(fromJSON('["server"]'), matrix.package) }}
+        run: mise run db:up
+
       # corepack creates the pnpm executable inside mise's node install bin
       # directory; reshim so the mise shims dir (which is on PATH) picks it up.
       - run: |
@@ -260,15 +266,40 @@ jobs:
 
       - name: Install Playwright chromium
         if: steps.needs-playwright.outputs.needed == 'true' && steps.playwright-cache.outputs.cache-hit != 'true'
+<<<<<<< before updating
         run: pnpm --filter '${{ matrix.package }}' exec playwright install --with-deps chromium
+||||||| last update
+        run: pnpm exec playwright install --with-deps chromium
+=======
+        run: pnpm exec playwright install chromium
+>>>>>>> after updating
 
       - name: Install Playwright system dependencies
+<<<<<<< before updating
         if: steps.needs-playwright.outputs.needed == 'true' && steps.playwright-cache.outputs.cache-hit == 'true'
         run: pnpm --filter '${{ matrix.package }}' exec playwright install-deps chromium
+||||||| last update
+        if: steps.needs-playwright.outputs.needed == 'true' && steps.playwright-cache.outputs.cache-hit == 'true'
+        working-directory: ${{ matrix.package }}
+        run: pnpm exec playwright install-deps chromium
+=======
+        if: steps.needs-playwright.outputs.needed == 'true'
+        working-directory: ${{ matrix.package }}
+        # A throttled apt mirror keeps sending bytes, so apt's own timeouts never
+        # fire. Each attempt reconnects and keeps the packages already downloaded.
+        run: |
+          for attempt in 1 2 3; do
+            timeout --kill-after=30s 3m pnpm exec playwright install-deps chromium && exit 0
+            echo "::warning::playwright install-deps attempt $attempt failed with status $?"
+            # `timeout` cannot signal the root-owned apt-get, which would keep the apt locks.
+            sudo pkill -x apt-get || true
+          done
+          exit 1
+>>>>>>> after updating
 
       - name: Run tests
         working-directory: ${{ matrix.package }}
-        run: pnpm run test
+        run: ${{ contains(fromJSON('["server"]'), matrix.package) && 'mise exec -- ' || '' }}pnpm run test # Re-evaluate DB URLs after db:up assigns the host port.
 
       - name: Run migration tests
         if: matrix.package == 'server'
@@ -289,6 +320,7 @@ jobs:
       - run: exit 1
 
   knip:
+    if: "!contains(github.event.head_commit.added, '.github/workflows/bootstrap.yml')"
     runs-on: ubuntu-latest
     timeout-minutes: 30
 
