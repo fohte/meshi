@@ -224,6 +224,10 @@ jobs:
       # whole workspace, so each parallel leg skips unrelated packages' installs.
       - run: pnpm install --filter "{./${{ matrix.package }}}..." --frozen-lockfile
 
+      - name: Build web
+        if: ${{ contains(fromJSON('["web"]'), matrix.package) }}
+        run: pnpm --filter web run build
+
       # Story tests run through @storybook/addon-vitest's browser project, which
       # needs a devDependency on `playwright` — only spa packages declare one.
       - name: Check if this package needs Playwright
@@ -268,6 +272,11 @@ jobs:
       - name: Run tests
         working-directory: ${{ matrix.package }}
         run: ${{ contains(fromJSON('["server"]'), matrix.package) && 'mise exec -- ' || '' }}pnpm run test # Re-evaluate DB URLs after db:up assigns the host port.
+
+      - name: Run migration tests
+        if: ${{ contains(fromJSON('["server"]'), matrix.package) }}
+        working-directory: server
+        run: mise exec -- pnpm run test:migrations
 
   # Fixed name for branch protection: matrix leg names are dynamic, and knip
   # has no `needs`, so this gate (skip == success) stands in for both.
