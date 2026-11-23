@@ -51,5 +51,5 @@ export default meta
 type Story = StoryObj<typeof AppShell>
 
 export const Default: Story = {
-  name: 'The app shell shows the today page and navigation.',
+  name: 'The example page appears with the today navigation item selected.',
 }
