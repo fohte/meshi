@@ -24,8 +24,8 @@
     "storybook:screenshot": "vitest run --config vitest.screenshot.config.ts"
   },
   "dependencies": {
-    "@fohte/ui": "0.1.7",
-    "@tanstack/react-query": "5.101.4",
+    "@fohte/ui": "0.1.8",
+    "@tanstack/react-query": "5.107.1",
     "neverthrow": "8.2.0",
     "react": "19.2.8",
     "react-dom": "19.2.8",
@@ -35,7 +35,7 @@
     "zod": "4.4.3"
   },
   "devDependencies": {
-    "@fohte/storybook-addon": "0.2.0",
+    "@fohte/storybook-addon": "0.2.1",
     "@storybook/addon-docs": "10.6.7",
     "@storybook/addon-themes": "10.6.7",
     "@storybook/addon-vitest": "10.6.7",
