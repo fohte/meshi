@@ -21,6 +21,7 @@ export default {
   workspaces: {
     '.': rootWorkspace,
     server: {
+      entry: ['knip.production.ts!'],
       project,
     },
     web: {
