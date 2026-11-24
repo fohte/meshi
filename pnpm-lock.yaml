@@ -219,10 +219,10 @@ importers:
         version: 0.1.18(@opentelemetry/api@1.9.1)(@opentelemetry/core@2.12.0(@opentelemetry/api@1.9.1))(@opentelemetry/exporter-trace-otlp-http@0.219.0(@opentelemetry/api@1.9.1))(supports-color@10.2.2)
       '@hono/node-server':
         specifier: 2.1.8
-        version: 2.1.8(hono@4.13.16)
+        version: 2.1.8(hono@4.13.19)
       '@modelcontextprotocol/node':
         specifier: 2.1.0
-        version: 2.1.0(@modelcontextprotocol/server@2.3.0)(hono@4.13.16)
+        version: 2.1.0(@modelcontextprotocol/server@2.3.0)(hono@4.13.19)
       '@modelcontextprotocol/server':
         specifier: 2.3.0
         version: 2.3.0
@@ -236,8 +236,8 @@ importers:
         specifier: 0.45.4
         version: 0.45.4(@opentelemetry/api@1.9.1)(@types/pg@8.15.6)(postgres@3.4.9)
       hono:
-        specifier: 4.13.16
-        version: 4.13.16
+        specifier: 4.13.19
+        version: 4.13.19
       neverthrow:
         specifier: 8.2.0
         version: 8.2.0
@@ -4769,8 +4769,8 @@ packages:
     resolution: {integrity: sha512-GqXJqY/xJkJmuloTrnV1ZEXG3fqte+VjkUqoRNZXcrUidiUOP4fMSIHHY4tsqZBK++kVyWmt/AAfSUuy57/eSA==}
     engines: {node: '>=16.9.0'}
 
-  hono@4.13.16:
-    resolution: {integrity: sha512-AOLOEhvrV+iH92xXCnFr/5+3KjPKcI3xP63XJtX5spAnkznPdHijlIsUTpi7/9EhWqrTCekw5c5zh1K+YsVw7A==}
+  hono@4.13.19:
+    resolution: {integrity: sha512-KmXvQAXwcAHV+muzbIwoJ23niEB5nMoDVr9WcRkU8mvjUECm/1+7v4Jgp7P7a+H6MLFrh+vXrGonGrGS+RQfkA==}
     engines: {node: '>=16.9.0'}
 
   hookified@1.15.1:
@@ -7828,17 +7828,17 @@ snapshots:
       protobufjs: 7.6.6
       yargs: 17.7.3
 
-  '@hono/node-server@1.19.17(hono@4.13.16)':
+  '@hono/node-server@1.19.17(hono@4.13.19)':
     dependencies:
-      hono: 4.13.16
+      hono: 4.13.19
 
   '@hono/node-server@2.0.12(hono@4.12.34)':
     dependencies:
       hono: 4.12.34
 
-  '@hono/node-server@2.1.8(hono@4.13.16)':
+  '@hono/node-server@2.1.8(hono@4.13.19)':
     dependencies:
-      hono: 4.13.16
+      hono: 4.13.19
 
   '@humanfs/core@0.19.2':
     dependencies:
@@ -7949,12 +7949,12 @@ snapshots:
     dependencies:
       zod: 4.4.3
 
-  '@modelcontextprotocol/node@2.1.0(@modelcontextprotocol/server@2.3.0)(hono@4.13.16)':
+  '@modelcontextprotocol/node@2.1.0(@modelcontextprotocol/server@2.3.0)(hono@4.13.19)':
     dependencies:
-      '@hono/node-server': 1.19.17(hono@4.13.16)
+      '@hono/node-server': 1.19.17(hono@4.13.19)
       '@modelcontextprotocol/server': 2.3.0
     optionalDependencies:
-      hono: 4.13.16
+      hono: 4.13.19
 
   '@modelcontextprotocol/sdk@1.32.1(supports-color@10.2.2)(zod@3.25.76)':
     dependencies:
@@ -11043,7 +11043,7 @@ snapshots:
 
   hono@4.12.34: {}
 
-  hono@4.13.16: {}
+  hono@4.13.19: {}
 
   hookified@1.15.1: {}
 
