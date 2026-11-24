@@ -1,6 +1,6 @@
 import '#bootstrap'
 
-import * as Sentry from '@sentry/node'
+import { captureException } from '@fohte/service-kit/observability'
 
 import { EnvError } from '#env'
 import { main } from '#main'
@@ -11,7 +11,7 @@ main().catch(async (err: unknown) => {
   } else {
     console.error(err)
   }
-  Sentry.captureException(err)
+  captureException(err)
   // main() can reject before anything else flushes Sentry (e.g. missing
   // env), so this exit path has to flush it directly. Imported dynamically
   // (rather than a named import above) so the bootstrap side-effect import
