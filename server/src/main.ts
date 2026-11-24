@@ -2,7 +2,6 @@ import { randomUUID } from 'node:crypto'
 import { createServer } from 'node:http'
 
 import { getRequestListener } from '@hono/node-server'
-import * as Sentry from '@sentry/node'
 
 import { createDrizzleUserProfileRepository } from '#adapters/db/drizzle-user-profile-repository'
 import { createR2Client } from '#adapters/r2/client'
@@ -57,6 +56,7 @@ import { EnvError, loadEnv } from '#env'
 import { createJsonStdoutLogger } from '#logger'
 import { handleMcpRequest } from '#mcp-http'
 import type { MeshiToolDeps } from '#mcp-tools'
+import { captureShutdownErrors } from '#shutdown'
 
 const LISTEN_ADDR_RE = /^\[([^\]]+)\]:(\d+)$|^([^:]+):(\d+)$/
 
@@ -221,18 +221,9 @@ export const main = async (): Promise<void> => {
           r2Client.destroy()
         }),
       ])
-        .then(async (results) => {
-          for (const result of results) {
-            if (result.status === 'rejected') {
-              console.error('shutdown error:', result.reason)
-              Sentry.captureException(result.reason)
-            }
-          }
-          // Runs after the captures above, not concurrently with them:
-          // observability.shutdown() closes the Sentry client, and a
-          // captureException call made after close() is silently dropped.
-          await observability?.shutdown()
-        })
+        .then((results) =>
+          captureShutdownErrors(results, () => observability?.shutdown()),
+        )
         .finally(() => {
           process.exit(closeErr ? 1 : 0)
         })
