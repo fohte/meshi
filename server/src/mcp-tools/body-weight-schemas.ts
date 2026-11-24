@@ -1,8 +1,7 @@
 import { z } from 'zod'
 
 import { jstDateSchema } from '#lib/jst-date'
-
-const measuredAtSchema = z.iso.datetime({ offset: true })
+import { measuredAtSchema } from '#mcp-tools/measured-at-schema'
 
 export const recordBodyWeightInput = z.object({
   date: jstDateSchema.describe('測定日 (JST、YYYY-MM-DD)'),

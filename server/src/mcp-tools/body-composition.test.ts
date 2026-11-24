@@ -206,6 +206,56 @@ describe('body composition MCP tools', () => {
     }
   })
 
+  it('records body composition with a second-precision measurement time', async () => {
+    const calls: Parameters<BodyCompositionService['record']>[0][] = []
+    const measuredAt = new Date('2026-10-12T01:30:45.000Z')
+    const h = await start(
+      serviceWith({
+        record(input) {
+          calls.push(input)
+          return okAsync({ ...bodyComposition, measuredAt })
+        },
+      }),
+    )
+    try {
+      const result = await h.client.callTool({
+        name: 'record_body_composition',
+        arguments: {
+          date: '2026-10-12',
+          device: 'Example Scale A',
+          measured_at: '2026-10-12T10:30:45+09:00',
+          body_fat_percent: 22.5,
+        },
+      })
+      expect(observation({ calls, result })).toEqual({
+        calls: [
+          {
+            date: '2026-10-12',
+            device: 'Example Scale A',
+            measuredAt,
+            bodyFatPercent: 22.5,
+          },
+        ],
+        result: {
+          content: [{ type: 'text', text: '体組成を記録しました。' }],
+          structuredContent: {
+            body_composition_id: 'body_composition_fixture_alpha',
+            date: '2026-10-12',
+            measured_at: '2026-10-12T01:30:45.000Z',
+            device: 'Example Scale A',
+            body_fat_percent: 22.5,
+            muscle_mass_kg: 48.75,
+            skeletal_muscle_percent: null,
+            created_at: '2026-10-12T01:31:00.000Z',
+            updated_at: '2026-10-12T01:32:00.000Z',
+          },
+        },
+      })
+    } finally {
+      await h.close()
+    }
+  })
+
   it('maps invalid values to structured domain errors', async () => {
     const error = new InvalidBodyCompositionValueError('bodyFatPercent', 0.5)
     const logs: {
@@ -403,6 +453,47 @@ describe('body composition MCP tools', () => {
             device: 'Example Scale A',
             body_fat_percent: null,
             muscle_mass_kg: 50,
+            skeletal_muscle_percent: null,
+            created_at: '2026-10-12T01:31:00.000Z',
+            updated_at: '2026-10-12T01:32:00.000Z',
+          },
+        },
+      })
+    } finally {
+      await h.close()
+    }
+  })
+
+  it('updates body composition with a minute-precision measurement time', async () => {
+    const calls: Parameters<BodyCompositionService['update']>[0][] = []
+    const measuredAt = new Date('2026-10-12T01:30:00.000Z')
+    const h = await start(
+      serviceWith({
+        update(input) {
+          calls.push(input)
+          return okAsync({ ...bodyComposition, measuredAt })
+        },
+      }),
+    )
+    try {
+      const result = await h.client.callTool({
+        name: 'update_body_composition',
+        arguments: {
+          body_composition_id: bodyComposition.id,
+          measured_at: '2026-10-12T10:30+09:00',
+        },
+      })
+      expect(observation({ calls, result })).toEqual({
+        calls: [{ id: bodyComposition.id, measuredAt }],
+        result: {
+          content: [{ type: 'text', text: '体組成記録を更新しました。' }],
+          structuredContent: {
+            body_composition_id: 'body_composition_fixture_alpha',
+            date: '2026-10-12',
+            measured_at: '2026-10-12T01:30:00.000Z',
+            device: 'Example Scale A',
+            body_fat_percent: 22.5,
+            muscle_mass_kg: 48.75,
             skeletal_muscle_percent: null,
             created_at: '2026-10-12T01:31:00.000Z',
             updated_at: '2026-10-12T01:32:00.000Z',
