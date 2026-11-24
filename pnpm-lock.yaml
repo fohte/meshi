@@ -215,8 +215,8 @@ importers:
         specifier: 3.1149.0
         version: 3.1149.0
       '@fohte/service-kit':
-        specifier: 0.1.17
-        version: 0.1.17(@opentelemetry/api@1.9.1)(@opentelemetry/core@2.12.0(@opentelemetry/api@1.9.1))(@opentelemetry/exporter-trace-otlp-http@0.219.0(@opentelemetry/api@1.9.1))(supports-color@10.2.2)
+        specifier: 0.1.18
+        version: 0.1.18(@opentelemetry/api@1.9.1)(@opentelemetry/core@2.12.0(@opentelemetry/api@1.9.1))(@opentelemetry/exporter-trace-otlp-http@0.219.0(@opentelemetry/api@1.9.1))(supports-color@10.2.2)
       '@hono/node-server':
         specifier: 2.1.8
         version: 2.1.8(hono@4.13.16)
@@ -232,9 +232,6 @@ importers:
       '@opentelemetry/semantic-conventions':
         specifier: 1.41.1
         version: 1.41.1
-      '@sentry/node':
-        specifier: 10.58.0
-        version: 10.58.0(@opentelemetry/exporter-trace-otlp-http@0.219.0(@opentelemetry/api@1.9.1))(supports-color@10.2.2)
       drizzle-orm:
         specifier: 0.45.3
         version: 0.45.3(@opentelemetry/api@1.9.1)(@types/pg@8.15.6)(postgres@3.4.9)
@@ -1430,8 +1427,8 @@ packages:
       typescript:
         optional: true
 
-  '@fohte/service-kit@0.1.17':
-    resolution: {integrity: sha512-dvMXBfYkXRzyC1msZISfeyocP+2eo6tIFuTQx6++OrddI6Eg6lCL3+O8hkjkJsO3i7HGgJNiXQd0Y6In8dBEHw==}
+  '@fohte/service-kit@0.1.18':
+    resolution: {integrity: sha512-YewO3FzOzTmLxaaQ8gKlIcBcncCwqMB2t+9Q4bwXXADHBYEP6ETV8UYpXlEmaiYyC3898ip52VfSrW8K9bQQZg==}
     peerDependencies:
       '@langchain/core': ^1.2.0
       '@opentelemetry/api': ^1.9.1
@@ -7779,7 +7776,7 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
 
-  '@fohte/service-kit@0.1.17(@opentelemetry/api@1.9.1)(@opentelemetry/core@2.12.0(@opentelemetry/api@1.9.1))(@opentelemetry/exporter-trace-otlp-http@0.219.0(@opentelemetry/api@1.9.1))(supports-color@10.2.2)':
+  '@fohte/service-kit@0.1.18(@opentelemetry/api@1.9.1)(@opentelemetry/core@2.12.0(@opentelemetry/api@1.9.1))(@opentelemetry/exporter-trace-otlp-http@0.219.0(@opentelemetry/api@1.9.1))(supports-color@10.2.2)':
     dependencies:
       '@bufbuild/protobuf': 2.14.0
       '@opentelemetry/auto-instrumentations-node': 0.77.0(@opentelemetry/api@1.9.1)(@opentelemetry/core@2.12.0(@opentelemetry/api@1.9.1))(supports-color@10.2.2)

@@ -1,8 +1,8 @@
 import { randomUUID } from 'node:crypto'
 import { createServer } from 'node:http'
 
+import { captureException } from '@fohte/service-kit/observability'
 import { getRequestListener } from '@hono/node-server'
-import * as Sentry from '@sentry/node'
 
 import { createDrizzleUserProfileRepository } from '#adapters/db/drizzle-user-profile-repository'
 import { createR2Client } from '#adapters/r2/client'
@@ -225,7 +225,7 @@ export const main = async (): Promise<void> => {
           for (const result of results) {
             if (result.status === 'rejected') {
               console.error('shutdown error:', result.reason)
-              Sentry.captureException(result.reason)
+              captureException(result.reason)
             }
           }
           // Runs after the captures above, not concurrently with them:
