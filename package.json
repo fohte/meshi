@@ -22,7 +22,7 @@
     "@ninoseki/eslint-plugin-neverthrow": "0.4.0",
     "@tsconfig/node-lts": "24.0.1",
     "@tsconfig/strictest": "2.0.9",
-    "@types/node": "26.5.0",
+    "@types/node": "26.6.6",
     "concurrently": "10.0.7",
     "eslint": "10.11.0",
     "eslint-plugin-storybook": "10.6.7",
