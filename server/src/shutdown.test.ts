@@ -9,26 +9,29 @@ vi.mock('@fohte/service-kit/observability', () => ({
 
 describe('captureShutdownErrors', () => {
   it('captures rejected operations before shutting down observability', async () => {
-    const events: string[] = []
+    const events: Array<
+      { type: 'capture'; error: unknown } | { type: 'shutdown' }
+    > = []
+    const error = Object.assign(new Error('resource cleanup failed'), {
+      code: 'cleanup_failure',
+    })
     vi.spyOn(console, 'error').mockImplementation(() => {})
     vi.mocked(captureException).mockImplementation((error) => {
-      events.push(
-        `capture:${error instanceof Error ? error.message : String(error)}`,
-      )
+      events.push({ type: 'capture', error })
       return 'event-id'
     })
 
     await captureShutdownErrors(
       [
-        { status: 'rejected', reason: new Error('resource cleanup failed') },
+        { status: 'rejected', reason: error },
         { status: 'fulfilled', value: undefined },
       ],
       () => {
-        events.push('shutdown')
+        events.push({ type: 'shutdown' })
         return Promise.resolve()
       },
     )
 
-    expect(events).toEqual(['capture:resource cleanup failed', 'shutdown'])
+    expect(events).toEqual([{ type: 'capture', error }, { type: 'shutdown' }])
   })
 })

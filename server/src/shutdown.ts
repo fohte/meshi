@@ -10,5 +10,8 @@ export const captureShutdownErrors = async (
       captureException(result.reason)
     }
   }
+  // Runs after the captures above, not concurrently with them:
+  // observability.shutdown() closes the Sentry client, and a
+  // captureException call made after close() is silently dropped.
   await shutdown()
 }
