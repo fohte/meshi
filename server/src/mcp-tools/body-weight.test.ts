@@ -119,6 +119,50 @@ describe('body weight MCP tools', () => {
     }
   })
 
+  it('records a weight with a minute-precision measurement time', async () => {
+    const calls: Parameters<BodyWeightService['record']>[0][] = []
+    const h = await start(
+      serviceWith({
+        record(input) {
+          calls.push(input)
+          return okAsync(bodyWeight)
+        },
+      }),
+    )
+    try {
+      const result = await h.client.callTool({
+        name: 'record_body_weight',
+        arguments: {
+          date: '2026-05-06',
+          weight_kg: 73.25,
+          measured_at: '2026-05-06T09:30+09:00',
+        },
+      })
+      expect(observation({ calls, result })).toEqual({
+        calls: [
+          {
+            date: '2026-05-06',
+            weightKg: 73.25,
+            measuredAt: new Date('2026-05-06T00:30:00.000Z'),
+          },
+        ],
+        result: {
+          content: [{ type: 'text', text: '体重を記録しました。' }],
+          structuredContent: {
+            body_weight_id: 'body_weight_fixture_alpha',
+            date: '2026-05-06',
+            measured_at: '2026-05-06T00:30:00.000Z',
+            weight_kg: 73.25,
+            created_at: '2026-05-06T00:31:00.000Z',
+            updated_at: '2026-05-06T00:32:00.000Z',
+          },
+        },
+      })
+    } finally {
+      await h.close()
+    }
+  })
+
   it('maps record errors to structured domain errors', async () => {
     const error = new InvalidBodyWeightValueError(73.255)
     const h = await start(serviceWith({ record: () => errAsync(error) }))
@@ -230,6 +274,44 @@ describe('body weight MCP tools', () => {
             date: '2026-05-06',
             measured_at: null,
             weight_kg: 69,
+            created_at: '2026-05-06T00:31:00.000Z',
+            updated_at: '2026-05-06T00:32:00.000Z',
+          },
+        },
+      })
+    } finally {
+      await h.close()
+    }
+  })
+
+  it('updates a weight with a second-precision measurement time', async () => {
+    const calls: Parameters<BodyWeightService['update']>[0][] = []
+    const measuredAt = new Date('2026-05-06T00:30:45.000Z')
+    const h = await start(
+      serviceWith({
+        update(input) {
+          calls.push(input)
+          return okAsync({ ...bodyWeight, measuredAt })
+        },
+      }),
+    )
+    try {
+      const result = await h.client.callTool({
+        name: 'update_body_weight',
+        arguments: {
+          body_weight_id: bodyWeight.id,
+          measured_at: '2026-05-06T09:30:45+09:00',
+        },
+      })
+      expect(observation({ calls, result })).toEqual({
+        calls: [{ id: bodyWeight.id, measuredAt }],
+        result: {
+          content: [{ type: 'text', text: '体重記録を更新しました。' }],
+          structuredContent: {
+            body_weight_id: 'body_weight_fixture_alpha',
+            date: '2026-05-06',
+            measured_at: '2026-05-06T00:30:45.000Z',
+            weight_kg: 73.25,
             created_at: '2026-05-06T00:31:00.000Z',
             updated_at: '2026-05-06T00:32:00.000Z',
           },

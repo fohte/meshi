@@ -2,7 +2,10 @@ import { z } from 'zod'
 
 import { jstDateSchema } from '#lib/jst-date'
 
-const measuredAtSchema = z.iso.datetime({ offset: true })
+const measuredAtSchema = z.union([
+  z.iso.datetime({ offset: true }),
+  z.iso.datetime({ offset: true, precision: -1 }),
+])
 
 const BODY_FAT_DESCRIPTION = '体脂肪率 (%)。体重に占める脂肪の割合。'
 const MUSCLE_MASS_DESCRIPTION =
