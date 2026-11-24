@@ -36,14 +36,14 @@
   "dependencies": {
     "@aws-sdk/client-s3": "3.1149.0",
     "@fohte/service-kit": "0.1.16",
-    "@hono/node-server": "2.0.12",
-    "@modelcontextprotocol/node": "2.0.0",
+    "@hono/node-server": "2.1.6",
+    "@modelcontextprotocol/node": "2.1.0",
     "@modelcontextprotocol/server": "2.3.0",
     "@opentelemetry/api": "1.9.1",
     "@opentelemetry/semantic-conventions": "1.41.1",
     "@sentry/node": "10.58.0",
     "drizzle-orm": "0.45.3",
-    "hono": "4.12.34",
+    "hono": "4.13.16",
     "neverthrow": "8.2.0",
     "postgres": "3.4.9",
     "zod": "4.6.6"
