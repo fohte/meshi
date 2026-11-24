@@ -35,7 +35,7 @@
     "zod": "4.4.3"
   },
   "devDependencies": {
-    "@fohte/storybook-addon": "0.2.0",
+    "@fohte/storybook-addon": "0.2.1",
     "@storybook/addon-docs": "10.6.0",
     "@storybook/addon-themes": "10.6.0",
     "@storybook/addon-vitest": "10.6.0",
