@@ -34,3 +34,5 @@ minimumReleaseAgeExclude:
   - '@modelcontextprotocol/server@2.3.0'
   # Renovate security update: @modelcontextprotocol/node@2.1.0
   - '@modelcontextprotocol/node@2.1.0'
+  # Renovate security update: zod@4.6.6
+  - zod@4.6.6
