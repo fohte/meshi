@@ -230,8 +230,8 @@ importers:
         specifier: 2.1.9
         version: 2.1.9(hono@4.13.19)
       '@modelcontextprotocol/node':
-        specifier: 2.1.0
-        version: 2.1.0(@modelcontextprotocol/server@2.3.0)(hono@4.13.19)
+        specifier: 2.1.2
+        version: 2.1.2(@modelcontextprotocol/server@2.3.0)
       '@modelcontextprotocol/server':
         specifier: 2.3.0
         version: 2.3.0
@@ -1498,12 +1498,6 @@ packages:
     engines: {node: '>=6'}
     hasBin: true
 
-  '@hono/node-server@1.19.17':
-    resolution: {integrity: sha512-dSneS5qhiauZWGDCeK4o695Xd9nUNjviSZCMQrj10eetr8Uln1ucn6bbphOM6UynAMMtNIzZNSpL9vnASJwrPQ==}
-    engines: {node: '>=18.14.1'}
-    peerDependencies:
-      hono: ^4
-
   '@hono/node-server@2.1.9':
     resolution: {integrity: sha512-Sk4NQd3GFY0WZWCzndwFMPwJhtD0y9qjsQ+pjID0/03nK9pxyBCUoUHCho8QYBLBVhi0ssL8UkNPHqbgSOFPIQ==}
     engines: {node: '>=20'}
@@ -1624,15 +1618,11 @@ packages:
     resolution: {integrity: sha512-z8QBKqdfXLPzkLQuG4xp8hrVEMm1PZ1IgxMN2sMbJiFiAKOWXnAzogXn2W4aqIBlP1ea6U5yiqVquvUNM1Cj6Q==}
     engines: {node: '>=20'}
 
-  '@modelcontextprotocol/node@2.1.0':
-    resolution: {integrity: sha512-6xg3iWVcOfiL8Y7rI6xUqXD0lI2AY5q3djsa/cOi1IJUSwx06t0gvhSwU/6mIIohrFlt40/ANUG56DQ0HLhILQ==}
+  '@modelcontextprotocol/node@2.1.2':
+    resolution: {integrity: sha512-IIcIqBpr6NCQQs5DgJTgvbSOAw+3iaR/uquqg+e0nXCdudfjPg/80x0TseUnQx14AUAtE4fsJCEpJKPyb6WPVA==}
     engines: {node: '>=20'}
     peerDependencies:
-      '@modelcontextprotocol/server': ^2.1.0
-      hono: ^4.11.4
-    peerDependenciesMeta:
-      hono:
-        optional: true
+      '@modelcontextprotocol/server': ^2.4.0
 
   '@modelcontextprotocol/sdk@1.32.1':
     resolution: {integrity: sha512-2DdE+SJDtzLEEWzY1ZjY7Q+VcPhcV1KisD3zI4u0XZyktsjHum1mwbMI+JaulUBi2OZk+KJAi2uPXzxichPkdw==}
@@ -7779,10 +7769,6 @@ snapshots:
       protobufjs: 7.6.6
       yargs: 17.7.3
 
-  '@hono/node-server@1.19.17(hono@4.13.19)':
-    dependencies:
-      hono: 4.13.19
-
   '@hono/node-server@2.1.9(hono@4.12.34)':
     dependencies:
       hono: 4.12.34
@@ -7904,11 +7890,10 @@ snapshots:
     dependencies:
       zod: 4.6.7
 
-  '@modelcontextprotocol/node@2.1.0(@modelcontextprotocol/server@2.3.0)(hono@4.13.19)':
+  '@modelcontextprotocol/node@2.1.2(@modelcontextprotocol/server@2.3.0)':
     dependencies:
-      '@hono/node-server': 1.19.17(hono@4.13.19)
+      '@hono/node-server': 2.1.9(hono@4.13.19)
       '@modelcontextprotocol/server': 2.3.0
-    optionalDependencies:
       hono: 4.13.19
 
   '@modelcontextprotocol/sdk@1.32.1(supports-color@10.2.2)(zod@3.25.76)':
